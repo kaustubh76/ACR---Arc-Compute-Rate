@@ -1,0 +1,198 @@
+"""Cleaning Stack — the contamination filter that precedes estimation.
+
+The estimator assumes contaminated data. Four defenses, all computed on the
+funding graph (who paid whom, weighted by USDC notional):
+
+  1. self-dealing   — buyer == seller.
+  2. wash cycles    — reciprocal funding (A pays B *and* B pays A): a ring
+                      whose net on-chain flow is ~zero but which prints volume.
+  3. sybil clusters — small, self-contained communities (Louvain) that trade
+                      mostly with themselves rather than the wider market.
+  4. cluster caps   — no single community may contribute more than a fixed
+                      fraction of window weight, bounding any one actor's pull.
+
+The output is a per-event weight vector (zeroed for excluded flow, scaled down
+for capped clusters) plus the diagnostic sets the manipulation bound consumes.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import networkx as nx
+import numpy as np
+from acr_core import TapeEvent
+
+#: A community is flagged sybil if it is small and this share of the notional on
+#: edges *touching* it stays internal (``I / (I + B)``, each edge counted once).
+SYBIL_INTERNAL_RATIO = 0.6
+SYBIL_MAX_SIZE = 40
+
+
+@dataclass
+class CleaningResult:
+    events: list[TapeEvent]
+    #: Per-event weight aligned to ``events`` (0 = excluded).
+    weights: np.ndarray
+    flagged_self_dealing: set[str] = field(default_factory=set)
+    flagged_wash: set[str] = field(default_factory=set)
+    flagged_sybil: set[str] = field(default_factory=set)
+    communities: list[set[str]] = field(default_factory=list)
+    sybil_communities: list[set[str]] = field(default_factory=list)
+    #: Fraction of raw notional removed by cleaning (excluded + cap-scaled).
+    removed_fraction: float = 0.0
+    #: Fraction zeroed by the exclusion filters (self-deal/wash/sybil).
+    excluded_fraction: float = 0.0
+    #: Fraction scaled away by the per-cluster volume caps.
+    cap_scaled_fraction: float = 0.0
+
+    @property
+    def kept_mask(self) -> np.ndarray:
+        return self.weights > 0
+
+    @property
+    def all_flagged(self) -> set[str]:
+        return self.flagged_self_dealing | self.flagged_wash | self.flagged_sybil
+
+
+def _funding_graphs(events: list[TapeEvent]) -> tuple[nx.DiGraph, nx.Graph]:
+    """Directed funding graph (for cycles) + undirected weighted (for Louvain)."""
+    di = nx.DiGraph()
+    un = nx.Graph()
+    for e in events:
+        if di.has_edge(e.buyer, e.seller):
+            di[e.buyer][e.seller]["weight"] += e.notional
+        else:
+            di.add_edge(e.buyer, e.seller, weight=e.notional)
+        if un.has_edge(e.buyer, e.seller):
+            un[e.buyer][e.seller]["weight"] += e.notional
+        else:
+            un.add_edge(e.buyer, e.seller, weight=e.notional)
+    return di, un
+
+
+def _detect_sybil_communities(
+    un: nx.Graph, communities: list[set[str]], node_comm: dict[str, int]
+) -> list[set[str]]:
+    """Flag small communities whose notional stays mostly internal.
+
+    One pass over the undirected edges accumulates, per community c, the internal
+    weight ``I_c`` (both endpoints in c) and the boundary weight ``B_c`` (exactly
+    one endpoint in c). The sybil score is ``I_c / (I_c + B_c)`` — each edge
+    counted once, so a purely-internal cluster scores 1.0 and a community that
+    trades half externally scores 0.5 (correctly *below* the threshold).
+    """
+    internal: dict[int, float] = {}
+    boundary: dict[int, float] = {}
+    for u, v, data in un.edges(data=True):
+        w = data.get("weight", 0.0)
+        cu, cv = node_comm[u], node_comm[v]
+        if cu == cv:
+            internal[cu] = internal.get(cu, 0.0) + w
+        else:
+            boundary[cu] = boundary.get(cu, 0.0) + w
+            boundary[cv] = boundary.get(cv, 0.0) + w
+
+    sybil: list[set[str]] = []
+    for i, comm in enumerate(communities):
+        if len(comm) > SYBIL_MAX_SIZE:
+            continue
+        i_c = internal.get(i, 0.0)
+        denom = i_c + boundary.get(i, 0.0)
+        if denom > 0 and (i_c / denom) >= SYBIL_INTERNAL_RATIO:
+            sybil.append(comm)
+    return sybil
+
+
+def clean(
+    events: list[TapeEvent],
+    cluster_cap: float = 0.05,
+    seed: int = 0,
+) -> CleaningResult:
+    if not events:
+        return CleaningResult(events=[], weights=np.empty(0))
+
+    weights = np.array([e.notional for e in events], dtype=float)
+    total = float(weights.sum())
+    di, un = _funding_graphs(events)
+
+    # Community structure via Louvain on the weighted funding graph.
+    try:
+        communities = [
+            set(c) for c in nx.community.louvain_communities(un, weight="weight", seed=seed)
+        ]
+    except Exception:  # pragma: no cover - fallback if backend missing
+        communities = [set(c) for c in nx.connected_components(un)]
+    node_comm = {n: i for i, c in enumerate(communities) for n in c}
+    sybil_comms = _detect_sybil_communities(un, communities, node_comm)
+    sybil_nodes = set().union(*sybil_comms) if sybil_comms else set()
+
+    # Reciprocal (wash-cycle) pairs.
+    reciprocal: set[frozenset[str]] = set()
+    for u, v in di.edges():
+        if di.has_edge(v, u):
+            reciprocal.add(frozenset((u, v)))
+
+    fd_self: set[str] = set()
+    fd_wash: set[str] = set()
+    fd_sybil: set[str] = set()
+
+    for i, e in enumerate(events):
+        excluded = False
+        if e.buyer == e.seller:
+            fd_self.add(e.event_id)
+            excluded = True
+        elif frozenset((e.buyer, e.seller)) in reciprocal:
+            fd_wash.add(e.event_id)
+            excluded = True
+        elif e.buyer in sybil_nodes and e.seller in sybil_nodes:
+            fd_sybil.add(e.event_id)
+            excluded = True
+        if excluded:
+            weights[i] = 0.0
+
+    excluded_weight = total - float(weights.sum())
+
+    # Per-cluster volume caps on the survivors. A community's weight is the
+    # notional it touches as *either* buyer or seller, so a buyer cluster that
+    # funnels flow through many disjoint sellers is capped too (the seller-only
+    # version missed this). Each event is scaled by the tighter of its two
+    # endpoints' community caps.
+    if total > 0 and cluster_cap < 1.0:
+        cap = cluster_cap * total
+        comm_weight: dict[int, float] = {}
+        for i, e in enumerate(events):
+            if weights[i] <= 0:
+                continue
+            cs = node_comm.get(e.seller, -1)
+            cb = node_comm.get(e.buyer, -1)
+            comm_weight[cs] = comm_weight.get(cs, 0.0) + weights[i]
+            if cb != cs:
+                comm_weight[cb] = comm_weight.get(cb, 0.0) + weights[i]
+        scale = {c: (cap / w if w > cap else 1.0) for c, w in comm_weight.items()}
+        for i, e in enumerate(events):
+            if weights[i] <= 0:
+                continue
+            f = min(
+                scale.get(node_comm.get(e.seller, -1), 1.0),
+                scale.get(node_comm.get(e.buyer, -1), 1.0),
+            )
+            if f < 1.0:
+                weights[i] *= f
+
+    surviving = float(weights.sum())
+    excluded_fraction = excluded_weight / total if total > 0 else 0.0
+    removed = 1.0 - (surviving / total if total > 0 else 0.0)
+    cap_scaled_fraction = max(0.0, removed - excluded_fraction)
+    return CleaningResult(
+        events=events,
+        weights=weights,
+        flagged_self_dealing=fd_self,
+        flagged_wash=fd_wash,
+        flagged_sybil=fd_sybil,
+        communities=communities,
+        sybil_communities=sybil_comms,
+        removed_fraction=removed,
+        excluded_fraction=excluded_fraction,
+        cap_scaled_fraction=cap_scaled_fraction,
+    )
