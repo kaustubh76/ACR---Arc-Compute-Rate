@@ -104,6 +104,10 @@ class ACRSettings(BaseSettings):
     # --- tape source selection ---
     #: "sim" (default, the calibrated simulator) or "arc" (live Arc testnet tape).
     tape_source: str = "sim"
+    #: How many blocks back ArcSource scans for USDC transfer logs. Kept modest
+    #: because USDC is Arc's native gas token → Transfer logs are dense; ArcSource
+    #: also adaptively shrinks the range if the RPC still rejects it as too large.
+    arc_tape_lookback_blocks: int = 800
 
     # --- service ---
     #: Seconds between index_api store refreshes / oracle-post cycles.
