@@ -1,0 +1,161 @@
+"""Marketplace tests — Bazaar-shaped catalog + settlement ledger (offline, hermetic)."""
+
+from __future__ import annotations
+
+from acr_core import ALL_INDEX_IDS, ModelClass, SellerAttestation, Service, reset_settings
+from fastapi.testclient import TestClient
+from index_api.marketplace import (
+    NullRegistry,
+    build_catalog,
+    build_receipts,
+    catalog_resources,
+    get_registry,
+    reset_registry,
+    set_registry,
+)
+from index_api.x402 import DevFacilitator, reset_facilitator, set_facilitator
+
+
+class FakeRegistry:
+    def __init__(self, attestations):
+        self._attestations = attestations
+
+    def connected(self) -> bool:
+        return True
+
+    def all_attestations(self):
+        return self._attestations
+
+
+def _fake_attestations():
+    return [
+        SellerAttestation(
+            seller="0xSellerA", service=Service.INFERENCE, model_class=ModelClass.FRONTIER,
+            latency_slo_ms=250.0, schema_id="acr-v1", ts=0.0,
+        ),
+        SellerAttestation(
+            seller="0xSellerB", service=Service.GPU, model_class=ModelClass.MID,
+            latency_slo_ms=500.0, schema_id="acr-v1", ts=0.0,
+        ),
+    ]
+
+
+def test_catalog_expands_all_resources():
+    resources = catalog_resources()
+    paths = [p for p, _ in resources]
+    # 1 unparametrized (/prints) + 4 families × 3 indices.
+    assert len(paths) == 1 + 4 * len(ALL_INDEX_IDS) == 13
+    assert "/prints" in paths
+    assert "/curve/ACR-INF" in paths and "/seller-scores/ACR-DATA" in paths
+    assert not any("{index_id}" in p for p in paths)  # no template residue
+
+
+def test_catalog_items_are_bazaar_shaped():
+    reset_settings()
+    cat = build_catalog("http://test:8000/", registry=NullRegistry())
+    assert cat["x402Version"] == 1
+    assert len(cat["items"]) == 13
+    item = next(i for i in cat["items"] if i["resource"].endswith("/prints"))
+    assert item["type"] == "http"
+    acc = item["accepts"][0]
+    # Requirements are the same objects the 402 challenge emits (v1+v2 keys).
+    assert acc["scheme"] == "exact"
+    assert acc["network"] == "eip155:5042002"
+    assert acc["maxAmountRequired"] == acc["amount"] == "100"
+    assert acc["resource"] == "http://test:8000/prints"
+    assert acc["payTo"].startswith("0x")
+    meta = item["metadata"]
+    assert meta["description"] and meta["input"]["type"] == "object"
+    assert "properties" in meta["output"]
+    assert meta["provider"]["attestation"] is None  # offline → honest null
+
+
+def test_catalog_honors_resource_base(monkeypatch):
+    monkeypatch.setenv("ACR_X402_RESOURCE_BASE", "https://acr.example")
+    reset_settings()
+    try:
+        cat = build_catalog("http://ignored:1234/", registry=NullRegistry())
+        assert all(i["resource"].startswith("https://acr.example/") for i in cat["items"])
+    finally:
+        monkeypatch.undo()
+        reset_settings()
+
+
+def test_catalog_attestation_block_from_registry():
+    reset_settings()
+    cat = build_catalog("http://test/", registry=FakeRegistry(_fake_attestations()))
+    att = cat["items"][0]["metadata"]["provider"]["attestation"]
+    assert att["sellers_attested"] == 2
+    assert att["services"] == ["gpu", "inference"]
+    assert att["latency_slo_ms"] == {"min": 250.0, "max": 500.0}
+
+
+def test_registry_seam_defaults_to_null():
+    reset_settings()
+    reset_registry()
+    try:
+        assert isinstance(get_registry(), NullRegistry)  # no ACR_REGISTRY_ADDRESS → chain-free
+    finally:
+        reset_registry()
+
+
+def test_registry_seam_injectable():
+    fake = FakeRegistry([])
+    set_registry(fake)
+    try:
+        assert get_registry() is fake
+    finally:
+        reset_registry()
+
+
+def test_receipts_ledger_shape_and_order():
+    fac = DevFacilitator()
+    import asyncio
+
+    from fastapi import Response
+
+    for i in range(3):
+        asyncio.run(fac.process(None, f"x402 0xagent-{i}:0.0001", Response()))
+    ledger = build_receipts(fac)
+    assert ledger["gate"] == "dev"
+    assert ledger["paid_queries"] == 3
+    assert ledger["price_usdc"] == 0.0001
+    seqs = [r["seq"] for r in ledger["receipts"]]
+    assert seqs == [3, 2, 1]  # newest first, monotone ordinals
+    assert ledger["receipts"][0]["payer"] == "0xagent-2"
+    # The dev tx_ref ordinal matches the ledger seq (dev-3 is Nº 3).
+    assert ledger["receipts"][0]["tx_ref"] == "dev-3"
+    assert all("timestamp" not in r and "date" not in r for r in ledger["receipts"])
+
+
+def test_receipts_empty_state():
+    ledger = build_receipts(DevFacilitator())
+    assert ledger["paid_queries"] == 0 and ledger["receipts"] == []
+
+
+def test_marketplace_endpoints_via_http():
+    from index_api.app import app
+
+    reset_settings()
+    reset_facilitator()
+    reset_registry()
+    try:
+        client = TestClient(app)
+        cat = client.get("/marketplace/catalog")
+        assert cat.status_code == 200
+        assert len(cat.json()["items"]) == 13
+        # Discovery is free; the data itself still costs (402 without payment).
+        assert client.get("/prints").status_code == 402
+
+        set_facilitator(DevFacilitator())
+        r = client.get("/vol/ACR-INF", headers={"X-Payment": "x402 0xledger-agent:0.0001"})
+        assert r.status_code == 200
+        led = client.get("/marketplace/receipts").json()
+        assert led["paid_queries"] == 1
+        assert led["receipts"][0]["payer"] == "0xledger-agent"
+        # The root service card advertises the marketplace.
+        assert client.get("/").json()["marketplace"]["catalog"] == "/marketplace/catalog"
+    finally:
+        reset_settings()
+        reset_facilitator()
+        reset_registry()

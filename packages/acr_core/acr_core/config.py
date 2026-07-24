@@ -83,6 +83,10 @@ class ACRSettings(BaseSettings):
     #: signatures fully offline. Blank → the receiver fetches the key from Circle
     #: by key-id (needs circle_api_key) and caches it.
     circle_webhook_public_key: str = ""
+    #: JSONL append-log of inbound Circle webhook events (one event per line).
+    #: Survives restarts and rehydrates the /webhooks/recent feed. Blank disables
+    #: the file (in-memory only). Relative paths resolve from the process cwd.
+    webhook_log_path: str = "data/webhook_events.jsonl"
 
     # --- x402 / Nanopayments (empty facilitator url → dev-mode gate) ---
     #: Facilitator selection: "auto" (Circle iff URL + PAY_TO are set), "dev"

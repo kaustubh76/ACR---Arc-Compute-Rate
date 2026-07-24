@@ -1,0 +1,369 @@
+"""Agent-marketplace surfaces — machine-readable listings + the settlement ledger.
+
+``/marketplace/catalog`` lists every x402-gated endpoint in the shape agents
+already parse in the wild (the x402 "Bazaar" item: ``{resource, type,
+x402Version, accepts, metadata}``), so a buyer agent can discover, price, and
+pay ACR services without human configuration. The on-chain
+``AttestationRegistry`` doubles as the listing's reputation anchor (the
+ERC-8004 idea — identity + attested quality metadata — surfaced here as
+``metadata.provider.attestation``): a cautious buyer can require attested
+sellers before paying.
+
+``/marketplace/receipts`` is the public settlement ledger: the facilitator's
+ring of recent :class:`~index_api.x402.PaymentReceipt` rows, newest first.
+Receipts carry a monotone ``seq`` ordinal, deliberately not a wall-clock time
+(prints and the Terminal narrate in Fixing numbers, never dates).
+
+Offline-invariant: with no ``ACR_REGISTRY_ADDRESS`` the registry seam is a
+``NullRegistry`` and ``provider.attestation`` is ``null`` — the catalog itself
+never needs chain, Circle, or credentials.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+
+from acr_core import ALL_INDEX_IDS, get_settings, spec_for
+
+from .x402 import Facilitator, build_payment_requirements, price_usdc
+
+log = logging.getLogger("index_api.marketplace")
+
+#: Cache the on-chain attestation summary: reading it is ~1 + 2·N rate-limited
+#: RPC calls (sellerCount + sellerAt/getAttestation per seller), too slow to do
+#: on every /marketplace/catalog request. The registry only changes when someone
+#: attests, so a TTL above the refresh interval (warmed by the background loop)
+#: keeps the request path from ever blocking. Mirrors onchain.READ_ALL_TTL_S.
+ATTESTATION_TTL_S = 90.0
+_att_lock = threading.Lock()
+_att_cache: dict | None = None
+_att_at = 0.0
+
+_INDEX_ID_PARAM = {
+    "type": "object",
+    "properties": {
+        "index_id": {
+            "type": "string",
+            "enum": list(ALL_INDEX_IDS),
+            "description": "index id (path parameter)",
+        }
+    },
+    "required": ["index_id"],
+}
+
+_PRINT_FIELDS = {
+    "index_id": {"type": "string"},
+    "ts": {"type": "number", "description": "sim-seconds; Fixing Nº = ts/3600"},
+    "value": {"type": "number"},
+    "ci_lo": {"type": "number"},
+    "ci_hi": {"type": "number"},
+    "unit": {"type": "string"},
+    "naive_vwap": {"type": "number"},
+    "cleaned_pct": {"type": "number"},
+    "cost_to_move_1pct": {"type": "number"},
+}
+
+#: The five gated endpoint families (mirrors ``app.GATED_ENDPOINTS``), each with
+#: enough machine-readable metadata for an agent to decide *before* paying.
+ENDPOINT_FAMILIES: list[dict] = [
+    {
+        "family": "prints",
+        "template": "/prints",
+        "description": (
+            "All latest ACR fixings — constant-quality rate, bootstrap CI, "
+            "manipulation cost, robustness — for every index."
+        ),
+        "input": {"type": "object", "properties": {}},
+        "output": {
+            "type": "object",
+            "properties": {
+                "prints": {
+                    "type": "object",
+                    "additionalProperties": {"type": "object", "properties": _PRINT_FIELDS},
+                }
+            },
+        },
+    },
+    {
+        "family": "print",
+        "template": "/prints/{index_id}",
+        "description": "One fixing with full diagnostics (CI, attack cost, robustness).",
+        "input": _INDEX_ID_PARAM,
+        "output": {"type": "object", "properties": _PRINT_FIELDS},
+    },
+    {
+        "family": "curve",
+        "template": "/curve/{index_id}",
+        "description": "Term structure — Avellaneda–Stoikov mids at 1/2/4/8-week tenors.",
+        "input": _INDEX_ID_PARAM,
+        "output": {
+            "type": "object",
+            "properties": {
+                "index_id": {"type": "string"},
+                "curve": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tenor_weeks": {"type": "integer"},
+                            "expiry_ts": {"type": "number"},
+                            "mid": {"type": "number"},
+                            "bid": {"type": "number"},
+                            "ask": {"type": "number"},
+                            "spread_bp": {"type": "number"},
+                        },
+                    },
+                },
+            },
+        },
+    },
+    {
+        "family": "vol",
+        "template": "/vol/{index_id}",
+        "description": "Annualized realized volatility from the print history.",
+        "input": _INDEX_ID_PARAM,
+        "output": {
+            "type": "object",
+            "properties": {
+                "index_id": {"type": "string"},
+                "annualized_vol": {"type": "number"},
+            },
+        },
+    },
+    {
+        "family": "seller-scores",
+        "template": "/seller-scores/{index_id}",
+        "description": "Seller reliability — attestation + clean-volume share per seller.",
+        "input": _INDEX_ID_PARAM,
+        "output": {
+            "type": "object",
+            "properties": {
+                "index_id": {"type": "string"},
+                "sellers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "seller": {"type": "string"},
+                            "score": {"type": "number"},
+                            "clean_share": {"type": "number"},
+                            "attested": {"type": "boolean"},
+                            "volume_usdc": {"type": "number"},
+                        },
+                    },
+                },
+            },
+        },
+    },
+]
+
+
+def catalog_resources() -> list[tuple[str, dict]]:
+    """Expand the endpoint families into concrete ``(path, family)`` listings —
+    one per index for the parametrized families (13 resources total)."""
+    out: list[tuple[str, dict]] = []
+    for fam in ENDPOINT_FAMILIES:
+        if "{index_id}" in fam["template"]:
+            for iid in ALL_INDEX_IDS:
+                out.append((fam["template"].replace("{index_id}", iid), fam))
+        else:
+            out.append((fam["template"], fam))
+    return out
+
+
+# --- registry seam (mirrors onchain.get_reader): lazy, offline-tolerant ---
+
+
+class NullRegistry:
+    """The no-chain stand-in: never connected, no attestations."""
+
+    def connected(self) -> bool:
+        return False
+
+    def all_attestations(self) -> list:
+        return []
+
+
+_registry = None
+
+
+def get_registry():
+    """The attestation-registry client, built lazily from env.
+
+    Only constructs a real ``RegistryClient`` (and thus touches web3) when
+    ``ACR_REGISTRY_ADDRESS`` is set — otherwise the catalog stays chain-free.
+    """
+    global _registry
+    if _registry is None:
+        s = get_settings()
+        if s.registry_address:
+            from acr_oracle_client import RegistryClient
+
+            _registry = RegistryClient()
+        else:
+            _registry = NullRegistry()
+    return _registry
+
+
+def set_registry(registry) -> None:
+    """Install a registry (tests inject a fake with canned attestations)."""
+    global _registry
+    _registry = registry
+
+
+def reset_registry() -> None:
+    global _registry, _att_cache, _att_at
+    _registry = None
+    with _att_lock:
+        _att_cache, _att_at = None, 0.0
+
+
+def _read_attestation_summary(registry, settings) -> dict | None:
+    """Read + summarize on-chain seller attestations (no cache — the raw read).
+
+    ``None`` when no registry is connected — an honest "unattested listing"
+    rather than a fabricated reputation.
+    """
+    try:
+        if not registry.connected():
+            return None
+        attestations = registry.all_attestations()
+    except Exception:  # pragma: no cover - live chain hiccup → honest null
+        log.warning("attestation read failed", exc_info=True)
+        return None
+    return {
+        "registry": settings.registry_address,
+        "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
+        "sellers_attested": len(attestations),
+        "services": sorted({a.service.value for a in attestations}),
+        "latency_slo_ms": {
+            "min": min((a.latency_slo_ms for a in attestations), default=None),
+            "max": max((a.latency_slo_ms for a in attestations), default=None),
+        },
+    }
+
+
+def cached_attestation_summary(settings, *, force: bool = False) -> dict | None:
+    """The default (singleton-registry) path, TTL-cached so the catalog endpoint
+    doesn't block on a burst of rate-limited RPC reads. ``force`` refreshes it
+    (the background loop's off-request warm). Only ever touches the singleton
+    registry — an injected registry reads fresh via ``_read_attestation_summary``.
+    """
+    global _att_cache, _att_at
+    if not force:
+        with _att_lock:
+            if _att_at and time.monotonic() - _att_at < ATTESTATION_TTL_S:
+                return _att_cache
+    summary = _read_attestation_summary(get_registry(), settings)
+    with _att_lock:
+        _att_cache, _att_at = summary, time.monotonic()
+    return summary
+
+
+def warm_attestation_summary() -> None:
+    """Refresh the attestation-summary cache off the request path (background loop)."""
+    cached_attestation_summary(get_settings(), force=True)
+
+
+def build_catalog(base_url: str, settings=None, registry=None) -> dict:
+    """The Bazaar-shaped catalog of every paid ACR resource."""
+    s = settings or get_settings()
+    # An injected registry (tests / overrides) reads fresh; the default singleton
+    # path is TTL-cached (a live-RPC optimization warmed by the background loop).
+    attestation = (
+        _read_attestation_summary(registry, s)
+        if registry is not None
+        else cached_attestation_summary(s)
+    )
+    base = (s.x402_resource_base or base_url).rstrip("/")
+    provider = {
+        "name": "ACR — The Arc Compute Rate",
+        "tagline": "the constant-quality price of machine services, sold to machines",
+        "attestation": attestation,
+    }
+    items = []
+    for path, fam in catalog_resources():
+        resource = base + path
+        items.append(
+            {
+                "resource": resource,
+                "type": "http",
+                "x402Version": 1,
+                "accepts": [build_payment_requirements(resource, s)],
+                "metadata": {
+                    "family": fam["family"],
+                    "description": fam["description"],
+                    "input": fam["input"],
+                    "output": fam["output"],
+                    "provider": provider,
+                    "units": {iid: spec_for(iid).unit for iid in ALL_INDEX_IDS},
+                },
+            }
+        )
+    return {"x402Version": 1, "provider": provider, "items": items}
+
+
+def build_sim_receipts(n: int = 24, settings=None) -> dict:
+    """A deterministic simulated settlement ledger for the offline bundle.
+
+    Exactly the :func:`build_receipts` shape, but seeded: payers are realistic
+    40-hex-char addresses derived from a seeded sha256, tx_refs count ``sim-1``
+    .. ``sim-N``. Honest by construction — ``scheme: "sim"`` plus the ``sim-``
+    tx_ref prefix are precisely how the Terminal labels simulated rows.
+    """
+    import hashlib
+
+    s = settings or get_settings()
+    price = s.x402_price_usdc
+    rows = [
+        {
+            "seq": i,
+            "payer": "0x" + hashlib.sha256(f"acr-sim-payer-{i}".encode()).hexdigest()[:40],
+            "amount_usdc": price,
+            "tx_ref": f"sim-{i}",
+            "network": s.caip2(),
+            "scheme": "sim",
+        }
+        for i in range(1, n + 1)
+    ]
+    rows.reverse()  # newest first, like the live ledger
+    return {
+        "gate": "dev",
+        "paid_queries": n,
+        "revenue_usdc": round(n * price, 6),
+        "price_usdc": price,
+        "receipts": rows,
+    }
+
+
+def build_receipts(fac: Facilitator) -> dict:
+    """The public settlement ledger — the facilitator's recent-receipt ring,
+    newest first, with a monotone ``seq`` ordinal (no wall-clock: the ring
+    holds the last 256 of ``paid_queries`` total)."""
+    receipts = list(fac.recent)
+    # Clamped: a paid query landing between the two reads above can skew the
+    # count by one for a single poll — never let an ordinal go below 1.
+    first_seq = max(1, fac.paid_queries - len(receipts) + 1)
+    rows = [
+        {
+            "seq": first_seq + i,
+            "payer": r.payer,
+            "amount_usdc": r.amount_usdc,
+            "tx_ref": r.tx_ref,
+            "network": r.network,
+            "scheme": r.scheme,
+        }
+        for i, r in enumerate(receipts)
+    ]
+    rows.reverse()
+    from .x402 import CircleFacilitator
+
+    return {
+        "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
+        "paid_queries": fac.paid_queries,
+        "revenue_usdc": fac.revenue_usdc,
+        "price_usdc": price_usdc(),
+        "receipts": rows,
+    }
