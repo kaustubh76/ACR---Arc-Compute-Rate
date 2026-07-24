@@ -1,0 +1,23 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+# EIP-712 verifiers (postPrint / attestWithSig) carry 9 params + a signed
+# struct; the IR pipeline resolves the resulting stack pressure cleanly.
+via_ir = true
+fs_permissions = [{ access = "read", path = "./" }]
+
+[fuzz]
+runs = 256
+
+[invariant]
+runs = 64
+depth = 32
+# The handler only ever constructs valid, properly-signed posts, so a revert
+# signals a real defect — not a rejected fuzz input. This makes the invariants
+# meaningful (they run against genuine posted state, not mostly-reverted calls).
+fail_on_revert = true
