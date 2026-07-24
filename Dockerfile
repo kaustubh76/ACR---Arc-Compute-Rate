@@ -1,0 +1,39 @@
+# ACR seller API — x402-gated FastAPI service (services/index_api).
+# Build:  docker build -t acr-api .
+# Run:    docker run --rm -p 8000:8000 --env-file .env acr-api
+# All runtime config is ACR_* env vars (see .env.example); with none set the
+# service comes up credential-free on the dev gate + simulator tape.
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Lockfile + workspace sources (the uv workspace is packages/* + services/*;
+# apps/ and contracts/ are not Python members and stay out of the image).
+COPY pyproject.toml uv.lock Readme.md ./
+COPY packages/ packages/
+COPY services/ services/
+
+RUN uv sync --frozen --no-dev && rm -rf /root/.cache/uv
+
+# Non-root runtime user; the sync above ran as root so site-packages are owned
+# read-only from the app user's perspective — the API only writes under
+# ACR_WEBHOOK_LOG_PATH, which /app/data keeps writable.
+RUN useradd --create-home --uid 10001 acr \
+    && mkdir -p /app/data \
+    && chown -R acr:acr /app
+USER acr
+
+ENV PORT=8000
+EXPOSE 8000
+
+# /health also reports gate/signer/tape provenance; the generous start period
+# covers the first store build (simulator + estimation) on small instances.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD ["python3", "-c", "import os,sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/health', timeout=8).status==200 else 1)"]
+
+# Shell form so $PORT from the platform (Cloud Run, Railway, Render…) wins.
+CMD ["sh", "-c", "uv run --no-sync uvicorn index_api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
