@@ -1,0 +1,22 @@
+{
+  "name": "acr-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ACR buyer agent — discovers ACR listings and pays per query via Circle Nanopayments (x402 on Arc)",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "build": "tsc",
+    "test": "node --import tsx --test src/payer.test.ts src/catalog.test.ts",
+    "interop": "tsx src/interop.ts"
+  },
+  "dependencies": {
+    "@circle-fin/x402-batching": "^3.2.0",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

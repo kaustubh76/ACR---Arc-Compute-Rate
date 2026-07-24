@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once lint glossary-check diagram diagram-preview clean circle-check circle-login circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once lint glossary-check diagram diagram-preview clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -33,10 +33,11 @@ help:
 	@echo "  live wallet ops (interactive Circle CLI — never run in CI):"
 	@echo "  make circle-check    verify the Circle CLI is installed"
 	@echo "  make circle-login    EMAIL=you@example.com — email-OTP login (testnet)"
-	@echo "  make circle-wallet   create a local EOA wallet (GatewayClient needs a raw key)"
-	@echo "  make circle-fund     testnet faucet into the wallet"
-	@echo "  make circle-deposit  deposit USDC into Gateway (min 0.5) for nanopayments"
-	@echo "  make circle-balance  wallet + Gateway balances"
+	@echo "  make buyer-key       generate a testnet buyer EOA (raw key for GatewayClient)"
+	@echo "  make circle-wallet   import the buyer key as a local wallet"
+	@echo "  make circle-fund     ADDR=0x… — testnet faucet into the wallet"
+	@echo "  make circle-deposit  ADDR=0x… — deposit USDC into Gateway (min 0.5)"
+	@echo "  make circle-balance  ADDR=0x… — wallet + Gateway balances"
 	@echo "  make skills-install  install Circle Skills into .claude/skills"
 
 setup:
@@ -97,6 +98,12 @@ verify-testnet:
 post-once:
 	uv run python scripts/post_once.py
 
+attest-once:
+	uv run python scripts/attest_once.py
+
+seed-sellers:
+	uv run python scripts/seed_sellers.py
+
 pipeline:
 	uv run python scripts/run_pipeline.py --events 3000
 
@@ -127,10 +134,14 @@ interop:
 	cd apps/agent && npm run interop
 
 # --- live wallet ops (interactive — Circle CLI; email OTP, so never in CI) ---
-# Install: npm install -g @circle-fin/cli   (Node >= 20.18.2)
-# The buyer agent signs EIP-3009 itself, so it needs a raw EOA key: create the
-# wallet with --type local (agent-type wallets are Circle-custodied, no export).
-# Flag names current as of July 2026 — `circle <resource> --help` if they drift.
+# Install: npm install -g @circle-fin/cli   (Node >= 20.18.2). Verified vs CLI v0.0.6.
+# The buyer agent (apps/agent) signs EIP-3009 itself, so it needs a RAW exportable
+# key. In v0.0.6 `circle wallet create` only makes custodied *agent* wallets, so a
+# local wallet comes via `circle wallet import` (see `make buyer-key`). The Arc
+# chain name is ARC-TESTNET; fund/deposit/balance all require --address + --chain.
+# Re-check with `circle <verb> --help` / `circle blockchain list` if flags drift.
+
+CIRCLE_CHAIN ?= ARC-TESTNET
 
 circle-check:
 	@command -v circle >/dev/null 2>&1 || { echo "Circle CLI not found — npm install -g @circle-fin/cli (Node >= 20.18.2)"; exit 1; }
@@ -140,18 +151,30 @@ circle-login: circle-check
 	@test -n "$(EMAIL)" || { echo "usage: make circle-login EMAIL=you@example.com"; exit 1; }
 	circle wallet login $(EMAIL) --testnet
 
+# Generate a fresh TESTNET-ONLY buyer EOA. Import it (next target) + export it as
+# AGENT_PRIVATE_KEY for `make agent-live`. Never reuse a key that holds real funds.
+buyer-key:
+	@uv run python -c "from eth_account import Account; a=Account.create(); k=a.key.hex(); k=k if k.startswith('0x') else '0x'+k; print('  address:', a.address); print('  key:    ', k); print('  (testnet only — import with: circle wallet import buyer --private-key, and export AGENT_PRIVATE_KEY)')"
+
+# Import the buyer key as a local (exportable) wallet — reads the key interactively.
+# NAME must be unique in the vault; override if a name is already taken:
+#   make circle-wallet NAME=buyer2
+NAME ?= buyer
 circle-wallet: circle-check
-	circle wallet create --type local
+	circle wallet import $(NAME) --private-key
 
 circle-fund: circle-check
-	circle wallet fund
+	@test -n "$(ADDR)" || { echo "usage: make circle-fund ADDR=0x<buyer wallet>"; exit 1; }
+	circle wallet fund --address $(ADDR) --chain $(CIRCLE_CHAIN)
 
 circle-deposit: circle-check
-	circle gateway deposit --amount 0.5
+	@test -n "$(ADDR)" || { echo "usage: make circle-deposit ADDR=0x<buyer wallet>"; exit 1; }
+	circle gateway deposit --amount 0.5 --address $(ADDR) --chain $(CIRCLE_CHAIN)
 
 circle-balance: circle-check
-	circle wallet balance
-	circle gateway balance
+	@test -n "$(ADDR)" || { echo "usage: make circle-balance ADDR=0x<buyer wallet>"; exit 1; }
+	circle wallet balance --address $(ADDR) --chain $(CIRCLE_CHAIN)
+	circle gateway balance --address $(ADDR) --chain $(CIRCLE_CHAIN) --all
 
 skills-install: circle-check
 	circle skill install --tool claude-code
