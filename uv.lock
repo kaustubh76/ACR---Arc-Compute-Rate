@@ -42,6 +42,11 @@ dependencies = [
     { name = "acr-tape" },
 ]
 
+[package.optional-dependencies]
+circle = [
+    { name = "acr-oracle-client", extra = ["circle"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -57,9 +62,11 @@ requires-dist = [
     { name = "acr-index-api", editable = "services/index_api" },
     { name = "acr-instrument", editable = "packages/acr_instrument" },
     { name = "acr-oracle-client", editable = "packages/acr_oracle_client" },
+    { name = "acr-oracle-client", extras = ["circle"], marker = "extra == 'circle'", editable = "packages/acr_oracle_client" },
     { name = "acr-sim", editable = "packages/acr_sim" },
     { name = "acr-tape", editable = "packages/acr_tape" },
 ]
+provides-extras = ["circle"]
 
 [package.metadata.requires-dev]
 dev = [

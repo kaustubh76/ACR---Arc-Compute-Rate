@@ -14,6 +14,13 @@ dependencies = [
     "acr-index-api",
 ]
 
+[project.optional-dependencies]
+# Live Circle Developer-Controlled Wallets signing for the oracle poster
+# (custodied EIP-712 signing instead of a raw ACR_POSTER_PRIVATE_KEY). Re-exposes
+# the acr-oracle-client extra so the documented `uv sync --extra circle` works
+# from the workspace root. The SDK is lazy-imported — this stays optional.
+circle = ["acr-oracle-client[circle]"]
+
 [tool.uv.sources]
 acr-core = { workspace = true }
 acr-sim = { workspace = true }
