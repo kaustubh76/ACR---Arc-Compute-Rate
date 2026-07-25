@@ -141,6 +141,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ACR — The Arc Compute Rate", version="0.1.0", lifespan=lifespan)
 
+# CORS so the public API is queryable cross-origin from browsers (the Terminal
+# proxies server-side and doesn't need this, but direct API/`/docs` use does).
+# Origins from ACR_CORS_ORIGINS ("*" default for the testnet demo; empty = off).
+_cors = [o.strip() for o in (get_settings().cors_origins or "").split(",") if o.strip()]
+if _cors:
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors,
+        allow_credentials=False,  # public read API; "*" origins can't use credentials
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["PAYMENT-REQUIRED", "PAYMENT-RESPONSE", "X-PAYMENT-RESPONSE"],
+    )
+
 
 @app.exception_handler(PaymentRequired)
 async def _payment_required_handler(request, exc: PaymentRequired):
