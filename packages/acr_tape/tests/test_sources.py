@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import types
 
-from acr_core import Service, index_for_service
+from acr_core import INDEX_REGISTRY, Service, index_for_service
 from acr_sim import SimConfig
-from acr_tape import ArcSource, SimSource, TapeSource
+from acr_tape import ArcSource, ReceiptSource, SimSource, TapeSource
 from acr_tape.arc_source import EIP3009_AUTHORIZATION_ABI, USDC_TRANSFER_ABI
 
 
@@ -41,6 +42,69 @@ def test_arc_source_degrades_gracefully_without_connection():
     src = ArcSource(rpc_url="http://127.0.0.1:1", x402_address=None)
     assert src.collect() == []
     assert src.attestations() == []
+
+
+def _write_receipts(path, rows):
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_receipt_source_empty_when_unset_or_missing(tmp_path):
+    # No path configured -> empty tape (never raises).
+    assert ReceiptSource(log_path="").collect() == []
+    # Configured path that doesn't exist yet -> empty tape.
+    assert ReceiptSource(log_path=str(tmp_path / "nope.jsonl")).collect() == []
+
+
+def test_receipt_source_decodes_real_settlements_honestly(tmp_path):
+    p = tmp_path / "x402_receipts.jsonl"
+    _write_receipts(
+        p,
+        [
+            {"payer": "0xbuyer", "amount_usdc": 0.0001, "tx_ref": "uuid-2",
+             "network": "eip155:5042002", "scheme": "exact", "settled_at": 200.0,
+             "resource": "/curve/ACR-GPU"},
+            {"payer": "0xbuyer", "amount_usdc": 0.0001, "tx_ref": "uuid-1",
+             "network": "eip155:5042002", "scheme": "exact", "settled_at": 100.0,
+             "resource": "/vol/ACR-INF"},
+            # dev/sim rows must be ignored — no fabricated economic signal.
+            {"payer": "0xbuyer", "amount_usdc": 0.0001, "tx_ref": "dev-1",
+             "scheme": "dev", "settled_at": 150.0, "resource": "/prints"},
+        ],
+    )
+    src = ReceiptSource(log_path=str(p), seller="0xseller")
+    assert isinstance(src, TapeSource)
+    events = src.collect()
+
+    # Only the two real settlements; dev row dropped.
+    assert len(events) == 2
+    # Sorted by economic timestamp and normalized to seconds-from-first (the store
+    # windows from 0) — uuid-1 @100 → 0.0, uuid-2 @200 → 100.0.
+    assert [e.ts for e in events] == [0.0, 100.0]
+    # Service resolved precisely from the paid resource path.
+    assert events[0].service == Service.INFERENCE  # /vol/ACR-INF
+    assert events[1].service == Service.GPU  # /curve/ACR-GPU
+    # HONEST: price == the index reference level (no fabricated dispersion),
+    # size derived so price*size recovers the settled notional exactly.
+    for e in events:
+        ref = index_for_service(e.service).reference_level
+        assert e.price == ref
+        assert abs(e.price * e.size - 0.0001) < 1e-12
+        assert e.seller == "0xseller" and e.buyer == "0xbuyer"
+    # No attestations of its own (the store merges the on-chain registry).
+    assert src.attestations() == []
+
+
+def test_receipt_source_unknown_resource_falls_back_to_default(tmp_path):
+    p = tmp_path / "r.jsonl"
+    _write_receipts(
+        p,
+        [{"payer": "0xb", "amount_usdc": 0.0001, "tx_ref": "u", "scheme": "exact",
+          "settled_at": 10.0, "resource": "/prints"}],  # not index-specific
+    )
+    src = ReceiptSource(log_path=str(p), default_service=Service.DATA)
+    (e,) = src.collect()
+    assert e.service == Service.DATA
+    assert e.price == INDEX_REGISTRY["ACR-DATA"].reference_level
 
 
 def test_default_abi_is_real_transfer_and_marker_exists():

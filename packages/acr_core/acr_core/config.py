@@ -100,13 +100,27 @@ class ACRSettings(BaseSettings):
     x402_resource_base: str = ""  # public URL base; empty → derived from the request
     #: Per-query price in USDC (sub-cent — a Nanopayment).
     x402_price_usdc: float = 0.0001
+    #: JSONL append-log of REAL x402 settlements (one receipt per line) — the
+    #: authoritative settlement tape ReceiptSource reads. Survives restarts and
+    #: rehydrates /marketplace/receipts + /revenue. Blank (default) disables the
+    #: file (in-memory only) — keeps tests + the dev gate from writing to disk;
+    #: enable in the live seller (ACR_RECEIPT_LOG_PATH=data/x402_receipts.jsonl).
+    receipt_log_path: str = ""
     #: Circle GatewayWallet contract (the EIP-712 verifyingContract buyers sign
     #: against — `extra.verifyingContract` in PaymentRequirements). Default is
     #: the shared testnet GatewayWallet (all Gateway testnet chains, incl. Arc).
     x402_gateway_wallet: str = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
 
+    #: Comma-separated allowed CORS origins for the public API (so the dashboard
+    #: /any browser can query it cross-origin). "*" = allow all (the testnet-demo
+    #: default; the API serves public read data + the x402 gate); set to the
+    #: Terminal's origin(s) to lock it down. Empty disables CORS entirely.
+    cors_origins: str = "*"
+
     # --- tape source selection ---
-    #: "sim" (default, the calibrated simulator) or "arc" (live Arc testnet tape).
+    #: "sim" (default, calibrated simulator), "arc" (live Arc testnet USDC scan),
+    #: or "receipts" (the authoritative x402 settlement ledger — needs
+    #: receipt_log_path populated by a live seller).
     tape_source: str = "sim"
     #: How many blocks back ArcSource scans for USDC transfer logs. Kept modest
     #: because USDC is Arc's native gas token → Transfer logs are dense; ArcSource

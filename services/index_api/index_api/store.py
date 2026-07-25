@@ -34,13 +34,21 @@ log = logging.getLogger("index_api.store")
 
 
 def default_source() -> TapeSource:
-    """Pick the tape source from config: ``ACR_TAPE_SOURCE=arc`` uses the live Arc
-    testnet tape; anything else uses the calibrated simulator (a richer default
-    horizon so hourly windows aren't thin)."""
-    if get_settings().tape_source.strip().lower() == "arc":
+    """Pick the tape source from config: ``ACR_TAPE_SOURCE=arc`` scans live Arc
+    testnet USDC flow; ``=receipts`` reads the authoritative x402 settlement
+    ledger (real paid queries — an audit tape; flat single-seller query flow is
+    correctly cleaned out by the estimator, so it doesn't drive the published
+    indices); anything else uses the calibrated simulator (a richer default
+    horizon so hourly windows aren't thin) — the honest default."""
+    mode = get_settings().tape_source.strip().lower()
+    if mode == "arc":
         from acr_tape import ArcSource
 
         return ArcSource()
+    if mode == "receipts":
+        from acr_tape import ReceiptSource
+
+        return ReceiptSource()
     return SimSource(config=SimConfig(events_per_service=24_000))
 
 

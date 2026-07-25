@@ -307,6 +307,51 @@ def test_settle_failure_is_402_with_reason():
     assert fac.paid_queries == 0
 
 
+def test_real_settlements_persist_and_rehydrate(tmp_path):
+    # The durable ledger: a real (scheme "exact") settlement is appended to the
+    # JSONL log and a fresh gate rehydrates it (counters + receipts survive a
+    # restart), with settled_at + resource stamped for ReceiptSource.
+    log_path = str(tmp_path / "x402_receipts.jsonl")
+    settle = {"success": True, "transaction": "uuid-1", "network": "eip155:5042002",
+              "payer": "0xbuyer"}
+
+    fac = CircleFacilitator(
+        http_client=_mock_client({"isValid": True}, settle),
+        settings=_settings(receipt_log_path=log_path),
+    )
+    receipt = asyncio.run(fac.process(_req("/curve/ACR-INF"), _sig_header({"from": "0xb"}), Response()))
+    assert receipt.settled_at > 0 and receipt.resource == "/curve/ACR-INF"
+    # One JSONL line was written.
+    lines = [line for line in (tmp_path / "x402_receipts.jsonl").read_text().splitlines() if line]
+    assert len(lines) == 1
+    assert json.loads(lines[0])["tx_ref"] == "uuid-1"
+
+    # A brand-new gate over the same path rehydrates the settlement.
+    fac2 = CircleFacilitator(
+        http_client=_mock_client({"isValid": True}, settle),
+        settings=_settings(receipt_log_path=log_path),
+    )
+    assert fac2.paid_queries == 1
+    assert fac2.revenue_usdc > 0
+    assert list(fac2.recent)[-1].tx_ref == "uuid-1"
+
+
+def test_dev_gate_never_writes_durable_ledger(tmp_path, monkeypatch):
+    # The mock gate must never touch the real-settlement ledger even if a global
+    # path is configured — dev receipts are demo-only.
+    monkeypatch.setenv("ACR_RECEIPT_LOG_PATH", str(tmp_path / "x402_receipts.jsonl"))
+    from acr_core import reset_settings
+
+    reset_settings()
+    try:
+        fac = DevFacilitator()
+        asyncio.run(fac.process(_req(), "x402 0xagent:0.0001", Response()))
+        assert not (tmp_path / "x402_receipts.jsonl").exists()
+    finally:
+        monkeypatch.undo()
+        reset_settings()
+
+
 def test_network_error_fails_closed():
     fac = CircleFacilitator(
         http_client=_mock_client({"isValid": True}, {"success": True}, raise_on="verify"),

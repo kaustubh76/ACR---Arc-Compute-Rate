@@ -29,9 +29,11 @@ import base64
 import json
 import logging
 import math
+import time
 from abc import ABC, abstractmethod
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from acr_core import get_settings
 from fastapi import Header, HTTPException, Request, Response
@@ -130,6 +132,13 @@ def _resource_for(request: Request, settings) -> str:
     return (settings.x402_resource_base or str(request.base_url).rstrip("/")) + request.url.path
 
 
+def _resource_path(request) -> str:
+    """The bare resource path being paid for — e.g. ``/curve/ACR-INF`` (what the
+    settlement ledger records so ReceiptSource can resolve the service). Safe when
+    ``request`` is ``None`` (some dev-gate unit tests pass no request)."""
+    return getattr(getattr(request, "url", None), "path", "") or ""
+
+
 def _resource_object(request: Request, settings) -> dict:
     """The challenge envelope's top-level ``resource`` — an OBJECT, not a string.
 
@@ -163,6 +172,17 @@ class PaymentReceipt:
     tx_ref: str
     network: str = ""
     scheme: str = ""
+    #: Wall-clock settlement time (unix seconds) + the resource that was bought —
+    #: stamped at record time so the durable ledger (ReceiptSource) knows *when*
+    #: and *which service* each real payment settled. Defaulted so existing
+    #: constructors and rehydration of legacy lines keep working.
+    settled_at: float = 0.0
+    resource: str = ""
+
+
+#: Schemes that represent REAL on-chain settlements (persisted to the durable
+#: ledger + fed to ReceiptSource). Dev/sim receipts are demo-only and excluded.
+_REAL_SCHEMES = frozenset({"exact"})
 
 
 class Facilitator(ABC):
@@ -170,19 +190,67 @@ class Facilitator(ABC):
     calls. Counters are a running total + a small ring of recent receipts, so a
     long-lived process serving sustained agent traffic does not leak memory."""
 
-    def __init__(self) -> None:
+    def __init__(self, receipt_log_path: str | None = None) -> None:
         self.paid_queries = 0
         self._revenue = 0.0
         self.recent: deque[PaymentReceipt] = deque(maxlen=256)
+        # None → read the path from settings (production); "" explicitly disables
+        # the file (in-memory only — the default, so tests + the dev gate never
+        # touch disk). Only REAL settlements (`_REAL_SCHEMES`) are persisted.
+        self._log_path = get_settings().receipt_log_path if receipt_log_path is None else receipt_log_path
+        self._rehydrate()
 
     @property
     def revenue_usdc(self) -> float:
         return self._revenue
 
+    def _rehydrate(self) -> None:
+        """Reload the durable settlement ledger so /revenue + /marketplace/receipts
+        survive a restart. Malformed/legacy lines are skipped."""
+        if not self._log_path:
+            return
+        p = Path(self._log_path)
+        if not p.exists():
+            return
+        try:
+            lines = p.read_text().splitlines()
+        except Exception as exc:  # pragma: no cover - unreadable file
+            log.warning("could not read receipt log %s: %s", p, exc)
+            return
+        loaded = 0
+        for line in lines[-self.recent.maxlen :]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                self.recent.append(PaymentReceipt(**json.loads(line)))
+                self.paid_queries += 1
+                self._revenue += float(json.loads(line).get("amount_usdc", 0.0))
+                loaded += 1
+            except Exception:
+                continue  # skip a corrupt/legacy line
+        if loaded:
+            log.info("receipt log: rehydrated %d settlement(s) from %s", loaded, p)
+
+    def _persist(self, receipt: PaymentReceipt) -> None:
+        # Durable ledger holds only real settlements (dev/sim receipts are demo).
+        if not self._log_path or receipt.scheme not in _REAL_SCHEMES:
+            return
+        try:
+            p = Path(self._log_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with p.open("a") as f:
+                f.write(json.dumps(asdict(receipt), separators=(",", ":")) + "\n")
+        except Exception as exc:  # never let logging break the settled response
+            log.warning("could not append to receipt log: %s", exc)
+
     def _record(self, receipt: PaymentReceipt) -> PaymentReceipt:
+        if not receipt.settled_at:
+            receipt.settled_at = time.time()
         self.paid_queries += 1
         self._revenue += receipt.amount_usdc
         self.recent.append(receipt)
+        self._persist(receipt)
         return receipt
 
     @abstractmethod
@@ -200,6 +268,11 @@ def _b64(obj: dict) -> str:
 
 class DevFacilitator(Facilitator):
     """Dev-mode gate — accepts a mock ``x402 <payer>:<amount>`` header. No chain."""
+
+    def __init__(self) -> None:
+        # The mock gate is never a real settlement — keep it purely in-memory so
+        # it never reads from or writes to the durable settlement ledger.
+        super().__init__(receipt_log_path="")
 
     def challenge(self, request: Request) -> PaymentRequired:
         s = get_settings()
@@ -241,7 +314,7 @@ class DevFacilitator(Facilitator):
         net = get_settings().caip2()
         receipt = self._record(
             PaymentReceipt(payer=payer, amount_usdc=amt, tx_ref=f"dev-{self.paid_queries + 1}",
-                           network=net, scheme="dev")
+                           network=net, scheme="dev", resource=_resource_path(request))
         )
         # Same confirmation headers as the live gate, so buyer code decodes one
         # shape in both modes.
@@ -258,8 +331,10 @@ class CircleFacilitator(Facilitator):
     """Real x402 v2 gate against a Circle Gateway facilitator (verify + settle)."""
 
     def __init__(self, http_client=None, settings=None) -> None:
-        super().__init__()
         self.settings = settings or get_settings()
+        # Durable ledger path comes from THIS gate's settings (injectable in tests),
+        # not the global — so a test can point it at a tmp file.
+        super().__init__(receipt_log_path=self.settings.receipt_log_path)
         self._http = http_client  # injectable httpx.AsyncClient for tests
 
     def payment_requirements(self, request: Request) -> dict:
@@ -353,7 +428,8 @@ class CircleFacilitator(Facilitator):
         response.headers["X-PAYMENT-RESPONSE"] = confirmation
         return self._record(
             PaymentReceipt(payer=payer, amount_usdc=self.settings.x402_price_usdc, tx_ref=tx,
-                           network=receipt_network, scheme=reqs["scheme"])
+                           network=receipt_network, scheme=reqs["scheme"],
+                           resource=_resource_path(request))
         )
 
 
