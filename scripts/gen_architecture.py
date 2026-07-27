@@ -248,7 +248,7 @@ def build() -> None:
           "lifespan refresh + poster loop", "/onchain reader (90s TTL cache)"], PURPLE)
     card("e_facil", 1195, 1302, 430, 190, "x402 FACILITATOR",
          ["Dev (mock) | Circle (Nanopayments)", "gateway-api-testnet.circle.com /v1/x402",
-          "/verify + /settle · scheme exact · fail-closed", "GatewayWalletBatched · GatewayWallet 0x0077…"], PURPLE)
+          "verify+settle · exact · x402Version 2 · fail-closed", "GatewayWalletBatched · GatewayWallet 0x0077…"], PURPLE)
     card("e_term", 1660, 1302, 510, 190, "ACR TERMINAL (Next.js · 'Arc Dawn')",
          ["editorial 'The Fixing' · /attack /curve /exchange", "ChainFactsStrip · OracleProvenance (tx·block)",
           "FinalityBadge · SettlementTape · WebhookActivity", "SWR live polling · apps/terminal"], PURPLE)
@@ -256,7 +256,7 @@ def build() -> None:
     # ---------- K · AGENTIC ECONOMY (demand side) ----------
     zone(720, 1630, 1480, 250, "K · AGENTIC ECONOMY (demand side · the loop closes)", PURPLE)
     card("k_market", 745, 1682, 430, 168, "AGENT MARKETPLACE",
-         ["/marketplace/catalog — listings", "/marketplace/receipts — paid-query ledger",
+         ["/marketplace/catalog — Bazaar-shaped listings", "/marketplace/receipts — paid-query ledger",
           "the index listed as a payable service", "marketplace.py"], PURPLE)
     card("k_agent", 1195, 1682, 430, 168, "AUTONOMOUS x402 BUYER",
          ["apps/agent — TS · viem · GatewayClient", "DevPayer | GatewayPayer · USDC spend cap",
