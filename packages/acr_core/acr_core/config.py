@@ -122,6 +122,22 @@ class ACRSettings(BaseSettings):
     #: or "receipts" (the authoritative x402 settlement ledger — needs
     #: receipt_log_path populated by a live seller).
     tape_source: str = "sim"
+    #: Events per service the simulator generates for the default sim tape. The
+    #: rich local default (24k) is memory-heavy; small cloud instances (e.g. a
+    #: 512MB Render free tier) should lower it (~3000) so the store build fits.
+    sim_events_per_service: int = 24_000
+    #: Sim economic horizon (seconds). Window density = events_per_service /
+    #: (horizon/3600); the estimator needs a dense hourly window (~1000 events).
+    #: On a small cloud box, shrink BOTH this and events_per_service together to
+    #: keep density high (estimable) while cutting total events (memory). Default
+    #: 24h matches acr_sim's SimConfig default.
+    sim_horizon_seconds: float = 86_400.0
+    #: Per-hour event count for the "Attack the Index" exhibit sims (attack.py).
+    #: These are the heaviest transient allocation in the app (a 12h error-series
+    #: sim + two 1h attack sims), so a 512MB cloud box lowers it (~400) to avoid an
+    #: OOM spike; the panel still demonstrates ACR-vs-VWAP-under-attack. Default
+    #: preserves the rich local exhibit.
+    attack_sim_events_per_service: int = 2_500
     #: How many blocks back ArcSource scans for USDC transfer logs. Kept modest
     #: because USDC is Arc's native gas token → Transfer logs are dense; ArcSource
     #: also adaptively shrinks the range if the RPC still rejects it as too large.

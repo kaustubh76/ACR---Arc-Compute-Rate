@@ -19,10 +19,13 @@ HOUR = 3600.0
 @lru_cache(maxsize=1)
 def attack_snapshot(seed: int = 11, budget: float = 8000.0) -> dict:
     settings = get_settings()
-    clean = simulate(SimConfig(seed=seed, horizon=HOUR, events_per_service=2500))
+    # Exhibit sim size is configurable — the default is rich; a memory-constrained
+    # cloud box lowers ACR_ATTACK_SIM_EVENTS_PER_SERVICE to shrink the peak.
+    n = settings.attack_sim_events_per_service
+    clean = simulate(SimConfig(seed=seed, horizon=HOUR, events_per_service=n))
     atk = AttackConfig(budget_usdc=budget, target_multiplier=2.5, trade_notional=40.0)
     attacked = simulate(
-        SimConfig(seed=seed, horizon=HOUR, events_per_service=2500, attack=atk)
+        SimConfig(seed=seed, horizon=HOUR, events_per_service=n, attack=atk)
     )
 
     per_index = []
@@ -65,8 +68,11 @@ def _error_series(seed: int, hours: int = 12, atk_from: int = 4, atk_to: int = 8
         t_start=atk_from * HOUR,
         t_end=atk_to * HOUR,
     )
+    # Per-hour density scaled from the exhibit config (default 2500 → 2000/hr,
+    # preserving the original rich series; cloud lowers it to cut the memory peak).
+    per_hour = settings.attack_sim_events_per_service * 4 // 5
     res = simulate(
-        SimConfig(seed=seed, horizon=hours * HOUR, events_per_service=hours * 2000, attack=attack)
+        SimConfig(seed=seed, horizon=hours * HOUR, events_per_service=hours * per_hour, attack=attack)
     )
     events = [e for e in res.events if e.service == svc]
     out = []

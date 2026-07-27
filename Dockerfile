@@ -18,8 +18,10 @@ COPY packages/ packages/
 COPY services/ services/
 
 # `--extra circle` pulls the Circle Developer-Controlled Wallets SDK so the oracle
-# poster can sign+relay prints under Circle custody (not just a raw key) in-cloud.
-RUN uv sync --frozen --no-dev --extra circle && rm -rf /root/.cache/uv
+# poster can sign+relay prints under Circle custody in-cloud. Default on; build
+# with `--build-arg UV_EXTRAS=` for a lighter minimal image (no in-cloud posting).
+ARG UV_EXTRAS="--extra circle"
+RUN uv sync --frozen --no-dev ${UV_EXTRAS} && rm -rf /root/.cache/uv
 
 # Non-root runtime user; the sync above ran as root so site-packages are owned
 # read-only from the app user's perspective — the API only writes under

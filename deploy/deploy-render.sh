@@ -21,8 +21,12 @@ REGISTRY="${REGISTRY:-0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7}"
 RPC="${RPC:-https://rpc.testnet.arc.network}"
 FACILITATOR="${FACILITATOR:-https://gateway-api-testnet.circle.com}"
 PAY_TO="${PAY_TO:-0x33189c643774ED2713EbFf5A6923e5fa42b96eE8}"
-# sim tape is the safe cloud default (arc scans hit the rate-limited public RPC hard).
+# sim tape is the safe cloud default (arc's blocking RPC scan starves the 1-CPU
+# free tier's event loop). Keep the sim SMALL so the store build fits 512MB, and
+# refresh hourly (not every 30s) to keep the box quiet.
 TAPE="${TAPE:-sim}"
+SIM_EVENTS="${SIM_EVENTS:-3000}"
+REFRESH="${REFRESH:-3600}"
 
 render services create \
   --name "${NAME}" \
@@ -40,6 +44,8 @@ render services create \
   --env-var ACR_X402_FACILITATOR_URL="${FACILITATOR}" \
   --env-var ACR_X402_PAY_TO="${PAY_TO}" \
   --env-var ACR_TAPE_SOURCE="${TAPE}" \
+  --env-var ACR_SIM_EVENTS_PER_SERVICE="${SIM_EVENTS}" \
+  --env-var ACR_REFRESH_SECONDS="${REFRESH}" \
   --env-var ACR_RECEIPT_LOG_PATH=data/x402_receipts.jsonl \
   --env-var ACR_WEBHOOK_LOG_PATH=data/webhook_events.jsonl \
   --env-var ACR_CORS_ORIGINS='*' \

@@ -49,7 +49,15 @@ def default_source() -> TapeSource:
         from acr_tape import ReceiptSource
 
         return ReceiptSource()
-    return SimSource(config=SimConfig(events_per_service=24_000))
+    # Sim size + horizon are configurable so memory-constrained cloud instances
+    # (e.g. a 512MB free tier) can shrink the store build while keeping window
+    # density high enough to estimate (ACR_SIM_EVENTS_PER_SERVICE + ACR_SIM_HORIZON_SECONDS).
+    s = get_settings()
+    return SimSource(
+        config=SimConfig(
+            events_per_service=s.sim_events_per_service, horizon=s.sim_horizon_seconds
+        )
+    )
 
 
 class PrintStore:
