@@ -1,0 +1,2396 @@
+{
+  "prints": {
+    "ACR-INF": {
+      "index_id": "ACR-INF",
+      "ts": 43200.0,
+      "value": 0.491888328055063,
+      "ci_lo": 0.49024808839299894,
+      "ci_hi": 0.4933453614836784,
+      "attack_cost_per_bp": 0.00945445972665224,
+      "n_obs": 974,
+      "trim_alpha": 0.1,
+      "unit": "$/1k tokens",
+      "naive_vwap": 0.45917854455183366,
+      "cost_to_move_1pct": 0.7071688313161465,
+      "cleaned_pct": 56.421517238922235,
+      "vol": 0.4974608885532734,
+      "curve": [
+        {
+          "tenor_weeks": 1,
+          "expiry_ts": 648000.0,
+          "mid": 0.491888328055063,
+          "bid": 0.17442103771343964,
+          "ask": 0.8093556183966863,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 2,
+          "expiry_ts": 1252800.0,
+          "mid": 0.491888328055063,
+          "bid": 0.17442103771343964,
+          "ask": 0.8093556183966863,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 4,
+          "expiry_ts": 2462400.0,
+          "mid": 0.491888328055063,
+          "bid": 0.17442103771343964,
+          "ask": 0.8093556183966863,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 8,
+          "expiry_ts": 4881600.0,
+          "mid": 0.491888328055063,
+          "bid": 0.17442103771343964,
+          "ask": 0.8093556183966863,
+          "spread_bp": 12908.104227514234
+        }
+      ],
+      "robustness": {
+        "single_cluster_flip_fraction": 0.125,
+        "max_cluster_share": 0.08925724973800428,
+        "max_cluster_influence_bp": 23.005148691716,
+        "sybil_clusters_required": 1,
+        "min_identities": 41
+      },
+      "onchain": {
+        "index_id": "ACR-INF",
+        "value": 0.5009579091937449,
+        "ci_lo": 0.5004958903827607,
+        "ci_hi": 0.5044196390904124,
+        "attack_cost_per_bp": 0.014547,
+        "timestamp": 3625200,
+        "posted_at": 1785114345
+      }
+    },
+    "ACR-GPU": {
+      "index_id": "ACR-GPU",
+      "ts": 43200.0,
+      "value": 0.011079942267203609,
+      "ci_lo": 0.011055082041676139,
+      "ci_hi": 0.011131764447748247,
+      "attack_cost_per_bp": 0.009165127014617235,
+      "n_obs": 1063,
+      "trim_alpha": 0.1,
+      "unit": "$/GPU-sec",
+      "naive_vwap": 0.011910992345017357,
+      "cost_to_move_1pct": 0.9602871231068442,
+      "cleaned_pct": 50.56451694058468,
+      "vol": 1.2329731892359173,
+      "curve": [
+        {
+          "tenor_weeks": 1,
+          "expiry_ts": 648000.0,
+          "mid": 0.011079942267203609,
+          "bid": 0.003928889786208381,
+          "ask": 0.018230994748198837,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 2,
+          "expiry_ts": 1252800.0,
+          "mid": 0.011079942267203609,
+          "bid": 0.003928889786208381,
+          "ask": 0.018230994748198837,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 4,
+          "expiry_ts": 2462400.0,
+          "mid": 0.011079942267203609,
+          "bid": 0.003928889786208381,
+          "ask": 0.018230994748198837,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 8,
+          "expiry_ts": 4881600.0,
+          "mid": 0.011079942267203609,
+          "bid": 0.003928889786208381,
+          "ask": 0.018230994748198837,
+          "spread_bp": 12908.104227514234
+        }
+      ],
+      "robustness": {
+        "single_cluster_flip_fraction": 0.125,
+        "max_cluster_share": 0.07811909523548038,
+        "max_cluster_influence_bp": 29.574353375363046,
+        "sybil_clusters_required": 1,
+        "min_identities": 41
+      },
+      "onchain": {
+        "index_id": "ACR-GPU",
+        "value": 0.012443262150128096,
+        "ci_lo": 0.012341200514264449,
+        "ci_hi": 0.012444654431839001,
+        "attack_cost_per_bp": 0.008105,
+        "timestamp": 3625200,
+        "posted_at": 1785114349
+      }
+    },
+    "ACR-DATA": {
+      "index_id": "ACR-DATA",
+      "ts": 43200.0,
+      "value": 0.002023122228816184,
+      "ci_lo": 0.002018615605497327,
+      "ci_hi": 0.0020384304034512138,
+      "attack_cost_per_bp": 0.004709049125256794,
+      "n_obs": 992,
+      "trim_alpha": 0.1,
+      "unit": "$/MB",
+      "naive_vwap": 0.0018717958111777258,
+      "cost_to_move_1pct": 0.7743556087396133,
+      "cleaned_pct": 49.31856251510048,
+      "vol": 1.6523404526572683,
+      "curve": [
+        {
+          "tenor_weeks": 1,
+          "expiry_ts": 648000.0,
+          "mid": 0.002023122228816184,
+          "bid": 0.0007173885990881738,
+          "ask": 0.003328855858544194,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 2,
+          "expiry_ts": 1252800.0,
+          "mid": 0.002023122228816184,
+          "bid": 0.0007173885990881738,
+          "ask": 0.003328855858544194,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 4,
+          "expiry_ts": 2462400.0,
+          "mid": 0.002023122228816184,
+          "bid": 0.0007173885990881738,
+          "ask": 0.003328855858544194,
+          "spread_bp": 12908.104227514234
+        },
+        {
+          "tenor_weeks": 8,
+          "expiry_ts": 4881600.0,
+          "mid": 0.002023122228816184,
+          "bid": 0.0007173885990881738,
+          "ask": 0.003328855858544194,
+          "spread_bp": 12908.104227514234
+        }
+      ],
+      "robustness": {
+        "single_cluster_flip_fraction": 0.125,
+        "max_cluster_share": 0.07627151667339092,
+        "max_cluster_influence_bp": 29.788083593989832,
+        "sybil_clusters_required": 1,
+        "min_identities": 41
+      },
+      "onchain": {
+        "index_id": "ACR-DATA",
+        "value": 0.001941713110896345,
+        "ci_lo": 0.001922218936462716,
+        "ci_hi": 0.001948887717981614,
+        "attack_cost_per_bp": 0.007595,
+        "timestamp": 3625200,
+        "posted_at": 1785114353
+      }
+    }
+  },
+  "history": {
+    "ACR-INF": [
+      {
+        "ts": 3600.0,
+        "value": 0.4968966350037185,
+        "ci_lo": 0.4951284764614465,
+        "ci_hi": 0.498332407033182
+      },
+      {
+        "ts": 7200.0,
+        "value": 0.4953526414538357,
+        "ci_lo": 0.49524591557168035,
+        "ci_hi": 0.49620820630416856
+      },
+      {
+        "ts": 10800.0,
+        "value": 0.4943128439071811,
+        "ci_lo": 0.49329092467043784,
+        "ci_hi": 0.494342367726226
+      },
+      {
+        "ts": 14400.0,
+        "value": 0.491888328055063,
+        "ci_lo": 0.49024808839299894,
+        "ci_hi": 0.4933453614836784
+      },
+      {
+        "ts": 18000.0,
+        "value": 0.4968966350037185,
+        "ci_lo": 0.4951284764614465,
+        "ci_hi": 0.498332407033182
+      },
+      {
+        "ts": 21600.0,
+        "value": 0.4953526414538357,
+        "ci_lo": 0.49524591557168035,
+        "ci_hi": 0.49620820630416856
+      },
+      {
+        "ts": 25200.0,
+        "value": 0.4943128439071811,
+        "ci_lo": 0.49329092467043784,
+        "ci_hi": 0.494342367726226
+      },
+      {
+        "ts": 28800.0,
+        "value": 0.491888328055063,
+        "ci_lo": 0.49024808839299894,
+        "ci_hi": 0.4933453614836784
+      },
+      {
+        "ts": 32400.0,
+        "value": 0.4968966350037185,
+        "ci_lo": 0.4951284764614465,
+        "ci_hi": 0.498332407033182
+      },
+      {
+        "ts": 36000.0,
+        "value": 0.4953526414538357,
+        "ci_lo": 0.49524591557168035,
+        "ci_hi": 0.49620820630416856
+      },
+      {
+        "ts": 39600.0,
+        "value": 0.4943128439071811,
+        "ci_lo": 0.49329092467043784,
+        "ci_hi": 0.494342367726226
+      },
+      {
+        "ts": 43200.0,
+        "value": 0.491888328055063,
+        "ci_lo": 0.49024808839299894,
+        "ci_hi": 0.4933453614836784
+      }
+    ],
+    "ACR-GPU": [
+      {
+        "ts": 3600.0,
+        "value": 0.010893963184719873,
+        "ci_lo": 0.010842685442201582,
+        "ci_hi": 0.010944760856513972
+      },
+      {
+        "ts": 7200.0,
+        "value": 0.010864270502265813,
+        "ci_lo": 0.01078503651631663,
+        "ci_hi": 0.010864949687314206
+      },
+      {
+        "ts": 10800.0,
+        "value": 0.010848790199879785,
+        "ci_lo": 0.010784770029253753,
+        "ci_hi": 0.010891768300684113
+      },
+      {
+        "ts": 14400.0,
+        "value": 0.011079942267203609,
+        "ci_lo": 0.011055082041676139,
+        "ci_hi": 0.011131764447748247
+      },
+      {
+        "ts": 18000.0,
+        "value": 0.010893963184719873,
+        "ci_lo": 0.010842685442201582,
+        "ci_hi": 0.010944760856513972
+      },
+      {
+        "ts": 21600.0,
+        "value": 0.010864270502265813,
+        "ci_lo": 0.01078503651631663,
+        "ci_hi": 0.010864949687314206
+      },
+      {
+        "ts": 25200.0,
+        "value": 0.010848790199879785,
+        "ci_lo": 0.010784770029253753,
+        "ci_hi": 0.010891768300684113
+      },
+      {
+        "ts": 28800.0,
+        "value": 0.011079942267203609,
+        "ci_lo": 0.011055082041676139,
+        "ci_hi": 0.011131764447748247
+      },
+      {
+        "ts": 32400.0,
+        "value": 0.010893963184719873,
+        "ci_lo": 0.010842685442201582,
+        "ci_hi": 0.010944760856513972
+      },
+      {
+        "ts": 36000.0,
+        "value": 0.010864270502265813,
+        "ci_lo": 0.01078503651631663,
+        "ci_hi": 0.010864949687314206
+      },
+      {
+        "ts": 39600.0,
+        "value": 0.010848790199879785,
+        "ci_lo": 0.010784770029253753,
+        "ci_hi": 0.010891768300684113
+      },
+      {
+        "ts": 43200.0,
+        "value": 0.011079942267203609,
+        "ci_lo": 0.011055082041676139,
+        "ci_hi": 0.011131764447748247
+      }
+    ],
+    "ACR-DATA": [
+      {
+        "ts": 3600.0,
+        "value": 0.00206664569782119,
+        "ci_lo": 0.002061648106028,
+        "ci_hi": 0.002082928809713125
+      },
+      {
+        "ts": 7200.0,
+        "value": 0.002037028991207827,
+        "ci_lo": 0.0020270429404789926,
+        "ci_hi": 0.002047899852391628
+      },
+      {
+        "ts": 10800.0,
+        "value": 0.002066201406279649,
+        "ci_lo": 0.002062730442060197,
+        "ci_hi": 0.0020815955134177943
+      },
+      {
+        "ts": 14400.0,
+        "value": 0.002023122228816184,
+        "ci_lo": 0.002018615605497327,
+        "ci_hi": 0.0020384304034512138
+      },
+      {
+        "ts": 18000.0,
+        "value": 0.00206664569782119,
+        "ci_lo": 0.002061648106028,
+        "ci_hi": 0.002082928809713125
+      },
+      {
+        "ts": 21600.0,
+        "value": 0.002037028991207827,
+        "ci_lo": 0.0020270429404789926,
+        "ci_hi": 0.002047899852391628
+      },
+      {
+        "ts": 25200.0,
+        "value": 0.002066201406279649,
+        "ci_lo": 0.002062730442060197,
+        "ci_hi": 0.0020815955134177943
+      },
+      {
+        "ts": 28800.0,
+        "value": 0.002023122228816184,
+        "ci_lo": 0.002018615605497327,
+        "ci_hi": 0.0020384304034512138
+      },
+      {
+        "ts": 32400.0,
+        "value": 0.00206664569782119,
+        "ci_lo": 0.002061648106028,
+        "ci_hi": 0.002082928809713125
+      },
+      {
+        "ts": 36000.0,
+        "value": 0.002037028991207827,
+        "ci_lo": 0.0020270429404789926,
+        "ci_hi": 0.002047899852391628
+      },
+      {
+        "ts": 39600.0,
+        "value": 0.002066201406279649,
+        "ci_lo": 0.002062730442060197,
+        "ci_hi": 0.0020815955134177943
+      },
+      {
+        "ts": 43200.0,
+        "value": 0.002023122228816184,
+        "ci_lo": 0.002018615605497327,
+        "ci_hi": 0.0020384304034512138
+      }
+    ]
+  },
+  "sellers": {
+    "ACR-INF": [
+      {
+        "seller": "0xinf-s0003",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4833.42
+      },
+      {
+        "seller": "0xinf-s0013",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1639.1
+      },
+      {
+        "seller": "0xinf-s0018",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3558.14
+      },
+      {
+        "seller": "0xinf-s0023",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4680.41
+      },
+      {
+        "seller": "0xinf-s0016",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2596.3
+      },
+      {
+        "seller": "0xinf-s0022",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3740.28
+      },
+      {
+        "seller": "0xinf-s0004",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 498.51
+      },
+      {
+        "seller": "0xinf-s0009",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2226.45
+      },
+      {
+        "seller": "0xinf-s0020",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2827.72
+      },
+      {
+        "seller": "0xinf-s0014",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 565.96
+      },
+      {
+        "seller": "0xinf-s0008",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1839.13
+      },
+      {
+        "seller": "0xinf-s0000",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2566.13
+      },
+      {
+        "seller": "0xinf-s0006",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1681.62
+      },
+      {
+        "seller": "0xinf-s0015",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 758.43
+      },
+      {
+        "seller": "0xinf-s0011",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 463.84
+      },
+      {
+        "seller": "0xinf-s0007",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1557.01
+      },
+      {
+        "seller": "0xinf-s0005",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2822.18
+      },
+      {
+        "seller": "0xinf-s0012",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 118.04
+      },
+      {
+        "seller": "0xinf-s0010",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 781.94
+      },
+      {
+        "seller": "0xinf-s0017",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2548.65
+      }
+    ],
+    "ACR-GPU": [
+      {
+        "seller": "0xgpu-s0023",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 5372.88
+      },
+      {
+        "seller": "0xgpu-s0017",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2379.44
+      },
+      {
+        "seller": "0xgpu-s0014",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4023.44
+      },
+      {
+        "seller": "0xgpu-s0016",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1511.0
+      },
+      {
+        "seller": "0xgpu-s0021",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2624.9
+      },
+      {
+        "seller": "0xgpu-s0012",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2413.62
+      },
+      {
+        "seller": "0xgpu-s0009",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1434.52
+      },
+      {
+        "seller": "0xgpu-s0010",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 382.91
+      },
+      {
+        "seller": "0xgpu-s0004",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4173.25
+      },
+      {
+        "seller": "0xgpu-s0006",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 463.87
+      },
+      {
+        "seller": "0xgpu-s0015",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 907.8
+      },
+      {
+        "seller": "0xgpu-s0022",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4021.24
+      },
+      {
+        "seller": "0xgpu-s0020",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 647.66
+      },
+      {
+        "seller": "0xgpu-s0024",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1808.44
+      },
+      {
+        "seller": "0xgpu-s0000",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2352.64
+      },
+      {
+        "seller": "0xgpu-s0013",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1834.23
+      },
+      {
+        "seller": "0xgpu-s0008",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3913.41
+      },
+      {
+        "seller": "0xgpu-s0019",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3105.19
+      },
+      {
+        "seller": "0xgpu-s0002",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2494.49
+      },
+      {
+        "seller": "0xgpu-s0011",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1860.2
+      }
+    ],
+    "ACR-DATA": [
+      {
+        "seller": "0xdat-s0015",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 793.73
+      },
+      {
+        "seller": "0xdat-s0005",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1774.13
+      },
+      {
+        "seller": "0xdat-s0016",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2056.55
+      },
+      {
+        "seller": "0xdat-s0006",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1899.57
+      },
+      {
+        "seller": "0xdat-s0009",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3959.25
+      },
+      {
+        "seller": "0xdat-s0004",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 3368.53
+      },
+      {
+        "seller": "0xdat-s0013",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1229.36
+      },
+      {
+        "seller": "0xdat-s0001",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 618.42
+      },
+      {
+        "seller": "0xdat-s0021",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 6207.26
+      },
+      {
+        "seller": "0xdat-s0008",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 4426.58
+      },
+      {
+        "seller": "0xdat-s0018",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1788.83
+      },
+      {
+        "seller": "0xdat-s0019",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2156.16
+      },
+      {
+        "seller": "0xdat-s0007",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2240.65
+      },
+      {
+        "seller": "0xdat-s0011",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1188.1
+      },
+      {
+        "seller": "0xdat-s0003",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1003.03
+      },
+      {
+        "seller": "0xdat-s0002",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2926.39
+      },
+      {
+        "seller": "0xdat-s0023",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1553.15
+      },
+      {
+        "seller": "0xdat-s0020",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 2174.99
+      },
+      {
+        "seller": "0xdat-s0022",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 372.16
+      },
+      {
+        "seller": "0xdat-s0012",
+        "score": 1.0,
+        "clean_share": 1.0,
+        "attested": true,
+        "volume_usdc": 1241.06
+      }
+    ]
+  },
+  "attack": {
+    "per_index": [
+      {
+        "index_id": "ACR-INF",
+        "true": 0.5,
+        "acr_clean": 0.49839072310543897,
+        "acr_attacked": 0.500544456792623,
+        "vwap_clean": 0.46051703071754085,
+        "vwap_attacked": 1.0357620951460986,
+        "vwap_swing_pct": 124.9128753245579,
+        "acr_swing_pct": 0.4321375955323384
+      },
+      {
+        "index_id": "ACR-GPU",
+        "true": 0.011000000000000005,
+        "acr_clean": 0.011056961710518762,
+        "acr_attacked": 0.01106147025422098,
+        "vwap_clean": 0.008468369398516595,
+        "vwap_attacked": 0.022466352766039432,
+        "vwap_swing_pct": 165.29726927092796,
+        "acr_swing_pct": 0.04077561106075034
+      },
+      {
+        "index_id": "ACR-DATA",
+        "true": 0.0019608748817509323,
+        "acr_clean": 0.001967691206814039,
+        "acr_attacked": 0.0020019341085372754,
+        "vwap_clean": 0.0017240885751923563,
+        "vwap_attacked": 0.004084536112735222,
+        "vwap_swing_pct": 136.90987641278875,
+        "acr_swing_pct": 1.7402579024927518
+      }
+    ],
+    "series": [
+      {
+        "hour": 0,
+        "true": 0.5,
+        "acr": 0.49287539041888756,
+        "vwap": 0.4662898015571676,
+        "acr_err_bp": 142.4921916222488,
+        "vwap_err_bp": 674.2039688566481,
+        "attack": false
+      },
+      {
+        "hour": 1,
+        "true": 0.5,
+        "acr": 0.490918864734167,
+        "vwap": 0.4552390364313172,
+        "acr_err_bp": 181.6227053166597,
+        "vwap_err_bp": 895.2192713736562,
+        "attack": false
+      },
+      {
+        "hour": 2,
+        "true": 0.5,
+        "acr": 0.5009196401055275,
+        "vwap": 0.4709582787443055,
+        "acr_err_bp": 18.3928021105495,
+        "vwap_err_bp": 580.8344251138897,
+        "attack": false
+      },
+      {
+        "hour": 3,
+        "true": 0.5,
+        "acr": 0.4894294332010749,
+        "vwap": 0.46516265651227423,
+        "acr_err_bp": 211.41133597850194,
+        "vwap_err_bp": 696.7468697545154,
+        "attack": false
+      },
+      {
+        "hour": 4,
+        "true": 0.5,
+        "acr": 0.5014010475127411,
+        "vwap": 0.9310029465456354,
+        "acr_err_bp": 28.02095025482121,
+        "vwap_err_bp": 8620.058930912708,
+        "attack": true
+      },
+      {
+        "hour": 5,
+        "true": 0.5,
+        "acr": 0.4949055664512911,
+        "vwap": 0.9232109280396616,
+        "acr_err_bp": 101.88867097417842,
+        "vwap_err_bp": 8464.218560793233,
+        "attack": true
+      },
+      {
+        "hour": 6,
+        "true": 0.5,
+        "acr": 0.49477664568656315,
+        "vwap": 0.9208188395190858,
+        "acr_err_bp": 104.4670862687369,
+        "vwap_err_bp": 8416.376790381717,
+        "attack": true
+      },
+      {
+        "hour": 7,
+        "true": 0.5,
+        "acr": 0.5064794383252683,
+        "vwap": 0.9491600881169978,
+        "acr_err_bp": 129.58876650536632,
+        "vwap_err_bp": 8983.201762339957,
+        "attack": true
+      },
+      {
+        "hour": 8,
+        "true": 0.5,
+        "acr": 0.501214726361762,
+        "vwap": 0.4705725958933205,
+        "acr_err_bp": 24.29452723524017,
+        "vwap_err_bp": 588.5480821335898,
+        "attack": false
+      },
+      {
+        "hour": 9,
+        "true": 0.5,
+        "acr": 0.4929702207550689,
+        "vwap": 0.46782916511179085,
+        "acr_err_bp": 140.59558489862178,
+        "vwap_err_bp": 643.4166977641831,
+        "attack": false
+      },
+      {
+        "hour": 10,
+        "true": 0.5,
+        "acr": 0.49847122958263645,
+        "vwap": 0.47474480220296505,
+        "acr_err_bp": 30.575408347270905,
+        "vwap_err_bp": 505.1039559406989,
+        "attack": false
+      },
+      {
+        "hour": 11,
+        "true": 0.5,
+        "acr": 0.49621168138537486,
+        "vwap": 0.4629447359904232,
+        "acr_err_bp": 75.76637229250282,
+        "vwap_err_bp": 741.1052801915363,
+        "attack": false
+      }
+    ],
+    "usdc_burned": 147.60000000002378,
+    "n_adversarial": 36000
+  },
+  "oracle": "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609",
+  "chain": {
+    "name": "Arc Testnet",
+    "chain_id": 5042002,
+    "caip2": "eip155:5042002",
+    "rpc_url": "https://rpc.testnet.arc.network",
+    "explorer_base": "https://testnet.arcscan.app",
+    "usdc_address": "0x3600000000000000000000000000000000000000",
+    "gateway_wallet": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+    "oracle_address": "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609",
+    "registry_address": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+    "gate": "circle",
+    "tape_source": "sim",
+    "signer": null,
+    "poster": {
+      "posts": 0,
+      "last": {}
+    }
+  },
+  "marketplace": {
+    "catalog": {
+      "x402Version": 1,
+      "provider": {
+        "name": "ACR \u2014 The Arc Compute Rate",
+        "tagline": "the constant-quality price of machine services, sold to machines",
+        "attestation": null
+      },
+      "items": [
+        {
+          "resource": "/prints",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/prints",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "prints",
+            "description": "All latest ACR fixings \u2014 constant-quality rate, bootstrap CI, manipulation cost, robustness \u2014 for every index.",
+            "input": {
+              "type": "object",
+              "properties": {}
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "prints": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "index_id": {
+                        "type": "string"
+                      },
+                      "ts": {
+                        "type": "number",
+                        "description": "sim-seconds; Fixing N\u00ba = ts/3600"
+                      },
+                      "value": {
+                        "type": "number"
+                      },
+                      "ci_lo": {
+                        "type": "number"
+                      },
+                      "ci_hi": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string"
+                      },
+                      "naive_vwap": {
+                        "type": "number"
+                      },
+                      "cleaned_pct": {
+                        "type": "number"
+                      },
+                      "cost_to_move_1pct": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/prints/ACR-INF",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/prints/ACR-INF",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "print",
+            "description": "One fixing with full diagnostics (CI, attack cost, robustness).",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "ts": {
+                  "type": "number",
+                  "description": "sim-seconds; Fixing N\u00ba = ts/3600"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "ci_lo": {
+                  "type": "number"
+                },
+                "ci_hi": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "naive_vwap": {
+                  "type": "number"
+                },
+                "cleaned_pct": {
+                  "type": "number"
+                },
+                "cost_to_move_1pct": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/prints/ACR-GPU",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/prints/ACR-GPU",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "print",
+            "description": "One fixing with full diagnostics (CI, attack cost, robustness).",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "ts": {
+                  "type": "number",
+                  "description": "sim-seconds; Fixing N\u00ba = ts/3600"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "ci_lo": {
+                  "type": "number"
+                },
+                "ci_hi": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "naive_vwap": {
+                  "type": "number"
+                },
+                "cleaned_pct": {
+                  "type": "number"
+                },
+                "cost_to_move_1pct": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/prints/ACR-DATA",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/prints/ACR-DATA",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "print",
+            "description": "One fixing with full diagnostics (CI, attack cost, robustness).",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "ts": {
+                  "type": "number",
+                  "description": "sim-seconds; Fixing N\u00ba = ts/3600"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "ci_lo": {
+                  "type": "number"
+                },
+                "ci_hi": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "naive_vwap": {
+                  "type": "number"
+                },
+                "cleaned_pct": {
+                  "type": "number"
+                },
+                "cost_to_move_1pct": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/curve/ACR-INF",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/curve/ACR-INF",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "curve",
+            "description": "Term structure \u2014 Avellaneda\u2013Stoikov mids at 1/2/4/8-week tenors.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "curve": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tenor_weeks": {
+                        "type": "integer"
+                      },
+                      "expiry_ts": {
+                        "type": "number"
+                      },
+                      "mid": {
+                        "type": "number"
+                      },
+                      "bid": {
+                        "type": "number"
+                      },
+                      "ask": {
+                        "type": "number"
+                      },
+                      "spread_bp": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/curve/ACR-GPU",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/curve/ACR-GPU",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "curve",
+            "description": "Term structure \u2014 Avellaneda\u2013Stoikov mids at 1/2/4/8-week tenors.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "curve": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tenor_weeks": {
+                        "type": "integer"
+                      },
+                      "expiry_ts": {
+                        "type": "number"
+                      },
+                      "mid": {
+                        "type": "number"
+                      },
+                      "bid": {
+                        "type": "number"
+                      },
+                      "ask": {
+                        "type": "number"
+                      },
+                      "spread_bp": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/curve/ACR-DATA",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/curve/ACR-DATA",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "curve",
+            "description": "Term structure \u2014 Avellaneda\u2013Stoikov mids at 1/2/4/8-week tenors.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "curve": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tenor_weeks": {
+                        "type": "integer"
+                      },
+                      "expiry_ts": {
+                        "type": "number"
+                      },
+                      "mid": {
+                        "type": "number"
+                      },
+                      "bid": {
+                        "type": "number"
+                      },
+                      "ask": {
+                        "type": "number"
+                      },
+                      "spread_bp": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/vol/ACR-INF",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/vol/ACR-INF",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "vol",
+            "description": "Annualized realized volatility from the print history.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "annualized_vol": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/vol/ACR-GPU",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/vol/ACR-GPU",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "vol",
+            "description": "Annualized realized volatility from the print history.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "annualized_vol": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/vol/ACR-DATA",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/vol/ACR-DATA",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "vol",
+            "description": "Annualized realized volatility from the print history.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "annualized_vol": {
+                  "type": "number"
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/seller-scores/ACR-INF",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/seller-scores/ACR-INF",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "seller-scores",
+            "description": "Seller reliability \u2014 attestation + clean-volume share per seller.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "sellers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "seller": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number"
+                      },
+                      "clean_share": {
+                        "type": "number"
+                      },
+                      "attested": {
+                        "type": "boolean"
+                      },
+                      "volume_usdc": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/seller-scores/ACR-GPU",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/seller-scores/ACR-GPU",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "seller-scores",
+            "description": "Seller reliability \u2014 attestation + clean-volume share per seller.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "sellers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "seller": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number"
+                      },
+                      "clean_share": {
+                        "type": "number"
+                      },
+                      "attested": {
+                        "type": "boolean"
+                      },
+                      "volume_usdc": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        },
+        {
+          "resource": "/seller-scores/ACR-DATA",
+          "type": "http",
+          "x402Version": 1,
+          "accepts": [
+            {
+              "scheme": "exact",
+              "network": "eip155:5042002",
+              "asset": "0x3600000000000000000000000000000000000000",
+              "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+              "maxAmountRequired": "100",
+              "amount": "100",
+              "resource": "/seller-scores/ACR-DATA",
+              "description": "ACR machine-commerce index query",
+              "mimeType": "application/json",
+              "maxTimeoutSeconds": 60,
+              "extra": {
+                "name": "GatewayWalletBatched",
+                "version": "1",
+                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              }
+            }
+          ],
+          "metadata": {
+            "family": "seller-scores",
+            "description": "Seller reliability \u2014 attestation + clean-volume share per seller.",
+            "input": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string",
+                  "enum": [
+                    "ACR-INF",
+                    "ACR-GPU",
+                    "ACR-DATA"
+                  ],
+                  "description": "index id (path parameter)"
+                }
+              },
+              "required": [
+                "index_id"
+              ]
+            },
+            "output": {
+              "type": "object",
+              "properties": {
+                "index_id": {
+                  "type": "string"
+                },
+                "sellers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "seller": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number"
+                      },
+                      "clean_share": {
+                        "type": "number"
+                      },
+                      "attested": {
+                        "type": "boolean"
+                      },
+                      "volume_usdc": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provider": {
+              "name": "ACR \u2014 The Arc Compute Rate",
+              "tagline": "the constant-quality price of machine services, sold to machines",
+              "attestation": null
+            },
+            "units": {
+              "ACR-INF": "$/1k tokens",
+              "ACR-GPU": "$/GPU-sec",
+              "ACR-DATA": "$/MB"
+            }
+          }
+        }
+      ]
+    },
+    "receipts": {
+      "gate": "dev",
+      "paid_queries": 24,
+      "revenue_usdc": 0.0024,
+      "price_usdc": 0.0001,
+      "receipts": [
+        {
+          "seq": 24,
+          "payer": "0x186ff10c3fc4e04bbdcf3a0242290d7a630506ac",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-24",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 23,
+          "payer": "0x622442110f89cb3cf8dab0438ea0932c33aa431d",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-23",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 22,
+          "payer": "0xfd37c35bbd085fce1ad6d23b5403d2e0102d84aa",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-22",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 21,
+          "payer": "0xfc5168141c4991df1e2c3af2654ca4373ab41590",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-21",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 20,
+          "payer": "0xc3526e9e147121c26b14b8f3ba09fc277b2ac30b",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-20",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 19,
+          "payer": "0x8ae9ced1b03981a06ea535c49568e1d7319f50a1",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-19",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 18,
+          "payer": "0x5bb8600a7d96ff47e5d2b3ad6efe3598b8bc02a5",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-18",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 17,
+          "payer": "0xac860ebad1af9c7b2934754c57647c7b861db1e9",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-17",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 16,
+          "payer": "0x37687ddb7f6750a2f33b9c4f3ec8d53f13645508",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-16",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 15,
+          "payer": "0xad31e2e75e4b45c8ca57fb442587d5d3f6e29af7",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-15",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 14,
+          "payer": "0x172c2847ccd7e7f19adb6185cb71bdf625f14280",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-14",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 13,
+          "payer": "0x0189728e4bedb848549e9da160d63782a6f22850",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-13",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 12,
+          "payer": "0x294a5b3c8c0bbed1a5842457f2ec8c831d0abbc3",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-12",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 11,
+          "payer": "0xe56db6caa209ffe006521fb63d89cacaaf8e7e2d",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-11",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 10,
+          "payer": "0x92ec06df7dcd1768af48f1e963a5d099dc4a87ff",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-10",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 9,
+          "payer": "0xb3e57970e7cb42ca9765495fef5a6df85209418e",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-9",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 8,
+          "payer": "0xb24375744761862b9fd9c14160b437b1cdcc7e56",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-8",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 7,
+          "payer": "0xea29af3524853adf333059c04eb1a719ebceb316",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-7",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 6,
+          "payer": "0x29fc8dc1eec986592b92996e55427f6bdaaac316",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-6",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 5,
+          "payer": "0x952354b74f033aeabfa1f8155c62fe4ebb1cd4a4",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-5",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 4,
+          "payer": "0x22511cee73790652fb368fea65e6dc4d325ce494",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-4",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 3,
+          "payer": "0x0e5f1c10c2004f9090807b84deebacea944a0512",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-3",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 2,
+          "payer": "0x33d5c8e8952d35e1eef143c8adc1da178e87dfe4",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-2",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        },
+        {
+          "seq": 1,
+          "payer": "0xebafa2ed42f8852040be9b66d725e6c0f73a1124",
+          "amount_usdc": 0.0001,
+          "tx_ref": "sim-1",
+          "network": "eip155:5042002",
+          "scheme": "sim"
+        }
+      ]
+    }
+  },
+  "revenue": {
+    "paid_queries": 0,
+    "revenue_usdc": 0.0,
+    "price_usdc": 0.0001,
+    "recent": [
+      {
+        "payer": "0xebafa2ed42f8852040be9b66d725e6c0f73a1124",
+        "amount_usdc": 0.0001,
+        "tx_ref": "sim-1"
+      },
+      {
+        "payer": "0x33d5c8e8952d35e1eef143c8adc1da178e87dfe4",
+        "amount_usdc": 0.0001,
+        "tx_ref": "sim-2"
+      },
+      {
+        "payer": "0x0e5f1c10c2004f9090807b84deebacea944a0512",
+        "amount_usdc": 0.0001,
+        "tx_ref": "sim-3"
+      },
+      {
+        "payer": "0x22511cee73790652fb368fea65e6dc4d325ce494",
+        "amount_usdc": 0.0001,
+        "tx_ref": "sim-4"
+      },
+      {
+        "payer": "0x952354b74f033aeabfa1f8155c62fe4ebb1cd4a4",
+        "amount_usdc": 0.0001,
+        "tx_ref": "sim-5"
+      }
+    ],
+    "note": "the index about machine commerce, bought by machines"
+  },
+  "x402": {
+    "facilitator": "dev",
+    "price_usdc": 0.0001,
+    "scheme": "x402",
+    "network": "eip155:5042002",
+    "pay_to": "0xACacE0000000000000000000000000000000CafE",
+    "payment_header": "PAYMENT-SIGNATURE",
+    "gated_endpoints": [
+      "/prints",
+      "/prints/{index_id}",
+      "/curve/{index_id}",
+      "/vol/{index_id}",
+      "/seller-scores/{index_id}"
+    ]
+  },
+  "x402_exchange_sample": {
+    "challenge": {
+      "status": 402,
+      "headers": {
+        "WWW-Authenticate": "x402",
+        "X-402-Price": "0.0001",
+        "X-402-Asset": "USDC",
+        "X-402-Network": "arc-testnet",
+        "X-402-Pay-To": "0xACacE0000000000000000000000000000000CafE",
+        "PAYMENT-REQUIRED": "eyJ4NDAyVmVyc2lvbiI6IDIsICJlcnJvciI6ICJwYXltZW50IHJlcXVpcmVkIiwgInJlc291cmNlIjogeyJ1cmwiOiAiL3ByaW50cyIsICJkZXNjcmlwdGlvbiI6ICJBQ1IgbWFjaGluZS1jb21tZXJjZSBpbmRleCBxdWVyeSIsICJtaW1lVHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIn0sICJhY2NlcHRzIjogW3sic2NoZW1lIjogImV4YWN0IiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAiYXNzZXQiOiAiMHgzNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInBheVRvIjogIjB4MzMxODljNjQzNzc0RUQyNzEzRWJGZjVBNjkyM2U1ZmE0MmI5NmVFOCIsICJtYXhBbW91bnRSZXF1aXJlZCI6ICIxMDAiLCAiYW1vdW50IjogIjEwMCIsICJyZXNvdXJjZSI6ICIvcHJpbnRzIiwgImRlc2NyaXB0aW9uIjogIkFDUiBtYWNoaW5lLWNvbW1lcmNlIGluZGV4IHF1ZXJ5IiwgIm1pbWVUeXBlIjogImFwcGxpY2F0aW9uL2pzb24iLCAibWF4VGltZW91dFNlY29uZHMiOiA2MCwgImV4dHJhIjogeyJuYW1lIjogIkdhdGV3YXlXYWxsZXRCYXRjaGVkIiwgInZlcnNpb24iOiAiMSIsICJ2ZXJpZnlpbmdDb250cmFjdCI6ICIweDAwNzc3NzdkN0VCQTQ2ODhCRGVGM0UzMTFiODQ2RjI1ODcwQTE5QjkifX1dfQ=="
+      },
+      "body": {
+        "x402Version": 2,
+        "error": "payment required",
+        "resource": {
+          "url": "/prints",
+          "description": "ACR machine-commerce index query",
+          "mimeType": "application/json"
+        },
+        "accepts": [
+          {
+            "scheme": "exact",
+            "network": "eip155:5042002",
+            "asset": "0x3600000000000000000000000000000000000000",
+            "payTo": "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8",
+            "maxAmountRequired": "100",
+            "amount": "100",
+            "resource": "/prints",
+            "description": "ACR machine-commerce index query",
+            "mimeType": "application/json",
+            "maxTimeoutSeconds": 60,
+            "extra": {
+              "name": "GatewayWalletBatched",
+              "version": "1",
+              "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+            }
+          }
+        ]
+      }
+    },
+    "settled": {
+      "status": 200,
+      "payer": "0xebafa2ed42f8852040be9b66d725e6c0f73a1124",
+      "headers": {
+        "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0=",
+        "X-PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0="
+      },
+      "body_note": "prints payload served"
+    }
+  }
+}
