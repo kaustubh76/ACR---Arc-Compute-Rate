@@ -220,7 +220,11 @@ class PrintStore:
         flagged = d.cleaning.all_flagged
         vol_clean: dict[str, float] = defaultdict(float)
         vol_total: dict[str, float] = defaultdict(float)
-        attested = {a.seller for a in self.source.attestations()}
+        # Reflect the REAL on-chain registry: self._attest is the source tape's
+        # attestations unioned with the live AttestationRegistry (on-chain wins,
+        # via _merge_onchain_attestations). Falls back to the source set when no
+        # registry is configured (hermetic tests / offline) — behavior preserved.
+        attested = {a.seller for a in (self._attest or self.source.attestations())}
         for e, w in zip(d.cleaning.events, d.cleaning.weights, strict=True):
             vol_total[e.seller] += e.notional
             if e.event_id not in flagged and w > 0:
