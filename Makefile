@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once lint glossary-check diagram diagram-preview clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -11,6 +11,7 @@ help:
 	@echo "  make eval-gate       assert the headline resistance claims (CI gate)"
 	@echo "  make ci              lint + tests + contracts + eval gate"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
+	@echo "  make deck            render the midway-submission slide deck (docs/presentation.html + .pdf)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -167,9 +168,16 @@ circle-fund: circle-check
 	@test -n "$(ADDR)" || { echo "usage: make circle-fund ADDR=0x<buyer wallet>"; exit 1; }
 	circle wallet fund --address $(ADDR) --chain $(CIRCLE_CHAIN)
 
+# CLI v0.0.6: LOCAL wallets (circle wallet import) deposit on-chain and REJECT
+# --method; AGENT wallets REQUIRE --method (eco|direct). So --method is only
+# passed when METHOD= is set: local → `make circle-deposit ADDR=…`; agent →
+# `make circle-deposit ADDR=… METHOD=direct`. USDC is Arc's native gas, so a
+# funded wallet covers the deposit. Override the amount with AMOUNT=.
+AMOUNT ?= 0.5
+METHOD ?=
 circle-deposit: circle-check
 	@test -n "$(ADDR)" || { echo "usage: make circle-deposit ADDR=0x<buyer wallet>"; exit 1; }
-	circle gateway deposit --amount 0.5 --address $(ADDR) --chain $(CIRCLE_CHAIN)
+	circle gateway deposit --amount $(AMOUNT) --address $(ADDR) --chain $(CIRCLE_CHAIN) $(if $(METHOD),--method $(METHOD))
 
 circle-balance: circle-check
 	@test -n "$(ADDR)" || { echo "usage: make circle-balance ADDR=0x<buyer wallet>"; exit 1; }
@@ -190,6 +198,13 @@ diagram:
 
 diagram-preview:
 	uv run python scripts/preview_excalidraw.py
+
+deck:
+	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --scale 0.5
+	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 700,280,2120,950 --name core
+	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
+	npx -y @marp-team/marp-cli --html docs/presentation.md -o docs/presentation.html
+	npx -y @marp-team/marp-cli --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
 
 clean:
 	rm -rf .venv contracts/out contracts/cache apps/terminal/.next apps/agent/node_modules scripts/_out
