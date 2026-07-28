@@ -195,7 +195,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | `acr_architecture.excalidraw` | The **comprehensive, implementation-accurate** canvas: 205 elements (64 rectangles, 112 text, 29 fully-bound arrows) covering the four-pillar estimator in detail, the signer abstraction, EIP-712 verification, the x402 facilitator (concrete Circle wiring), robustness diagnostics, TapeSource, on-chain reads, **the agentic-economy demand side (buyer agent · Agent Marketplace · Circle webhooks)**, Circle SCP deploy, the verification surface, **and a "PLAIN ENGLISH" glossary panel**. Open at excalidraw.com. |
 | `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. |
 | `acr_architecture_v1_blueprint.excalidraw` | The original 143-element blueprint (kept for reference). |
-| `README_ACR_Architecture.md` | This document. |
+| `Readme.md` | This document. |
 
 **Suggested exports:** select the Estimator Core + On-chain + Instrument zones only → export PNG for the pitch deck's architecture slide. The Demo Theater box exports standalone as the demo-script slide. The Why-Arc rail exports as the "only on Arc" slide.
 

@@ -95,6 +95,26 @@ vercel deploy --prod \
 Output: `https://acr-terminal-XXXX.vercel.app` — the public dashboard. It falls
 back to the bundled `lib/fallback.json` if the API is briefly unreachable (cold start).
 
+### 2b. Real Circle settlement from the cloud dashboard (optional)
+
+The Terminal is the buyer for the UI-triggered "LIVE buyer" and console "Settle
+for real" actions (`app/api/buy`, `app/api/circle/balances`, Node runtime). To
+enable them in the cloud, add ONE server-only secret in Vercel:
+
+```bash
+vercel env add ACR_BUYER_PRIVATE_KEY production   # a funded EOA with an OPEN Gateway deposit
+# ACR_ARC_RPC_URL is optional (the Circle SDK defaults arcTestnet); ACR_API must
+# point at a seller whose /health gate == "circle".
+```
+
+- Server-only (never `NEXT_PUBLIC_`); the browser only sees settlement results.
+- The buyer signs EIP-3009 and settles via Circle Gateway — real USDC on Arc.
+  Prereq is operator-only: `make buyer-key` → fund → `circle gateway deposit`
+  (see [`agent-runbook.md`](agent-runbook.md) §4b). A hard $0.01 cap is enforced.
+- Without the key the LIVE controls stay disabled; everything else still renders.
+- Seller: keep it on `ACR_X402_MODE=circle`. For heavy live demos consider a
+  paid instance (the 512MB free tier can cold-start 502 the heavy `/terminal/data`).
+
 ---
 
 ## 3. Circle webhook subscription
