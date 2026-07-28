@@ -1,0 +1,385 @@
+# ACR — Plain-English Glossary
+
+> The diagram (`acr_architecture.excalidraw`) and the code are dense with jargon.
+> This file explains every term in one line, with an everyday analogy. If you
+> read only two things, read **"The whole thing in one paragraph"** and the
+> **plain-words ①→⑩ walkthrough** at the bottom.
+
+---
+
+## The whole thing in one paragraph
+
+Machines are starting to buy services from each other (AI inference, GPU time,
+data) and pay in digital dollars (USDC) on a blockchain called **Arc**. Those
+payments are messy: they arrive in delayed batches, and cheaters flood in fake
+trades to make a price look higher or lower than it really is. **ACR** watches
+all those payments and computes the *honest going rate* for each service —
+carefully, so that fakes barely move it — then publishes that rate on-chain so
+other contracts can trust it and settle against it (the way loans settle against
+an interest-rate benchmark like SOFR). It also prints, next to every rate, the
+literal dollar cost an attacker would have to burn to nudge it — *"here's the
+bill."* Same idea as an official financial benchmark, but for machine commerce,
+and it proves its own tamper-resistance.
+
+---
+
+## Benchmark & economics
+
+- **Latent price / estimand** — the *true* price you can't see directly, only
+  estimate from noisy data. *Like guessing a room's real temperature from a few
+  cheap, laggy thermometers.*
+- **Benchmark / reference rate** — one agreed, official number that lots of
+  contracts settle against. *Like the "official" exchange rate a bank quotes.*
+- **SOFR / LIBOR** — real-world interest-rate benchmarks banks settle loans on;
+  ACR is the same idea for machine services. *The "prime rate," but for compute.*
+- **VWAP (volume-weighted average price)** — a plain average that weights each
+  trade by its size. Easy to fool: print huge fake volume and it follows you.
+  *Like averaging house prices — one staged $10M sale drags the average.*
+- **Hedonic adjustment / constant-quality (Case-Shiller)** — adjust prices so
+  you compare like-for-like quality. *A cheap studio and a luxury penthouse both
+  "sold" — strip the quality difference to get the true market move.*
+- **Basis point (bp)** — one hundredth of one percent (0.01%). *A penny on a
+  hundred dollars.*
+- **Numeraire** — the unit prices are measured in (here, USDC / dollars). *The
+  "ruler" you measure value with.*
+- **Term structure / the curve** — prices for the same thing at different future
+  dates. *Airfares for the same route next week vs next month.*
+
+## Estimator & statistics (the four pillars)
+
+- **Observation model / state-space** — a math model that says *"what we see =
+  the true signal, distorted and delayed, plus noise."* *A muffled phone call:
+  model the muffling so you can recover the words.*
+- **Convolution / batching operator (H)** — the smearing/mixing of the signal
+  over time because settlements arrive batched, not instantly. *Trades get
+  blurred together like a long-exposure photo.*
+- **Deconvolution** — undoing that smear to recover the sharp, true signal.
+  *Un-blurring the photo.*
+- **Kalman filter** — the standard algorithm that recovers a clean, current
+  estimate of a hidden signal from noisy, delayed measurements. *Your phone's
+  GPS blending laggy fixes into one smooth position.* (Pillar 1)
+- **RTS smoother (Rauch–Tung–Striebel)** — a second backward pass over the Kalman
+  filter that also uses *later* data to sharpen *earlier* estimates. *Re-reading
+  a sentence's start once you've seen how it ends.*
+- **batch operator (H)** — the mathematical object that describes how settlements
+  smear trades together; the model treats it as *known* so it can be inverted.
+  *The exact recipe of the blur, so you can un-blur it.*
+- **WLS (weighted least squares)** — a regression that lets bigger trades count
+  more than tiny ones. *Averaging exam scores but weighting the final heavier
+  than a quiz.*
+- **VWM (volume-weighted median)** — shorthand for the trimmed weighted median ACR
+  uses; the middle value weighted by trade size. *The "typical" price, by dollars
+  not by count.*
+- **constant-quality rate** — the price after quality differences are stripped
+  out, so it only moves when the *market* moves. *Same-model, same-mileage car
+  price, tracked over time.*
+- **leave-one-community-out (LOCO)** — a robustness check: drop each detected
+  cluster in turn and see how far the rate moves. *Re-tallying the vote with each
+  precinct removed to see who swings it.*
+- **N\*** — in the attack-cost formula, the minimum wash volume (in USDC) that
+  would actually move the rate by the target amount. *The smallest bribe that
+  changes the outcome.*
+- **fee_bp / fee_flat** — the two parts of Arc's fixed USDC transfer fee (a per-
+  dollar rate + a flat per-transfer charge) that make the attack cost a number.
+  *A card fee of "2% + 30¢."*
+- **Volume-time bars** — sample the tape by equal dollars traded, not by equal
+  clock time, so busy and quiet periods count evenly. *Weigh flour by grams, not
+  by "one scoop."*
+- **α-trim (trimmed) weighted median** — throw away the most extreme few percent
+  on each side, then take the middle value weighted by size. Very hard to drag.
+  *Olympic scoring: drop the highest and lowest judges, keep the middle.*
+- **Breakdown point (½)** — how much of the data can be pure garbage before an
+  estimator can be pushed anywhere. The median tolerates up to 50%. *You'd need
+  to rig half the votes to flip the winner.*
+- **(Weighted) bootstrap confidence interval (CI)** — resample the data many
+  times to get an honest "the rate is X, give or take Y" range. *Re-polling a
+  crowd repeatedly to see how much the answer wobbles.*
+- **Funding graph** — the who-paid-whom network of addresses. *A map of arrows:
+  who sent money to whom.*
+- **Sybil / sybil cluster** — many fake identities secretly controlled by one
+  attacker. *One troll with a hundred sock-puppet accounts.*
+- **Wash trade** — a fake trade with no real economics, done to inflate volume or
+  price. *Selling your car to yourself repeatedly to fake a "hot market."* The
+  reference attacker emits three flavors the cleaning stack is built to catch:
+  - **self-deal** — buyer and seller are the *same* address.
+  - **wash-cycle / reciprocal funding** — money loops A→B and B→A so net flow is
+    ~zero but volume looks real. *Two people passing the same $20 back and forth.*
+  - **pure-sybil (ring)** — a tight cluster of fresh fake identities trading only
+    with each other. *A room full of sock-puppets clapping for one another.*
+- **Louvain community detection** — an algorithm that finds tightly-knit clusters
+  in a graph — used to spot sybil rings. *Spotting friend-groups on a social
+  network by who talks mostly to whom.*
+- **Cluster caps** — no single cluster's volume may count for more than a fixed
+  share of the window. *No one voter gets to cast 40% of the ballots.*
+- **Robustness diagnostics (flip fraction, LOCO)** — per-rate checks: "can one
+  capped cluster even flip this?" and "how much does dropping any one community
+  move it?" *A stress test printed on the label.*
+- **Manipulation cost bound (attack-cost per bp)** — the least USDC an attacker
+  must burn to move the rate by one basis point, computed against a
+  cleaning-evading attacker. Prints next to the rate. *"Moving this number 0.01%
+  costs you $X" — the bill, on the tag.* (Pillar 3)
+- **OU process (Ornstein–Uhlenbeck)** — a "wandering-but-pulled-back-to-normal"
+  random process the simulator uses for the true price. *A dog on an elastic
+  leash: it drifts but keeps getting tugged back.*
+
+## Crypto / Circle / Arc
+
+- **Arc** — Circle's blockchain built for payments, where **USDC itself is the
+  gas** (fee) token. *A toll road where you pay tolls in the same dollars you're
+  already carrying.*
+- **chain id 5042002 / CAIP-2 (`eip155:5042002`)** — the network's numeric
+  address; CAIP-2 is a standard way to name a chain. *A phone country code, but
+  for blockchains.*
+- **testnet** — a practice copy of a blockchain using fake-value tokens, for
+  building safely before going live. *A flight simulator before the real plane.*
+- **USDC** — Circle's regulated dollar stablecoin (1 USDC ≈ $1). On Arc it's a
+  *native system contract* at `0x3600000000000000000000000000000000000000` and is
+  itself the gas token. *A digital dollar bill that also pays its own postage.*
+- **Malachite** — Arc's consensus engine (the software that lets all the
+  computers agree on order). *The referee crew that decides what officially
+  happened.*
+- **finality / Malachite finality / no reorgs** — once Arc confirms a
+  transaction it is **permanent within a second and never reversed** ("reorg" =
+  the chain rewriting recent history, which can't happen here). This is why the
+  tape's timestamps are trustworthy enough to do the math on. *The whistle blows,
+  the goal counts, and no replay can take it back.*
+- **Circle Gateway** — Circle's rail that pools and settles USDC across chains.
+  *The clearing house all the payments flow through.*
+- **Agent Marketplace** — Circle's directory where AI agents discover and pay for
+  services (ACR lists itself there). *An app store for machine-to-machine
+  services.*
+- **SLO (service-level objective)** — a promised performance level, e.g. "99% of
+  responses under 250 ms" — one of the quality features ACR adjusts for. *The
+  "delivered in 30 min or it's free" promise.*
+- **x402** — the HTTP "402 Payment Required" standard: pay per API call. *A
+  turnstile that takes a coin before it lets you through.*
+- **Nanopayments** — sub-cent payments (fractions of a cent per call). *Dropping
+  a tenth of a penny in the meter each time.*
+- **EIP-3009 ("transfer with authorization")** — pay by signing a message, no
+  separate approval transaction. *Signing a check instead of moving cash twice.*
+- **EIP-712** — the standard for signing structured, human-readable data so a
+  contract can verify who signed. *A notarized form with a verifiable signature.*
+- **Oracle** — an on-chain contract that publishes off-chain facts (here, the
+  rate) for other contracts to read. *The stadium scoreboard everyone trusts.*
+- **Attestation / AttestationRegistry** — a signed statement of a seller's
+  metadata (model class, latency), stored on-chain to feed the quality
+  adjustment. *A verified badge on a seller's profile.*
+- **x402 Facilitator (Dev / Circle)** — the service that verifies and settles an
+  x402 payment (`/verify` + `/settle`). "Dev" is a local mock; "Circle" is the
+  real Nanopayments one. *The payment terminal that approves the card.*
+- **Signer (Local / Circle wallet) / custody** — who holds the key and signs the
+  rate. Local = a raw dev key; Circle wallet = a managed (custodial) key. *Your
+  own house key vs a key the bank holds in a vault for you.*
+- **Foundry / invariant tests / `fail_on_revert`** — the Solidity toolkit and its
+  tests; *invariants* are rules that must ALWAYS hold no matter what. *"The scores
+  can never go negative" — checked against every possible play.*
+- **Gas / gasless** — the fee to run a transaction. On Arc it's paid in USDC, so
+  users never need a separate coin. *Paying the postage in the same currency as
+  the goods.*
+
+## On-chain & payments mechanics
+
+- **`.sol`** — a Solidity source file, i.e. a smart contract's code (`ACROracle.sol`,
+  `AttestationRegistry.sol`). *The recipe card for an on-chain vending machine.*
+- **`postPrint`** — the oracle function that publishes a new rate on-chain. *Pinning
+  today's number to the public board.*
+- **relayer** — whoever *submits* the signed rate transaction; because the contract
+  checks the *signature*, the submitter needn't be the signer. *A courier can drop
+  off a sealed, signed envelope — the seal is what's trusted, not the courier.*
+- **signature verification (verifies the signer)** — the contract recovers who
+  signed and checks it's authorized, instead of trusting who sent it. *The bank
+  checks the signature on the check, not who walked it in.*
+- **MAX_TS_SKEW** — a guardrail: a rate whose timestamp is too far in the *future*
+  is rejected, so a fat-fingered date can't jam the feed. *Refusing a check
+  post-dated to the year 3000.*
+- **isStale / staleness / latestPrintWithAge** — a way for readers to ask "how old
+  is this rate?" and refuse to settle on a stale one. *Checking the milk's
+  best-by date before you drink it.*
+- **monotone timestamps** — each new rate must be strictly newer than the last.
+  *Page numbers that only ever go up.*
+- **pause / setPaused** — an emergency stop that halts new posts. *The big red
+  "stop the line" button.*
+- **2-step ownership (transfer)** — handing over admin control needs the new owner
+  to *accept*, so you can't send it to a wrong/dead address. *A certified letter
+  that only counts once the recipient signs for it.*
+- **nonce** — a per-seller counter included in a signed message so an old signature
+  can't be reused. *A one-time code that expires the moment it's used.*
+- **deadline** — an expiry timestamp on a signed message. *A coupon with a "use by"
+  date.*
+- **replay / replay-proof** — "replay" = re-submitting an old signed message to
+  cheat; the nonce + deadline make that impossible. *A movie ticket that can't be
+  scanned twice.*
+
+## Services & interfaces (the code that runs it)
+
+- **TapeSource / SimSource / ArcSource** — one common "data-in" interface with two
+  implementations: `SimSource` (the simulator) and `ArcSource` (real Arc testnet).
+  The estimator doesn't care which. *One faucet handle; the water can come from
+  the tank or the mains.*
+- **offline-tolerant** — if no chain/credentials are configured, the code quietly
+  falls back to the simulator instead of crashing. *A GPS that still shows the map
+  when it loses signal.*
+- **FastAPI** — the Python web framework serving the index API. *The waiter that
+  takes requests and brings back data.*
+- **lifespan** — a startup/shutdown hook; here it launches the background refresh +
+  poster loop when the API boots. *Flipping the "open" sign and starting the
+  coffee machine when the shop opens.*
+- **poster loop** — a background job that re-estimates and posts a fresh rate on a
+  schedule (hourly). *The clock tower that chimes every hour on its own.*
+- **x402-gated** — an endpoint that returns "402 Payment Required" until you pay.
+  *A paywall on an article.*
+- **`/verify` + `/settle`** — the facilitator's two steps: check the payment is
+  valid, then actually move the USDC. *Authorize the card, then charge it.*
+- **`/onchain` (reader)** — an API endpoint that returns the rate *read straight
+  from the blockchain* (not the freshly computed one). *Reading the number off the
+  official public board, not your own notes.*
+- **DevFacilitator / CircleFacilitator** — the mock (local, for testing) vs the
+  real (Circle Nanopayments) payment verifier. *A toy cash register vs the real
+  card terminal.*
+- **LocalKeySigner / CircleWalletSigner / `build_signer`** — sign with a raw local
+  key (dev) or a Circle-managed custodial wallet (prod); `build_signer` picks the
+  right one from config. *Sign with your own pen, or have the bank's vault sign
+  for you.*
+- **PAYMENT-REQUIRED / PAYMENT-SIGNATURE / PAYMENT-RESPONSE** — the three x402 HTTP
+  headers: the server's price challenge, the client's signed payment, and the
+  server's receipt. *"That'll be $2" → you tap the card → here's your receipt.*
+- **fail-closed** — if a payment can't be verified, deny access (the *safe*
+  default). *A door that locks itself when the power's out, not swings open.*
+- **SSR (server-side rendering)** — the web page is built on the server and sent
+  ready-to-read, so it loads fast and works without heavy client JavaScript. *A
+  meal delivered plated, not as raw ingredients to cook yourself.*
+- **settlement-grade** — trustworthy and well-guarded enough that other contracts
+  can safely settle money against it. *"Bank-grade," but for a published number.*
+- **manipulation-resistant** — built so fakes and attackers can barely move it.
+  *A scale you can't fool by leaning on it.*
+- **benchmark-native (institution)** — a firm whose core business is rates/indices
+  (ICE, Apollo, BNY, Mastercard) — the natural customers/judges for ACR. *People
+  who run scoreboards for a living.*
+- **ICE / IBA (ICE Benchmark Administration)** — the company that officially
+  administers LIBOR; it's on Arc's testnet roster, i.e. a realistic ACR adopter.
+  *The org that keeps the "official interest rate" — a perfect customer.*
+- **ABC (abstract base class)** — a code "interface" that lists methods every
+  implementation must provide (e.g. `TapeSource`). *A job description every hire
+  must fulfil.*
+- **reprice** — recompute each trade's price at a reference quality (what the
+  hedonic step does). *Re-quoting every sale as if it were the standard model.*
+- **red-team** — deliberately attacking your own system to prove it holds up.
+  *Hiring burglars to test your own locks.*
+- **paper-traded** — simulated trading with no real money at risk (an acceptable
+  cut for the future). *Playing poker with matchsticks.*
+- **deflator** — a hidden factor that quietly shrinks a measured value — e.g. a
+  volatile gas token baked into a price; ACR dodges it by pricing purely in USDC.
+  *Measuring height with a ruler that keeps shrinking.*
+- **conftest / hermetic tests** — `conftest.py` wires up the test suite; *hermetic*
+  means tests run sealed off from any local config, so they give the same result
+  everywhere. *A cleanroom: same inputs, same output, every time.*
+- **CI (continuous integration)** — automation that runs the tests/gates on every
+  change. (Note: "CI" also means *confidence interval* elsewhere — context tells
+  which.) *A robot that re-checks your homework each time you edit it.*
+
+## Agentic economy & Circle live-wiring (the demand side)
+
+- **agentic economy** — a market where the buyers and sellers are software agents,
+  not people. *A bazaar where the shoppers are robots.*
+- **buyer agent** — a program that autonomously finds services and pays for them
+  (`apps/agent`, TypeScript, using **viem** — a TS Ethereum library). *A robot
+  shopper with its own wallet.*
+- **DevPayer / GatewayPayer** — the agent's two payment modes: a local mock vs the
+  real Circle path. *A pretend till vs a real card machine.*
+- **GatewayClient / `@circle-fin/x402-batching`** — Circle's client library the
+  agent uses to make batched x402 payments. *The pay-app on the robot's phone.*
+- **GatewayWallet / GatewayWalletBatched** — the Circle smart contract that holds
+  pooled USDC and that x402 payments are signed *against* (EIP-712 domain name
+  `GatewayWalletBatched`; testnet address `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`).
+  *The shared prepaid account the turnstile debits.*
+- **facilitator endpoint** — the real Circle host `gateway-api-testnet.circle.com`
+  with `POST /v1/x402/verify` and `/v1/x402/settle`; scheme `exact`. *The card
+  network's authorize-then-charge API.*
+- **scheme `exact`** — the x402 payment scheme that pays an exact amount via
+  EIP-3009. *Paying the precise sticker price, no haggling.*
+- **Agent Marketplace endpoints** — `/marketplace/catalog` (the **catalog** of
+  payable services) and `/marketplace/receipts` (a **ledger** of paid queries).
+  *A menu, and the till roll of everything sold.*
+- **Bazaar / Bazaar-shaped** — the format of Circle's Agent Bazaar (its
+  marketplace for agent-payable services); our catalog is shaped to match it so
+  agents can discover ACR the standard way. *Listing on the same shelf format the
+  big store uses.*
+- **x402Version 2 (`resource` + `accepts`)** — the version and JSON shape of the
+  402 challenge body that buyer SDKs parse: what resource you're buying and which
+  payment methods it `accepts`. *The vending machine's little screen saying what
+  it sells and which cards it takes.*
+- **payable service / listing** — an endpoint an agent can pay to call. *A
+  vending-machine slot with a price on it.*
+- **floor buyer** — an in-app demo agent (`/demo/buyer/*`) that keeps buying to
+  show the loop live. *A house shill who keeps feeding the machine.*
+- **webhook (`/webhooks/circle`)** — an HTTP callback Circle sends the API the
+  moment a settlement lands. *The bank texting you the instant a payment clears.*
+- **Circle Smart Contract Platform (SCP) / Gas Station** — Circle's API to deploy
+  and manage contracts, with gas sponsored so deploys are gasless
+  (`deploy_circle.py`, with `setSigner` to authorize the poster, or
+  `--import-by-address` to register an already-deployed one). *A concierge that
+  installs your vending machine and pays the install fee.*
+- **Developer-Controlled Wallet / `circle-developer-controlled-wallets` (SDK)** —
+  a wallet whose keys Circle custodies for your app; an **SDK** is just a code
+  library. *A company card the bank holds and swipes on your say-so.*
+- **`attestWithSig` (meta-attestation)** — a seller EIP-712-signs their attestation
+  (with a nonce + deadline) and a **relayer** submits it and pays the gas, so one
+  funded account can register many sellers. *Mailing in a signed form someone else
+  files for you.*
+- **interop / conformance check** — the agent's self-test (`interop.ts`) that our
+  402 challenge parses exactly the way Circle's client expects. *A dry-run to make
+  sure our plug fits their socket.*
+- **Paymaster / ERC-4337** — an "account-abstraction" way to have someone else
+  sponsor gas; ACR **doesn't need it** because on Arc, USDC *is* the gas. *A
+  gift-card for tolls you don't need when tolls are already free.*
+- **The Fixing / Arc Dawn** — the Terminal's editorial framing (the hourly rate
+  "fixing") and its visual theme (a pre-dawn navy→gold sunrise). *The newspaper's
+  masthead and its front-page look.*
+- **ChainFactsStrip / OracleProvenance / FinalityBadge / SettlementTape /
+  WebhookActivity** — Terminal panels that show, respectively: the chain facts,
+  the `postPrint` transaction + block (**provenance**), the print's age/staleness,
+  a live feed of settlements, and recent webhook events. *The dashboard lights
+  that prove the number is real, fresh, and paid-for.*
+- **SWR** — a React library that automatically re-fetches data every few seconds
+  so the Terminal stays live. *An auto-refreshing scoreboard.*
+
+## Instrument (Pillar 4)
+
+- **Future (cash-settled)** — a contract to settle the *difference* vs the index
+  at a future date — no goods change hands. *Betting on next month's gas price
+  and just paying/collecting the difference, never taking delivery of fuel.*
+- **Market maker** — someone who always posts a price to buy and a price to sell,
+  creating liquidity. *The currency-exchange booth quoting both directions.*
+- **Avellaneda–Stoikov** — a well-known recipe for setting those buy/sell quotes
+  based on inventory and risk. *A rulebook for how wide to set the spread and
+  when to lean.*
+
+---
+
+## The pipeline in plain words (flow ①→⑩)
+
+1. **Exhaust** — machines pay each other; each payment (price, size, who, when)
+   streams in.
+2. **Batched tape** — those payments settle in delayed batches, which smears the
+   timing (the "convolution").
+3. **Deconvolve** — the Kalman filter un-smears the batching to recover what the
+   price actually was moment to moment (Pillar 1).
+4. **Clean** — throw out the fakes: self-trades, wash rings, and sybil clusters
+   (funding-graph + Louvain).
+5. **Robust estimate** — take the trimmed, size-weighted *middle* of what's left,
+   so no whale or fake can drag it; attach an error range (CI).
+6. **Hedonic** — adjust for quality so a frontier model and a cheap one are
+   compared fairly → the constant-quality rate (Pillar 2).
+7. **Print + bound** — publish the hourly rate **and** the dollar cost to move it
+   1bp (Pillar 3).
+8. **Oracle** — sign the rate and post it on-chain to `ACROracle` for other
+   contracts to read.
+9. **Settle** — the weekly future cash-settles against that on-chain rate.
+10. **Agents pay for the rate** — machines pay a fraction of a cent (x402) to read
+    the index. The index about machine commerce is bought *by* machines — the
+    loop closes.
+
+---
+
+*See also: `Readme.md` (the visual blueprint), `docs/methodology.md` (the formal
+spec), `IMPLEMENTATION.md` (how the code maps to the diagram).*
