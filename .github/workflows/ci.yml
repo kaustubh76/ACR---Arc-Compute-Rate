@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Lint
+        run: uv run ruff check packages services scripts redteam
+      - name: Tests
+        run: uv run pytest packages services tests -q -p no:cacheprovider --import-mode=importlib
+      - name: Eval gate (headline claims)
+        run: uv run python scripts/eval.py --hours 12 --check
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install forge-std
+        run: cd contracts && forge install --no-git foundry-rs/forge-std || true
+      - name: Forge test
+        run: cd contracts && forge test -vvv
+
+  agent:
+    # The buyer agent's hermetic checks: tsc + node:test with a stubbed fetch.
+    # No secrets, no chain, no Circle account — the live path is runbook-only.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: apps/agent
+      - name: Type-check
+        run: npm run build
+        working-directory: apps/agent
+      - name: Tests
+        run: npm test
+        working-directory: apps/agent
+
+  terminal:
+    # The Next.js terminal: node:test (buy plan, connection ladder, oracle
+    # codec) + a full production build. Hermetic — with no ACR_API the data
+    # layer falls back to the bundled snapshot, so the build needs no network.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: apps/terminal
+      - name: Tests
+        run: npm test
+        working-directory: apps/terminal
+      - name: Build
+        run: npm run build
+        working-directory: apps/terminal
