@@ -14,11 +14,11 @@ This is the one-page status for judges. For depth: [`Readme.md`](../Readme.md) (
 
 | Index | Measures | Latest on-chain value (Arc testnet) |
 |---|---|---|
-| **ACR-INF** | Inference — $/1k tokens | **0.50271** |
-| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01227** |
-| **ACR-DATA** | Data egress — $/MB | **0.00200** |
+| **ACR-INF** | Inference — $/1k tokens | **0.49112** |
+| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01083** |
+| **ACR-DATA** | Data egress — $/MB | **0.00203** |
 
-Every hourly print ships **three numbers, not one**: the rate, a **confidence interval**, and an **attack-cost-per-bp** — the USDC an attacker must burn to move the print by one basis point (e.g. ACR-INF attack-cost-per-bp ≈ **0.0146 USDC/bp**). Values read live from the oracle at commit time via `make verify-testnet`.
+Every hourly print ships **three numbers, not one**: the rate, a **confidence interval**, and an **attack-cost-per-bp** — the USDC an attacker must burn to move the print by one basis point (e.g. ACR-INF attack-cost-per-bp ≈ **0.0055 USDC/bp**). Values read live from ACROracle at commit time; posts run **in-cloud, hourly, signed by the Circle Developer-Controlled custody wallet** (latest `postPrint`: [`0xa26c…643f`](https://testnet.arcscan.app/tx/0xa26c5977dcd8408f29e35f426f0ac6df0a26491ac39c056184a78bb1a7af643f)).
 
 ---
 
