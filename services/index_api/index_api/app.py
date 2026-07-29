@@ -76,6 +76,17 @@ def reset_poster() -> None:
     _poster = None
 
 
+def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, now: float) -> bool:
+    """True when the freshest on-chain print is missing or older than one refresh
+    cycle. A free-tier host sleeps through its hourly slot and every wake restarts
+    the timer from zero, so without this a sleeping press NEVER posts — a fresh
+    boot with an overdue record posts immediately instead of waiting out a cycle."""
+    if not onchain:
+        return True
+    newest = max((v.get("posted_at", 0) or 0 for v in onchain.values()), default=0)
+    return (now - newest) > refresh_seconds
+
+
 async def _background(stop: asyncio.Event) -> None:
     """Build the store off the event loop, then refresh (and post) on a timer so
     prints evolve, realized vol becomes real, and the oracle stays fresh."""
@@ -100,6 +111,19 @@ async def _background(stop: asyncio.Event) -> None:
         if latest_ts:
             store.seed_cursor(latest_ts)
             log.info("seeded print-ts cursor above on-chain latest ts=%s", latest_ts)
+        # Post-on-wake: if the on-chain record is overdue (the press slept through
+        # its slot), post now instead of waiting out a full refresh cycle. Mirrors
+        # the timer body (refresh first so the posted ts clears the seeded cursor).
+        if poster.client.can_post() and _overdue_for_startup_post(
+            onchain, settings.refresh_seconds, time.time()
+        ):
+            try:
+                await asyncio.to_thread(store.refresh)
+                await asyncio.to_thread(poster.post_latest)
+                await asyncio.to_thread(reader.read_all, use_cache=False)
+                log.info("posted overdue print on wake")
+            except Exception:  # pragma: no cover - defensive
+                log.exception("post-on-wake failed (timer loop continues)")
     # Warm the on-chain attestation summary too (catalog reads it) off-request.
     try:
         from .marketplace import warm_attestation_summary
