@@ -59,7 +59,12 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         <div className="rb-unit">x402 · USDC on Arc · pay-per-print, no keys, no accounts</div>
       </div>
 
-      <ApiConsole live={env.live} externalPath={loadPath} onRevenue={refresh} />
+      <ApiConsole
+        live={env.live}
+        externalPath={loadPath}
+        onRevenue={refresh}
+        sample={env.data.x402_exchange_sample ?? null}
+      />
 
       <p className="muted" style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}>
         On the dev gate the console pays a mock header; on the <span className="mono">circle</span>{" "}

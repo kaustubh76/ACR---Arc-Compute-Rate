@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+// The free-tier press can be mid-wake when a visitor commences an attack —
+// give the upstream long enough to boot instead of hard-failing at 5s.
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   let body = "{}";
@@ -16,12 +19,12 @@ export async function POST(req: NextRequest) {
       headers: { "content-type": "application/json" },
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(25_000),
     });
     return NextResponse.json(await res.json(), { status: res.status });
   } catch {
     return NextResponse.json(
-      { detail: "the lab requires the live index API (make api)" },
+      { detail: "the press is still waking — give it a minute and commence again" },
       { status: 503 },
     );
   }

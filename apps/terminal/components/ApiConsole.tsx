@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useBuyerReady, useX402Info } from "@/lib/useLive";
 import { refKind } from "@/lib/chain";
 import { INDICES, PRICE_FALLBACK_USDC, isIndexId } from "@/lib/indices";
-import type { ConsoleResult, LiveBuyResponse, LiveBuyResult } from "@/lib/types";
+import type { ConsoleResult, ExchangeSample, LiveBuyResponse, LiveBuyResult } from "@/lib/types";
 
 type EndpointKind = "prints-all" | "prints" | "curve" | "vol" | "seller-scores";
 const ENDPOINTS: Array<{ kind: EndpointKind; label: string; parameterized: boolean }> = [
@@ -49,10 +49,13 @@ export function ApiConsole({
   live,
   externalPath,
   onRevenue,
+  sample,
 }: {
   live: boolean;
   externalPath?: string | null;
   onRevenue: () => void;
+  /** recorded two-act exchange from the bundle — shown while the gate is offline */
+  sample?: ExchangeSample | null;
 }) {
   const info = useX402Info();
   const mode = info?.data?.facilitator; // "dev" | "circle" | undefined
@@ -252,11 +255,46 @@ export function ApiConsole({
             results block below */}
         <div className="label" style={{ marginTop: 8, minHeight: 18 }} aria-live="polite">
           {!gateLive ? (
-            "The console requires the live index API — run `make api`."
+            "The gate is offline — below is a RECORDED exchange from the archived edition."
           ) : error ? (
             <span className="vermilion">{error}</span>
           ) : null}
         </div>
+
+        {/* Offline: the bundled recorded two-act exchange, honestly labeled —
+            the console never renders as an empty dead panel. */}
+        {!gateLive && !result && sample && (
+          <div className="console-out">
+            <div className="specimen">
+              <div className="act-head">
+                <span className="label">Act I — challenge (recorded)</span>
+                <span className={`mono ${statusClass(sample.challenge.status)}`}>
+                  {sample.challenge.status} {sample.challenge.status === 402 ? "Payment Required" : ""}
+                </span>
+              </div>
+              <pre>
+                {Object.entries(sample.challenge.headers)
+                  .map(([k, v]) => `${k}: ${String(v).length > 96 ? String(v).slice(0, 96) + "…" : v}`)
+                  .join("\n")}
+              </pre>
+            </div>
+            <div className="specimen">
+              <div className="act-head">
+                <span className="label">Act II — settled (recorded)</span>
+                <span className={`mono ${statusClass(sample.settled.status)}`}>
+                  {sample.settled.status}
+                </span>
+              </div>
+              <pre>
+                {`payer: ${sample.settled.payer}\n` +
+                  Object.entries(sample.settled.headers)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join("\n") +
+                  (sample.settled.body_note ? `\n\n${sample.settled.body_note}` : "")}
+              </pre>
+            </div>
+          </div>
+        )}
 
         {result && (
           <div className="console-out">

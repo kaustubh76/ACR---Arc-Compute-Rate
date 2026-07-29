@@ -94,7 +94,16 @@ let clientMemo: ReturnType<typeof createPublicClient> | null = null;
 function client() {
   if (!clientMemo) {
     clientMemo = createPublicClient({
-      transport: http(rpcUrl(), { timeout: 4_000, retryCount: 1 }),
+      // fetchOptions.cache is load-bearing: Next patches global fetch, and
+      // WITHOUT it viem's RPC POSTs land in the Next Data Cache — the route
+      // then serves frozen chain state (observed: prints days stale while the
+      // chain was minutes fresh). `force-dynamic` does NOT cover library
+      // fetches; only this opt-out does.
+      transport: http(rpcUrl(), {
+        timeout: 4_000,
+        retryCount: 1,
+        fetchOptions: { cache: "no-store" },
+      }),
     });
   }
   return clientMemo;

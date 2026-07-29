@@ -20,6 +20,10 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
   const att = catalog?.data?.provider?.attestation ?? null;
   const attLive = catalog?.live === true && att != null;
   const facts = chainFacts(env.data.chain);
+  // On the sim tape most sellers carry SIMULATED attestations (part of the
+  // calibrated market) — only the registry card above counts real on-chain
+  // records. Label the table honestly so the two numbers can't be confused.
+  const simTape = facts.tapeSource === "sim";
 
   return (
     <>
@@ -90,7 +94,18 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Seller reliability — {selected}</span>
+          <span className="label">
+            Seller reliability — {selected}
+            {simTape ? (
+              <span
+                className="muted"
+                title="the tape is the calibrated simulator; its sellers and their attestations are simulated — the card above counts the REAL on-chain records"
+              >
+                {" "}
+                · sim tape{att ? ` — ${fmtInt(att.sellers_attested)} real attestations on-chain` : ""}
+              </span>
+            ) : null}
+          </span>
           <div className="segmented">
             {INDICES.map((iid) => (
               <button
@@ -129,7 +144,16 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                     </td>
                     <td>
                       {s.attested ? (
-                        <span className="green">EIP-712 ✓</span>
+                        <span
+                          className="green"
+                          title={
+                            simTape
+                              ? "attested within the simulated tape — real on-chain records are counted in the registry card above"
+                              : "EIP-712 record read from the on-chain AttestationRegistry"
+                          }
+                        >
+                          EIP-712 ✓{simTape ? <span className="muted"> sim</span> : null}
+                        </span>
                       ) : (
                         <span className="muted">unattested</span>
                       )}

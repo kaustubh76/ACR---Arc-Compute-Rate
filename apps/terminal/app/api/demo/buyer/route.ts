@@ -3,6 +3,8 @@ import { apiBase } from "@/lib/api";
 import type { BuyerRunStatus, Envelope } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+// POST rides out a free-tier wake instead of hard-failing at 5s.
+export const maxDuration = 15;
 
 /** GET — the floor buyer's run status (mirrors /api/attack/status). */
 export async function GET() {
@@ -40,12 +42,12 @@ export async function POST(req: NextRequest) {
       headers: { "content-type": "application/json" },
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(10_000),
     });
     return NextResponse.json(await res.json(), { status: res.status });
   } catch {
     return NextResponse.json(
-      { detail: "the floor requires the live index API (make api)" },
+      { detail: "the press is still waking — give it a minute and release again" },
       { status: 503 },
     );
   }
