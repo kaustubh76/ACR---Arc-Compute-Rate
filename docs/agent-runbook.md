@@ -46,7 +46,7 @@ targets pass `ADDR=` and default the chain to `ARC-TESTNET`:
 
 ```sh
 make circle-fund    ADDR=0x<buyer>   # testnet faucet drip (or https://faucet.circle.com, Arc Testnet)
-make circle-deposit ADDR=0x<buyer>   # gateway deposit --amount 0.5 … --chain ARC-TESTNET --method direct
+make circle-deposit ADDR=0x<buyer>   # gateway deposit --amount 0.5 … --chain ARC-TESTNET (no --method: local wallets reject it)
 make circle-balance ADDR=0x<buyer>   # wallet + Gateway balances
 ```
 
@@ -83,8 +83,10 @@ make interop      # 12 field-level checks: our 402 vs GatewayClient's parser
 make agent-live   # 60 queries, $0.01 cap, discovery from /marketplace/catalog
 ```
 
-Each line prints the Gateway settlement reference; the summary block totals
-payments and distinct settlements. Watch them land live on the Terminal's
+This loop is **proven live**: 24+ x402 paid queries have settled against the
+deployed gate (https://acr-api-1fto.onrender.com), with real Gateway batch
+refs on the tape. Each line prints the Gateway settlement reference; the
+summary block totals payments and distinct settlements. Watch them land live on the Terminal's
 **Exchange** tape (`make terminal` → /exchange) and in
 `GET /marketplace/receipts`.
 
@@ -104,7 +106,7 @@ when you click a button on **/exchange** or **/developers** (the "Wire" console)
 # The Terminal server (Node) needs the SAME kind of funded key as the agent:
 export ACR_BUYER_PRIVATE_KEY=0x...   # a funded EOA with an OPEN Gateway deposit
 export ACR_API=http://127.0.0.1:8000 # a seller whose /health gate == "circle"
-make terminal                        # or: cd apps/terminal && npm run start
+make terminal                        # or: cd apps/terminal && npm run build && npm run start
 ```
 
 Then:

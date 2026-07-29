@@ -7,6 +7,13 @@ settlements on the tape". Every step is marked:
 - **[OPERATOR]** — a human does it (keys, faucet clicks, `.env` edits, OTP).
 - **[AUTOMATED]** — a make target / script does it; you only run the command.
 
+> **Already live:** `ACROracle` `0x4f00e3BDd224F4c4b4958D54cD774E84B9092609` ·
+> `AttestationRegistry` `0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7` on chain
+> `5042002`. Following §2–3 deploys a **new, divergent** contract pair — skip
+> to §4 to run against the live ones instead. Cloud state:
+> [`docs/DEPLOY.md`](DEPLOY.md); judge-facing status:
+> [`docs/SUBMISSION.md`](SUBMISSION.md).
+
 Chain facts this runbook is built on:
 
 | fact | value |
@@ -102,6 +109,9 @@ cast send <ACR_ORACLE_ADDRESS> "setSigner(address,bool)" <poster address> true \
   --rpc-url https://rpc.testnet.arc.network --private-key $DEPLOYER_PRIVATE_KEY
 ```
 
+Then `make attest-once` (and `make seed-sellers` if on the arc tape) — the
+registry starts empty.
+
 ## 4. Verify, serve, post the first prints
 
 1. **[AUTOMATED]** Read-only preflight — chain id, bytecode at both addresses,
@@ -123,7 +133,10 @@ cast send <ACR_ORACLE_ADDRESS> "setSigner(address,bool)" <poster address> true \
    ```
 
    Expect `"gate": "circle"` (the real x402 gate engaged) and
-   `"oracle_configured": true` (and `"signer": "local"`).
+   `"oracle_configured": true` (and `"signer": "local"`). The production
+   deployment signs via the Circle Developer-Controlled custody wallet instead
+   (`ACR_CIRCLE_API_KEY` / `ACR_CIRCLE_ENTITY_SECRET` / `ACR_CIRCLE_WALLET_ID`
+   — `/health` then shows `"signer": "circle"`).
 
 3. **[AUTOMATED]** One estimator cycle → signed `postPrint` per index:
 
@@ -139,7 +152,10 @@ cast send <ACR_ORACLE_ADDRESS> "setSigner(address,bool)" <poster address> true \
 ## 5. The buyer loop — live x402 nanopayments
 
 The buyer agent needs its own funded EOA plus a Circle Gateway deposit
-(detail: [`docs/agent-runbook.md`](agent-runbook.md)).
+(detail: [`docs/agent-runbook.md`](agent-runbook.md)). The Terminal can also
+be the buyer itself: its **LIVE buyer** (`ACR_BUYER_PRIVATE_KEY`, hard $0.01
+cap) originates real Gateway settlements from `/exchange` — see agent-runbook
+§4b.
 
 1. **[OPERATOR]** `make circle-login EMAIL=you@example.com` — email-OTP,
    testnet session (CLI v0.0.6 auto-provisions agent wallets on login).

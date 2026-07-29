@@ -5,11 +5,16 @@ as a working, tested system: a calibrated payment-exhaust simulator, the
 four-pillar estimator, on-chain contracts, a cash-settled instrument, an
 x402-gated index API, and a live Terminal with the "Attack the Index" demo.
 
+> **Live deployment:** the Terminal runs at <https://arc-compute-rate.vercel.app>
+> and the seller API at <https://acr-api-1fto.onrender.com>. See
+> `docs/DEPLOY.md` for the cloud state and `docs/SUBMISSION.md` for the
+> judge-facing status.
+
 ## Quickstart
 
 ```bash
 make setup        # uv sync --all-packages · forge install · npm install
-make test         # python (pytest) + contracts (forge test)
+make test         # python (pytest) + contracts (forge) + agent + terminal (node --test)
 make pipeline     # estimator on simulated exhaust → live ACR prints
 make demo         # the 5-step "Attack the Index" demo
 make eval         # ACR-vs-VWAP error series (the judge chart)
@@ -19,7 +24,7 @@ make anvil        # local chain :8545  (then, in another shell:)
 make onchain      # deploy → post signed prints → read back → settle future (⑧⑨)
 ```
 
-Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥18 + npm.
+Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥20 + npm (the Circle CLI needs ≥20.18.2).
 
 ## Layout → blueprint zones
 
@@ -34,12 +39,15 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥18 + npm.
 | `packages/acr_oracle_client` | C | EIP-712-sign a print (domain `ACR Oracle`) + relay `postPrint`; the contract verifies the signer, so any relayer may post (offline-tolerant). |
 | `services/index_api` | E | FastAPI, **x402-gated** endpoints + oracle-poster job + Terminal data. |
 | `apps/terminal` | E | Next.js Terminal: prints, term structure, seller scores, **Attack the Index** view. |
-| `redteam/` + `scripts/` | red | Wash-flow attack, `run_demo.py`, `eval.py`, `run_pipeline.py`, `gen_snapshot.py`. |
+| `apps/agent` | E | The buyer agent (TypeScript): discovers listings from `/marketplace/catalog` and pays x402 nanopayments via Circle Gateway; signs with `AGENT_PRIVATE_KEY`; `make agent` (offline) / `make agent-live` (Arc testnet). |
+| `redteam/` + `scripts/` | red | Wash-flow attack, `run_demo.py`, `eval.py`, `run_pipeline.py`, `gen_snapshot.py`, `post_once.py`, `attest_once.py`, `seed_sellers.py`. |
 | `docs/methodology.md` | roadmap | The methodology paper — the Week-2 OSS deliverable. |
 
 ## What it demonstrates
 
-- **Flow ①–⑩** of the blueprint runs end to end on simulated Arc exhaust.
+- **Flow ①–⑩** of the blueprint runs end to end on simulated Arc exhaust — and
+  it also runs **live on Arc testnet**: the deployed seller API and Terminal
+  serve real on-chain prints and real Gateway-settled x402 queries.
 - Under the paired demo attack ($8k budget), **naive VWAP is dragged >100%**
   (measured 107–123%) while **ACR moves <3%** (measured 0.2–2.4%) — 50–560×
   more resistant; over the 12-hour eval series the attack-window VWAP error is
@@ -52,7 +60,8 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥18 + npm.
 - The **full on-chain round trip runs against a local anvil** (`make onchain`):
   contracts deploy, sellers **attest metadata on-chain and it reads back** (the
   hedonic flywheel), prints post + read back byte-identical, and an ACR-Weekly
-  future cash-settles against the on-chain value.
+  future cash-settles against the on-chain value. Sellers are attested on the
+  **live** Arc-testnet registry too (`make attest-once`).
 - With `ACR_ORACLE_ADDRESS` set, the API serves the **settlement-grade on-chain
   print** at `GET /onchain/{index_id}`, and the Terminal shows a "⛓ on-chain ✓"
   provenance badge. `ArcSource.attestations()` reads the registry via
@@ -74,8 +83,11 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥18 + npm.
   *signer*, so any relayer submits and the key stays in Circle custody.
 - `ACROracle` is brick-proofed (timestamp-skew bound), pausable, and uses two-step
   ownership; `AttestationRegistry` uses nonces + deadlines against signature replay.
-- CI (`.github/workflows/ci.yml`, `make ci`) runs ruff, pytest, `forge test`, and
-  the eval gate on every push.
+- CI (`.github/workflows/ci.yml`, `make ci`) runs **4 jobs** on every push —
+  python (ruff + pytest + the eval gate), contracts (`forge test`), agent, and
+  terminal (node:test + build) — plus a scheduled **keepalive workflow**
+  (`.github/workflows/keepalive.yml`) that pings the deployed seller API every
+  10 minutes.
 - **Live Circle/Arc wiring** (see `.env.example`): the x402 gate is a `Facilitator`
   — `DevFacilitator` (mock header) by default, or the real `CircleFacilitator`
   (x402 v2: `PAYMENT-REQUIRED` → Circle Gateway `/verify` + `/settle`, `exact`
@@ -84,8 +96,13 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥18 + npm.
   Contract Platform. Arc chain id is `5042002` and USDC is the native gas token,
   so gasless is intrinsic — no ERC-4337 paymaster needed. Everything stays
   offline-tolerant: with no creds, `make test` runs credential-free.
-- The Terminal pins Next `14.2.x`; upgrade to Next 15 to clear the Dec-2025
-  advisory before any public deployment.
+- The Terminal pins Next `14.2.x` and is deployed with the Dec-2025 advisory
+  accepted as a known limitation; a Next 15 upgrade would clear it.
+- Terminal env vars: `ACR_API` / `NEXT_PUBLIC_ACR_API` point the Terminal at a
+  seller API (server-side / browser-side respectively), and the server-only
+  `ACR_BUYER_PRIVATE_KEY` (a funded EOA with an open Gateway deposit) enables
+  the **LIVE Circle buyer** on `/exchange` — real Gateway settlements from the
+  UI under a hard $0.01 cumulative cap.
 
 See `docs/methodology.md` for the estimator specification and `Readme.md` for the
 architectural blueprint.
