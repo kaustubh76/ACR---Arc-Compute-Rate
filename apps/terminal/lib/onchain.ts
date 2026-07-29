@@ -102,9 +102,12 @@ function client() {
 
 /* 30s memo: prints move hourly in production — every visitor within the
    window shares one RPC round. Keyed on the history index so the heavier
-   read doesn't serve where the light one was asked. */
+   read doesn't serve where the light one was asked. A PARTIAL roster (the
+   throttle ate some indices even after the retry pass) is memoized briefly,
+   so the next poll can complete the set instead of pinning the gap. */
 let memo: { at: number; historyFor: string | null; data: OnchainDirectRead } | null = null;
 const MEMO_MS = 30_000;
+const PARTIAL_MEMO_MS = 8_000;
 
 /** Read the latest prints for every index; optionally the last 12 history
  *  rows for ONE index (`historyFor`) — a full-roster history read would blow
@@ -114,12 +117,13 @@ export async function readOracleDirect(
 ): Promise<OnchainDirectRead | null> {
   const oracle = oracleAddress();
   if (!oracle) return null;
-  if (memo && Date.now() - memo.at < MEMO_MS && (memo.historyFor === historyFor || historyFor == null)) {
-    return memo.data;
+  if (memo && (memo.historyFor === historyFor || historyFor == null)) {
+    const full = Object.keys(memo.data.prints).length === INDICES.length;
+    if (Date.now() - memo.at < (full ? MEMO_MS : PARTIAL_MEMO_MS)) return memo.data;
   }
 
   const prints: OnchainDirectRead["prints"] = {};
-  for (const id of INDICES) {
+  const readLatest = async (id: string): Promise<boolean> => {
     try {
       const [raw, age] = (await client().readContract({
         address: oracle,
@@ -129,10 +133,25 @@ export async function readOracleDirect(
       })) as unknown as [RawPrint, bigint];
       const p = decodePrint(id, raw, age);
       if (p) prints[id] = p;
+      return true; // resolved (even a non-existent print) — don't retry
     } catch {
-      /* revert ("no print") or a throttled RPC — skip this index */
+      return false; // revert or throttled — candidate for the retry pass
     }
+  };
+
+  for (const id of INDICES) {
+    await readLatest(id);
     await sleep(RPC_GAP_MS);
+  }
+  // Second pass for whatever the throttle ate — shared-egress hosts (Vercel)
+  // get squeezed harder than a laptop, so back off further and try once more.
+  const missed = INDICES.filter((id) => !(id in prints));
+  if (missed.length > 0 && missed.length < INDICES.length) {
+    await sleep(RPC_GAP_MS * 2);
+    for (const id of missed) {
+      await readLatest(id);
+      await sleep(RPC_GAP_MS * 2);
+    }
   }
   if (Object.keys(prints).length === 0) return null;
 
