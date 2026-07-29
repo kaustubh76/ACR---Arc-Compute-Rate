@@ -1,0 +1,1586 @@
+/* ACR — Arc Dawn.
+   The rate's chain-native terminal. The aesthetic is Arc's own: a pre-dawn
+   navy sky rising into a warm gold horizon, glass panels lit by tinted glow
+   (never hard black shadows), Space Grotesk display over DM Sans body with
+   two monos for eyebrows (Space Mono) and data (IBM Plex Mono).
+   Hard rules: the full sunrise gradient appears ONCE (home hero); depth comes
+   from backdrop-blur glass + wide low-alpha color-tinted shadows; motion is
+   CSS-first (0.2–0.45s, ease-out-expo) and fully disabled under
+   prefers-reduced-motion. Legacy semantic vars (--paper/--ink/--rate/…) are
+   aliased onto the Arc tokens at the bottom of :root so the whole component
+   fleet reskins itself. */
+
+:root {
+  /* the app is permanently dark — tell the UA so native form controls,
+     scrollbars, and autofill chrome render in their dark palette */
+  color-scheme: dark;
+
+  /* surfaces — pre-dawn sky, darkest at the top of the page */
+  --genesis: #000b24; /* Genesis Void — page base */
+  --ledger: #0b223e; /* Ledger Deep — panel base */
+  --protocol: #1b3158; /* Protocol Navy — raised / hover */
+  --validator: #2f578c; /* Validator Blue — active borders, focus */
+  --cipher: #412c5c; /* Cipher Violet — adversary-room tint */
+  --plum: #664c88; /* Quantum Plum — adversary accents */
+
+  /* text */
+  --ether: #d5e0e7; /* Static Ether — primary text */
+  --ether-70: rgba(213, 224, 231, 0.74);
+  --ether-45: rgba(213, 224, 231, 0.55);
+  --sky: #acc6e9; /* Sky Sync — labels, cool accents */
+
+  /* accents — the warm side of the dawn */
+  --sand: #ffcc6f; /* Token Sand — THE rate color */
+  --gold: #e9a13f; /* Blockstream Gold — strokes, CTAs */
+  --gold-wash: rgba(233, 161, 63, 0.14);
+  --clay: #c0827a; /* Miner Clay — VWAP / adversary-soft */
+  --breach: #ef6a5a; /* Breach Coral — adversary-hot */
+  --breach-wash: rgba(239, 106, 90, 0.1);
+  --rust: #702718; /* Burnt Block — attack bands */
+  --finality: #4fb3a9; /* Finality Teal — settled / verified */
+
+  /* lines, glass, glow */
+  --hairline: rgba(172, 198, 233, 0.14);
+  --hairline-strong: rgba(172, 198, 233, 0.34);
+  --glass: rgba(11, 34, 62, 0.55);
+  --glass-brd: rgba(172, 198, 233, 0.13);
+  --glow-validator: 0 8px 60px rgba(62, 104, 139, 0.28);
+  --glow-gold: 0 6px 44px rgba(233, 161, 63, 0.18);
+  --glow-cipher: 0 8px 60px rgba(66, 45, 93, 0.4);
+
+  /* signature gradients (arc.io production ramps) */
+  --dawn-full: linear-gradient(
+    180deg,
+    #000b24,
+    #0b223e 38%,
+    #143453 58%,
+    #326796 76%,
+    #4197a1 85%,
+    #e2d0aa 94%,
+    #f5ecda 98%,
+    #fff
+  );
+  --dawn-soft: linear-gradient(180deg, #000b24, #052950 68%, #416d91 140%);
+  --room-adversary: linear-gradient(160deg, #1c101d, #3c203b 30%, #663a73 55%, #3a1a15 90%);
+  --horizon-line: linear-gradient(90deg, transparent, #326796 22%, #e9a13f 55%, transparent 92%);
+
+  /* motion */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-quart: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-1: 0.2s;
+  --dur-2: 0.32s;
+  --dur-3: 0.45s;
+
+  /* type */
+  --display: var(--font-display), "Space Grotesk", "Helvetica Neue", sans-serif;
+  --body: var(--font-body), "DM Sans", "Helvetica Neue", sans-serif;
+  --eyebrow: var(--font-eyebrow), "Space Mono", ui-monospace, monospace;
+  --mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ---- compat aliases: the legacy fleet reskins itself ---- */
+  --paper: var(--genesis);
+  --paper-2: var(--ledger);
+  --ink: var(--ether);
+  --ink-70: var(--ether-70);
+  --ink-45: var(--ether-45);
+  --rule: var(--hairline);
+  --rate: var(--sand);
+  --rate-mark: var(--gold);
+  --rate-wash: var(--gold-wash);
+  --adversary: var(--breach);
+  --adversary-wash: var(--breach-wash);
+  --settled: var(--finality);
+  --serif: var(--body);
+}
+
+/* The adversary room (/attack) — same darkness, hotter temperature. */
+[data-room="adversary"] {
+  --glass: rgba(28, 16, 29, 0.55);
+  --glass-brd: rgba(192, 130, 122, 0.18);
+  --glow-validator: var(--glow-cipher);
+  --hairline: rgba(192, 130, 122, 0.16);
+  --hairline-strong: rgba(192, 130, 122, 0.38);
+  --sky: #c9a9c0;
+  --dawn-soft: var(--room-adversary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--genesis);
+  color: var(--ether);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One fixed atmospheric wash behind the whole app; the adversary room swaps
+   it for the plum→clay heat field. Cross-fades via opacity keyed on the
+   data-room attribute. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--dawn-soft);
+  opacity: 0.5;
+  transition: opacity var(--dur-2) var(--ease-expo);
+  pointer-events: none;
+}
+[data-room="adversary"] body::before {
+  opacity: 0.62;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+::selection {
+  background: rgba(233, 161, 63, 0.32);
+  color: #fff;
+}
+:focus-visible {
+  outline: 2px solid var(--validator);
+  outline-offset: 2px;
+}
+
+.container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.page {
+  padding-bottom: 80px;
+  min-height: 60vh;
+}
+
+/* page transitions live on app/template.tsx */
+.page-enter {
+  animation: page-rise var(--dur-3) var(--ease-expo);
+}
+@keyframes page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- type utilities ---------- */
+.mono,
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.label {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ether-45);
+}
+.eyebrow {
+  font-family: var(--eyebrow);
+  font-size: 11.5px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--sky);
+}
+.eyebrow .ref {
+  color: var(--ether-45);
+}
+.display {
+  font-family: var(--display);
+  font-weight: 300;
+  letter-spacing: -0.015em;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  color: var(--ether);
+}
+.standfirst {
+  font-family: var(--body);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--ether-70);
+  max-width: 64ch;
+}
+.gold {
+  color: var(--sand);
+}
+.vermilion {
+  color: var(--breach);
+}
+.green {
+  color: var(--finality);
+}
+.sky-text {
+  color: var(--sky);
+}
+.muted {
+  color: var(--ether-45);
+}
+
+/* ---------- rules ---------- */
+.rule {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  margin: 0;
+}
+/* the arc-of-light motif at hairline scale — replaces the old double rule */
+.double-rule,
+.horizon-rule {
+  height: 2px;
+  border: 0;
+  background: var(--horizon-line);
+  opacity: 0.9;
+}
+
+/* ---------- glass panel ---------- */
+.panel {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-brd);
+  border-radius: 10px;
+  box-shadow: var(--glow-validator);
+}
+.panel-pad {
+  padding: 20px 22px;
+}
+
+.btn-row {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Circle Gateway wallet panel ---------- */
+.wallet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+@media (max-width: 640px) {
+  .wallet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.wallet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--glass);
+}
+.wallet-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wallet-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 15px;
+}
+
+/* ---------- chips & pills ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ether-70);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.chip-gold {
+  color: var(--gold);
+  border-color: rgba(233, 161, 63, 0.45);
+}
+.chip-teal {
+  color: var(--finality);
+  border-color: rgba(79, 179, 169, 0.45);
+}
+.chip-sky {
+  color: var(--sky);
+  border-color: rgba(172, 198, 233, 0.4);
+}
+.chip-sim {
+  color: var(--ether-45);
+  border-style: dashed;
+}
+.chip-breach {
+  color: var(--breach);
+  border-color: rgba(239, 106, 90, 0.45);
+}
+.chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.chip .dot.breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+.chip a,
+a.chip {
+  cursor: pointer;
+}
+a.chip:hover,
+.chip a:hover {
+  border-color: currentColor;
+}
+
+/* deterministic identity disc (AddressChip) */
+.addr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ether-70);
+  white-space: nowrap;
+}
+.addr-disc {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 10px rgba(172, 198, 233, 0.25);
+}
+.addr-disc.sim-ring {
+  box-shadow: none;
+  border: 1px dashed var(--ether-45);
+}
+.addr-chip .addr-copy {
+  font-family: var(--eyebrow);
+  font-size: 9.5px;
+  color: var(--ether-45);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 1px 5px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-expo), border-color var(--dur-1) var(--ease-expo);
+}
+.addr-chip .addr-copy:hover {
+  color: var(--ether);
+  border-color: var(--hairline-strong);
+}
+.addr-chip a:hover {
+  color: var(--sky);
+}
+
+/* tx / explorer links */
+.tx-link {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--sky);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-1) var(--ease-expo);
+  white-space: nowrap;
+}
+.tx-link:hover {
+  border-bottom-color: var(--sky);
+}
+.tx-link .ext {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* ---------- masthead ---------- */
+.masthead-shell {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  transition: background-color var(--dur-2) var(--ease-expo),
+    border-color var(--dur-2) var(--ease-expo), box-shadow var(--dur-2) var(--ease-expo);
+  border-bottom: 1px solid transparent;
+}
+.masthead-shell.scrolled {
+  background: rgba(0, 11, 36, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom-color: var(--glass-brd);
+  box-shadow: var(--glow-validator);
+}
+.masthead {
+  padding-top: 22px;
+}
+.masthead-shell.scrolled .masthead {
+  padding-top: 12px;
+}
+.masthead-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-bottom: 10px;
+}
+.nameplate {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.nameplate em {
+  font-style: normal;
+  font-weight: 300;
+  color: var(--ether-70);
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  padding: 9px 0;
+}
+.nav a {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ether-70);
+  padding-bottom: 2px;
+  transition: color var(--dur-1) var(--ease-expo);
+}
+.nav a:hover {
+  color: var(--ether);
+}
+.nav a.active {
+  color: var(--sand);
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+.nav .nav-pulse {
+  margin-left: auto;
+}
+
+/* live pulse (legacy) + status pill */
+.pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: breathe 2s ease-in-out infinite;
+}
+.pulse-dot.off {
+  background: transparent;
+  border: 1px solid var(--gold);
+  animation: none;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ---------- chain strip (the dateline, chain-native) ---------- */
+.chain-strip,
+.dateline {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ether-45);
+}
+.chain-strip b,
+.dateline b {
+  color: var(--ether);
+  font-weight: 400;
+}
+.chain-strip .sep,
+.dateline .sep {
+  color: var(--hairline-strong);
+}
+.chain-strip .addr-chip {
+  font-size: 11px;
+}
+
+/* ---------- sections ---------- */
+.section {
+  margin-top: 56px;
+}
+.section-head {
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.section-head::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 120px;
+  height: 2px;
+  background: var(--horizon-line);
+}
+.section-link {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+.section-link:hover {
+  box-shadow: inset 0 -1px 0 var(--gold);
+}
+
+/* ---------- home hero: the dawn desk ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  /* reserve the card band so a late payload never shoves the standfirst */
+  min-height: 300px;
+}
+.rate-block {
+  display: block;
+  padding: 18px 20px 16px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-brd);
+  border-radius: 10px;
+  transition: border-color var(--dur-2) var(--ease-expo), transform var(--dur-2) var(--ease-expo),
+    box-shadow var(--dur-2) var(--ease-expo);
+}
+.rate-block:hover {
+  border-color: rgba(233, 161, 63, 0.35);
+  transform: translateY(-2px);
+  box-shadow: var(--glow-gold);
+}
+.rate-block .rb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rate-block:hover .rb-id {
+  color: var(--sky);
+}
+.rb-service {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--ether-70);
+  margin-top: 6px;
+}
+.rb-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(36px, 4vw, 52px);
+  font-weight: 600;
+  color: var(--sand);
+  line-height: 1.1;
+  margin-top: 10px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-shadow: 0 0 26px rgba(255, 204, 111, 0.28);
+}
+.rb-unit {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ether-45);
+  margin-top: 2px;
+}
+.rb-ci {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ether-45);
+  margin-top: 14px;
+}
+.rb-est {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.rb-cost {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--clay);
+  margin-top: 6px;
+}
+.rb-spark {
+  margin-top: 16px;
+}
+.rb-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.settled-mark {
+  font-family: var(--eyebrow);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--finality);
+}
+
+/* ---------- standfirst block ---------- */
+.standfirst-block {
+  margin-top: 48px;
+}
+
+/* ---------- settlement tape (marquee) ---------- */
+.tape {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  margin-top: 26px;
+  overflow: hidden;
+  position: relative;
+}
+.tape::before,
+.tape::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  z-index: 1;
+  pointer-events: none;
+}
+.tape::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--genesis), transparent);
+}
+.tape::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--genesis), transparent);
+}
+.tape-track {
+  display: flex;
+  gap: 44px;
+  width: max-content;
+  padding: 9px 0;
+  animation: tape-scroll 48s linear infinite;
+}
+.tape:hover .tape-track {
+  animation-play-state: paused;
+}
+@keyframes tape-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.tape-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ether-70);
+  white-space: nowrap;
+}
+.tape-item .seq {
+  color: var(--ether-45);
+}
+.tape-item .amt {
+  color: var(--sand);
+}
+.tape-static {
+  display: flex;
+  gap: 44px;
+  overflow-x: auto;
+  padding: 9px 0;
+}
+
+/* ---------- chain facts strip ---------- */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.fact {
+  border-left: 2px solid transparent;
+  border-image: linear-gradient(180deg, #326796, #e9a13f) 1;
+  border-image-width: 0 0 0 2px;
+  padding-left: 16px;
+}
+.fact-value {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ether);
+  line-height: 1.3;
+}
+.fact-value .mono {
+  font-size: 18px;
+}
+.fact-gloss {
+  font-family: var(--body);
+  font-size: 14px;
+  color: var(--ether-45);
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+/* ---------- defensibility strip ---------- */
+.defense {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+.defense-bars {
+  display: grid;
+  gap: 14px;
+}
+.defense-bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 80px;
+  gap: 12px;
+  align-items: center;
+}
+.defense-bar {
+  height: 10px;
+  background: rgba(172, 198, 233, 0.08);
+  border-radius: 999px;
+  position: relative;
+  overflow: hidden;
+}
+.defense-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  border-radius: 999px;
+  transition: width 0.6s var(--ease-expo);
+}
+.defense-bar .fill-vwap {
+  background: var(--clay);
+  box-shadow: 0 0 14px rgba(192, 130, 122, 0.5);
+}
+.defense-bar .fill-acr {
+  background: var(--gold);
+  box-shadow: 0 0 14px rgba(233, 161, 63, 0.55);
+}
+.defense-bar-row .label {
+  white-space: nowrap;
+}
+.defense-bar-row .num {
+  font-size: 12px;
+  text-align: right;
+  color: var(--ether-70);
+}
+.defense-verdict {
+  border-left: 1px solid var(--hairline);
+  padding-left: 40px;
+}
+.defense-ratio {
+  font-family: var(--mono);
+  font-size: clamp(36px, 4vw, 52px);
+  font-weight: 600;
+  color: var(--ether);
+  line-height: 1;
+}
+.defense-caption {
+  font-family: var(--body);
+  color: var(--ether-70);
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+/* ---------- tables ---------- */
+.table-scroll {
+  overflow-x: auto;
+}
+table.sheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+table.sheet th {
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ether-45);
+  text-align: right;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline-strong);
+  white-space: nowrap;
+}
+table.sheet td {
+  text-align: right;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+table.sheet th:first-child,
+table.sheet td:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+table.sheet th:last-child,
+table.sheet td:last-child {
+  padding-right: 0;
+}
+table.sheet tbody tr {
+  transition: background-color var(--dur-1) var(--ease-expo);
+}
+table.sheet tbody tr:hover {
+  background: rgba(27, 49, 88, 0.4);
+}
+table.sheet .row-link {
+  cursor: pointer;
+}
+table.sheet .row-link:focus-visible {
+  outline: 2px solid var(--validator);
+  outline-offset: -2px;
+  background: rgba(27, 49, 88, 0.4);
+}
+
+/* inline hairline bar (seller clean-share) */
+.share-bar {
+  display: inline-block;
+  width: 96px;
+  height: 6px;
+  background: rgba(172, 198, 233, 0.08);
+  border-radius: 999px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.share-bar i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  border-radius: 999px;
+}
+
+/* ---------- buttons & controls ---------- */
+.btn {
+  font-family: var(--eyebrow);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--sand);
+  background: transparent;
+  border: 1px solid rgba(233, 161, 63, 0.5);
+  border-radius: 6px;
+  padding: 11px 20px;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-expo), color var(--dur-1) var(--ease-expo),
+    box-shadow var(--dur-2) var(--ease-expo);
+}
+.btn:hover:not(:disabled) {
+  background: var(--gold);
+  color: var(--genesis);
+  box-shadow: var(--glow-gold);
+}
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn-adversary {
+  color: var(--breach);
+  border-color: rgba(239, 106, 90, 0.5);
+}
+.btn-adversary:hover:not(:disabled) {
+  background: var(--breach);
+  color: var(--genesis);
+  box-shadow: 0 6px 44px rgba(239, 106, 90, 0.25);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.segmented button {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ether-70);
+  background: transparent;
+  border: 0;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-expo), color var(--dur-1) var(--ease-expo);
+}
+.segmented button + button {
+  border-left: 1px solid var(--hairline);
+}
+.segmented button.on {
+  background: var(--protocol);
+  color: var(--sand);
+}
+
+/* ---------- disclosure ---------- */
+details.disclosure {
+  border-top: 1px solid var(--hairline);
+}
+details.disclosure summary {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ether-70);
+  padding: 14px 0;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: color var(--dur-1) var(--ease-expo);
+}
+details.disclosure summary:hover {
+  color: var(--ether);
+}
+details.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+details.disclosure summary::before {
+  content: "▸";
+  color: var(--ether-45);
+  transition: transform var(--dur-1) var(--ease-expo);
+}
+details.disclosure[open] summary::before {
+  content: "▾";
+}
+details.disclosure .disclosure-body {
+  padding: 4px 0 24px;
+}
+
+/* ---------- numbered methodology footnotes ---------- */
+.footnotes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: fn;
+}
+.footnotes li {
+  counter-increment: fn;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
+  align-items: baseline;
+}
+.footnotes li::before {
+  content: counter(fn, decimal-leading-zero);
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  color: var(--sky);
+}
+.footnotes .fn-gloss {
+  font-family: var(--body);
+  font-size: 14.5px;
+  color: var(--ether-70);
+}
+.footnotes .fn-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- specimen (code block) ---------- */
+.specimen {
+  background: rgba(0, 11, 36, 0.62);
+  border: 1px solid var(--glass-brd);
+  border-radius: 8px;
+  padding: 18px 20px;
+  position: relative;
+  overflow-x: auto;
+}
+.specimen pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: var(--sky);
+}
+.specimen .copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-family: var(--eyebrow);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ether-45);
+  background: rgba(0, 11, 36, 0.7);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-expo), border-color var(--dur-1) var(--ease-expo);
+}
+.specimen .copy-btn:hover {
+  color: var(--ether);
+  border-color: var(--hairline-strong);
+}
+
+/* ---------- api console ("the wire") ---------- */
+.gate-badge {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.console {
+  margin-top: 8px;
+}
+.console-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.console-req {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.console-payer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.console-payer .mono {
+  font-size: 12px;
+  color: var(--ether-70);
+}
+.mini-btn {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  color: var(--ether-45);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-expo), border-color var(--dur-1) var(--ease-expo);
+}
+.mini-btn:hover {
+  color: var(--ether);
+  border-color: var(--hairline-strong);
+}
+.console-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.agent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.agent-toggle input {
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+.console-tally {
+  margin-left: auto;
+}
+.console-out {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+.act-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.console-out .specimen pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* payment toast */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(79, 179, 169, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 8px 60px rgba(79, 179, 169, 0.22);
+  padding: 13px 18px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ether);
+  animation: toast-in var(--dur-3) var(--ease-expo);
+}
+.toast .tick-ok {
+  color: var(--finality);
+  font-size: 15px;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- ticking numerals ---------- */
+.tick {
+  display: inline-block;
+}
+.tick-flash {
+  animation: flash-glow 1.2s ease-out forwards;
+}
+@keyframes flash-glow {
+  from {
+    text-shadow: 0 0 22px rgba(255, 204, 111, 0.85), 0 0 44px rgba(233, 161, 63, 0.4);
+  }
+  to {
+    text-shadow: 0 0 22px rgba(255, 204, 111, 0), 0 0 44px rgba(233, 161, 63, 0);
+  }
+}
+.digit {
+  display: inline-block;
+  overflow: hidden;
+}
+.digit-in {
+  display: inline-block;
+  animation: digit-roll var(--dur-2) var(--ease-expo);
+}
+@keyframes digit-roll {
+  from {
+    transform: translateY(85%);
+    opacity: 0.15;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ---------- arc horizon (the signature band) ---------- */
+.arc-horizon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--dawn-full);
+}
+.arc-horizon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.arc-horizon .sun {
+  opacity: 0.35;
+}
+.arc-horizon.breathe .sun {
+  animation: horizon-breathe 8s ease-in-out infinite;
+}
+@keyframes horizon-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.22;
+  }
+}
+.arc-horizon-mini {
+  height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ---------- attack lab ---------- */
+.lab {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 48px;
+  margin-top: 40px;
+}
+.lab-controls {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+.lab-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab-presets button {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ether-70);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-expo), color var(--dur-1) var(--ease-expo);
+}
+.lab-presets button.on {
+  border-color: var(--breach);
+  color: var(--breach);
+  box-shadow: 0 0 20px rgba(239, 106, 90, 0.15);
+}
+.lab-note {
+  font-family: var(--body);
+  font-size: 14.5px;
+  color: var(--ether-70);
+  line-height: 1.6;
+}
+.lab-stage {
+  min-width: 0;
+}
+.lab-counters {
+  display: flex;
+  gap: 44px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.counter-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.counter-label {
+  margin-top: 4px;
+}
+.stage-faded {
+  opacity: 0.45;
+}
+.verdict {
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.45;
+  max-width: 34ch;
+}
+.verdict b {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* sybil ring */
+.sybil-ring {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+/* ---------- charts ---------- */
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* pointer-drag scrubbing on touch — the page shouldn't pan over a chart */
+  touch-action: none;
+}
+.chart:focus-visible {
+  outline: 1.5px solid var(--validator);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.chart text {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ether-45);
+  letter-spacing: 0.06em;
+}
+.reading {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ether-70);
+  height: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ---------- provenance panel ---------- */
+.provenance {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.provenance-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 10px;
+}
+.provenance-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.provenance-row .label {
+  flex: none;
+}
+.provenance-row .val {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- colophon ---------- */
+.colophon {
+  border-top: 1px solid var(--hairline);
+  margin-top: 96px;
+  padding: 24px 0 48px;
+  font-family: var(--body);
+  font-size: 13.5px;
+  color: var(--ether-45);
+  line-height: 1.7;
+}
+.colophon .mono {
+  font-size: 11px;
+}
+.colophon-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 16px 0;
+}
+
+/* ---------- states ---------- */
+.awaiting {
+  font-family: var(--eyebrow);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ether-45);
+  padding: 48px 0;
+}
+.editorial-404 {
+  padding: 120px 0;
+}
+.editorial-404 h1 {
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: 34px;
+  margin: 0 0 8px;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .lab {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .defense {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .defense-verdict {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--hairline);
+    padding-top: 20px;
+  }
+  .facts {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+  .nav {
+    gap: 14px;
+  }
+  .toast {
+    left: 24px;
+    right: 24px;
+  }
+}
+
+/* ---------- skeletons: "setting type…" ----------
+   The streaming placeholder vocabulary. Quiet ink-wash bars with a slow gold
+   sheen — the page is being typeset, not broken. Uses existing tokens only. */
+.skel {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ether) 7%, transparent);
+  border-radius: 3px;
+}
+.skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--gold) 9%, transparent) 50%,
+    transparent 70%
+  );
+  animation: setting-type 1.8s ease-in-out infinite;
+}
+@keyframes setting-type {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skel-line {
+  height: 13px;
+  margin: 6px 0;
+}
+.skel-num {
+  height: 44px;
+  max-width: 220px;
+}
+.skel-chart {
+  height: 300px;
+}
+.skel-row {
+  height: 34px;
+  margin: 8px 0;
+}
+.skel-caption {
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-45);
+  margin: 18px 0 10px;
+}
+.skel-caption::after {
+  content: "setting type…";
+}
+.skel-card {
+  padding: 18px 20px 16px;
+  border: 1px solid var(--glass-brd);
+  border-radius: 10px;
+  background: var(--glass);
+}
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .digit-in,
+  .tick-flash,
+  .page-enter,
+  .toast,
+  .chip .dot.breathe,
+  .arc-horizon.breathe .sun,
+  .skel::after {
+    animation: none !important;
+  }
+  .tape-track {
+    animation: none !important;
+    width: auto;
+    overflow-x: auto;
+  }
+  .defense-bar i,
+  .rate-block,
+  .masthead-shell,
+  body::before {
+    transition: none !important;
+  }
+  .rate-block:hover {
+    transform: none;
+  }
+}
