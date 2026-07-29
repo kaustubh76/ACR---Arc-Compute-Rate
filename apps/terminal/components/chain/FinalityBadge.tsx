@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useNow } from "@/lib/useNow";
 import type { OnchainPrint } from "@/lib/types";
 
 /* Settlement freshness, ticking: `posted 42s ago · finality <1s`. Uses the
    on-chain print's posted_at (block time, epoch seconds). Turns clay when the
    print is stale (older than ~2 refresh cycles). Sim mode renders the static
-   finality fact instead of a fake age. */
+   finality fact instead of a fake age. All instances share one 1 Hz clock
+   (lib/useNow) instead of running an interval each. */
 export function FinalityBadge({
   onchain,
   live = true,
@@ -18,11 +19,7 @@ export function FinalityBadge({
   staleAfterS?: number;
   micro?: boolean;
 }) {
-  const [now, setNow] = useState(() => Date.now() / 1000);
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now() / 1000), 1000);
-    return () => clearInterval(t);
-  }, []);
+  const now = useNow();
 
   // Archived snapshot: the posted_at is frozen — don't tick a fake live age.
   if (onchain?.posted_at && !live) {
@@ -34,7 +31,7 @@ export function FinalityBadge({
     );
   }
 
-  if (!onchain?.posted_at) {
+  if (!onchain?.posted_at || now === 0) {
     return (
       <span className="chip chip-sky" title="Malachite BFT — deterministic sub-second finality">
         finality &lt;1s

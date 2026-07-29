@@ -16,17 +16,21 @@ export function SettlementTape({
   bundled?: MarketReceiptsData | null;
   explorer?: string;
 }) {
-  const env = useMarketReceipts();
-  const ledger = env?.data ?? bundled ?? null;
+  const { tape, error } = useMarketReceipts();
+  const ledger = tape?.data ?? bundled ?? null;
   const receipts = ledger?.receipts ?? [];
-  const live = Boolean(env?.live && env?.data);
+  const live = Boolean(tape?.live && tape?.data);
+  const unreachable =
+    error != null || tape?.upstream === "error" || tape?.upstream === "timeout";
 
   if (!receipts.length) {
     return (
       <div className="tape">
         <div className="tape-static">
           <span className="tape-item muted">
-            the tape opens with the first paid query — run `make agent`
+            {unreachable
+              ? "the tape is unreachable — the press isn't answering; retrying"
+              : "the tape opens with the first paid query — run `make agent`"}
           </span>
         </div>
       </div>

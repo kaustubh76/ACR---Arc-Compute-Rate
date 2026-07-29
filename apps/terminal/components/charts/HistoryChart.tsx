@@ -16,19 +16,26 @@ const H = 300;
 const M = { top: 10, right: 12, bottom: 26, left: 72 };
 
 export function HistoryChart({ history }: { history: HistoryPoint[] }) {
+  // All hooks run unconditionally — history length can cross the 2-point
+  // boundary between polls (a point lands every refresh), and an early return
+  // above a hook would change the hook count and crash the tree.
   const ribbonId = useId();
   const n = history.length;
+  const x = linear([0, Math.max(1, n - 1)], [M.left, W - M.right]);
+  const xs = history.map((_, i) => x(i));
+  const { idx, svgRef, onPointerMove, onPointerLeave, onKeyDown } = useCrosshair(
+    n,
+    xs[0] ?? M.left,
+    xs[n - 1] ?? W - M.right,
+  );
+
   if (n < 2) {
     return <div className="awaiting">Awaiting print history — a point lands every refresh.</div>;
   }
 
-  const x = linear([0, n - 1], [M.left, W - M.right]);
   const lo = history.map((h) => h.ci_lo);
   const hi = history.map((h) => h.ci_hi);
   const y = linear(extent([...lo, ...hi], 0.12), [H - M.bottom, M.top]);
-
-  const xs = history.map((_, i) => x(i));
-  const { idx, svgRef, onPointerMove, onPointerLeave } = useCrosshair(n, xs[0], xs[n - 1]);
   const pick = idx != null ? history[idx] : history[n - 1];
   const pickHalfBp = pick.value > 0 ? (1e4 * (pick.ci_hi - pick.ci_lo)) / pick.value / 2 : 0;
 
@@ -36,7 +43,7 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
 
   return (
     <div>
-      <div className="reading">
+      <div className="reading" aria-live="polite">
         <span className="gold">— print</span>
         <span className="muted">▮ 95% CI</span>
         <span>
@@ -47,8 +54,12 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
         ref={svgRef}
         className="chart"
         viewBox={`0 0 ${W} ${H}`}
+        tabIndex={0}
+        role="img"
+        aria-label="print history with confidence ribbon — arrow keys move the reading line"
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
+        onKeyDown={onKeyDown}
       >
         <line x1={M.left} y1={H - M.bottom} x2={W - M.right} y2={H - M.bottom} stroke="var(--rule)" />
         <line x1={M.left} y1={M.top} x2={M.left} y2={H - M.bottom} stroke="var(--rule)" />

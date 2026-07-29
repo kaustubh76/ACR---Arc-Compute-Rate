@@ -51,9 +51,13 @@ function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
 }
 
 export function WalletPanel({ explorer }: { explorer?: string }) {
-  const { balances } = useBalances();
+  const { balances, error } = useBalances();
   const data = balances?.data ?? null;
   const ready = data?.buyer_ready === true && (data?.wallets.length ?? 0) > 0;
+  const note = error
+    ? "Balances are unreachable right now — the terminal keeps retrying; standings resume automatically."
+    : data?.note ??
+      "Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) against the Circle gate to watch the Gateway deposit draw down in real time.";
 
   return (
     <div className="panel panel-pad wallet-panel">
@@ -77,8 +81,7 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
         </div>
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-          {data?.note ??
-            "Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) against the Circle gate to watch the Gateway deposit draw down in real time."}
+          {note}
         </p>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { addrGradient, addrUrl, isHexAddress } from "@/lib/chain";
 import { shortAddr } from "@/lib/format";
 
@@ -19,6 +19,12 @@ export function AddressChip({
   label?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current != null) clearTimeout(copyTimer.current);
+    };
+  }, []);
   const real = isHexAddress(address);
   const disc = (
     <i
@@ -45,7 +51,8 @@ export function AddressChip({
           onClick={() => {
             navigator.clipboard?.writeText(address);
             setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
+            if (copyTimer.current != null) clearTimeout(copyTimer.current);
+            copyTimer.current = setTimeout(() => setCopied(false), 1200);
           }}
           title="copy address"
         >

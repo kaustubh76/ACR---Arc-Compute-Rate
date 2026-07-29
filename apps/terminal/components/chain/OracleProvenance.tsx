@@ -17,12 +17,15 @@ export function OracleProvenance({
   onchain,
   chain,
   live = false,
+  direct = false,
   mini = false,
 }: {
   indexId: string;
   onchain?: OnchainPrint | null;
   chain?: ChainFactsData | null;
   live?: boolean;
+  /** the on-chain print is a fresh DIRECT ACROracle read (press down) */
+  direct?: boolean;
   mini?: boolean;
 }) {
   const c = chainFacts(chain);
@@ -30,9 +33,11 @@ export function OracleProvenance({
   const deployed = Boolean(c.oracle);
   // "live" only when the payload is actually live AND we have a real on-chain
   // read — a bundled snapshot carries a real oracle address but must not claim
-  // "live". Archived-with-oracle degrades to the dev/sim tier honestly.
-  const mode: "sim" | "dev" | "live" =
-    deployed && live ? "live" : c.gate === "circle" ? "dev" : "sim";
+  // "live". A direct read outranks the archive: the press is down but the
+  // number on screen came from the contract seconds ago. Anything else
+  // degrades to the dev/sim tier honestly.
+  const mode: "sim" | "dev" | "live" | "onchain" =
+    deployed && live ? "live" : deployed && direct && onchain ? "onchain" : c.gate === "circle" ? "dev" : "sim";
 
   return (
     <div className={`panel panel-pad provenance${mini ? " provenance-mini" : ""}`}>
@@ -110,7 +115,7 @@ export function OracleProvenance({
           <div className="provenance-row">
             <span className="label">Freshness</span>
             <span className="val">
-              <FinalityBadge onchain={onchain} live={live} />
+              <FinalityBadge onchain={onchain} live={live || direct} />
             </span>
           </div>
           <div className="provenance-row">

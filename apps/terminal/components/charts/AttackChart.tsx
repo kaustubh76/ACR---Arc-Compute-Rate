@@ -31,7 +31,7 @@ export function AttackChart({
   const y = linear([0, maxErr * 1.08], [H - M.bottom, M.top]);
 
   const xs = series.map((s) => x(s.hour));
-  const { idx, svgRef, onPointerMove, onPointerLeave } = useCrosshair(
+  const { idx, svgRef, onPointerMove, onPointerLeave, onKeyDown } = useCrosshair(
     n,
     xs[0] ?? M.left,
     xs[n - 1] ?? W - M.right,
@@ -44,7 +44,7 @@ export function AttackChart({
 
   return (
     <div className={faded ? "stage-faded" : undefined}>
-      <div className="reading">
+      <div className="reading" aria-live="polite">
         <span className="vermilion">— naive VWAP error</span>
         <span className="gold">— ACR error</span>
         {pick && (
@@ -58,8 +58,12 @@ export function AttackChart({
         ref={svgRef}
         className="chart"
         viewBox={`0 0 ${W} ${H}`}
+        tabIndex={0}
+        role="img"
+        aria-label="attack exercise: VWAP error vs ACR error by hour — arrow keys move the reading line"
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
+        onKeyDown={onKeyDown}
       >
         {atkX0 != null && atkX1 != null && (
           <>
@@ -68,7 +72,8 @@ export function AttackChart({
               y={M.top}
               width={atkX1 - atkX0}
               height={H - M.top - M.bottom}
-              fill="rgba(112, 39, 24, 0.3)"
+              fill="var(--rust)"
+              opacity={0.3}
             />
             <line
               x1={atkX0}

@@ -20,7 +20,7 @@ export function PaymentToast({ payload, explorer }: { payload: ToastPayload | nu
     setVisible(true);
     const t = setTimeout(() => setVisible(false), 5200);
     return () => clearTimeout(t);
-  }, [payload?.key]);
+  }, [payload]);
 
   if (!payload || !visible) return null;
   return (
