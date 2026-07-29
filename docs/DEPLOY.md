@@ -11,7 +11,7 @@ Make the ACR **seller API + webhooks** (Cloud Run) and the **Terminal dashboard*
                  └───────────┬────────────┘                 ↑ reads
                              │ /terminal/data etc.           │ Arc testnet RPC
                  ┌───────────┴────────────┐        ┌─────────┴────────────┐
-  browsers  →    │  Vercel: acr-terminal  │        │  ACROracle / Registry │
+  browsers  →    │  Vercel: terminal      │        │  ACROracle / Registry │
                  │  Next.js (server proxy)│        │  (chain 5042002)      │
                  └────────────────────────┘        └──────────────────────┘
 ```
@@ -92,8 +92,12 @@ vercel deploy --prod \
 - `ACR_API` — server-side proxy target (all `/api/*` routes).
 - `NEXT_PUBLIC_ACR_API` — the browser `/docs` link on `/developers` (build-time inlined).
 
-Output: `https://acr-terminal-XXXX.vercel.app` — the public dashboard. It falls
-back to the bundled `lib/fallback.json` if the API is briefly unreachable (cold start).
+Output: the public dashboard on the linked Vercel project (project name
+`terminal` — deployed at `https://terminal-gules-eta.vercel.app`). While the
+API is unreachable (free-tier cold start) the terminal walks its connection
+ladder honestly: instant shell + skeletons, "waking the press", direct
+ACROracle reads via `/api/onchain`, and the bundled `lib/fallback.json`
+archived edition as the floor.
 
 ### 2b. Real Circle settlement from the cloud dashboard (optional)
 
