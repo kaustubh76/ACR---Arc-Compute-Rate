@@ -26,6 +26,10 @@ PAY_TO="${PAY_TO:-0x33189c643774ED2713EbFf5A6923e5fa42b96eE8}"
 # refresh hourly (not every 30s) to keep the box quiet.
 TAPE="${TAPE:-sim}"
 SIM_EVENTS="${SIM_EVENTS:-3000}"
+# The attack sim is the app's heaviest transient allocation (config.py notes
+# ~400/svc for a 512MB box); without this the exhibit + live Attack Lab runs
+# default to 2500 and can OOM-spike the free tier.
+ATTACK_SIM_EVENTS="${ATTACK_SIM_EVENTS:-400}"
 REFRESH="${REFRESH:-3600}"
 
 render services create \
@@ -45,6 +49,7 @@ render services create \
   --env-var ACR_X402_PAY_TO="${PAY_TO}" \
   --env-var ACR_TAPE_SOURCE="${TAPE}" \
   --env-var ACR_SIM_EVENTS_PER_SERVICE="${SIM_EVENTS}" \
+  --env-var ACR_ATTACK_SIM_EVENTS_PER_SERVICE="${ATTACK_SIM_EVENTS}" \
   --env-var ACR_REFRESH_SECONDS="${REFRESH}" \
   --env-var ACR_RECEIPT_LOG_PATH=data/x402_receipts.jsonl \
   --env-var ACR_WEBHOOK_LOG_PATH=data/webhook_events.jsonl \

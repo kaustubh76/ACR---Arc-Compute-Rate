@@ -28,7 +28,19 @@ HOURS_TOTAL = 12
 ATK_FROM = 4
 ATK_TO = 8
 PACE_S = 2.0  # minimum wall-clock seconds per simulated hour
-STEP_TIMEOUT_S = 30.0  # watchdog: a run with no progress for this long is errored
+# Watchdog: a run with no progress for this long is DISPLAYED as errored. The
+# window must cover the upfront simulate() + the hour-0 estimator bootstrap,
+# which a throttled 0.5-CPU cloud box can stretch well past the old 30s.
+STEP_TIMEOUT_S = 90.0
+
+
+def events_per_service(settings) -> int:
+    """Total sim events per service for a live run — same scaling as the cached
+    exhibit (attack.py): 4/5 of the configured per-hour budget × 12 hours, so
+    ACR_ATTACK_SIM_EVENTS_PER_SERVICE bounds BOTH paths (a 512MB box sets ~400
+    to avoid the OOM spike the config documents)."""
+    per_hour = settings.attack_sim_events_per_service * 4 // 5
+    return HOURS_TOTAL * per_hour
 
 
 @dataclass
@@ -46,6 +58,11 @@ class AttackRun:
 
 _lock = threading.Lock()
 _run = AttackRun()
+# True from try_start until the worker actually exits. The watchdog may flip
+# the DISPLAYED state to error, but the slot stays claimed while the thread is
+# alive — a second start during the false-error window would otherwise run two
+# concurrent full sims (an OOM on a 512MB box) interleaving into one series.
+_busy = False
 
 
 def status() -> dict:
@@ -68,11 +85,13 @@ def status() -> dict:
 
 
 def try_start(budget_usdc: float, target_multiplier: float, seed: int) -> bool:
-    """Claim the single run slot; False if a run is already in flight."""
-    global _run
+    """Claim the single run slot; False while a worker is in flight (even if
+    the watchdog has already flipped the displayed state to error)."""
+    global _run, _busy
     with _lock:
-        if _run.state == "running":
+        if _busy or _run.state == "running":
             return False
+        _busy = True
         _run = AttackRun(
             state="running",
             params={
@@ -86,13 +105,18 @@ def try_start(budget_usdc: float, target_multiplier: float, seed: int) -> bool:
 
 
 def execute(budget_usdc: float, target_multiplier: float, seed: int) -> None:
-    """Entry point for the worker thread — surfaces failures as state, never raises."""
+    """Entry point for the worker thread — surfaces failures as state, never
+    raises, and ALWAYS releases the run slot on exit."""
+    global _busy
     try:
         _execute(budget_usdc, target_multiplier, seed)
     except Exception as exc:  # pragma: no cover - defensive
         with _lock:
             _run.state = "error"
             _run.error = str(exc)
+    finally:
+        with _lock:
+            _busy = False
 
 
 def _execute(budget_usdc: float, target_multiplier: float, seed: int) -> None:
@@ -102,7 +126,7 @@ def _execute(budget_usdc: float, target_multiplier: float, seed: int) -> None:
         SimConfig(
             seed=seed,
             horizon=HOURS_TOTAL * HOUR,
-            events_per_service=HOURS_TOTAL * 2000,
+            events_per_service=events_per_service(settings),
             attack=AttackConfig(
                 budget_usdc=budget_usdc,
                 target_multiplier=target_multiplier,
