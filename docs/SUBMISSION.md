@@ -1,6 +1,6 @@
-# ACR — Halfway Checkpoint Submission
+# ACR — Submission
 
-**Arc / Circle 7-week Hackathon · Agentic Economy track · Milestone: mid-project checkpoint (2026-07-27)**
+**Arc / Circle 7-week Hackathon · Agentic Economy track · Halfway checkpoint 2026-07-27 · Ship-week update 2026-07-29**
 
 > **ACR (Arc Compute Rate)** is "SOFR for machine commerce" — a manipulation-resistant reference-rate family that recovers the *latent constant-quality price of machine services* from the noisy, batched, adversarial payment exhaust on Circle's Arc L1, and publishes it as a live on-chain benchmark that contracts can settle against.
 >
@@ -34,15 +34,15 @@ Halfway checkpoint falls at ~week 3.5. **ACR is ahead of schedule** — the esti
 | **W4** ★ | ADOPTION | Sellers attest + x402 index API live | ✅ Done — x402 gate live on Circle Gateway; **real machine-to-machine settlement proven on-chain**; 4 seller attestations on-chain; public cloud API |
 | **W5** | RED TEAM | Manipulation bound + attack own index | ✅ Done — `redteam/` wash + optimal-attack harnesses; attack-cost-per-bp on every print; CI-gated resistance claims |
 | **W6** | INSTRUMENT | Weekly cash-settled future + A-S MM | ✅ Built — `acr_instrument` (cash-settled `ACRFuture` + Avellaneda–Stoikov MM); term-structure curve served + rendered |
-| **W7** | SHIP | Freeze + paper polish + rehearse | ⏳ Upcoming |
+| **W7** | SHIP | Freeze + paper polish + rehearse | 🔄 In progress — repo 100% pushed; 4-job GitHub CI green; Terminal hardened (connection ladder, instant shell, direct on-chain reads) and redeployed; cloud posting re-enabled via Circle custody + keep-alive |
 
 ---
 
 ## 3. What's live right now (real, on Arc testnet — chain 5042002)
 
 **Public URLs**
-- **Dashboard (Terminal):** https://terminal-gules-eta.vercel.app
-- **Seller API:** https://acr-api-1fto.onrender.com — `/health` reports gate `circle`, 3 live indices, chain 5042002; `/onchain/{id}` serves the real on-chain print; `/x402/info`, `/marketplace/catalog`, `/marketplace/receipts`, `/webhooks/circle` all live.
+- **Dashboard (Terminal):** https://terminal-gules-eta.vercel.app — never a blank page: the shell paints instantly and a six-tier *connection ladder* (`live → stale → waking the press → on-chain reads → archived`) keeps every value honestly labeled. When the free-tier API sleeps, the Terminal reads prints **directly from ACROracle with viem** (`/api/onchain`, CDN-cached) — even the fallback is on-chain truth.
+- **Seller API:** https://acr-api-1fto.onrender.com — `/health` reports gate `circle`, 3 live indices, chain 5042002; `/onchain/{id}` serves the real on-chain print; `/x402/info`, `/marketplace/catalog`, `/marketplace/receipts`, `/webhooks/circle` all live. Hourly `postPrint` runs in-cloud via the **Circle Developer-Controlled custody signer**, kept awake by a 10-minute CI ping (`.github/workflows/keepalive.yml`) plus a post-on-wake catch-up if the press ever oversleeps its slot.
 
 **On-chain contracts** (explorer: `https://testnet.arcscan.app`)
 - **ACROracle** [`0x4f00e3BDd224F4c4b4958D54cD774E84B9092609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) — hourly EIP-712-signed prints; `ecrecover` signer auth; monotone-ts + print-within-CI + bound-sanity enforced.
@@ -66,21 +66,24 @@ A machine buyer agent (`apps/agent`, `0x870f…`) paid the Circle-gated endpoint
 
 ---
 
-## 5. Verification evidence (all re-run at this checkpoint — 2026-07-27)
+## 5. Verification evidence (re-run at ship week — 2026-07-29)
 
-Every gate below was executed fresh; results captured verbatim.
+Every gate below was executed fresh; results captured verbatim. The same gates
+run on every push as **GitHub Actions CI — 4 jobs (python / contracts / agent /
+terminal), all green** (`.github/workflows/ci.yml`).
 
 | Gate | Command | Result |
 |---|---|---|
 | Lint | `ruff check packages services scripts redteam` | ✅ All checks passed |
 | Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 332/332 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **163 passed, 2 skipped** (165 collected) |
+| Python suite | `pytest packages services tests` | ✅ **169 passed, 2 skipped** |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
 | Contracts | `forge test -vvv` | ✅ **32 passed** (17 oracle + 10 registry + 5 invariant) |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |
-| Terminal | `next build` | ✅ clean (8 routes + 11 API proxies) |
+| Terminal | `npm test && next build` | ✅ **27/27 node tests** (buy plan · connection ladder · oracle codec) + clean build (7 pages + 13 API proxies) |
 | Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient`) |
 | On-chain read | `make verify-testnet` | ✅ chain id + both contracts' bytecode + 3 live prints read from Arc |
+| GitHub CI | push to `main` | ✅ 4/4 jobs green |
 
 **The headline claim — manipulation resistance** (`make demo`, $8,000 wash-attack budget, 36,000 adversarial authorizations, attacker burned **$147.60**):
 
@@ -120,7 +123,6 @@ Full go-live sequence on Arc testnet: [`docs/TESTNET_RUNBOOK.md`](TESTNET_RUNBOO
 
 ## 8. Known limitations (honest)
 
-- **Cloud dashboard cold start.** The public API runs on a 512MB free tier that spins down when idle. The lightweight endpoints (`/health`, `/onchain/{id}`, `/x402/info`) are solid; the heavy aggregate `/terminal/data` (live RPC reads + full derived payload) can 502 during a cold-start warm window, so the dashboard briefly shows its bundled real-provenance snapshot. A 1GB instance removes this. Not a correctness issue — the underlying data is real and served by the lighter routes.
-- **Public Arc RPC rate-limits** (429/413) under heavy scanning; mitigated with caches and adaptive range-shrink.
+- **Cloud cold start.** The public API runs on a 512MB free tier that can still restart. Mitigated three ways: a 10-minute keep-alive ping, a post-on-wake oracle catch-up, and — on the dashboard side — the Terminal's connection ladder, which paints its shell instantly, labels the tier truthfully ("waking the press · ~60s"), and serves **direct ACROracle reads** until the full feed returns. Not a correctness issue at any tier — the fallback path is itself on-chain data.
+- **Public Arc RPC rate-limits** (429/413) under heavy scanning; mitigated with caches, adaptive range-shrink, and paced sequential reads with a retry pass on the Terminal's direct-read route.
 - **Next.js pinned at 14.2.x** — upgrade to 15 to clear the Dec-2025 advisory before a fully public production launch.
-- **Repo commit status:** the estimator core, contracts, API, agent, deploy kit, and tests are pushed to `github.com/kaustubh76/ACR---Arc-Compute-Rate`; `apps/terminal`, `docs/`, `.github/`, and the `.excalidraw` canvases are still landing via the incremental commit.
