@@ -6,7 +6,7 @@
 > **The pitch line:** *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
 **Live right now (Arc testnet, chain 5042002):**
-- **Terminal (dashboard):** https://terminal-gules-eta.vercel.app
+- **Terminal (dashboard):** https://arc-compute-rate.vercel.app
 - **Seller API (x402-gated):** https://acr-api-1fto.onrender.com
 - **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7)
 - **CI:** 4 jobs (python · contracts · agent · terminal) on every push — `.github/workflows/ci.yml`
@@ -211,7 +211,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | `packages/` | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
 | `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` (Foundry, 32 tests incl. 5 invariants) — deployed on Arc testnet |
 | `services/index_api/` | The x402-gated seller API (FastAPI) — deployed at acr-api-1fto.onrender.com |
-| `apps/terminal/` | The ACR Terminal (Next.js) — deployed at terminal-gules-eta.vercel.app |
+| `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |
 | `.github/workflows/` | CI (4 jobs) + the keep-alive ping for the free-tier press |
 | `docs/SUBMISSION.md` | The judge-facing status page |

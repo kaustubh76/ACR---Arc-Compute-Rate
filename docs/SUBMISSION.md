@@ -41,7 +41,7 @@ Halfway checkpoint falls at ~week 3.5. **ACR is ahead of schedule** — the esti
 ## 3. What's live right now (real, on Arc testnet — chain 5042002)
 
 **Public URLs**
-- **Dashboard (Terminal):** https://terminal-gules-eta.vercel.app — never a blank page: the shell paints instantly and a six-tier *connection ladder* (`live → stale → waking the press → on-chain reads → archived`) keeps every value honestly labeled. When the free-tier API sleeps, the Terminal reads prints **directly from ACROracle with viem** (`/api/onchain`, CDN-cached) — even the fallback is on-chain truth.
+- **Dashboard (Terminal):** https://arc-compute-rate.vercel.app — never a blank page: the shell paints instantly and a six-tier *connection ladder* (`live → stale → waking the press → on-chain reads → archived`) keeps every value honestly labeled. When the free-tier API sleeps, the Terminal reads prints **directly from ACROracle with viem** (`/api/onchain`, CDN-cached) — even the fallback is on-chain truth.
 - **Seller API:** https://acr-api-1fto.onrender.com — `/health` reports gate `circle`, 3 live indices, chain 5042002; `/onchain/{id}` serves the real on-chain print; `/x402/info`, `/marketplace/catalog`, `/marketplace/receipts`, `/webhooks/circle` all live. Hourly `postPrint` runs in-cloud via the **Circle Developer-Controlled custody signer**, kept awake by a 10-minute CI ping (`.github/workflows/keepalive.yml`) plus a post-on-wake catch-up if the press ever oversleeps its slot.
 
 **On-chain contracts** (explorer: `https://testnet.arcscan.app`)

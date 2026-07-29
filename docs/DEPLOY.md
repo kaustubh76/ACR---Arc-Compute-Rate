@@ -93,7 +93,7 @@ vercel deploy --prod \
 - `NEXT_PUBLIC_ACR_API` — the browser `/docs` link on `/developers` (build-time inlined).
 
 Output: the public dashboard on the linked Vercel project (project name
-`terminal` — deployed at `https://terminal-gules-eta.vercel.app`). While the
+`terminal` — deployed at `https://arc-compute-rate.vercel.app`). While the
 API is unreachable (free-tier cold start) the terminal walks its connection
 ladder honestly: instant shell + skeletons, "waking the press", direct
 ACROracle reads via `/api/onchain`, and the bundled `lib/fallback.json`

@@ -80,7 +80,7 @@ footer: "ACR · ARC COMPUTE RATE · MIDWAY CHECKPOINT · 2026-07-27"
 
 A manipulation-resistant reference rate for machine services, live on Arc testnet.
 
-`terminal-gules-eta.vercel.app` · `github.com/kaustubh76/ACR---Arc-Compute-Rate`
+`arc-compute-rate.vercel.app` · `github.com/kaustubh76/ACR---Arc-Compute-Rate`
 
 <!-- Open cold: every financial market runs on a reference rate. Machine commerce — agents buying inference, GPU time, bandwidth — has none. We built it, and it's printing on-chain right now. -->
 
@@ -234,7 +234,7 @@ Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the da
 - **The neutrality moat:** Circle can't own the benchmark (the LIBOR lesson) — ACR is a partner, not a feature.
 - **The loop closes:** resistant print → on-chain oracle → x402-paying machine customers → attestations → a better print.
 
-**Terminal** `terminal-gules-eta.vercel.app` · **API** `acr-api-1fto.onrender.com`
+**Terminal** `arc-compute-rate.vercel.app` · **API** `acr-api-1fto.onrender.com`
 **Contracts** `0x4f00e3BD…` / `0x23ae3E1A…` on `testnet.arcscan.app` · `docs/SUBMISSION.md`
 
 <!-- Close on the tagline: "Machine commerce just got its SOFR — and it prints its own attack cost." -->
