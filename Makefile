@@ -1,17 +1,17 @@
-.PHONY: help setup test test-py test-contracts test-agent pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
 	@echo ""
 	@echo "  make setup           install python + node + foundry deps"
-	@echo "  make test            run everything (python + contracts + agent)"
+	@echo "  make test            run everything (python + contracts + agent + terminal)"
 	@echo "  make pipeline        run the estimator on simulated exhaust (live prints)"
 	@echo "  make demo            run the 'Attack the Index' demo"
 	@echo "  make eval            produce the ACR-vs-VWAP error chart data"
 	@echo "  make eval-gate       assert the headline resistance claims (CI gate)"
-	@echo "  make ci              lint + tests + contracts + eval gate"
+	@echo "  make ci              lint + full test suite + eval gate (mirrors GitHub CI)"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
-	@echo "  make deck            render the midway-submission slide deck (docs/presentation.html + .pdf)"
+	@echo "  make deck            render the submission slide deck (docs/presentation.html + .pdf)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -20,8 +20,10 @@ help:
 	@echo "  make deploy-testnet  deploy ACROracle + AttestationRegistry to Arc testnet"
 	@echo "  make verify-testnet  read-only checks: chain id, code, signer, latest prints"
 	@echo "  make post-once       one estimator cycle → signed postPrint txs on Arc"
+	@echo "  make attest-once     write the demo sellers' EIP-712 attestations on-chain"
+	@echo "  make seed-sellers    tiny USDC transfers so ArcSource sees the attested sellers"
 	@echo "  make api             serve the x402-gated index API (:8000)"
-	@echo "  make terminal        run the ACR Terminal (:3000)"
+	@echo "  make terminal        run the ACR Terminal (:3000; ACR_API=<seller url>, ACR_BUYER_PRIVATE_KEY enables the LIVE buyer)"
 	@echo "  make lint            ruff check the python packages"
 	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
@@ -47,7 +49,7 @@ setup:
 	cd apps/terminal && npm install --no-audit --no-fund
 	cd apps/agent && npm install --no-audit --no-fund
 
-test: test-py test-contracts test-agent
+test: test-py test-contracts test-agent test-terminal
 
 test-py:
 	uv run pytest packages services tests -q -p no:cacheprovider --import-mode=importlib
@@ -57,6 +59,9 @@ test-contracts:
 
 test-agent:
 	cd apps/agent && npm run build && npm test
+
+test-terminal:
+	cd apps/terminal && npm test && npm run build
 
 eval-gate:
 	uv run python scripts/eval.py --hours 12 --check

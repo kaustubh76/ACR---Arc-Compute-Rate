@@ -1,7 +1,7 @@
 ---
 marp: true
-title: ACR — Arc Compute Rate · Midway Submission
-description: Arc/Circle 7-week hackathon · Agentic Economy track · halfway checkpoint (2026-07-27)
+title: ACR — Arc Compute Rate · Submission
+description: Arc/Circle 7-week hackathon · Agentic Economy track · ship week (2026-07-29)
 size: 16:9
 paginate: true
 style: |
@@ -65,7 +65,7 @@ style: |
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 12px; letter-spacing: 0.15em; color: rgba(172, 198, 233, 0.55);
   }
-footer: "ACR · ARC COMPUTE RATE · MIDWAY CHECKPOINT · 2026-07-27"
+footer: "ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-29"
 ---
 
 <!-- _class: lead -->
@@ -104,13 +104,13 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 
 | Index | Measures | Latest on-chain value |
 |---|---|---|
-| **ACR-INF** | Inference — $/1k tokens | **0.50271** |
-| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01227** |
-| **ACR-DATA** | Data egress — $/MB | **0.00200** |
+| **ACR-INF** | Inference — $/1k tokens | **0.49112** |
+| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01083** |
+| **ACR-DATA** | Data egress — $/MB | **0.00203** |
 
-Every hourly print ships **three numbers**: the rate, a confidence interval, and the **attack-cost-per-bp** (ACR-INF ≈ **0.0146 USDC/bp**).
+Every hourly print ships **three numbers**: the rate, a confidence interval, and the **attack-cost-per-bp** (ACR-INF ≈ **0.0055 USDC/bp**).
 
-Read live from the oracle at checkpoint time via `make verify-testnet`.
+Read live from ACROracle at ship week — posted **hourly, in-cloud, signed by a Circle custody wallet**.
 
 <!-- The attack-cost-per-bp is the differentiator: the index quantifies its own manipulation cost on every print. -->
 
@@ -191,16 +191,17 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 
 ---
 
-###### VERIFICATION · ALL RE-RUN 2026-07-27
+###### VERIFICATION · ALL RE-RUN 2026-07-29 (SHIP WEEK)
 
-# Nine gates, **all green**
+# Ten gates, **all green**
 
 | Gate | Result | Gate | Result |
 |---|---|---|---|
-| Python suite | <span class="ok">163 pass · 2 skip</span> | Terminal build | <span class="ok">clean</span> |
+| Python suite | <span class="ok">169 pass · 2 skip</span> | Terminal | <span class="ok">27/27 tests + clean build</span> |
 | Foundry | <span class="ok">32/32 + 5 invariants</span> | Buyer agent | <span class="ok">10/10</span> |
 | Resistance gate | <span class="ok">4/4</span> | Interop | <span class="ok">12/12</span> |
 | Lint + glossary | <span class="ok">clean · 332/332</span> | On-chain read | <span class="ok">3 live prints</span> |
+| GitHub CI | <span class="ok">4/4 jobs</span> | Live commerce | <span class="ok">24+ settled x402 queries</span> |
 
 Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the data **and** in the Terminal UI. Reproduce: `make setup && make ci && make demo`.
 
@@ -208,18 +209,18 @@ Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the da
 
 ---
 
-###### ROADMAP · WEEK 3.5 OF 7
+###### ROADMAP · SHIP WEEK
 
-# Six of seven weeks of scope **already built**
+# All seven weeks of scope **built and live**
 
 | W1 TAPE | W2 ESTIMATOR | W3 ON-CHAIN | W4 ADOPTION ★ | W5 RED TEAM | W6 INSTRUMENT | W7 SHIP |
 |---|---|---|---|---|---|---|
-| <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | ⏳ |
+| <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">🔄</span> |
 
-- Remaining: freeze + polish, one full credentialed Arc round trip, Circle Agent Marketplace directory submission.
-- **Live demo:** `make demo` in the CLI, or the Terminal's `/attack` (wash the index in the browser) and `/exchange` (real x402 round-trips).
+- The credentialed Arc round trip is **done** — 24+ x402 queries settled through Circle Gateway; the Terminal's own LIVE buyer settles from the browser (capped $0.01). Circle's own CLI classifies the gate as `payable` (`circle services inspect`); directory listing is a form-only submission, prepared.
+- **Live demo:** https://arc-compute-rate.vercel.app — `/attack` (wash the index in the browser) and `/exchange` (real x402 settlements on the tape).
 
-<!-- "Ahead of schedule at the halfway mark" is the takeaway. W6 = cash-settled ACRFuture + Avellaneda–Stoikov market maker — the index already has a term structure. -->
+<!-- "Everything built and live at ship week" is the takeaway. W6 = cash-settled ACRFuture + Avellaneda–Stoikov market maker — the index already has a term structure. -->
 
 ---
 
