@@ -11,17 +11,33 @@ export function apiBase(): string {
   return API;
 }
 
-export async function fetchLive<T>(path: string, timeoutMs = 5000): Promise<T | null> {
+export type UpstreamStatus = "ok" | "error" | "timeout";
+
+/** Like fetchLive, but reports WHY the upstream failed so proxies can stamp
+ *  `upstream` on their envelope — the UI renders "press unreachable"
+ *  differently from a genuine empty feed. Failures are logged (once per call)
+ *  so a fall-back to the archived edition is diagnosable from server logs. */
+export async function fetchLiveMeta<T>(
+  path: string,
+  timeoutMs = 5000,
+): Promise<{ data: T | null; upstream: UpstreamStatus }> {
   try {
     const res = await fetch(`${API}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (res.ok) return (await res.json()) as T;
-  } catch {
-    /* offline / cold start — caller falls back */
+    if (res.ok) return { data: (await res.json()) as T, upstream: "ok" };
+    console.warn(`[terminal] upstream ${res.status} on ${path}`);
+    return { data: null, upstream: "error" };
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "TimeoutError";
+    console.warn(`[terminal] upstream ${timedOut ? "timeout" : "unreachable"} on ${path}`);
+    return { data: null, upstream: timedOut ? "timeout" : "error" };
   }
-  return null;
+}
+
+export async function fetchLive<T>(path: string, timeoutMs = 5000): Promise<T | null> {
+  return (await fetchLiveMeta<T>(path, timeoutMs)).data;
 }
 
 /** Bundled snapshot sections (marketplace / revenue / x402 / exchange sample)
@@ -36,6 +52,17 @@ export function bundleSection<K extends keyof TerminalData>(key: K): TerminalDat
    one upstream request per 5s. */
 let memo: { at: number; env: Envelope<TerminalData> } | null = null;
 const MEMO_MS = 5_000;
+
+/** Synchronous peek for the layout shell: the last-known envelope if any fetch
+ *  has resolved this instance, else the bundled snapshot with `fetchedAt: 0` —
+ *  the sentinel the client connection ladder reads as "provisional, no live
+ *  fetch has been attempted yet" (rendered as *linking*, never as a false
+ *  *archived*). Never blocks; the shell paints instantly regardless of the
+ *  backend. */
+export function peekTerminal(): Envelope<TerminalData> {
+  if (memo) return memo.env;
+  return { live: false, data: fallback as unknown as TerminalData, fetchedAt: 0 };
+}
 
 export async function loadTerminal(): Promise<Envelope<TerminalData>> {
   if (memo && Date.now() - memo.at < MEMO_MS) return memo.env;

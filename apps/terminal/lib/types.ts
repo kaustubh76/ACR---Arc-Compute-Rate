@@ -139,11 +139,21 @@ export interface TerminalData {
 }
 
 /** Every proxy response is wrapped: `live` is false when serving the bundled
- *  snapshot (the "archived edition"). */
+ *  snapshot (the "archived edition"). `upstream` (optional, newer proxies)
+ *  says WHY a response is not live — "error"/"timeout" mean the press is
+ *  unreachable, which the UI renders differently from a genuine empty. */
 export interface Envelope<T> {
   live: boolean;
   data: T;
   fetchedAt: number;
+  upstream?: "ok" | "error" | "timeout";
+}
+
+/** Payload of /api/onchain — settlement-grade prints read straight from
+ *  ACROracle with viem, independent of the FastAPI press. */
+export interface OnchainDirectRead {
+  prints: Record<string, OnchainPrint & { age_s: number }>;
+  history?: Record<string, HistoryPoint[]>;
 }
 
 export type AttackRunState = "idle" | "running" | "done" | "error";

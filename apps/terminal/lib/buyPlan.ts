@@ -2,9 +2,10 @@
  *
  * Split out from the route handler so the money-path rules — how many payments,
  * which endpoints, and the spend cap — are unit-testable without the SDK,
- * network, or a Next runtime. No imports, no side effects. */
+ * network, or a Next runtime. Pure logic; the only import is the index roster
+ * constant (itself pure). */
 
-const INDICES = ["ACR-INF", "ACR-GPU", "ACR-DATA"];
+import { INDICES } from "./indices";
 
 /** Exact-match allowlist of payable seller paths — a paid URL is only ever a
  *  string that appears here (prevents SSRF / paying an arbitrary endpoint). */
