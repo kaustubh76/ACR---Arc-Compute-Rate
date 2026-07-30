@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { AddressChip } from "@/components/chain/AddressChip";
+import { Ed } from "@/components/Ed";
+import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useCatalog, useTerminal } from "@/lib/useLive";
+import { useEdition } from "@/lib/useEdition";
 import { fmtInt, money, shortAddr } from "@/lib/format";
 import { INDICES } from "@/lib/indices";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -24,21 +27,25 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
   // calibrated market) — only the registry card above counts real on-chain
   // records. Label the table honestly so the two numbers can't be confused.
   const simTape = facts.tapeSource === "sim";
+  const plain = useEdition() === "plain";
 
   return (
     <>
       <div className="standfirst-block" style={{ marginTop: 40 }}>
-        <p className="standfirst" style={{ margin: 0 }}>
-          Sellers who attest their metadata are priced fairly by the hedonic adjustment —
-          attestation earns placement.
-        </p>
+        <Ed
+          as="p"
+          className="standfirst"
+          style={{ margin: 0 }}
+          x="Sellers who attest their metadata are priced fairly by the hedonic adjustment — attestation earns placement."
+          p="Sellers who file a signed public record of what they sell get compared like-for-like against rivals. Filing it earns a fairer price — and a place in this paper."
+        />
       </div>
 
       <section className="section">
         <div className="panel panel-pad">
           <div className="section-head" style={{ marginTop: 0 }}>
             <span className="label">
-              Registry — on-chain attestations
+              <Ed x="Registry — on-chain attestations" p="The register — sworn seller records" />
               {attLive ? <span className="green"> · live</span> : null}
             </span>
             <span className={`chip ${attLive ? "chip-teal" : "chip-sim"}`}>
@@ -64,7 +71,9 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 <div className="counter-value gold" style={{ fontSize: 30 }}>
                   {fmtInt(att.sellers_attested)}
                 </div>
-                <div className="counter-label label">Sellers attested (on-chain)</div>
+                <div className="counter-label label">
+                  <Ed x="Sellers attested (on-chain)" p="Sellers with sworn records" />
+                </div>
               </div>
               <div>
                 <div className="counter-value" style={{ fontSize: 20 }}>
@@ -77,17 +86,34 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                   <div className="counter-value" style={{ fontSize: 20 }}>
                     {att.latency_slo_ms.min ?? "—"}–{att.latency_slo_ms.max ?? "—"} ms
                   </div>
-                  <div className="counter-label label">Latency SLO range</div>
+                  <div className="counter-label label">
+                    <Ed x="Latency SLO range" p="Promised answer speed" />
+                  </div>
                 </div>
               ) : null}
             </div>
           ) : (
-            <p className="muted" style={{ fontSize: 13, margin: "12px 0 0" }}>
-              The attestation summary reads live from the on-chain{" "}
-              <span className="mono">AttestationRegistry</span> — it fills in once the API warms.
-              EIP-712 seller records (<span className="mono">attestWithSig</span>) prove metadata the
-              hedonic stage constant-quality-adjusts against.
-            </p>
+            <Ed
+              as="p"
+              className="muted"
+              style={{ fontSize: 13, margin: "12px 0 0" }}
+              x={
+                <>
+                  The attestation summary reads live from the on-chain{" "}
+                  <span className="mono">AttestationRegistry</span> — it fills in once the API
+                  warms. EIP-712 seller records (<span className="mono">attestWithSig</span>) prove
+                  metadata the hedonic stage constant-quality-adjusts against.
+                </>
+              }
+              p={
+                <>
+                  This card reads live from a public register on the blockchain — it fills in once
+                  our server wakes. Each entry is a seller’s{" "}
+                  <Term k="eip712">verifiably signed</Term> statement of what they offer; ACR uses
+                  it to compare services <Term k="hedonic">like-for-like</Term>.
+                </>
+              }
+            />
           )}
         </div>
       </section>
@@ -95,14 +121,21 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <span className="label">
-            Seller reliability — {selected}
+            <Ed x={<>Seller reliability — {selected}</>} p={<>Seller trust ranking — {selected}</>} />
             {simTape ? (
               <span
                 className="muted"
-                title="the tape is the calibrated simulator; its sellers and their attestations are simulated — the card above counts the REAL on-chain records"
+                title={
+                  plain
+                    ? "this feed is the calibrated simulator; its sellers and their records are simulated — the card above counts the REAL blockchain records"
+                    : "the tape is the calibrated simulator; its sellers and their attestations are simulated — the card above counts the REAL on-chain records"
+                }
               >
                 {" "}
-                · sim tape{att ? ` — ${fmtInt(att.sellers_attested)} real attestations on-chain` : ""}
+                <Ed
+                  x={<>· sim tape{att ? ` — ${fmtInt(att.sellers_attested)} real attestations on-chain` : ""}</>}
+                  p={<>· simulated feed{att ? ` — ${fmtInt(att.sellers_attested)} real sworn records on the blockchain` : ""}</>}
+                />
               </span>
             ) : null}
           </span>
@@ -126,9 +159,15 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 <tr>
                   <th>Seller</th>
                   <th>Score</th>
-                  <th>Clean share</th>
-                  <th>Attestation</th>
-                  <th>Volume (USDC)</th>
+                  <th>
+                    <Ed x="Clean share" p="Honest volume" />
+                  </th>
+                  <th>
+                    <Ed x="Attestation" p="Sworn record" />
+                  </th>
+                  <th>
+                    <Ed x="Volume (USDC)" p="Volume (dollars)" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -148,14 +187,21 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                           className="green"
                           title={
                             simTape
-                              ? "attested within the simulated tape — real on-chain records are counted in the registry card above"
-                              : "EIP-712 record read from the on-chain AttestationRegistry"
+                              ? plain
+                                ? "sworn within the simulated feed — real blockchain records are counted in the register card above"
+                                : "attested within the simulated tape — real on-chain records are counted in the registry card above"
+                              : plain
+                                ? "a verifiably signed record read from the public register"
+                                : "EIP-712 record read from the on-chain AttestationRegistry"
                           }
                         >
-                          EIP-712 ✓{simTape ? <span className="muted"> sim</span> : null}
+                          <Ed x="EIP-712 ✓" p="signed ✓" />
+                          {simTape ? <span className="muted"> sim</span> : null}
                         </span>
                       ) : (
-                        <span className="muted">unattested</span>
+                        <span className="muted">
+                          <Ed x="unattested" p="no record filed" />
+                        </span>
                       )}
                     </td>
                     <td>{money(s.volume_usdc, 0)}</td>
@@ -166,18 +212,37 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
           </div>
         ) : (
           <div className="awaiting">
-            {env.live
-              ? "Awaiting seller verdicts —"
-              : "The registry requires the live index API — run `make api`."}
+            {env.live ? (
+              "Awaiting seller verdicts —"
+            ) : (
+              <Ed
+                x="The registry requires the live index API — run `make api`."
+                p="The register needs our live server — start it with `make api`."
+              />
+            )}
           </div>
         )}
 
-        <p className="muted" style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}>
-          Score = ½ · clean-volume share + ½ · attestation, over the cleaning stack’s verdicts for
-          the latest window. Attestations are EIP-712 records in{" "}
-          <span className="mono">AttestationRegistry</span>
-          {fmtInt(sellers?.length ?? 0) !== "0" ? <> · top {sellers?.length} by score</> : null}.
-        </p>
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
+          x={
+            <>
+              Score = ½ · clean-volume share + ½ · attestation, over the cleaning stack’s verdicts
+              for the latest window. Attestations are EIP-712 records in{" "}
+              <span className="mono">AttestationRegistry</span>
+              {fmtInt(sellers?.length ?? 0) !== "0" ? <> · top {sellers?.length} by score</> : null}.
+            </>
+          }
+          p={
+            <>
+              Score = half “how much of their volume survived our fake filter” plus half “did they
+              file a <Term k="attestation">sworn record</Term>” — judged over the latest window
+              {fmtInt(sellers?.length ?? 0) !== "0" ? <> · top {sellers?.length} by score</> : null}.
+            </>
+          }
+        />
       </section>
     </>
   );

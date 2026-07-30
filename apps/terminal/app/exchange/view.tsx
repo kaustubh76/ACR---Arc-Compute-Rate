@@ -6,6 +6,9 @@ import { ChainFactsStrip } from "@/components/chain/ChainFactsStrip";
 import { PaymentToast, type ToastPayload } from "@/components/chain/PaymentToast";
 import { SettlementTape } from "@/components/chain/SettlementTape";
 import { WalletPanel } from "@/components/chain/WalletPanel";
+import { Ed } from "@/components/Ed";
+import { Term } from "@/components/Term";
+import { useEdition } from "@/lib/useEdition";
 import { chainFacts } from "@/lib/chain";
 import {
   useBalances,
@@ -39,6 +42,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
   const env = useTerminal(initial);
   const catalog = useCatalog();
   const { tape } = useMarketReceipts();
+  const plain = useEdition() === "plain";
 
   const items = catalog?.data?.items ?? [];
   const ledger = tape?.data ?? null;
@@ -133,27 +137,43 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
   return (
     <>
       <div className="standfirst-block" style={{ marginTop: 40 }}>
-        <p className="standfirst" style={{ margin: 0 }}>
-          The exchange floor of the index: machines discover the listings, pay a nanopayment a
-          query, and every settlement prints on the tape. Discovery is free — the data costs.
-        </p>
+        <Ed
+          as="p"
+          className="standfirst"
+          style={{ margin: 0 }}
+          x="The exchange floor of the index: machines discover the listings, pay a nanopayment a query, and every settlement prints on the tape. Discovery is free — the data costs."
+          p="The shop floor: software agents browse what’s for sale, pay a fraction of a cent per question, and every payment lands on the receipt roll below. Looking is free — answers cost."
+        />
       </div>
 
       <section className="section">
         <div className="section-head">
           <span className="label">
-            Listings — /marketplace/catalog
-            {catalogArchived ? <span className="muted"> · archived edition</span> : null}
+            <Ed x="Listings — /marketplace/catalog" p="For sale — /marketplace/catalog" />
+            {catalogArchived ? (
+              <span className="muted">
+                {" "}
+                <Ed x="· archived edition" p="· saved copy" />
+              </span>
+            ) : null}
           </span>
           <span className="label">
             {tape == null || ledger == null ? (
-              <span className="muted">gate — awaiting API</span>
+              <span className="muted">
+                <Ed x="gate — awaiting API" p="paywall — waiting for our server" />
+              </span>
             ) : !tape.live ? (
-              <span className="muted">archived tape · simulated gate</span>
+              <span className="muted">
+                <Ed x="archived tape · simulated gate" p="saved feed · simulated paywall" />
+              </span>
             ) : ledger.gate === "circle" ? (
-              <span className="green">live x402 · Circle Gateway</span>
+              <span className="green">
+                <Ed x="live x402 · Circle Gateway" p="live payments · Circle Gateway" />
+              </span>
             ) : (
-              <span className="gold">mock gate · dev</span>
+              <span className="gold">
+                <Ed x="mock gate · dev" p="practice paywall · dev" />
+              </span>
             )}
           </span>
         </div>
@@ -166,9 +186,13 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <tr>
                     <th>Resource</th>
                     <th>What it sells</th>
-                    <th>Price / query</th>
+                    <th>
+                      <Ed x="Price / query" p="Price / question" />
+                    </th>
                     <th>Network</th>
-                    <th>Provenance</th>
+                    <th>
+                      <Ed x="Provenance" p="Seller proof" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -184,11 +208,13 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                       <td>
                         {item.metadata.provider.attestation ? (
                           <span className="green">
-                            attested · {item.metadata.provider.attestation.sellers_attested}{" "}
-                            sellers
+                            <Ed x="attested" p="sworn records" /> ·{" "}
+                            {item.metadata.provider.attestation.sellers_attested} sellers
                           </span>
                         ) : (
-                          <span className="muted">registry not connected</span>
+                          <span className="muted">
+                            <Ed x="registry not connected" p="register not connected" />
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -196,21 +222,49 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                 </tbody>
               </table>
             </div>
-            <p className="muted" style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}>
-              Each listing carries the full x402 PaymentRequirements (scheme{" "}
-              <span className="mono">exact</span>, GatewayWalletBatched) plus input/output schemas
-              — an agent decides before it pays.
-              {attestation
-                ? ` Provenance reads ${fmtInt(attestation.sellers_attested)} EIP-712 seller
-                   attestations straight from the on-chain registry.`
-                : " With a deployed AttestationRegistry the listings carry on-chain seller provenance."}
-            </p>
+            <Ed
+              as="p"
+              className="muted"
+              style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
+              x={
+                <>
+                  Each listing carries the full x402 PaymentRequirements (scheme{" "}
+                  <span className="mono">exact</span>, GatewayWalletBatched) plus input/output
+                  schemas — an agent decides before it pays.
+                  {attestation
+                    ? ` Provenance reads ${fmtInt(attestation.sellers_attested)} EIP-712 seller
+                       attestations straight from the on-chain registry.`
+                    : " With a deployed AttestationRegistry the listings carry on-chain seller provenance."}
+                </>
+              }
+              p={
+                <>
+                  Every listing carries its full payment terms and the shape of the answer — a
+                  robot shopper reads the label and decides before it pays.
+                  {attestation ? (
+                    <>
+                      {" "}
+                      The proof column reads {fmtInt(attestation.sellers_attested)}{" "}
+                      <Term k="attestation">sworn seller records</Term> straight off the public
+                      register.
+                    </>
+                  ) : (
+                    <> Once the register is deployed, each listing carries its seller’s sworn record.</>
+                  )}
+                </>
+              }
+            />
           </>
         ) : (
           <div className="awaiting">
-            {catalog?.live
-              ? "Awaiting the catalog —"
-              : "The exchange opens with the live index API — run `make api`."}
+            {catalog?.live ? (
+              "Awaiting the catalog —"
+            ) : (
+              <Ed
+                x="The exchange opens with the live index API — run `make api`."
+                p="The shop opens when our live server starts — run `make api`."
+              />
+            )}
           </div>
         )}
       </section>
@@ -218,14 +272,18 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <span className="label">
-            The tape — /marketplace/receipts
+            <Ed x="The tape — /marketplace/receipts" p="The receipt roll — /marketplace/receipts" />
             {tape != null && !tape.live && ledger ? (
-              <span className="muted"> · simulated (bundled snapshot)</span>
+              <span className="muted">
+                {" "}
+                <Ed x="· simulated (bundled snapshot)" p="· simulated (saved copy)" />
+              </span>
             ) : null}
           </span>
           {ledger ? (
             <span className="label">
-              {fmtInt(ledger.paid_queries)} paid queries · ${ledger.revenue_usdc.toFixed(4)} USDC
+              {fmtInt(ledger.paid_queries)} <Ed x="paid queries" p="paid questions" /> · $
+              {ledger.revenue_usdc.toFixed(4)} USDC
             </span>
           ) : null}
         </div>
@@ -241,7 +299,9 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Run the buyer</span>
+          <span className="label">
+            <Ed x="Run the buyer" p="Let a robot shopper loose" />
+          </span>
           <span className="btn-row">
             {gateIsCircle ? (
               <button
@@ -250,15 +310,24 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                 disabled={!buyerReady?.buyer_ready || liveRunning}
                 title={
                   buyerReady?.buyer_ready
-                    ? "3 REAL Circle Gateway settlements — signs EIP-3009 and settles on Arc"
-                    : "set a funded ACR_BUYER_PRIVATE_KEY (with an open Gateway deposit) to enable"
+                    ? plain
+                      ? "3 REAL payments through Circle — it signs a digital check and money actually moves"
+                      : "3 REAL Circle Gateway settlements — signs EIP-3009 and settles on Arc"
+                    : plain
+                      ? "add a funded buyer key (with an open Circle deposit) to enable"
+                      : "set a funded ACR_BUYER_PRIVATE_KEY (with an open Gateway deposit) to enable"
                 }
               >
-                {liveRunning
-                  ? "settling… (real Circle)"
-                  : buyerReady?.buyer_ready
-                    ? "Release the LIVE buyer — 3 real settlements"
-                    : "LIVE buyer — needs a funded key"}
+                {liveRunning ? (
+                  "settling… (real Circle)"
+                ) : buyerReady?.buyer_ready ? (
+                  <Ed
+                    x="Release the LIVE buyer — 3 real settlements"
+                    p="Let the LIVE buyer loose — 3 real payments"
+                  />
+                ) : (
+                  "LIVE buyer — needs a funded key"
+                )}
               </button>
             ) : (
               <button
@@ -267,13 +336,20 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                 disabled={!gateIsDev || running || releasing}
                 title={
                   gateIsDev
-                    ? "20 real x402 two-act exchanges through the live gate"
+                    ? plain
+                      ? "20 real pay-per-question round trips through the live paywall"
+                      : "20 real x402 two-act exchanges through the live gate"
                     : "needs the live dev gate (ACR_X402_MODE=dev make api)"
                 }
               >
-                {running
-                  ? `buying… ${run?.done}/${run?.total}`
-                  : "Release the floor buyer — 20 paid queries"}
+                {running ? (
+                  `buying… ${run?.done}/${run?.total}`
+                ) : (
+                  <Ed
+                    x="Release the floor buyer — 20 paid queries"
+                    p="Let the robot shopper loose — 20 paid questions"
+                  />
+                )}
               </button>
             )}
           </span>
@@ -328,33 +404,73 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
               <tr>
                 <td className="mono">make agent</td>
                 <td>
-                  offline demo — the agent discovers the catalog and pays the mock gate (run{" "}
-                  <span className="mono">ACR_X402_MODE=dev make api</span> first)
+                  <Ed
+                    x={
+                      <>
+                        offline demo — the agent discovers the catalog and pays the mock gate (run{" "}
+                        <span className="mono">ACR_X402_MODE=dev make api</span> first)
+                      </>
+                    }
+                    p={
+                      <>
+                        practice run — the robot browses the shop and pays the practice paywall
+                        (run <span className="mono">ACR_X402_MODE=dev make api</span> first)
+                      </>
+                    }
+                  />
                 </td>
               </tr>
               <tr>
                 <td className="mono">make agent-live</td>
                 <td>
-                  Arc testnet — Circle Gateway settlement via{" "}
-                  <span className="mono">@circle-fin/x402-batching</span>; needs a funded{" "}
-                  <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
-                  <span className="mono">docs/agent-runbook.md</span>)
+                  <Ed
+                    x={
+                      <>
+                        Arc testnet — Circle Gateway settlement via{" "}
+                        <span className="mono">@circle-fin/x402-batching</span>; needs a funded{" "}
+                        <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
+                        <span className="mono">docs/agent-runbook.md</span>)
+                      </>
+                    }
+                    p={
+                      <>
+                        the real test network — actual Circle payments; needs a funded{" "}
+                        <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
+                        <span className="mono">docs/agent-runbook.md</span>)
+                      </>
+                    }
+                  />
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p className="muted" style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}>
-          The buyer is the other half of the marketplace: wallet, discovery, payment, receipt —
-          the full agent-commerce loop against this exchange. The button above runs the same
-          two-act exchange in-process; <span className="mono">apps/agent</span> is its
-          out-of-process twin over real HTTP.
-        </p>
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
+          x={
+            <>
+              The buyer is the other half of the marketplace: wallet, discovery, payment, receipt —
+              the full agent-commerce loop against this exchange. The button above runs the same
+              two-act exchange in-process; <span className="mono">apps/agent</span> is its
+              out-of-process twin over real HTTP.
+            </>
+          }
+          p={
+            <>
+              The buyer is the other half of the shop: wallet, browsing, payment, receipt — the
+              full robot-shopping loop against this page. The button above runs it inside the
+              site; <span className="mono">apps/agent</span> is its stand-alone twin over real
+              HTTP.
+            </>
+          }
+        />
       </section>
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Only computable on Arc</span>
+          <Ed x="Only computable on Arc" p="Why this only works on Arc" className="label" />
         </div>
         <ChainFactsStrip chain={env.data.chain} />
       </section>
