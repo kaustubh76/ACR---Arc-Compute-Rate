@@ -219,6 +219,7 @@ Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the da
 
 - The credentialed Arc round trip is **done** — 24+ x402 queries settled through Circle Gateway; the Terminal's own LIVE buyer settles from the browser (capped $0.01). Circle's own CLI classifies the gate as `payable` (`circle services inspect`); directory listing is a form-only submission, prepared.
 - **Live demo:** https://arc-compute-rate.vercel.app — `/attack` (wash the index in the browser) and `/exchange` (real x402 settlements on the tape).
+- **New to the jargon?** Flip the masthead to **plain** — one click re-sets the whole paper in plain English (same numbers) — or read https://arc-compute-rate.vercel.app/companion.
 
 <!-- "Everything built and live at ship week" is the takeaway. W6 = cash-settled ACRFuture + Avellaneda–Stoikov market maker — the index already has a term structure. -->
 

@@ -4,6 +4,12 @@
 > This file explains every term in one line, with an everyday analogy. If you
 > read only two things, read **"The whole thing in one paragraph"** and the
 > **plain-words ①→⑩ walkthrough** at the bottom.
+>
+> **Live in the product:** the Terminal renders this glossary at
+> [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion)
+> ("The Reader's Companion"), and the masthead's one-click **plain** edition
+> re-sets every page of the paper in this register — same numbers, plain words
+> (`apps/terminal/lib/plainGlossary.ts` is the distilled, coverage-tested subset).
 
 ---
 

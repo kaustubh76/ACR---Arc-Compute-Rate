@@ -200,7 +200,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | File | Purpose |
 |---|---|
 | `acr_architecture.excalidraw` | The **comprehensive, implementation-accurate** canvas: 205 elements (64 rectangles, 112 text, 29 fully-bound arrows) covering the four-pillar estimator in detail, the signer abstraction, EIP-712 verification, the x402 facilitator (concrete Circle wiring), robustness diagnostics, TapeSource, on-chain reads, **the agentic-economy demand side (buyer agent · Agent Marketplace · Circle webhooks)**, Circle SCP deploy, the verification surface, **and a "PLAIN ENGLISH" glossary panel**. Open at excalidraw.com. |
-| `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. |
+| `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. Rendered live at [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion) — and the Terminal masthead's one-click **plain** edition re-sets the whole site in this register. |
 | `acr_architecture_v1_blueprint.excalidraw` | The original 143-element blueprint (kept for reference). |
 | `Readme.md` | This document. |
 
