@@ -89,6 +89,9 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
         <a className="chip" href={c.explorer} target="_blank" rel="noreferrer">
           arcscan ↗
         </a>
+        <a className="chip" href="/companion" title="every term in one line, with an analogy">
+          <Ed x="reader’s companion" p="what the words mean" />
+        </a>
       </div>
 
       <p className="mono" style={{ marginBottom: 12 }}>

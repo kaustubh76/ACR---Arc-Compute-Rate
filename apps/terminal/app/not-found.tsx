@@ -18,6 +18,12 @@ export default function NotFound() {
         <Link href="/" className="section-link">
           <Ed x="← Return to the Fixing" p="← Back to the front page" />
         </Link>
+        <span className="muted" style={{ margin: "0 10px" }}>
+          ·
+        </span>
+        <Link href="/companion" className="section-link">
+          <Ed x="The reader’s companion →" p="New here? The reader’s companion →" />
+        </Link>
       </p>
     </div>
   );
