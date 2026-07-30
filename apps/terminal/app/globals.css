@@ -591,6 +591,162 @@ a.chip:hover,
   /* reserve the card band so a late payload never shoves the standfirst */
   min-height: 300px;
 }
+
+/* ---------- home landing hero (the dawn moment) ---------- */
+.home-hero {
+  position: relative;
+  overflow: hidden;
+  margin-top: 28px;
+  min-height: clamp(440px, 74vh, 720px);
+  display: flex;
+  align-items: center;
+  padding: clamp(28px, 5vw, 64px);
+  border: 1px solid var(--glass-brd);
+  border-radius: 16px;
+  background: var(--dawn-soft);
+  box-shadow: var(--glow-validator);
+}
+.home-hero-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.95;
+  pointer-events: none;
+}
+.home-hero-sky svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.home-hero-sky .hh-sun {
+  transform-origin: 600px 486px;
+  animation: hh-breathe 9s var(--ease-expo) infinite;
+}
+.home-hero-sky .hh-arc {
+  opacity: 0.8;
+}
+@keyframes hh-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+.home-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 62ch;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: hero-reveal var(--dur-3) var(--ease-expo) both;
+}
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.home-hero-eyebrow {
+  margin: 0;
+}
+.home-hero-flagship {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.home-hero-idline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.home-hero-rate {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(64px, 13vw, 184px);
+  line-height: 0.94;
+  letter-spacing: -0.03em;
+  color: var(--sand);
+  text-shadow: var(--glow-gold);
+}
+.home-hero-unit {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ether-45);
+}
+.home-hero-thesis {
+  font-family: var(--display);
+  font-weight: 300;
+  font-size: clamp(21px, 3.2vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 4px 0 0;
+  max-width: 22ch;
+  text-wrap: balance;
+}
+.home-hero-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.home-hero-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.home-hero-stat-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(30px, 5vw, 52px);
+  font-weight: 400;
+  line-height: 1;
+}
+.home-hero-stat-cap {
+  font-size: 13px;
+  color: var(--ether-70);
+  max-width: 22ch;
+}
+.home-hero-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.home-hero-scroll {
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ether-45);
+  animation: hero-scroll-cue 2.4s ease-in-out infinite;
+}
+@keyframes hero-scroll-cue {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (max-width: 640px) {
+  .home-hero-foot {
+    align-items: flex-start;
+  }
+}
 .rate-block {
   display: block;
   padding: 18px 20px 16px;
@@ -1582,5 +1738,231 @@ details.disclosure .disclosure-body {
   }
   .rate-block:hover {
     transform: none;
+  }
+}
+
+/* ---------- editions: the plain edition ----------
+   Both copies of every swapped string are always in the HTML; the
+   html[data-edition] attribute — stamped pre-paint by the boot script in
+   lib/edition.ts — picks which one is set in type. The hidden copy is
+   display:none: out of the accessibility tree, tab order, and find-in-page. */
+.ed-p {
+  display: none;
+}
+[data-edition="plain"] .ed-x {
+  display: none;
+}
+[data-edition="plain"] span.ed-p {
+  display: inline;
+}
+[data-edition="plain"] p.ed-p,
+[data-edition="plain"] div.ed-p,
+[data-edition="plain"] li.ed-p {
+  display: block;
+}
+
+/* blocks that exist only in the plain edition (primer rail, chips, links) */
+.plain-only {
+  display: none;
+}
+[data-edition="plain"] div.plain-only,
+[data-edition="plain"] section.plain-only,
+[data-edition="plain"] p.plain-only {
+  display: block;
+}
+[data-edition="plain"] span.plain-only,
+[data-edition="plain"] a.plain-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* the re-setting-type turn: a transient attribute pulsed by setEdition() —
+   one settle per toggle, debounced against double-clicks */
+html[data-edition-turn] .ed,
+html[data-edition-turn] .plain-only {
+  animation: edition-settle var(--dur-2) var(--ease-expo);
+}
+@keyframes edition-settle {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* masthead: the toggle rides with the status pill as one right-aligned unit */
+.nav-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.edition-seg .seg-word {
+  padding: 7px 12px;
+}
+.edition-seg button.on-x {
+  background: var(--protocol);
+  color: var(--sand);
+}
+[data-edition="plain"] .edition-seg button.on-x {
+  background: transparent;
+  color: var(--ether-70);
+}
+[data-edition="plain"] .edition-seg button.on-p {
+  background: var(--protocol);
+  color: var(--sand);
+}
+
+/* glossed terms — plain edition only (the expert branch never renders them) */
+.term-wrap {
+  position: relative;
+  display: inline;
+}
+.term {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: help;
+  border-bottom: 1px dotted rgba(233, 161, 63, 0.65);
+}
+.term:hover,
+.term[aria-expanded="true"] {
+  color: var(--sand);
+  border-bottom-style: solid;
+}
+.term-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(320px, 78vw);
+  padding: 10px 12px;
+  background: rgba(11, 34, 62, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-brd);
+  border-radius: 8px;
+  box-shadow: var(--glow-validator);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ether-70);
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  animation: toast-in var(--dur-2) var(--ease-expo);
+}
+.term-pop b {
+  display: block;
+  font-family: var(--eyebrow);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--sky);
+  margin-bottom: 4px;
+}
+
+/* "this paper in one minute" — the plain-only rail on the front page */
+.primer-rail {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: 20px 0;
+  counter-reset: beat;
+}
+.primer-beat {
+  counter-increment: beat;
+}
+.primer-beat::before {
+  content: counter(beat, decimal-leading-zero);
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  color: var(--sky);
+  display: block;
+  margin-bottom: 8px;
+}
+.primer-head {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--ether);
+  margin: 0 0 6px;
+}
+.primer-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ether-70);
+  margin: 0;
+}
+
+/* the reader's companion — the glossary as an editorial page */
+.companion-theme {
+  margin-top: 40px;
+}
+.companion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 28px;
+  margin-top: 16px;
+}
+.companion-entry {
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}
+.companion-entry b {
+  display: block;
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--sand);
+  margin-bottom: 4px;
+}
+.companion-entry p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ether-70);
+}
+
+@media (max-width: 900px) {
+  .primer-rail {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .companion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .primer-rail {
+    grid-template-columns: 1fr;
+  }
+  .edition-seg .seg-word {
+    padding: 6px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-edition-turn] .ed,
+  html[data-edition-turn] .plain-only,
+  .term-pop {
+    animation: none !important;
   }
 }
