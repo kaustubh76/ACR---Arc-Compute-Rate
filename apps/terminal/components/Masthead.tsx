@@ -5,15 +5,19 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useHealth } from "@/lib/useLive";
 import { useConnection, type Connection } from "@/lib/useConnection";
+import { Ed } from "@/components/Ed";
+import { EditionToggle } from "@/components/EditionToggle";
 import type { Envelope, TerminalData } from "@/lib/types";
 
-const NAV: Array<[href: string, label: string]> = [
-  ["/", "Fixing"],
-  ["/attack", "Attack Lab"],
-  ["/curve", "Curve"],
-  ["/exchange", "Exchange"],
-  ["/sellers", "Registry"],
-  ["/developers", "Developers"],
+/* [href, expert label, plain label] — the plain edition renames the sections
+   in the reader's own words; the pages themselves swap with the same click. */
+const NAV: Array<[href: string, label: string, plain: string]> = [
+  ["/", "Fixing", "The Rate"],
+  ["/attack", "Attack Lab", "Try to Cheat It"],
+  ["/curve", "Curve", "Future Prices"],
+  ["/exchange", "Exchange", "The Shop Floor"],
+  ["/sellers", "Registry", "Sellers"],
+  ["/developers", "Developers", "For Coders"],
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -108,16 +112,23 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
           <div className="nameplate">
             ACR <em>— Arc Compute Rate</em>
           </div>
-          <span className="label">the reference rate for machine commerce</span>
+          <Ed
+            x="the reference rate for machine commerce"
+            p="the going rate for machine work — in plain words"
+            className="label"
+          />
         </div>
         <div className="horizon-rule" />
         <nav className="nav">
-          {NAV.map(([href, label]) => (
+          {NAV.map(([href, label, plain]) => (
             <Link key={href} href={href} className={isActive(pathname, href) ? "active" : ""}>
-              {label}
+              <Ed x={label} p={plain} />
             </Link>
           ))}
-          <StatusPill conn={conn} />
+          <span className="nav-right">
+            <EditionToggle />
+            <StatusPill conn={conn} />
+          </span>
         </nav>
       </header>
     </div>

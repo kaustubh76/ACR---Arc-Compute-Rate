@@ -4,6 +4,8 @@ import Link from "next/link";
 import { TickerNumber } from "./TickerNumber";
 import { Sparkline } from "./charts/Sparkline";
 import { FinalityBadge } from "./chain/FinalityBadge";
+import { Ed } from "./Ed";
+import { useEdition } from "@/lib/useEdition";
 import { fmt, halfCiBp, heroFigure, money, serviceName } from "@/lib/format";
 import type { HistoryPoint, PrintRow } from "@/lib/types";
 
@@ -22,26 +24,39 @@ export function RateBlock({
   // Lead with the settlement-grade on-chain print; sim estimate is secondary.
   const h = heroFigure(p);
   const spark = (history ?? []).slice(-24).map((h) => h.value);
+  const plain = useEdition() === "plain";
+  const chainTitle = direct
+    ? plain
+      ? "read straight off the blockchain scoreboard by this page — our server is down, the number is not"
+      : "read straight from ACROracle by this terminal — the press is down, the print is not"
+    : live
+      ? plain
+        ? "read live from the public scoreboard — the record real money settles against"
+        : "the print read live from ACROracle — the record contracts settle against"
+      : plain
+        ? "the last recorded rate (saved copy — start the live server for real-time)"
+        : "last on-chain print (archived snapshot — start the live API for real-time)";
   return (
     <Link href={`/index/${p.index_id}`} className="rate-block">
       <div className="rb-head">
         <span className="label rb-id">{p.index_id}</span>
         {h.onchain ? (
-          <span
-            className={`chip ${live || direct ? "chip-teal" : "chip-sim"}`}
-            title={
-              direct
-                ? "read straight from ACROracle by this terminal — the press is down, the print is not"
-                : live
-                  ? "the print read live from ACROracle — the record contracts settle against"
-                  : "last on-chain print (archived snapshot — start the live API for real-time)"
-            }
-          >
-            ⛓ on-chain{direct ? " · direct" : live ? "" : " · archived"}
+          <span className={`chip ${live || direct ? "chip-teal" : "chip-sim"}`} title={chainTitle}>
+            <Ed
+              x={<>⛓ on-chain{direct ? " · direct" : live ? "" : " · archived"}</>}
+              p={<>⛓ on the blockchain{direct ? " · read direct" : live ? "" : " · saved copy"}</>}
+            />
           </span>
         ) : (
-          <span className="chip chip-sim" title="estimator output — no on-chain print yet">
-            sim
+          <span
+            className="chip chip-sim"
+            title={
+              plain
+                ? "our estimate — nothing posted to the blockchain yet"
+                : "estimator output — no on-chain print yet"
+            }
+          >
+            <Ed x="sim" p="simulation" />
           </span>
         )}
       </div>
@@ -51,15 +66,36 @@ export function RateBlock({
       </div>
       <div className="rb-unit">{p.unit}</div>
       <div className="rb-ci">
-        ±{halfCiBp(h).toFixed(1)} bp <span className="muted">(95%)</span>
+        ±{halfCiBp(h).toFixed(1)}{" "}
+        <Ed
+          x={
+            <>
+              bp <span className="muted">(95%)</span>
+            </>
+          }
+          p={
+            <>
+              bp <span className="muted">— honest wiggle room, 95% sure</span>
+            </>
+          }
+        />
       </div>
       {h.onchain && (
-        <div className="rb-est muted" title="live estimator reading (sim tape) — the oracle posts this hourly">
-          est. {fmt(p.value)}
+        <div
+          className="rb-est muted"
+          title={
+            plain
+              ? "our freshly computed estimate — it gets posted to the blockchain each hour"
+              : "live estimator reading (sim tape) — the oracle posts this hourly"
+          }
+        >
+          <Ed x="est. " p="our estimate " />
+          {fmt(p.value)}
         </div>
       )}
       <div className="rb-cost">
-        Cost to move 1% — <TickerNumber text={money(p.cost_to_move_1pct)} />
+        <Ed x="Cost to move 1% — " p="To bend this 1%, a cheat must burn " />
+        <TickerNumber text={money(p.cost_to_move_1pct)} />
       </div>
       <div className="rb-spark">
         <Sparkline values={spark} />

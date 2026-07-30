@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { TickerNumber } from "./TickerNumber";
+import { Ed } from "./Ed";
 import { ciWidthBp, fmt, fmtInt, heroFigure, money } from "@/lib/format";
 import type { PrintRow } from "@/lib/types";
 
@@ -22,12 +23,24 @@ export function PrintsTable({
         <thead>
           <tr>
             <th>Index</th>
-            <th>Rate (on-chain)</th>
-            <th>CI (bp)</th>
-            <th>Est. (sim)</th>
-            <th>$ / 1% move</th>
-            <th>N</th>
-            <th>Provenance</th>
+            <th>
+              <Ed x="Rate (on-chain)" p="Official rate" />
+            </th>
+            <th>
+              <Ed x="CI (bp)" p="Wiggle (bp)" />
+            </th>
+            <th>
+              <Ed x="Est. (sim)" p="Our estimate" />
+            </th>
+            <th>
+              <Ed x="$ / 1% move" p="Cost to bend 1%" />
+            </th>
+            <th>
+              <Ed x="N" p="Payments" />
+            </th>
+            <th>
+              <Ed x="Provenance" p="Where it lives" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -64,10 +77,15 @@ export function PrintsTable({
                 <td>
                   {p.onchain ? (
                     <span className={live || direct ? "green" : "muted"}>
-                      {direct ? "⛓ direct read" : live ? "⛓ on-chain" : "⛓ archived"}
+                      <Ed
+                        x={direct ? "⛓ direct read" : live ? "⛓ on-chain" : "⛓ archived"}
+                        p={direct ? "⛓ read direct" : live ? "⛓ on the blockchain" : "⛓ saved copy"}
+                      />
                     </span>
                   ) : (
-                    <span className="muted">sim</span>
+                    <span className="muted">
+                      <Ed x="sim" p="simulation" />
+                    </span>
                   )}
                 </td>
               </tr>

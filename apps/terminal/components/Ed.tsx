@@ -18,6 +18,7 @@ export function Ed({
   p,
   as = "span",
   className,
+  style,
 }: {
   /** Expert copy — the paper's native register. */
   x: React.ReactNode;
@@ -25,13 +26,18 @@ export function Ed({
   p: React.ReactNode;
   as?: EdTag;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const T = as;
   const cls = className ? ` ${className}` : "";
   return (
     <>
-      <T className={`ed ed-x${cls}`}>{x}</T>
-      <T className={`ed ed-p${cls}`}>{p}</T>
+      <T className={`ed ed-x${cls}`} style={style}>
+        {x}
+      </T>
+      <T className={`ed ed-p${cls}`} style={style}>
+        {p}
+      </T>
     </>
   );
 }

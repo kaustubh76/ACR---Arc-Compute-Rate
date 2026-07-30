@@ -4,6 +4,8 @@ import { useConnection } from "@/lib/useConnection";
 import { addrUrl, chainFacts, tokenUrl } from "@/lib/chain";
 import { ArcHorizon } from "./ArcHorizon";
 import { AddressChip } from "./chain/AddressChip";
+import { Ed } from "./Ed";
+import { Term } from "./Term";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 /* The edition line follows the connection ladder, not a live/sim binary. */
@@ -16,6 +18,16 @@ const EDITION_LINE: Record<string, string> = {
   archived: "ARCHIVED EDITION — START THE INDEX API FOR LIVE DATA",
 };
 
+/* The same line, set in plain type. */
+const PLAIN_EDITION_LINE: Record<string, string> = {
+  live: "LIVE EDITION",
+  linking: "FIRST EDITION — CONNECTING",
+  stale: "LIVE EDITION — RECONNECTING TO OUR SERVER",
+  waking: "EDITION IN PRESS — OUR SERVER IS WAKING UP",
+  "onchain-only": "BLOCKCHAIN EDITION — READ STRAIGHT OFF THE PUBLIC RECORD",
+  archived: "SAVED COPY — THE LIVE SERVER IS OFF",
+};
+
 export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
   const env = conn.env;
@@ -24,18 +36,37 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
 
   return (
     <footer className="colophon container">
-      <p style={{ margin: 0 }}>
-        Prints are hourly; each ships with its confidence interval and its attack-cost-per-bp.
-        Estimator: state-space deconvolution of the Gateway batching operator · funding-graph
-        cleaning with Louvain sybil detection · volume-time α-trimmed weighted median · hedonic
-        constant-quality adjustment · manipulation cost bound. Only computable on Arc —
-        deterministic, dollar-denominated USDC fees make the bound a number, not a distribution.
-      </p>
+      <Ed
+        as="p"
+        style={{ margin: 0 }}
+        x={
+          <>
+            Prints are hourly; each ships with its confidence interval and its attack-cost-per-bp.
+            Estimator: state-space deconvolution of the Gateway batching operator · funding-graph
+            cleaning with Louvain sybil detection · volume-time α-trimmed weighted median · hedonic
+            constant-quality adjustment · manipulation cost bound. Only computable on Arc —
+            deterministic, dollar-denominated USDC fees make the bound a number, not a
+            distribution.
+          </>
+        }
+        p={
+          <>
+            A fresh rate every hour; each ships with its honest give-or-take and the dollar bill
+            for bending it. How it is made: <Term k="deconvolution">un-blur</Term> the batched
+            payment timing · trace who funds whom and drop the{" "}
+            <Term k="wash-trade">fake trades</Term> · take the{" "}
+            <Term k="trimmed-median">trimmed, size-weighted middle</Term> · compare services{" "}
+            <Term k="hedonic">like-for-like</Term> · price the cheapest attack that still works.
+            Only possible on Arc — fees here are fixed and paid in dollars, so the bill for
+            cheating is a number, not a guess.
+          </>
+        }
+      />
 
       <div className="colophon-facts">
         <span className="chip chip-sky">{c.caip2}</span>
         <a className="chip" href={tokenUrl(c.usdc, c.explorer)} target="_blank" rel="noreferrer">
-          USDC · gas token
+          <Ed x="USDC · gas token" p="USDC — the dollars that also pay the fees" />
         </a>
         <a
           className="chip"
@@ -61,7 +92,15 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
       </div>
 
       <p className="mono" style={{ marginBottom: 12 }}>
-        {EDITION_LINE[conn.state] ?? EDITION_LINE.archived} · AN ARC / CIRCLE BUILD
+        <Ed
+          x={EDITION_LINE[conn.state] ?? EDITION_LINE.archived}
+          p={
+            <>
+              {PLAIN_EDITION_LINE[conn.state] ?? PLAIN_EDITION_LINE.archived} · SET IN PLAIN TYPE
+            </>
+          }
+        />{" "}
+        · AN ARC / CIRCLE BUILD
       </p>
 
       <div className="arc-horizon-mini">

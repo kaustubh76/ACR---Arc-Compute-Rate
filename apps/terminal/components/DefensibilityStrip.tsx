@@ -1,8 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { Ed } from "./Ed";
+import { Term } from "./Term";
 import { fmtInt, money } from "@/lib/format";
 import type { TerminalData } from "@/lib/types";
+
+const HEAD = (
+  <Ed
+    x="Defensibility — peak error under an identical attack"
+    p="Stress test — the same attack, thrown at us and at a plain average"
+    className="label"
+  />
+);
 
 /* One row on the home page: peak estimator error under an identical attack,
    VWAP vs ACR, and the resistance ratio. The full exercise lives in the Lab. */
@@ -13,9 +23,7 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
     // attack summary streams in a poll later.
     return (
       <section className="section" aria-busy="true">
-        <div className="section-head">
-          <span className="label">Defensibility — peak error under an identical attack</span>
-        </div>
+        <div className="section-head">{HEAD}</div>
         <div className="skel" style={{ height: 96 }} />
       </section>
     );
@@ -36,15 +44,15 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
   return (
     <section className="section">
       <div className="section-head">
-        <span className="label">Defensibility — peak error under an identical attack</span>
+        {HEAD}
         <Link href="/attack" className="section-link">
-          Attack the index →
+          <Ed x="Attack the index →" p="Try to cheat it yourself →" />
         </Link>
       </div>
       <div className="defense">
         <div className="defense-bars">
           <div className="defense-bar-row">
-            <span className="label vermilion">Naive VWAP</span>
+            <Ed x="Naive VWAP" p="Plain average" className="label vermilion" />
             <span className="defense-bar">
               <i className="fill-vwap" style={{ width: `${(100 * peakVwap) / scale}%` }} />
             </span>
@@ -64,8 +72,21 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
         <div className="defense-verdict">
           <div className="defense-ratio">{fmtInt(resist)}×</div>
           <div className="defense-caption">
-            more resistant than naive VWAP — the attacker burned {money(atk.usdc_burned, 0)} across{" "}
-            {fmtInt(atk.n_adversarial)} wash prints trying.
+            <Ed
+              x={
+                <>
+                  more resistant than naive VWAP — the attacker burned {money(atk.usdc_burned, 0)}{" "}
+                  across {fmtInt(atk.n_adversarial)} wash prints trying.
+                </>
+              }
+              p={
+                <>
+                  sturdier than a plain average — the attacker spent {money(atk.usdc_burned, 0)} on{" "}
+                  {fmtInt(atk.n_adversarial)} <Term k="wash-trade">fake trades</Term> and barely
+                  moved this number.
+                </>
+              }
+            />
           </div>
         </div>
       </div>
