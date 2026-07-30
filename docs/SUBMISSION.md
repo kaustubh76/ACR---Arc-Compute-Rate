@@ -61,7 +61,7 @@ A machine buyer agent (`apps/agent`, `0x870f…`) paid the Circle-gated endpoint
 | **Agent Nanopayments** (Gateway x402) | Seller gate `services/index_api/index_api/x402.py` → `/v1/x402/verify`+`/settle` on `gateway-api-testnet.circle.com`; scheme `exact`/GatewayWalletBatched on `eip155:5042002` |
 | **Agent Wallets** | Buyer `apps/agent/` pays via `@circle-fin/x402-batching` `GatewayClient`; oracle signs prints via Circle Developer-Controlled Wallets (`packages/acr_oracle_client/signer.py`) |
 | **Agent Marketplace** | `GET /marketplace/catalog` (Bazaar-shaped listings + on-chain attestation provenance); `GET /marketplace/receipts` (public settlement tape); Terminal `/exchange` |
-| **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` — `docs/agent-runbook.md` |
+| **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` — `docs/agent-runbook.md`. **Proven end-to-end**: Circle's own CLI buyer settled against the deployed gate (`circle services inspect …/prints` → `payable`; `circle services pay` from a faucet-funded agent wallet paid $0.0001 and received the full prints payload) |
 | **Circle Skills** | `circle-skills` Claude Code plugin (`make skills-install`) |
 
 ---

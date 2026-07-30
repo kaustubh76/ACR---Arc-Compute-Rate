@@ -132,11 +132,12 @@ class ACRSettings(BaseSettings):
     #: keep density high (estimable) while cutting total events (memory). Default
     #: 24h matches acr_sim's SimConfig default.
     sim_horizon_seconds: float = 86_400.0
-    #: Per-hour event count for the "Attack the Index" exhibit sims (attack.py).
-    #: These are the heaviest transient allocation in the app (a 12h error-series
-    #: sim + two 1h attack sims), so a 512MB cloud box lowers it (~400) to avoid an
-    #: OOM spike; the panel still demonstrates ACR-vs-VWAP-under-attack. Default
-    #: preserves the rich local exhibit.
+    #: Per-hour event count for the "Attack the Index" exhibit sims (attack.py)
+    #: AND the live Attack Lab run (demo.py). These are the heaviest transient
+    #: allocation in the app (a 12h error-series sim + two 1h attack sims), so a
+    #: 512MB cloud box lowers it (~1250) to avoid an OOM spike. Floor ~800: below
+    #: that the hour-0 cleaning stack leaves zero observations and the run errors
+    #: (verified at 400). Default preserves the rich local exhibit.
     attack_sim_events_per_service: int = 2_500
     #: How many blocks back ArcSource scans for USDC transfer logs. Kept modest
     #: because USDC is Arc's native gas token → Transfer logs are dense; ArcSource
