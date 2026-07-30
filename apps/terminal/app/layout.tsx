@@ -4,6 +4,7 @@ import { Masthead } from "@/components/Masthead";
 import { ChainStrip } from "@/components/ChainStrip";
 import { Colophon } from "@/components/Colophon";
 import { peekTerminal } from "@/lib/api";
+import { editionBootScript } from "@/lib/edition";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -45,11 +46,17 @@ export const dynamic = "force-dynamic";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const initial = peekTerminal();
   return (
+    // suppressHydrationWarning: the edition boot script may stamp
+    // data-edition="plain" on <html> before hydration (next-themes pattern);
+    // it is the only attribute the server does not render.
     <html
       lang="en"
       className={`${display.variable} ${body.variable} ${eyebrow.variable} ${mono.variable}`}
+      suppressHydrationWarning
     >
       <body>
+        {/* Pre-paint: restore the reader's edition before any copy renders. */}
+        <script dangerouslySetInnerHTML={{ __html: editionBootScript() }} />
         <Masthead initial={initial} />
         <ChainStrip initial={initial} />
         <main className="container page">{children}</main>
