@@ -4,14 +4,18 @@ import { HistoryChart } from "@/components/charts/HistoryChart";
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { OracleProvenance } from "@/components/chain/OracleProvenance";
 import { TickerNumber } from "@/components/TickerNumber";
+import { Ed } from "@/components/Ed";
+import { Term } from "@/components/Term";
 import { useOnchainHistory } from "@/lib/useLive";
 import { useConnection } from "@/lib/useConnection";
+import { useEdition } from "@/lib/useEdition";
 import { editionLabel, fmt, fmtInt, halfCiBp, heroFigure, money, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id: string }) {
   const conn = useConnection(initial);
   const env = conn.env;
+  const plain = useEdition() === "plain";
   // The heavier direct read (prints + this index's on-chain history) only
   // spins up while the press is down — null SWR key on the healthy path.
   const direct = useOnchainHistory(id, !env.live && env.fetchedAt !== 0);
@@ -21,7 +25,9 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   if (!raw) {
     return (
       <div className="editorial-404">
-        <h1>No such index is published.</h1>
+        <h1>
+          <Ed x="No such index is published." p="There is no rate by that name." />
+        </h1>
       </div>
     );
   }
@@ -46,16 +52,32 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
               className={`chip ${env.live || directLive ? "chip-teal" : "chip-sim"}`}
               title={
                 directLive
-                  ? "read straight from ACROracle by this terminal — the press is down, the record is not"
+                  ? plain
+                    ? "read straight off the blockchain scoreboard by this page — our server is down, the record is not"
+                    : "read straight from ACROracle by this terminal — the press is down, the record is not"
                   : env.live
-                    ? "read live from ACROracle — the record contracts settle against"
-                    : "last on-chain print (archived snapshot)"
+                    ? plain
+                      ? "read live from the public scoreboard — the record real money settles against"
+                      : "read live from ACROracle — the record contracts settle against"
+                    : plain
+                      ? "the last recorded rate (saved copy)"
+                      : "last on-chain print (archived snapshot)"
               }
             >
-              ⛓ on-chain{directLive ? " · direct" : env.live ? "" : " · archived"}
+              <Ed
+                x={<>⛓ on-chain{directLive ? " · direct" : env.live ? "" : " · archived"}</>}
+                p={
+                  <>
+                    ⛓ on the blockchain
+                    {directLive ? " · read direct" : env.live ? "" : " · saved copy"}
+                  </>
+                }
+              />
             </span>
           ) : (
-            <span className="chip chip-sim">sim estimate</span>
+            <span className="chip chip-sim">
+              <Ed x="sim estimate" p="simulated estimate" />
+            </span>
           )}
         </div>
         <div className="rb-service" style={{ fontSize: 22 }}>
@@ -66,21 +88,48 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
         </div>
         <div className="rb-unit">{p.unit}</div>
         <div className="rb-ci">
-          ±{halfCiBp(h).toFixed(1)} bp <span className="muted">(95%)</span> ·{" "}
-          <span className="vermilion">cost to move 1% — {money(p.cost_to_move_1pct)}</span>
-          {h.onchain && <span className="muted"> · est. (sim) {fmt(p.value)}</span>}
+          ±{halfCiBp(h).toFixed(1)}{" "}
+          <Ed
+            x={
+              <>
+                bp <span className="muted">(95%)</span> ·{" "}
+                <span className="vermilion">cost to move 1% — {money(p.cost_to_move_1pct)}</span>
+              </>
+            }
+            p={
+              <>
+                bp <span className="muted">— honest wiggle room, 95% sure</span> ·{" "}
+                <span className="vermilion">
+                  to bend this 1%, a cheat must burn {money(p.cost_to_move_1pct)}
+                </span>
+              </>
+            }
+          />
+          {h.onchain && (
+            <span className="muted">
+              {" "}
+              · <Ed x="est. (sim)" p="our estimate" /> {fmt(p.value)}
+            </span>
+          )}
         </div>
       </div>
 
       <section className="section">
         <div className="section-head">
-          <span className="label">The record — recent prints</span>
+          <Ed x="The record — recent prints" p="The history — recent official rates" className="label" />
           {directHistory ? (
             <span
               className="chip chip-teal"
-              title="the press is down — these points were read row-by-row from ACROracle's on-chain history"
+              title={
+                plain
+                  ? "our server is down — these points were read one by one from the blockchain's history"
+                  : "the press is down — these points were read row-by-row from ACROracle's on-chain history"
+              }
             >
-              last {directHistory.length} prints · read from ACROracle
+              <Ed
+                x={<>last {directHistory.length} prints · read from ACROracle</>}
+                p={<>last {directHistory.length} rates · read off the blockchain</>}
+              />
             </span>
           ) : null}
         </div>
@@ -90,39 +139,73 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             <div className="counter-value" style={{ fontSize: 26 }}>
               {(p.vol * 100).toFixed(1)}%
             </div>
-            <div className="counter-label label">Annualized vol</div>
+            <div className="counter-label label">
+              <Ed x="Annualized vol" p="How jumpy (yearly)" />
+            </div>
           </div>
           <div>
             <div className="counter-value" style={{ fontSize: 26 }}>
               {fmtInt(p.n_obs)}
             </div>
-            <div className="counter-label label">Observations</div>
+            <div className="counter-label label">
+              <Ed x="Observations" p="Payments counted" />
+            </div>
           </div>
           <div>
             <div className="counter-value" style={{ fontSize: 26 }}>
               {p.cleaned_pct.toFixed(1)}%
             </div>
-            <div className="counter-label label">Volume cleaned</div>
+            <div className="counter-label label">
+              <Ed x="Volume cleaned" p="Fake volume removed" />
+            </div>
           </div>
           <div>
             <div className="counter-value" style={{ fontSize: 26 }}>
               {editionLabel(p.ts)}
             </div>
-            <div className="counter-label label">Fixing</div>
+            <div className="counter-label label">
+              <Ed x="Fixing" p="Edition" />
+            </div>
           </div>
         </div>
       </section>
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Provenance — the settlement-grade record</span>
+          <Ed
+            x="Provenance — the settlement-grade record"
+            p="Proof — the official on-chain copy"
+            className="label"
+          />
         </div>
-        <p className="muted" style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}>
-          Contracts settle against the on-chain record, not this page
-          {p.onchain
-            ? " — the rate above is that record, read from ACROracle; the sim estimator (est.) is what the oracle posts each hour."
-            : " — deploy the oracle to publish this fixing on-chain."}
-        </p>
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}
+          x={
+            <>
+              Contracts settle against the on-chain record, not this page
+              {p.onchain
+                ? " — the rate above is that record, read from ACROracle; the sim estimator (est.) is what the oracle posts each hour."
+                : " — deploy the oracle to publish this fixing on-chain."}
+            </>
+          }
+          p={
+            <>
+              The number that counts lives on the blockchain, not on this page
+              {p.onchain ? (
+                <>
+                  {" "}
+                  — the rate above is that public record, read from an{" "}
+                  <Term k="oracle">oracle</Term> contract; “our estimate” is the freshly computed
+                  figure that gets posted there each hour.
+                </>
+              ) : (
+                <> — the scoreboard contract is not deployed yet, so this rate is simulation-only.</>
+              )}
+            </>
+          }
+        />
         <OracleProvenance
           indexId={id}
           onchain={p.onchain}
@@ -132,58 +215,88 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
         />
 
         <details className="disclosure">
-          <summary>Construction — how this number defends itself</summary>
+          <summary>
+            <Ed
+              x="Construction — how this number defends itself"
+              p="Under the hood — why this number is hard to fake"
+            />
+          </summary>
           <div className="disclosure-body">
             <ol className="footnotes">
               <li>
-                <span className="fn-gloss">
-                  Share of tape volume removed by funding-graph cleaning and Louvain sybil
-                  detection before estimation.
-                </span>
+                <Ed
+                  className="fn-gloss"
+                  x="Share of tape volume removed by funding-graph cleaning and Louvain sybil detection before estimation."
+                  p={
+                    <>
+                      Money flow we threw out as fake before averaging — self-deals and rings of{" "}
+                      <Term k="sybil">sock-puppet accounts</Term>, caught by tracing who funds whom.
+                    </>
+                  }
+                />
                 <span className="fn-value">{p.cleaned_pct.toFixed(1)}%</span>
               </li>
               {p.trim_alpha != null && (
                 <li>
-                  <span className="fn-gloss">
-                    Trim level α of the volume-time weighted median — the mass an attacker must
-                    outweigh on each side.
-                  </span>
+                  <Ed
+                    className="fn-gloss"
+                    x="Trim level α of the volume-time weighted median — the mass an attacker must outweigh on each side."
+                    p={
+                      <>
+                        How much of the wildest prices we ignore on each side —{" "}
+                        <Term k="trimmed-median">Olympic scoring</Term>: the extreme judges don’t
+                        count.
+                      </>
+                    }
+                  />
                   <span className="fn-value">α = {p.trim_alpha.toFixed(2)}</span>
                 </li>
               )}
               <li>
-                <span className="fn-gloss">
-                  Manipulation bound: USDC an attacker must burn to move this print one basis
-                  point.
-                </span>
+                <Ed
+                  className="fn-gloss"
+                  x="Manipulation bound: USDC an attacker must burn to move this print one basis point."
+                  p={
+                    <>
+                      <Term k="attack-cost">The bill for cheating</Term>: dollars an attacker must
+                      burn to move this rate one hundredth of a percent.
+                    </>
+                  }
+                />
                 <span className="fn-value vermilion">{money(p.attack_cost_per_bp, 4)} / bp</span>
               </li>
               {r && (
                 <>
                   <li>
-                    <span className="fn-gloss">
-                      Largest single funding cluster’s share of post-cleaning volume — no one
-                      identity group dominates the print.
-                    </span>
+                    <Ed
+                      className="fn-gloss"
+                      x="Largest single funding cluster’s share of post-cleaning volume — no one identity group dominates the print."
+                      p="The biggest single group of connected accounts still only owns this slice of the surviving volume — nobody dominates."
+                    />
                     <span className="fn-value">{(100 * r.max_cluster_share).toFixed(1)}%</span>
                   </li>
                   <li>
-                    <span className="fn-gloss">
-                      Influence of that cluster on the print if removed entirely.
-                    </span>
+                    <Ed
+                      className="fn-gloss"
+                      x="Influence of that cluster on the print if removed entirely."
+                      p="How far the rate would move if that whole group were deleted from the data."
+                    />
                     <span className="fn-value">{r.max_cluster_influence_bp.toFixed(1)} bp</span>
                   </li>
                   <li>
-                    <span className="fn-gloss">
-                      Independent sybil clusters an attacker would need to control to flip the
-                      median.
-                    </span>
+                    <Ed
+                      className="fn-gloss"
+                      x="Independent sybil clusters an attacker would need to control to flip the median."
+                      p="Separate fake-account rings a cheat would need to run at once to flip the middle value."
+                    />
                     <span className="fn-value">{fmtInt(r.sybil_clusters_required)}</span>
                   </li>
                   <li>
-                    <span className="fn-gloss">
-                      Minimum distinct identities behind the surviving observations.
-                    </span>
+                    <Ed
+                      className="fn-gloss"
+                      x="Minimum distinct identities behind the surviving observations."
+                      p="At least this many genuinely different participants stand behind the surviving payments."
+                    />
                     <span className="fn-value">{fmtInt(r.min_identities)}</span>
                   </li>
                 </>
@@ -195,7 +308,11 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Quote corridor — {p.index_id}</span>
+          <Ed
+            x={<>Quote corridor — {p.index_id}</>}
+            p={<>Forward prices — where dealers quote {p.index_id}</>}
+            className="label"
+          />
         </div>
         <QuoteCorridor prints={{ [p.index_id]: p }} only={p.index_id} />
       </section>

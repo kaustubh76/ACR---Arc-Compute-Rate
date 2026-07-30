@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { AttackChart } from "@/components/charts/AttackChart";
 import { TickerNumber } from "@/components/TickerNumber";
+import { Ed } from "@/components/Ed";
+import { Term } from "@/components/Term";
 import { useAttackRun, useTerminal } from "@/lib/useLive";
 import { fmt, fmtInt, money, pct } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -54,17 +56,20 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
   return (
     <>
       <div className="standfirst-block" style={{ marginTop: 40 }}>
-        <p className="standfirst" style={{ margin: 0 }}>
-          Try to move my number — here’s the bill. Fund a wash-flow bot, point it at the tape, and
-          watch what each statistic does with the poison.
-        </p>
+        <Ed
+          as="p"
+          className="standfirst"
+          style={{ margin: 0 }}
+          x="Try to move my number — here’s the bill. Fund a wash-flow bot, point it at the tape, and watch what each statistic does with the poison."
+          p="Try to move my number — here’s the bill. Give a cheating bot a budget, let it flood the market with fake trades, and watch a plain average fall for it while ACR holds."
+        />
       </div>
 
       <div className="lab">
         <div className="lab-controls">
           <div>
             <div className="label" style={{ marginBottom: 10 }}>
-              The adversary — budget
+              <Ed x="The adversary — budget" p="The cheat’s budget" />
             </div>
             <div className="lab-presets">
               {BUDGETS.map((b) => (
@@ -81,11 +86,13 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           </div>
 
           <details className="disclosure">
-            <summary>Adversary parameters</summary>
+            <summary>
+              <Ed x="Adversary parameters" p="Fine-tune the cheat" />
+            </summary>
             <div className="disclosure-body" style={{ display: "grid", gap: 14 }}>
               <div>
                 <div className="label" style={{ marginBottom: 8 }}>
-                  Target multiplier
+                  <Ed x="Target multiplier" p="How far above the real price it aims" />
                 </div>
                 <div className="lab-presets">
                   {MULTS.map((m) => (
@@ -102,7 +109,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               </div>
               <div>
                 <div className="label" style={{ marginBottom: 8 }}>
-                  Seed (optional)
+                  <Ed x="Seed (optional)" p="Dice roll (optional — same seed, same run)" />
                 </div>
                 <input
                   className="mono"
@@ -130,20 +137,40 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             onClick={commence}
             disabled={!labLive || running || starting}
           >
-            {running ? "Attack in progress…" : done ? "Run it again" : "Commence attack"}
+            {running ? (
+              "Attack in progress…"
+            ) : done ? (
+              "Run it again"
+            ) : (
+              <Ed x="Commence attack" p="Launch the attack" />
+            )}
           </button>
           {!labLive && (
-            <div className="label">The lab requires the live index API — run `make api`.</div>
+            <div className="label">
+              <Ed
+                x="The lab requires the live index API — run `make api`."
+                p="The lab needs our live server — start it with `make api`."
+              />
+            </div>
           )}
           {startErr && <div className="label vermilion">{startErr}</div>}
           {errored && <div className="label vermilion">The run failed: {st?.error}</div>}
 
-          <p className="lab-note">
-            The bot spends its budget on wash prints between sybil identities: self-deals at an
-            inflated target price, reciprocal funding legs to look organic, and a ring of fresh
-            addresses to spread the flow. Naive VWAP averages whatever it is fed. ACR deconvolves
-            the batching, traces the funding graph, and trims what remains.
-          </p>
+          <Ed
+            as="p"
+            className="lab-note"
+            x="The bot spends its budget on wash prints between sybil identities: self-deals at an inflated target price, reciprocal funding legs to look organic, and a ring of fresh addresses to spread the flow. Naive VWAP averages whatever it is fed. ACR deconvolves the batching, traces the funding graph, and trims what remains."
+            p={
+              <>
+                The bot spends its budget on <Term k="wash-trade">fake trades</Term> between
+                accounts it secretly controls: selling to itself at inflated prices, passing the
+                same dollars back and forth to look organic, and fanning the flow across fresh
+                addresses. A plain average swallows whatever it is fed. ACR{" "}
+                <Term k="deconvolution">un-blurs the timing</Term>, maps who funds whom, and
+                ignores the extremes.
+              </>
+            }
+          />
         </div>
 
         <div className="lab-stage">
@@ -154,13 +181,17 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                   <div className="counter-value vermilion">
                     <TickerNumber text={money(run.usdc_burned, 0)} />
                   </div>
-                  <div className="counter-label label">USDC burned</div>
+                  <div className="counter-label label">
+                    <Ed x="USDC burned" p="Dollars burned" />
+                  </div>
                 </div>
                 <div>
                   <div className="counter-value">
                     <TickerNumber text={fmtInt(run.n_adversarial)} />
                   </div>
-                  <div className="counter-label label">Wash prints</div>
+                  <div className="counter-label label">
+                    <Ed x="Wash prints" p="Fake trades" />
+                  </div>
                 </div>
                 <div>
                   <div className="counter-value">
@@ -174,7 +205,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           ) : (
             <>
               <div className="label" style={{ marginBottom: 12 }}>
-                Previous exercise — bundled
+                <Ed x="Previous exercise — bundled" p="A previous run — saved copy" />
               </div>
               <AttackChart series={stageSeries} faded />
             </>
@@ -185,24 +216,48 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               <div className="section-head">
                 <span className="label">The verdict</span>
               </div>
-              <p className="verdict" style={{ margin: 0 }}>
-                VWAP dragged <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>. ACR
-                moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. The attacker
-                burned <b>{money(run.usdc_burned, 0)}</b> across <b>{fmtInt(run.n_adversarial)}</b>{" "}
-                wash prints — <b>{fmtInt(run.verdict.resistance)}×</b> the resistance.
-              </p>
+              <Ed
+                as="p"
+                className="verdict"
+                style={{ margin: 0 }}
+                x={
+                  <>
+                    VWAP dragged <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>.
+                    ACR moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. The
+                    attacker burned <b>{money(run.usdc_burned, 0)}</b> across{" "}
+                    <b>{fmtInt(run.n_adversarial)}</b> wash prints —{" "}
+                    <b>{fmtInt(run.verdict.resistance)}×</b> the resistance.
+                  </>
+                }
+                p={
+                  <>
+                    The plain average was dragged{" "}
+                    <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>. ACR moved
+                    just <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. The cheat
+                    burned <b>{money(run.usdc_burned, 0)}</b> on{" "}
+                    <b>{fmtInt(run.n_adversarial)}</b> fake trades — ACR held{" "}
+                    <b>{fmtInt(run.verdict.resistance)}×</b> firmer.
+                  </>
+                }
+              />
               <div className="table-scroll" style={{ marginTop: 24 }}>
                 <table className="sheet">
                   <thead>
                     <tr>
-                      <th>Statistic</th>
-                      <th>Peak error (bp)</th>
+                      <th>
+                        <Ed x="Statistic" p="Method" />
+                      </th>
+                      <th>
+                        <Ed x="Peak error (bp)" p="Worst error (bp)" />
+                      </th>
                       <th>Swing</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="vermilion">Naive VWAP</td>
+                      <td className="vermilion">
+                        <Ed x="Naive VWAP" p="Plain average (VWAP)" />
+                      </td>
                       <td>{fmtInt(run.verdict.peak_vwap_err_bp)}</td>
                       <td>{pct(run.verdict.vwap_swing_pct, 1)}</td>
                     </tr>
