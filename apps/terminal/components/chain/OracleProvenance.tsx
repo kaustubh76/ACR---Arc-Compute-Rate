@@ -88,7 +88,7 @@ export function OracleProvenance({
             <AddressChip address={c.signer} explorer={c.explorer} />
           ) : (
             <span className="muted">
-              <Ed x="EIP-712 · domain “ACR Oracle” v1" p="a verifiable signature (EIP-712 standard)" />
+              <Ed x="EIP-712 · domain “ACR Oracle” v1" p="a verifiable digital signature" />
             </span>
           )}
         </span>

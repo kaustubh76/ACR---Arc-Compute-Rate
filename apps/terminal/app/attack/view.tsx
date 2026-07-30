@@ -256,7 +256,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                   <tbody>
                     <tr>
                       <td className="vermilion">
-                        <Ed x="Naive VWAP" p="Plain average (VWAP)" />
+                        <Ed x="Naive VWAP" p="Plain average" />
                       </td>
                       <td>{fmtInt(run.verdict.peak_vwap_err_bp)}</td>
                       <td>{pct(run.verdict.vwap_swing_pct, 1)}</td>
