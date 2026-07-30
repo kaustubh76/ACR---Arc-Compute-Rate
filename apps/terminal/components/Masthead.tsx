@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useHealth } from "@/lib/useLive";
 import { useConnection, type Connection } from "@/lib/useConnection";
+import { useEdition } from "@/lib/useEdition";
 import { Ed } from "@/components/Ed";
 import { EditionToggle } from "@/components/EditionToggle";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -31,6 +32,7 @@ function isActive(pathname: string, href: string): boolean {
 function StatusPill({ conn }: { conn: Connection }) {
   const health = useHealth();
   const gate = health?.live ? health.data?.gate : null;
+  const plain = useEdition() === "plain";
 
   switch (conn.state) {
     case "live":
@@ -42,20 +44,31 @@ function StatusPill({ conn }: { conn: Connection }) {
       ) : (
         <span className="chip chip-sky nav-pulse">
           <i className="dot breathe" />
-          live · dev gate
+          <Ed x="live · dev gate" p="live · practice paywall" />
         </span>
       );
     case "linking":
       return (
-        <span className="chip chip-sky nav-pulse" title="first edition — contacting the press">
-          linking · first edition
+        <span
+          className="chip chip-sky nav-pulse"
+          title={
+            plain
+              ? "first load — reaching our live server"
+              : "first edition — contacting the press"
+          }
+        >
+          <Ed x="linking · first edition" p="connecting · first load" />
         </span>
       );
     case "stale":
       return (
         <span
           className="chip chip-gold nav-pulse"
-          title="the press stopped answering — showing the last live edition while retrying"
+          title={
+            plain
+              ? "our server stopped answering — showing the last live numbers while retrying"
+              : "the press stopped answering — showing the last live edition while retrying"
+          }
         >
           <i className="dot breathe" />
           stale · {conn.ageS ?? 0}s — retrying
@@ -65,29 +78,44 @@ function StatusPill({ conn }: { conn: Connection }) {
       return (
         <span
           className="chip chip-gold nav-pulse"
-          title="the press sleeps between visits (free tier) — a wake call is in flight"
+          title={
+            plain
+              ? "our server naps between visits to save money — it is waking up now"
+              : "the press sleeps between visits (free tier) — a wake call is in flight"
+          }
         >
           <i className="dot breathe" />
-          waking the press · ~{conn.wakeRemainingS ?? 0}s
+          <Ed
+            x={<>waking the press · ~{conn.wakeRemainingS ?? 0}s</>}
+            p={<>waking our server · ~{conn.wakeRemainingS ?? 0}s</>}
+          />
         </span>
       );
     case "onchain-only":
       return (
         <span
           className="chip chip-teal nav-pulse"
-          title="the press is down but ACROracle answers direct reads — prints are settlement-grade"
+          title={
+            plain
+              ? "our server is down, but the public scoreboard answers directly — the numbers are the official record"
+              : "the press is down but ACROracle answers direct reads — prints are settlement-grade"
+          }
         >
           <i className="dot breathe" />
-          live · on-chain reads
+          <Ed x="live · on-chain reads" p="live · read off the blockchain" />
         </span>
       );
     default:
       return (
         <span
           className="chip chip-sim nav-pulse"
-          title="bundled snapshot — run `make api` to go live"
+          title={
+            plain
+              ? "a saved snapshot — run `make api` to go live"
+              : "bundled snapshot — run `make api` to go live"
+          }
         >
-          sim · archived
+          <Ed x="sim · archived" p="simulation · saved copy" />
         </span>
       );
   }

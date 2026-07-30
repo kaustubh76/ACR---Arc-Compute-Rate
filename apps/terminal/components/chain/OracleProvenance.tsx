@@ -6,6 +6,7 @@ import { AddressChip } from "./AddressChip";
 import { FinalityBadge } from "./FinalityBadge";
 import { SimBadge } from "./Badges";
 import { TxLink } from "./TxLink";
+import { Ed } from "@/components/Ed";
 import type { ChainFactsData, OnchainPrint, PosterRef } from "@/lib/types";
 
 /* The settlement-grade provenance panel: where this print lives on-chain.
@@ -43,14 +44,17 @@ export function OracleProvenance({
     <div className={`panel panel-pad provenance${mini ? " provenance-mini" : ""}`}>
       <div className="provenance-row" style={{ borderBottom: "1px solid var(--hairline)" }}>
         <span className="eyebrow">
-          settlement provenance <span className="ref">· {indexId}</span>
+          <Ed x="settlement provenance" p="proof of record" />{" "}
+          <span className="ref">· {indexId}</span>
         </span>
         <SimBadge mode={mode} />
       </div>
 
       {onchain && (
         <div className="provenance-row">
-          <span className="label">On-chain rate</span>
+          <span className="label">
+            <Ed x="On-chain rate" p="Official rate" />
+          </span>
           <span className="val">
             <span className="mono" style={{ color: "var(--sand)", fontWeight: 600 }}>
               {fmt(onchain.value)}
@@ -61,7 +65,9 @@ export function OracleProvenance({
       )}
 
       <div className="provenance-row">
-        <span className="label">ACROracle</span>
+        <span className="label">
+          <Ed x="ACROracle" p="Scoreboard contract" />
+        </span>
         <span className="val">
           {c.oracle ? (
             <AddressChip address={c.oracle} explorer={c.explorer} />
@@ -74,18 +80,24 @@ export function OracleProvenance({
       </div>
 
       <div className="provenance-row">
-        <span className="label">Signer</span>
+        <span className="label">
+          <Ed x="Signer" p="Signed by" />
+        </span>
         <span className="val">
           {c.signer ? (
             <AddressChip address={c.signer} explorer={c.explorer} />
           ) : (
-            <span className="muted">EIP-712 · domain “ACR Oracle” v1</span>
+            <span className="muted">
+              <Ed x="EIP-712 · domain “ACR Oracle” v1" p="a verifiable signature (EIP-712 standard)" />
+            </span>
           )}
         </span>
       </div>
 
       <div className="provenance-row">
-        <span className="label">postPrint tx</span>
+        <span className="label">
+          <Ed x="postPrint tx" p="Posting receipt" />
+        </span>
         <span className="val">
           {post?.tx ? (
             <>
@@ -119,18 +131,22 @@ export function OracleProvenance({
             </span>
           </div>
           <div className="provenance-row">
-            <span className="label">Domain</span>
+            <span className="label">
+              <Ed x="Domain" p="Network" />
+            </span>
             <span className="val muted">
               chain {c.chainId} ·{" "}
               <a className="tx-link" href={addrUrl(c.usdc, c.explorer)} target="_blank" rel="noreferrer">
                 USDC {c.usdc.slice(0, 6)}…{c.usdc.slice(-4)}
               </a>{" "}
-              · gas token
+              <Ed x="· gas token" p="· also pays the fees" />
             </span>
           </div>
           {onchain && (
             <details className="disclosure" style={{ borderTop: 0 }}>
-              <summary>raw on-chain print</summary>
+              <summary>
+                <Ed x="raw on-chain print" p="the raw record, as stored" />
+              </summary>
               <div className="disclosure-body">
                 <div className="specimen">
                   <pre>{JSON.stringify(onchain, null, 2)}</pre>

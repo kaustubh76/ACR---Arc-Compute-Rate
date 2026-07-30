@@ -4,6 +4,7 @@ import { fmt, fmtInt } from "@/lib/format";
 import { linear, linePath } from "./scale";
 import { GlowPath } from "./GlowPath";
 import { useCrosshair } from "./useCrosshair";
+import { Ed } from "@/components/Ed";
 import type { SeriesPoint } from "@/lib/types";
 
 /* The exercise chart: estimator error in bp, hour by hour. Naive VWAP
@@ -45,12 +46,16 @@ export function AttackChart({
   return (
     <div className={faded ? "stage-faded" : undefined}>
       <div className="reading" aria-live="polite">
-        <span className="vermilion">— naive VWAP error</span>
-        <span className="gold">— ACR error</span>
+        <span className="vermilion">
+          <Ed x="— naive VWAP error" p="— plain average’s error" />
+        </span>
+        <span className="gold">
+          <Ed x="— ACR error" p="— ACR’s error" />
+        </span>
         {pick && (
           <span>
-            H{String(pick.hour).padStart(2, "0")} · VWAP {fmtInt(pick.vwap_err_bp)} bp · ACR{" "}
-            {fmt(pick.acr_err_bp, 1)} bp
+            H{String(pick.hour).padStart(2, "0")} · <Ed x="VWAP" p="avg" />{" "}
+            {fmtInt(pick.vwap_err_bp)} bp · ACR {fmt(pick.acr_err_bp, 1)} bp
           </span>
         )}
       </div>

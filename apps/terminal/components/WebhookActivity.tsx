@@ -1,12 +1,18 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import { Ed } from "@/components/Ed";
 import { useWebhooks } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import type { WebhookEvent } from "@/lib/types";
 
 function verifiedMark(v: boolean | null) {
-  if (v === true) return <span className="chip chip-teal">P-256 ✓</span>;
+  if (v === true)
+    return (
+      <span className="chip chip-teal">
+        <Ed x="P-256 ✓" p="signature ✓" />
+      </span>
+    );
   if (v === false) return <span className="chip chip-breach">bad sig</span>;
   return <span className="chip chip-sim">unverified</span>;
 }
@@ -51,12 +57,18 @@ export function WebhookActivity() {
   return (
     <section className="section">
       <div className="section-head">
-        <span className="label">Webhook activity — inbound from Circle</span>
+        <Ed
+          x="Webhook activity — inbound from Circle"
+          p="Payment pings — Circle calls us the moment money moves"
+          className="label"
+        />
         {data && (
           <span className="label">
             {data.received} received ·{" "}
             {data.verify_available ? (
-              <span className="green">{verifiedCount} P-256 verified</span>
+              <span className="green">
+                {verifiedCount} <Ed x="P-256 verified" p="signatures checked" />
+              </span>
             ) : (
               <span className="muted">verify unavailable</span>
             )}
@@ -139,17 +151,35 @@ export function WebhookActivity() {
       ) : unreachable ? (
         <p className="muted" style={{ fontSize: 13, marginTop: 8, maxWidth: 68 * 9 }}>
           <span className="chip chip-gold" style={{ marginRight: 8 }}>
-            press unreachable
+            <Ed x="press unreachable" p="server unreachable" />
           </span>
-          The webhook feed can&rsquo;t be read right now — the index API isn&rsquo;t answering.
-          Retrying automatically; events resume the moment the press wakes.
+          <Ed
+            x="The webhook feed can’t be read right now — the index API isn’t answering. Retrying automatically; events resume the moment the press wakes."
+            p="The feed can’t be read right now — our server isn’t answering. Retrying automatically; events resume the moment it wakes."
+          />
         </p>
       ) : (
         <p className="muted" style={{ fontSize: 13, marginTop: 8, maxWidth: 68 * 9 }}>
-          No webhook events yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
-          <span className="mono">POST /webhooks/circle</span> (expose it with{" "}
-          <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>) — deliveries
-          print here with their P-256 signature verified against Circle&rsquo;s pinned public key.
+          <Ed
+            x={
+              <>
+                No webhook events yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
+                <span className="mono">POST /webhooks/circle</span> (expose it with{" "}
+                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>) —
+                deliveries print here with their P-256 signature verified against Circle&rsquo;s
+                pinned public key.
+              </>
+            }
+            p={
+              <>
+                No pings yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
+                <span className="mono">POST /webhooks/circle</span> (expose it with{" "}
+                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>) —
+                each delivery prints here after its signature is checked against Circle&rsquo;s
+                published key.
+              </>
+            }
+          />
         </p>
       )}
     </section>

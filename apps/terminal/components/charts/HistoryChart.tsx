@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { editionLabel, fmt } from "@/lib/format";
+import { useEdition } from "@/lib/useEdition";
 import { bandPath, extent, linear, linePath } from "./scale";
 import { GlowPath } from "./GlowPath";
 import { useCrosshair } from "./useCrosshair";
@@ -20,6 +21,7 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
   // boundary between polls (a point lands every refresh), and an early return
   // above a hook would change the hook count and crash the tree.
   const ribbonId = useId();
+  const plain = useEdition() === "plain";
   const n = history.length;
   const x = linear([0, Math.max(1, n - 1)], [M.left, W - M.right]);
   const xs = history.map((_, i) => x(i));
@@ -56,7 +58,11 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
         viewBox={`0 0 ${W} ${H}`}
         tabIndex={0}
         role="img"
-        aria-label="print history with confidence ribbon — arrow keys move the reading line"
+        aria-label={
+          plain
+            ? "rate history with its wiggle-room band — arrow keys move the reading line"
+            : "print history with confidence ribbon — arrow keys move the reading line"
+        }
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
         onKeyDown={onKeyDown}

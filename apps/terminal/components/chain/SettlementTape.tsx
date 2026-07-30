@@ -1,8 +1,10 @@
 "use client";
 
 import { useMarketReceipts } from "@/lib/useLive";
+import { useEdition } from "@/lib/useEdition";
 import { AddressChip } from "./AddressChip";
 import { TxLink } from "./TxLink";
+import { Ed } from "@/components/Ed";
 import type { MarketReceiptsData } from "@/lib/types";
 
 /* The settlement tape: every paid x402 query prints here. A slow marquee
@@ -17,6 +19,7 @@ export function SettlementTape({
   explorer?: string;
 }) {
   const { tape, error } = useMarketReceipts();
+  const plain = useEdition() === "plain";
   const ledger = tape?.data ?? bundled ?? null;
   const receipts = ledger?.receipts ?? [];
   const live = Boolean(tape?.live && tape?.data);
@@ -28,9 +31,17 @@ export function SettlementTape({
       <div className="tape">
         <div className="tape-static">
           <span className="tape-item muted">
-            {unreachable
-              ? "the tape is unreachable — the press isn't answering; retrying"
-              : "the tape opens with the first paid query — run `make agent`"}
+            {unreachable ? (
+              <Ed
+                x="the tape is unreachable — the press isn't answering; retrying"
+                p="the receipt roll is unreachable — our server isn't answering; retrying"
+              />
+            ) : (
+              <Ed
+                x="the tape opens with the first paid query — run `make agent`"
+                p="the receipt roll opens with the first paid question — run `make agent`"
+              />
+            )}
           </span>
         </div>
       </div>
@@ -48,11 +59,26 @@ export function SettlementTape({
   ));
 
   return (
-    <div className="tape" title={live ? "live settlement tape" : "simulated tape — bundled snapshot"}>
+    <div
+      className="tape"
+      title={
+        live
+          ? plain
+            ? "the live receipt roll"
+            : "live settlement tape"
+          : plain
+            ? "simulated receipts — saved copy"
+            : "simulated tape — bundled snapshot"
+      }
+    >
       <div className="tape-track">
         {items}
         <span aria-hidden className="tape-item muted">
-          {live ? "· settled on Arc ·" : "· simulated tape ·"}
+          {live ? (
+            "· settled on Arc ·"
+          ) : (
+            <Ed x="· simulated tape ·" p="· simulated receipts ·" />
+          )}
         </span>
         {items.map((el, i) => (
           <span aria-hidden key={`dup-${i}`}>

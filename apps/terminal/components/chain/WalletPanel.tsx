@@ -6,7 +6,9 @@
    configured or the seller is on the dev gate. */
 
 import { AddressChip } from "@/components/chain/AddressChip";
+import { Ed } from "@/components/Ed";
 import { useBalances } from "@/lib/useLive";
+import { useEdition } from "@/lib/useEdition";
 import type { WalletBalance } from "@/lib/types";
 
 function Amount({ value, unit = "USDC" }: { value: string | null; unit?: string }) {
@@ -20,17 +22,29 @@ function Amount({ value, unit = "USDC" }: { value: string | null; unit?: string 
 
 function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
   const isBuyer = w.role === "buyer";
+  const plain = useEdition() === "plain";
   return (
     <div className="wallet-row">
       <div className="wallet-role">
-        <span className="label">{isBuyer ? "Buyer — pays" : "Seller — pay_to"}</span>
+        <span className="label">
+          {isBuyer ? "Buyer — pays" : <Ed x="Seller — pay_to" p="Seller — gets paid" />}
+        </span>
         <AddressChip address={w.address} explorer={explorer} />
       </div>
       <div className="wallet-figures">
         {isBuyer && w.gateway ? (
           <>
-            <span title="spendable Gateway deposit (gasless x402 draws from here)">
-              <span className="chip chip-teal">Gateway</span> <Amount value={w.gateway.available} />
+            <span
+              title={
+                plain
+                  ? "spendable deposit held at Circle — each paid question draws from here, no extra fees needed"
+                  : "spendable Gateway deposit (gasless x402 draws from here)"
+              }
+            >
+              <span className="chip chip-teal">
+                <Ed x="Gateway" p="deposit" />
+              </span>{" "}
+              <Amount value={w.gateway.available} />
             </span>
             <span className="muted mono" style={{ fontSize: 12 }}>
               total {w.gateway.total}
@@ -41,7 +55,13 @@ function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
             </span>
           </>
         ) : (
-          <span title="USDC received by the seller (native gas token on Arc)">
+          <span
+            title={
+              plain
+                ? "dollars received by the seller (the same coin also pays this network’s fees)"
+                : "USDC received by the seller (native gas token on Arc)"
+            }
+          >
             <span className="chip chip-gold">received</span> <Amount value={w.usdc} />
           </span>
         )}
@@ -54,16 +74,12 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
   const { balances, error } = useBalances();
   const data = balances?.data ?? null;
   const ready = data?.buyer_ready === true && (data?.wallets.length ?? 0) > 0;
-  const note = error
-    ? "Balances are unreachable right now — the terminal keeps retrying; standings resume automatically."
-    : data?.note ??
-      "Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) against the Circle gate to watch the Gateway deposit draw down in real time.";
 
   return (
     <div className="panel panel-pad wallet-panel">
       <div className="section-head" style={{ marginTop: 0 }}>
         <span className="label">
-          Circle Gateway wallets
+          <Ed x="Circle Gateway wallets" p="Circle wallets — who pays, who gets paid" />
           {ready ? <span className="green"> · live</span> : null}
         </span>
         {ready ? (
@@ -81,7 +97,19 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
         </div>
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-          {note}
+          {error ? (
+            <Ed
+              x="Balances are unreachable right now — the terminal keeps retrying; standings resume automatically."
+              p="Balances are unreachable right now — this page keeps retrying; they resume automatically."
+            />
+          ) : (
+            data?.note ?? (
+              <Ed
+                x="Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) against the Circle gate to watch the Gateway deposit draw down in real time."
+                p="Connect a funded buyer key (ACR_BUYER_PRIVATE_KEY) against the real Circle paywall to watch its deposit draw down in real time."
+              />
+            )
+          )}
         </p>
       )}
     </div>

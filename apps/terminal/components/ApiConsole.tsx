@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useBuyerReady, useX402Info } from "@/lib/useLive";
 import { refKind } from "@/lib/chain";
 import { INDICES, PRICE_FALLBACK_USDC, isIndexId } from "@/lib/indices";
+import { Ed } from "@/components/Ed";
 import type { ConsoleResult, ExchangeSample, LiveBuyResponse, LiveBuyResult } from "@/lib/types";
 
 type EndpointKind = "prints-all" | "prints" | "curve" | "vol" | "seller-scores";
@@ -192,10 +193,14 @@ export function ApiConsole({
   return (
     <section className="section">
       <div className="section-head">
-        <span className="label">The wire — query the index</span>
+        <Ed
+          x="The wire — query the index"
+          p="Ask the index a question — and pay for the answer"
+          className="label"
+        />
         {mode && (
           <span className={`gate-badge ${mode === "dev" ? "gold" : "green"}`}>
-            {mode === "dev" ? "◆ DEV GATE" : "◆ CIRCLE GATEWAY"}
+            {mode === "dev" ? <Ed x="◆ DEV GATE" p="◆ PRACTICE PAYWALL" /> : "◆ CIRCLE GATEWAY"}
           </span>
         )}
       </div>
@@ -236,12 +241,21 @@ export function ApiConsole({
 
         <div className="console-actions">
           <button className="btn" onClick={query} disabled={!gateLive || busy}>
-            {busy ? "Paying…" : `Pay $${info?.data?.price_usdc ?? PRICE_FALLBACK_USDC} & query`}
+            {busy ? (
+              "Paying…"
+            ) : (
+              <Ed
+                x={`Pay $${info?.data?.price_usdc ?? PRICE_FALLBACK_USDC} & query`}
+                p={`Pay $${info?.data?.price_usdc ?? PRICE_FALLBACK_USDC} & ask`}
+              />
+            )}
           </button>
           {agentAllowed && (
             <label className="agent-toggle">
               <input type="checkbox" checked={agentOn} onChange={(e) => setAgentOn(e.target.checked)} />
-              <span className="label">Demo agent — 1 query / 4s</span>
+              <span className="label">
+                <Ed x="Demo agent — 1 query / 4s" p="Demo robot — 1 question / 4s" />
+              </span>
             </label>
           )}
           {(tally.n > 0 || agentOn) && (
@@ -255,7 +269,10 @@ export function ApiConsole({
             results block below */}
         <div className="label" style={{ marginTop: 8, minHeight: 18 }} aria-live="polite">
           {!gateLive ? (
-            "The gate is offline — below is a RECORDED exchange from the archived edition."
+            <Ed
+              x="The gate is offline — below is a RECORDED exchange from the archived edition."
+              p="The paywall is offline — below is a RECORDED exchange from the saved copy."
+            />
           ) : error ? (
             <span className="vermilion">{error}</span>
           ) : null}
@@ -267,7 +284,9 @@ export function ApiConsole({
           <div className="console-out">
             <div className="specimen">
               <div className="act-head">
-                <span className="label">Act I — challenge (recorded)</span>
+                <span className="label">
+                  <Ed x="Act I — challenge (recorded)" p="Act I — the turnstile asks (recorded)" />
+                </span>
                 <span className={`mono ${statusClass(sample.challenge.status)}`}>
                   {sample.challenge.status} {sample.challenge.status === 402 ? "Payment Required" : ""}
                 </span>
@@ -280,7 +299,9 @@ export function ApiConsole({
             </div>
             <div className="specimen">
               <div className="act-head">
-                <span className="label">Act II — settled (recorded)</span>
+                <span className="label">
+                  <Ed x="Act II — settled (recorded)" p="Act II — the coin drops (recorded)" />
+                </span>
                 <span className={`mono ${statusClass(sample.settled.status)}`}>
                   {sample.settled.status}
                 </span>
@@ -300,7 +321,9 @@ export function ApiConsole({
           <div className="console-out">
             <div className="specimen">
               <div className="act-head">
-                <span className="label">Act I — challenge</span>
+                <span className="label">
+                  <Ed x="Act I — challenge" p="Act I — the turnstile asks" />
+                </span>
                 <span className={`mono ${statusClass(result.act1.status)}`}>
                   {result.act1.status} {result.act1.status === 402 ? "Payment Required" : ""}
                 </span>
@@ -317,7 +340,13 @@ export function ApiConsole({
 
             <div className="specimen">
               <div className="act-head">
-                <span className="label">Act II — {result.paid ? "settled" : "rejected"}</span>
+                <span className="label">
+                  {result.paid ? (
+                    <Ed x="Act II — settled" p="Act II — the coin drops" />
+                  ) : (
+                    <Ed x="Act II — rejected" p="Act II — refused" />
+                  )}
+                </span>
                 <span className={`mono ${statusClass(result.act2.status)}`}>{result.act2.status}</span>
               </div>
               {result.act2.paymentResponse && (
@@ -343,7 +372,9 @@ export function ApiConsole({
             {mode === "circle" && !result.paid && (
               <div className="specimen">
                 <div className="act-head">
-                  <span className="label">Act II — real Circle settlement</span>
+                  <span className="label">
+                    <Ed x="Act II — real Circle settlement" p="Act II — real money moves (Circle)" />
+                  </span>
                   {buyerReady?.buyer_ready ? (
                     <button className="btn" onClick={settleReal} disabled={liveBusy}>
                       {liveBusy ? "signing + settling…" : "Settle for real →"}
@@ -365,17 +396,47 @@ export function ApiConsole({
                     <pre className="vermilion">{liveErr}</pre>
                   ) : (
                     <div className="lab-note" style={{ marginTop: 4 }}>
-                      The mock header fails closed on the real gate — click <b>Settle for real</b> to
-                      sign an EIP-3009 authorization and settle through Circle Gateway. Draws from the
-                      buyer&apos;s Gateway deposit; the receipt is a real gateway-ref.
+                      <Ed
+                        x={
+                          <>
+                            The mock header fails closed on the real gate — click{" "}
+                            <b>Settle for real</b> to sign an EIP-3009 authorization and settle
+                            through Circle Gateway. Draws from the buyer&apos;s Gateway deposit;
+                            the receipt is a real gateway-ref.
+                          </>
+                        }
+                        p={
+                          <>
+                            Pretend money is refused on the real paywall — click{" "}
+                            <b>Settle for real</b> to sign a digital check and pay through Circle.
+                            It draws from the buyer&apos;s Circle deposit; the receipt is a real
+                            Circle reference.
+                          </>
+                        }
+                      />
                     </div>
                   )
                 ) : (
                   <div className="lab-note" style={{ marginTop: 4 }}>
-                    The Circle gate fails closed: real settlement needs a funded buyer. Set{" "}
-                    <span className="mono">ACR_BUYER_PRIVATE_KEY</span> (a funded EOA with an open
-                    Gateway deposit) to enable one-click settlement here, or run the mock gate with{" "}
-                    <span className="mono">ACR_X402_MODE=dev make api</span>.
+                    <Ed
+                      x={
+                        <>
+                          The Circle gate fails closed: real settlement needs a funded buyer. Set{" "}
+                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span> (a funded EOA with an
+                          open Gateway deposit) to enable one-click settlement here, or run the
+                          mock gate with <span className="mono">ACR_X402_MODE=dev make api</span>.
+                        </>
+                      }
+                      p={
+                        <>
+                          The real paywall refuses pretend money: real payment needs a funded
+                          buyer. Set <span className="mono">ACR_BUYER_PRIVATE_KEY</span> (a funded
+                          wallet with an open Circle deposit) to enable one-click payment here, or
+                          run the practice paywall with{" "}
+                          <span className="mono">ACR_X402_MODE=dev make api</span>.
+                        </>
+                      }
+                    />
                   </div>
                 )}
               </div>

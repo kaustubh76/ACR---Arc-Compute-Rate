@@ -1,6 +1,7 @@
 "use client";
 
 import { fmt, fmtInt, serviceName } from "@/lib/format";
+import { useEdition } from "@/lib/useEdition";
 import { linear } from "./scale";
 import type { PrintRow } from "@/lib/types";
 
@@ -23,6 +24,8 @@ export function QuoteCorridor({
   prints: Record<string, PrintRow>;
   only?: string;
 }) {
+  // SVG <text> cannot host the <Ed> span pair — swap words via the hook.
+  const plain = useEdition() === "plain";
   const rows = Object.values(prints).filter(
     (p) => p.curve?.length && p.value > 0 && (!only || p.index_id === only),
   );
@@ -48,7 +51,7 @@ export function QuoteCorridor({
         strokeDasharray="3 4"
       />
       <text x={x(100)} y={PAD_TOP - 20} textAnchor="middle">
-        SPOT
+        {plain ? "TODAY’S RATE" : "SPOT"}
       </text>
 
       {rows.map((p, i) => {
@@ -60,8 +63,8 @@ export function QuoteCorridor({
         return (
           <g key={p.index_id}>
             <text x={M.left} y={yMid - 22}>
-              {p.index_id} · {serviceName(p.index_id).toUpperCase()} · SPREAD{" "}
-              {fmtInt(c.spread_bp)} BP
+              {p.index_id} · {serviceName(p.index_id).toUpperCase()} ·{" "}
+              {plain ? "GAP" : "SPREAD"} {fmtInt(c.spread_bp)} BP
             </text>
             <line x1={xb} y1={yMid} x2={xa} y2={yMid} stroke="var(--sky)" strokeOpacity={0.55} strokeWidth={1} />
             <line x1={xb} y1={yMid - 5} x2={xb} y2={yMid + 5} stroke="var(--ink-70)" />

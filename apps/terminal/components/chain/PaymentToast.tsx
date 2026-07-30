@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TxLink } from "./TxLink";
+import { Ed } from "@/components/Ed";
 
 /* Settlement confirmation toast: fired by the console after a paid query.
    Decodes the PAYMENT-RESPONSE envelope into `✓ $x USDC settled → ref`. */
@@ -27,7 +28,8 @@ export function PaymentToast({ payload, explorer }: { payload: ToastPayload | nu
     <div className="toast" role="status">
       <span className="tick-ok">✓</span>
       <span>
-        {payload.amountUsdc.toFixed(6)} USDC settled → <TxLink txRef={payload.txRef} explorer={explorer} />
+        {payload.amountUsdc.toFixed(6)} <Ed x="USDC settled → " p="dollars paid → " />
+        <TxLink txRef={payload.txRef} explorer={explorer} />
         {payload.network ? <span className="muted"> · {payload.network}</span> : null}
       </span>
     </div>
