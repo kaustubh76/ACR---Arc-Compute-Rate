@@ -29,6 +29,13 @@ class IndexSpec:
     description: str
     #: Nominal reference level ($ per unit) used to seed simulation / sanity checks.
     reference_level: float
+    #: The fixed purchase quantity an on-chain settlement is assumed to cover
+    #: when the tape decodes a bare USDC Transfer (ArcSource attested-market
+    #: mode): price = notional / arc_unit_qty. One number can't carry both
+    #: price and size, so the quantity is a published per-index convention and
+    #: the transfer amount carries the price signal. Sized so a typical quote
+    #: near the reference level costs ~0.004-0.006 USDC per settlement.
+    arc_unit_qty: float = 1.0
 
 
 INDEX_REGISTRY: dict[str, IndexSpec] = {
@@ -38,6 +45,7 @@ INDEX_REGISTRY: dict[str, IndexSpec] = {
         unit="$/1k tokens",
         description="Constant-quality price of one thousand inference tokens.",
         reference_level=0.50,
+        arc_unit_qty=0.01,  # 10 tokens per settlement ≈ 0.005 USDC at ref
     ),
     "ACR-GPU": IndexSpec(
         id="ACR-GPU",
@@ -45,6 +53,7 @@ INDEX_REGISTRY: dict[str, IndexSpec] = {
         unit="$/GPU-sec",
         description="Constant-quality price of one GPU-second of compute.",
         reference_level=0.011,
+        arc_unit_qty=0.5,  # half a GPU-second ≈ 0.0055 USDC at ref
     ),
     "ACR-DATA": IndexSpec(
         id="ACR-DATA",
@@ -52,6 +61,7 @@ INDEX_REGISTRY: dict[str, IndexSpec] = {
         unit="$/MB",
         description="Constant-quality price of one megabyte of served data.",
         reference_level=0.002,
+        arc_unit_qty=2.0,  # two megabytes ≈ 0.004 USDC at ref
     ),
 }
 
