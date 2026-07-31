@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+"""Keep the live ACR futures book moving — a bounded, mean-reverting taker loop.
+
+Trades the seeded series on a timer so the public desk (arc-compute-rate.vercel.app
+/curve) shows a *living* market: inventory oscillating, open interest changing.
+Only the TAKER trades — every fill auto-mirrors the maker — so one funded key
+drives the whole book.
+
+    ACR_FUTURES_ADDRESS=0x… ACR_ORACLE_ADDRESS=0x… TAKER_PRIVATE_KEY=0x… \
+    LOOP_INTERVAL=120 LOOP_DURATION=4h LOOP_MAX_TRADES=100 LOOP_BAND=4 \
+    uv run python scripts/futures_loop.py            # add --once for a single trade
+
+Safety rails (cannot drain the wallet, breach margin, or run away):
+  • mean-reverting qty, hard-clamped to a band that stays inside posted margin
+  • gas-floor stop • max-trades + max-duration caps • per-iteration try/except
+"""
+
+from __future__ import annotations
+
+import os
+import random
+import sys
+import time
+
+from acr_oracle_client import FuturesClient, OracleClient, select_series_for_index
+from acr_oracle_client.futures import _rpc_retry
+
+RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.testnet.arc.network")
+FUTURES = os.environ.get("ACR_FUTURES_ADDRESS", "")
+ORACLE = os.environ.get("ACR_ORACLE_ADDRESS", "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609")
+INDEX = os.environ.get("SEED_INDEX", "ACR-INF")
+INTERVAL = float(os.environ.get("LOOP_INTERVAL", "120"))
+MAX_TRADES = int(os.environ.get("LOOP_MAX_TRADES", "100"))
+BAND = int(os.environ.get("LOOP_BAND", "4"))
+GAS_FLOOR = float(os.environ.get("GAS_FLOOR", "1.0"))  # native USDC; stop below this
+MARGIN_SAFETY = 0.85  # only use 85% of margin headroom when clamping the band
+
+_MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "view",
+                "inputs": [], "outputs": [{"name": "", "type": "uint256"}]}]
+
+
+def _parse_duration(s: str) -> float:
+    s = s.strip().lower()
+    mult = {"h": 3600, "m": 60, "s": 1}.get(s[-1:], 1)
+    return float(s[:-1]) * mult if s[-1:] in "hms" else float(s)
+
+
+DURATION = _parse_duration(os.environ.get("LOOP_DURATION", "4h"))
+
+
+def choose_qty(inv: float, band: int) -> int:
+    """A mean-reverting step: small magnitude, biased toward flat, hard-clamped so
+    the resulting inventory never leaves [-band, band] (so margin never breaks)."""
+    mag = random.choice([1, 1, 2])
+    p_sell = 0.72 if inv > 0 else 0.28 if inv < 0 else 0.5
+    qty = -mag if random.random() < p_sell else mag
+    new = inv + qty
+    if new > band:
+        qty = int(band - inv)
+    elif new < -band:
+        qty = int(-band - inv)
+    if qty == 0:  # at the edge — force a minimal reverting step back toward flat
+        if inv > 0:
+            qty = -1
+        elif inv < 0:
+            qty = 1
+        else:
+            qty = random.choice([-1, 1])
+    return int(qty)
+
+
+def main() -> None:
+    sys.stdout.reconfigure(line_buffering=True)  # observable: flush each line to the log
+    once = "--once" in sys.argv
+    taker_key = os.environ.get("TAKER_PRIVATE_KEY", "")
+    if not (FUTURES and taker_key):
+        print("set ACR_FUTURES_ADDRESS + TAKER_PRIVATE_KEY")
+        sys.exit(1)
+
+    from eth_account import Account
+    from web3 import Web3
+
+    w3 = Web3(Web3.HTTPProvider(RPC, request_kwargs={"timeout": 15}))
+    if not w3.is_connected():
+        print("Arc RPC unreachable")
+        sys.exit(1)
+    taker = Account.from_key(taker_key)
+
+    fc = FuturesClient(rpc_url=RPC, futures_address=FUTURES, private_key=taker_key)
+    oracle = OracleClient(rpc_url=RPC, oracle_address=ORACLE)
+    margin_c = w3.eth.contract(address=w3.to_checksum_address(FUTURES), abi=_MARGIN_ABI)
+    try:
+        margin_bps = int(_rpc_retry(margin_c.functions.MARGIN_BPS().call))
+    except Exception:
+        margin_bps = 2000
+
+    series = select_series_for_index(fc.read_all_series(), INDEX)
+    if series is None:
+        print(f"no open series for {INDEX} — run scripts/futures_seed.py first")
+        sys.exit(1)
+    sid, mult = series["series_id"], series["multiplier"]
+    print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
+          f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
+
+    def native_bal() -> float:
+        return _rpc_retry(w3.eth.get_balance, taker.address) / 1e18
+
+    start = time.monotonic()
+    done = 0
+    fails = 0  # consecutive tick failures — only a long run of them stops the loop
+    while done < MAX_TRADES and (time.monotonic() - start) < DURATION:
+        try:
+            # The ENTIRE tick (incl. the gas + on-chain reads) is guarded, so a
+            # transient RPC 429 skips a tick — it never kills the loop.
+            gas = native_bal()
+            if gas < GAS_FLOOR:  # a SUCCESSFUL read below the floor → genuinely done
+                print(f"  ⏹ gas {gas:.3f} < floor {GAS_FLOOR} — stopping")
+                break
+            pos = fc.position_of(sid, taker.address)
+            coll = fc.collateral_of(sid, taker.address)
+            if pos is None or coll is None:  # bad read — don't trade on assumed-zero
+                raise RuntimeError("position/collateral read failed")
+            inv = pos["contracts"]
+            mark = (oracle.read_latest(INDEX) or {}).get("value") or (series["settlement_price"] or 0.5)
+
+            # Clamp the band to the collateral's margin headroom (never breach).
+            per_contract_margin = max(mark * mult * margin_bps / 1e4, 1e-9)
+            headroom = int((coll * MARGIN_SAFETY) / per_contract_margin)
+            band = max(1, min(BAND, headroom))
+
+            qty = choose_qty(inv, band)
+            fc.trade(sid, float(qty))
+            done += 1
+            fails = 0
+            side = "BUY " if qty > 0 else "SELL"
+            print(f"  [{done:>3}] {side} {abs(qty)} @ {mark:.5f} → inv {inv + qty:+.0f} "
+                  f"(band ±{band}) · coll ${coll:.2f} · gas {gas:.3f}")
+        except Exception as exc:  # noqa: BLE001 — one bad tick shouldn't kill the loop
+            fails += 1
+            print(f"  · tick skipped ({fails}) — {str(exc)[:90]}")
+            if fails >= 30:  # the endpoint has been down a long time — give up cleanly
+                print("  ⏹ 30 consecutive RPC failures — endpoint looks down; stopping")
+                break
+            if once:
+                break
+            time.sleep(min(60.0, 5.0 * fails))  # escalating backoff while the RPC is unhappy
+            continue
+
+        if once:
+            break
+        time.sleep(INTERVAL + random.uniform(0, min(20.0, INTERVAL * 0.15)))
+
+    print(f"  done — {done} trades over {(time.monotonic() - start) / 60:.1f} min")
+
+
+if __name__ == "__main__":
+    main()

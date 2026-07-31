@@ -85,6 +85,42 @@ the deployer as a signer, so poster == deployer means no extra `setSigner` step.
 4. **CHECKPOINT** — both `https://testnet.arcscan.app/address/<address>` pages
    show **contract code** (not an empty EOA).
 
+## 2b. Deploy the futures venue (ACRFutures) against the existing oracle
+
+The cash-settled futures venue (pillar 4) settles against the **already-deployed**
+`ACROracle` — so it is deployed on its own (`DeployFutures.s.sol`), NOT via
+`Deploy.s.sol` (which would redeploy the oracle/registry). It reads
+`ACR_ORACLE_ADDRESS` from the env, uses Arc's native USDC (`0x3600…0000`) for
+collateral, and 20% initial margin by default (`ACR_FUTURES_MARGIN_BPS`).
+
+```sh
+ACR_ORACLE_ADDRESS=0x<the live ACROracle> \
+DEPLOYER_PRIVATE_KEY=0x<funded deployer> \
+make deploy-futures            # add --legacy to the forge call if EIP-1559 estimation fails
+```
+
+Then **seed a live series** (opens a series, maker + taker post USDC collateral —
+verifying Arc's USDC `transferFrom` — and put on a trade so the desk shows a real
+book). Small multiplier keeps notional within testnet balances:
+
+```sh
+ACR_FUTURES_ADDRESS=0x<from deploy-futures> \
+MAKER_PRIVATE_KEY=0x<deployer / maker> \
+TAKER_PRIVATE_KEY=0x<a second funded testnet key> \
+uv run python scripts/futures_seed.py
+```
+
+**Live deployment (2026-07-31):** `ACRFutures` = `0x29d97c629a8278f7ec4218ab0bd8baa9182642fe`
+(arcscan `/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe`), settling against
+oracle `0x4f00e3BDd224F4c4b4958D54cD774E84B9092609`; series 0 (ACR-INF, multiplier
+10) seeded with a live long/short book. Arc's native USDC supports standard
+`approve`/`transferFrom` — collateral works.
+
+**Propagation:** set `ACR_FUTURES_ADDRESS` on the Render seller (env-var →
+`/terminal/data` gains a `futures` block + `chain.futures_address`) and rebuild
+the image so the new `FuturesReader`/`/futures` code ships. The Vercel Terminal
+needs **no** futures env — it reads the address purely from `/terminal/data`.
+
 ## 3. Point `.env` at the deploy
 
 **[OPERATOR]** Edit `.env` and set exactly these lines — the value on the
@@ -96,6 +132,7 @@ line replaces it):
 ```
 ACR_ORACLE_ADDRESS=0x<ACROracle address from step 2>
 ACR_REGISTRY_ADDRESS=0x<AttestationRegistry address from step 2>
+ACR_FUTURES_ADDRESS=0x<ACRFutures address from step 2b — optional; enables the desk>
 ACR_X402_PAY_TO=0x<seller wallet that receives USDC — the deployer EOA is fine>
 ACR_X402_FACILITATOR_URL=https://gateway-api-testnet.circle.com
 ACR_EXPLORER_BASE=https://testnet.arcscan.app

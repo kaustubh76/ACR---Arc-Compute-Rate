@@ -98,6 +98,21 @@ deploy-testnet:
 	@echo "    ACR_REGISTRY_ADDRESS=0x<AttestationRegistry address from the log above>"
 	@echo "  then: make verify-testnet"
 
+# Deploy ONLY ACRFutures against the already-deployed oracle (never redeploys it).
+# Requires ACR_ORACLE_ADDRESS (the live oracle) + DEPLOYER_PRIVATE_KEY (funded).
+deploy-futures-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
+	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-futures:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
+	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ACRFutures live — code shows at https://testnet.arcscan.app/address/<ACRFutures>"
+	@echo "  now set ACR_FUTURES_ADDRESS=0x<address above> in .env + on the Render seller."
+
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
