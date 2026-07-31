@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -26,7 +27,7 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from .onchain import get_reader
+from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
 from .x402 import (
@@ -76,6 +77,17 @@ def reset_poster() -> None:
     _poster = None
 
 
+# /terminal/data payload cache. The background loop rebuilds this off the event
+# loop after each warm/refresh; the request handler serves this one shared dict
+# instead of running the heavy build (sim + attack_snapshot + 3 sequential RPC
+# reads) per request. On the 512MB free tier, N concurrent cold requests each
+# building would blow past memory and OOM-kill → restart → death-spiral; serving
+# a cached dict (with a single-flight lock for the pre-warm window) keeps the
+# single free instance alive. See _rebuild_terminal_cache / terminal_data.
+_terminal_payload_cache: dict | None = None
+_terminal_payload_lock = threading.Lock()
+
+
 def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, now: float) -> bool:
     """True when the freshest on-chain print is missing or older than one refresh
     cycle. A free-tier host sleeps through its hourly slot and every wake restarts
@@ -99,6 +111,7 @@ async def _background(stop: asyncio.Event) -> None:
     except Exception:  # pragma: no cover - defensive
         log.exception("attack snapshot warm-up failed")
     reader = get_reader()  # construct at startup so oracle env is read now
+    futures = get_futures()  # on-chain futures desk (inventory-skewed curve)
     poster = OraclePoster(store)
     set_poster(poster)  # reachable for /terminal/data + /health provenance
     # Warm the on-chain read cache off the request path so /terminal/data never
@@ -131,6 +144,19 @@ async def _background(stop: asyncio.Event) -> None:
         await asyncio.to_thread(warm_attestation_summary)
     except Exception:  # pragma: no cover - defensive
         log.exception("attestation summary warm-up failed")
+    # Seed the term-structure skew from the live on-chain maker book (if any).
+    if futures.configured:
+        try:
+            inv = await asyncio.to_thread(futures.maker_inventory, use_cache=False)
+            store.set_maker_inventory(inv)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("futures inventory warm-up failed")
+    # Prime the /terminal/data cache off-loop so the first visitor is served the
+    # shared dict, never a cold synchronous build (the free-tier OOM guard).
+    try:
+        await asyncio.to_thread(_rebuild_terminal_cache)
+    except Exception:  # pragma: no cover - defensive
+        log.exception("terminal payload warm-up failed")
     while not stop.is_set():
         try:
             await asyncio.wait_for(stop.wait(), timeout=settings.refresh_seconds)
@@ -147,6 +173,12 @@ async def _background(stop: asyncio.Event) -> None:
                 from .marketplace import warm_attestation_summary
 
                 await asyncio.to_thread(warm_attestation_summary)
+            if futures.configured:  # refresh the maker book so the curve skew tracks it
+                inv = await asyncio.to_thread(futures.maker_inventory, use_cache=False)
+                store.set_maker_inventory(inv)
+            # Rebuild the /terminal/data cache off-loop so the served snapshot
+            # reflects the fresh prints + on-chain reads (never on the request path).
+            await asyncio.to_thread(_rebuild_terminal_cache)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("refresh/post cycle failed")
 
@@ -425,6 +457,32 @@ def onchain_print(index_id: str) -> dict:
     return {"source": "onchain", "oracle": reader.oracle_address, **r}
 
 
+@app.get("/futures")
+def futures_roster() -> dict:
+    """The whole on-chain futures venue for the Terminal's live desk + trade tape:
+    the venue address, per-index desks, and recent fills (newest-first). Ungated;
+    empty (venue null) when no ACRFutures is configured. This is the fast endpoint
+    the desk polls — the heavy /terminal/data carries only the aggregate desks."""
+    return get_futures().roster()
+
+
+@app.get("/futures/{index_id}")
+def futures_desk(index_id: str = Depends(require_known_index)) -> dict:
+    """The live on-chain futures desk for an index — the maker's inventory,
+    mark-to-oracle PnL, and settlement status, read from ``ACRFutures``.
+
+    Ungated (a public read of chain state). 503 if no futures venue is
+    configured; 404 if no series exists for this index yet.
+    """
+    futures = get_futures()
+    if not futures.configured:
+        raise HTTPException(status_code=503, detail="no futures venue configured (set ACR_FUTURES_ADDRESS)")
+    desk = futures.read_desk(index_id)
+    if desk is None:
+        raise HTTPException(status_code=404, detail=f"no futures series for {index_id}")
+    return {"source": "onchain", "futures": futures.futures_address, **desk}
+
+
 def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> dict:
     """The full /terminal/data payload. ``scripts/gen_snapshot.py`` builds the
     Terminal's bundled offline snapshot from this same function, so the two
@@ -443,6 +501,8 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             signer_addr = None
     store.ensure()
     onchain = reader.read_all()
+    futures = get_futures()
+    futures_desks = futures.read_all() if futures.configured else {}
     prints = {
         iid: {
             **store.latest[iid].model_dump(),
@@ -471,6 +531,9 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
         # Seller reliability for the human Registry view; the machine endpoint
         # /seller-scores/{id} stays x402-gated.
         "sellers": {iid: store.seller_scores(iid) for iid in store.latest},
+        # The on-chain futures desk per index (maker inventory, mark-to-oracle
+        # PnL, settlement) — empty {} when no ACRFutures venue is configured.
+        "futures": futures_desks,
         "attack": attack_snapshot(),
         "oracle": reader.oracle_address if reader.configured else None,
         # Network identity card — the frontend contract for every chain-aware
@@ -485,12 +548,32 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             "gateway_wallet": settings.x402_gateway_wallet,
             "oracle_address": settings.oracle_address or None,
             "registry_address": settings.registry_address or None,
+            "futures_address": settings.futures_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,
             "poster": {"posts": poster.posts, "last": poster.last_posts} if poster else None,
         },
     }
+
+
+def _build_payload_locked() -> dict:
+    """Build the /terminal/data payload + store it in the module cache. Heavy
+    (sim estimate + attack exhibit + on-chain reads). The caller MUST hold
+    ``_terminal_payload_lock`` so two heavy builds never run at once — the whole
+    point of the cache on a 512MB box."""
+    global _terminal_payload_cache
+    _terminal_payload_cache = build_terminal_payload(
+        store, get_reader(), poster=get_poster(), fac=get_facilitator()
+    )
+    return _terminal_payload_cache
+
+
+def _rebuild_terminal_cache() -> dict:
+    """Force-rebuild the cache (the background loop, after each warm/refresh) —
+    lock-guarded so it can never run concurrently with a cold request's build."""
+    with _terminal_payload_lock:
+        return _build_payload_locked()
 
 
 @app.get("/terminal/data")
@@ -500,8 +583,22 @@ def terminal_data() -> dict:
     The Terminal is the human view; the x402 gate applies to the machine API.
     Includes a live attack comparison so the 'Attack the Index' panel renders,
     and — when an oracle is configured — the on-chain print for provenance.
+
+    Served from a background-maintained cache: the request path never runs the
+    heavy build concurrently, so N simultaneous visitors on the 512MB free tier
+    can't OOM-spiral the box (a single shared dict, ~13KB, is returned instead).
     """
-    return build_terminal_payload(store, get_reader(), poster=get_poster(), fac=get_facilitator())
+    cached = _terminal_payload_cache
+    if cached is not None:
+        return cached
+    # Pre-warm window (before the background loop has built the cache): build once
+    # under the lock — concurrent cold requests AND the background loop all
+    # serialize here, so the box never runs parallel heavy builds. First waiter
+    # builds + caches; the rest return that dict.
+    with _terminal_payload_lock:
+        if _terminal_payload_cache is not None:
+            return _terminal_payload_cache
+        return _build_payload_locked()
 
 
 class AttackStartRequest(BaseModel):

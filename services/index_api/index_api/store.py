@@ -82,6 +82,17 @@ class PrintStore:
         self._ts = np.empty(0)
         self._attest: list | None = None
         self._horizon = 0.0
+        #: Per-index maker inventory (signed contracts) driving the A-S quote
+        #: skew. Fed from the live on-chain ``ACRFutures`` maker position when a
+        #: futures address is configured; empty (→ 0) otherwise, so the term
+        #: structure is unchanged from the flat-inventory default.
+        self.maker_inventory: dict[str, float] = {}
+
+    def set_maker_inventory(self, inventory: dict[str, float]) -> None:
+        """Update the maker inventory the term structure skews around (called by
+        the API's background loop from the on-chain futures desk)."""
+        with self._lock:
+            self.maker_inventory = dict(inventory)
 
     def _merge_onchain_attestations(self, attests: list) -> list:
         """Union the tape's attestations with the live ``AttestationRegistry``
@@ -180,16 +191,25 @@ class PrintStore:
 
     # --- derived views ---
     def curve(self, index_id: str, tenors_weeks: tuple[int, ...] = (1, 2, 4, 8)) -> list[dict]:
-        """Term structure: A-S mid quotes at successive weekly tenors."""
+        """Term structure: A-S mid quotes at successive weekly tenors.
+
+        The maker quotes around its *live inventory* (from the on-chain futures
+        desk when configured): a long book skews the reservation price down and a
+        short book up, exactly as ``AvellanedaStoikovMM`` prescribes — so the
+        curve is the bootstrap maker's real book, not a flat-inventory sketch."""
         self.ensure()
         p = self.latest.get(index_id)
         if p is None:
             return []
+        inventory = self.maker_inventory.get(index_id, 0.0)
         pts = []
         for w in tenors_weeks:
             expiry = p.ts + w * WEEK
             mm = AvellanedaStoikovMM(index_id, expiry_ts=expiry)
-            q = mm.quote(p.value, Position(), now=p.ts, start=p.ts)
+            # avg_price is irrelevant to the quote (which skews on `contracts`);
+            # seed it at the mark so the position is internally consistent.
+            pos = Position(contracts=inventory, avg_price=p.value)
+            q = mm.quote(p.value, pos, now=p.ts, start=p.ts)
             pts.append({"tenor_weeks": w, "expiry_ts": expiry, "mid": q.mid,
                         "bid": q.bid, "ask": q.ask, "spread_bp": q.spread_bp})
         return pts

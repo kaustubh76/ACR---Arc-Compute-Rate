@@ -58,6 +58,10 @@ class ACRSettings(BaseSettings):
     arc_rpc_url: str = "http://127.0.0.1:8545"
     oracle_address: str = ""
     registry_address: str = ""
+    #: Deployed ``ACRFutures`` address — the on-chain cash-settled future that
+    #: settles against ``ACROracle``. Empty → the futures desk stays off (the
+    #: term structure still renders from the maker model; no live positions).
+    futures_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
@@ -143,6 +147,13 @@ class ACRSettings(BaseSettings):
     #: because USDC is Arc's native gas token → Transfer logs are dense; ArcSource
     #: also adaptively shrinks the range if the RPC still rejects it as too large.
     arc_tape_lookback_blocks: int = 800
+    #: ArcSource attested-market mode (1 = on): decode a real unit PRICE from
+    #: each transfer amount (price = notional / IndexSpec.arc_unit_qty), resolve
+    #: each event's service from the seller's on-chain attestation, and DROP
+    #: events from non-attested sellers — attestation earns index inclusion.
+    #: 0 = legacy audit decode (price pinned to the reference level, everything
+    #: resolved to INFERENCE).
+    arc_attested_only: int = 0
 
     # --- service ---
     #: Seconds between index_api store refreshes / oracle-post cycles.

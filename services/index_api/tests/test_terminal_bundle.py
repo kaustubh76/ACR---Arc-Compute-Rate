@@ -38,8 +38,8 @@ client = TestClient(app)
 #: The frontend contract — build_terminal_payload's chain block, exactly.
 CHAIN_KEYS = {
     "name", "chain_id", "caip2", "rpc_url", "explorer_base", "usdc_address",
-    "gateway_wallet", "oracle_address", "registry_address", "gate",
-    "tape_source", "signer", "poster",
+    "gateway_wallet", "oracle_address", "registry_address", "futures_address",
+    "gate", "tape_source", "signer", "poster",
 }
 
 
@@ -67,6 +67,7 @@ def test_terminal_payload_chain_block_exact_keys(small_store):
     assert chain["usdc_address"] == "0x3600000000000000000000000000000000000000"
     assert chain["gateway_wallet"] == "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
     assert chain["oracle_address"] is None and chain["registry_address"] is None
+    assert chain["futures_address"] is None
     assert chain["gate"] == "dev"
     assert chain["tape_source"] == "sim"
     assert chain["signer"] is None  # no key configured → offline signer
