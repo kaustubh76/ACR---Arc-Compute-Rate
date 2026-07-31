@@ -86,6 +86,11 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             AttestationRegistry <AddressChip address={c.registry} explorer={c.explorer} copy={false} />
           </span>
         )}
+        {c.futures && (
+          <span className="chip chip-gold" style={{ gap: 8 }}>
+            ACRFutures <AddressChip address={c.futures} explorer={c.explorer} copy={false} />
+          </span>
+        )}
         <a className="chip" href={c.explorer} target="_blank" rel="noreferrer">
           arcscan ↗
         </a>

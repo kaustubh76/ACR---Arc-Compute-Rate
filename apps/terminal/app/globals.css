@@ -1552,6 +1552,17 @@ details.disclosure .disclosure-body {
   overflow: hidden;
 }
 
+/* the maker-inventory sparkline under the futures desk — the book "breathing" */
+.desk-spark {
+  margin-top: 14px;
+  display: grid;
+  gap: 4px;
+}
+.desk-spark .reading {
+  height: auto;
+  color: var(--ether-45);
+}
+
 /* ---------- provenance panel ---------- */
 .provenance {
   display: grid;
@@ -1714,6 +1725,57 @@ details.disclosure .disclosure-body {
 }
 
 /* ---------- reduced motion ---------- */
+/* ---------- funky reveals: the story animates itself on first paint ---------- */
+/* Defensibility money-shot: the bars grow from the left on load — naive VWAP
+   shoots out fast + far, ACR (delayed) barely moves — so the resistance ratio
+   lands instantly. The `width` transition (already set) still drives live poll
+   updates; this scaleX runs once on mount. */
+.defense-bar .fill-vwap,
+.defense-bar .fill-acr {
+  transform-origin: left center;
+  animation: defense-grow 0.9s var(--ease-expo) both;
+}
+.defense-bar .fill-acr {
+  animation-delay: 0.5s;
+}
+@keyframes defense-grow {
+  from {
+    transform: scaleX(0.02);
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* Chart SVGs rise + fade in on mount instead of popping into place. */
+.chart {
+  animation: chart-in var(--dur-3) var(--ease-expo) both;
+}
+@keyframes chart-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The hero-card sparkline draws itself in on load (pathLength-normalized dash). */
+.draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 1.15s var(--ease-expo) forwards;
+}
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot,
   .digit-in,
@@ -1724,6 +1786,21 @@ details.disclosure .disclosure-body {
   .arc-horizon.breathe .sun,
   .skel::after {
     animation: none !important;
+  }
+  /* funky reveals off — show the fully-drawn end state immediately */
+  .defense-bar .fill-vwap,
+  .defense-bar .fill-acr,
+  .chart,
+  .draw-line {
+    animation: none !important;
+    transform: none !important;
+  }
+  .defense-bar .fill-vwap,
+  .defense-bar .fill-acr {
+    opacity: 1 !important;
+  }
+  .draw-line {
+    stroke-dashoffset: 0 !important;
   }
   .tape-track {
     animation: none !important;

@@ -15,6 +15,7 @@ import type {
   BuyerRunStatus,
   CatalogData,
   Envelope,
+  FuturesRoster,
   HealthData,
   LiveBuyResponse,
   MarketReceiptsData,
@@ -116,6 +117,18 @@ export function useMarketReceipts() {
     { refreshInterval: 5_000, ...RETRY },
   );
   return { tape: data, error: error as Error | undefined };
+}
+
+/** The live futures venue — desks + the on-chain trade tape. Polls fast (~4s)
+ *  while live so the desk ticks and new fills stream in near-real-time; backs
+ *  off to 15s when serving the archived bundle. Decoupled from /terminal/data
+ *  so the desk stays lively without waiting on the heavy feed. */
+export function useFutures() {
+  const { data, error } = useSWR<Envelope<FuturesRoster>>("/api/futures", fetcher, {
+    refreshInterval: (latest) => (latest?.live ? 4_000 : 15_000),
+    ...RETRY,
+  });
+  return { roster: data, error: error as Error | undefined };
 }
 
 /** The mode oracle: gate + chain + poster status. Drives the StatusPill and

@@ -44,7 +44,7 @@ export function Sparkline({
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${gradId})`} />
-      <GlowPath d={line} stroke="var(--rate-mark)" width={1.25} glowWidth={4} />
+      <GlowPath d={line} stroke="var(--rate-mark)" width={1.25} glowWidth={4} draw />
       <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r={2} fill="var(--rate-mark)" />
     </svg>
   );

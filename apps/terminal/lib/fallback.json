@@ -1496,6 +1496,7 @@
       }
     ]
   },
+  "futures": {},
   "attack": {
     "per_index": [
       {
@@ -1656,7 +1657,8 @@
     "gate": "dev",
     "tape_source": "sim",
     "signer": null,
-    "poster": null
+    "poster": null,
+    "futures_address": null
   },
   "marketplace": {
     "catalog": {

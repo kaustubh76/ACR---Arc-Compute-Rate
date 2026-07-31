@@ -4,6 +4,7 @@ import { chainFacts } from "@/lib/chain";
 import { editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
+import { useFutures } from "@/lib/useLive";
 import { AddressChip } from "./chain/AddressChip";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -64,6 +65,11 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const ts = prints.length ? Math.max(...prints.map((p) => p.ts)) : 0;
   const oracle = c.oracle ?? env.data.oracle ?? null;
   const plain = useEdition() === "plain";
+  // The global live-futures cue: total open interest on the desk, when live.
+  const fut = useFutures();
+  const futDesks = fut.roster?.data?.desks ? Object.values(fut.roster.data.desks) : [];
+  const futOi = futDesks.reduce((a, d) => a + d.open_interest, 0);
+  const futLive = Boolean(fut.roster?.live && fut.roster?.data?.venue && futDesks.length);
 
   const parts: React.ReactNode[] = [];
   const tier = TIER_CHIP[conn.state];
@@ -129,6 +135,22 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
     parts.push(
       <span key="tape">
         <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>
+      </span>,
+    );
+  }
+  if (futLive) {
+    parts.push(
+      <span
+        key="futures"
+        className="chip chip-teal"
+        title={
+          plain
+            ? "the futures trading desk is live — contracts currently open"
+            : "ACRFutures desk live — total open interest"
+        }
+      >
+        <span className="dot breathe" aria-hidden />
+        <Ed x="futures" p="futures desk" /> · OI {futOi.toFixed(0)}
       </span>,
     );
   }
