@@ -10,6 +10,14 @@ from .client import (
     to_usdc,
     to_wad,
 )
+from .futures import (
+    FUTURES_ABI,
+    FuturesClient,
+    bytes32_to_index_id,
+    descale_position,
+    descale_series,
+    select_series_for_index,
+)
 from .registry import (
     REGISTRY_ABI,
     RegistryClient,
@@ -36,6 +44,12 @@ __all__ = [
     "REGISTRY_ABI",
     "schema_to_bytes32",
     "bytes32_to_schema",
+    "FuturesClient",
+    "FUTURES_ABI",
+    "bytes32_to_index_id",
+    "descale_series",
+    "descale_position",
+    "select_series_for_index",
     "Signer",
     "LocalKeySigner",
     "CircleWalletSigner",
