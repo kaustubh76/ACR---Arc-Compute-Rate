@@ -38,29 +38,56 @@ if [[ "${SKIP_BUILD:-}" != "1" ]]; then
 fi
 
 echo "▸ triggering a Render deploy"
-curl -sS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+DEPLOY_ID="$(curl -sS -X POST "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
   -H "Authorization: Bearer ${RENDER_API_KEY}" \
   -H "Content-Type: application/json" \
-  -d '{"clearCache":"do_not_clear"}' | head -c 400
-echo
+  -d '{"clearCache":"do_not_clear"}' \
+  | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\(dep-[^"]*\)".*/\1/p' | head -1)"
+if [[ -z "${DEPLOY_ID}" ]]; then
+  echo "✗ Render did not return a deploy id — nothing was triggered" >&2
+  exit 1
+fi
+echo "  deploy ${DEPLOY_ID}"
 
-echo "▸ waiting for the service to come back (free tier cold starts are slow)"
-for i in $(seq 1 60); do
+# Follow THIS deploy to a terminal state. A /health that answers proves only
+# that something is running — very possibly the previous image, because a
+# failed build leaves the old one serving happily. The deploy's own status is
+# the only witness that the code in this working tree is what is live.
+echo "▸ waiting for the deploy to go live (free-tier builds are slow)"
+STATUS=""
+for _ in $(seq 1 90); do
   sleep 10
+  STATUS="$(curl -sS -m 20 "https://api.render.com/v1/services/${SERVICE_ID}/deploys/${DEPLOY_ID}" \
+    -H "Authorization: Bearer ${RENDER_API_KEY}" \
+    | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  case "${STATUS}" in
+    live) echo "  ✓ deploy ${DEPLOY_ID} is live"; break ;;
+    build_failed|update_failed|canceled|pre_deploy_failed)
+      echo "  ✗ deploy ${DEPLOY_ID} ended as '${STATUS}' — production is STILL the old image" >&2
+      exit 1 ;;
+    *) printf '  · %s\n' "${STATUS:-unknown}" ;;
+  esac
+done
+if [[ "${STATUS}" != "live" ]]; then
+  echo "✗ deploy ${DEPLOY_ID} never reached 'live' (last status: ${STATUS:-unknown})" >&2
+  exit 1
+fi
+
+echo "▸ verifying the service answers"
+for i in $(seq 1 30); do
   if curl -sf -m 20 "${URL}/health" >/dev/null 2>&1; then
     echo "  ✓ /health responding after ~$((i * 10))s"
     curl -s -m 20 "${URL}/health"
     echo
-    # The desk's own smoke test: this path only exists in a post-fix image, so
-    # its absence means the redeploy did not actually take.
     if curl -s -m 20 "${URL}/openapi.json" | grep -q '/desk/withdrawable'; then
-      echo "  ✓ /desk/withdrawable present — the new image is live"
+      echo "  ✓ the desk's routes are present"
     else
-      echo "  ✗ /desk/withdrawable MISSING — Render is still serving the old image" >&2
+      echo "  ✗ /desk/withdrawable MISSING — this is not the image we built" >&2
       exit 1
     fi
     exit 0
   fi
+  sleep 10
 done
 echo "✗ ${URL}/health never came back" >&2
 exit 1
