@@ -244,11 +244,26 @@ class FaucetLedger:
         self._log_path = log_path
         #: Off in tests and local runs (the file is real there); on in the app.
         self._require_circle = require_circle
-        self._hydrated_at = 0.0
+        #: None means NEVER hydrated, and it must not be 0.0. time.monotonic()
+        #: counts from an arbitrary origin — on Linux, host boot — so on a
+        #: freshly started machine it returns a small number, and "now - 0.0 <
+        #: TTL" reads as "hydrated moments ago". The ledger would then skip its
+        #: fail-closed check against Circle for the first ten minutes of a
+        #: container's life: precisely the window after a restart when the
+        #: in-memory record is empty and this check is the only thing standing
+        #: between a returning address and a second drip.
+        self._hydrated_at: float | None = None
         #: Separate from the data lock: one hydration at a time, without holding
         #: the data lock across a network call.
         self._hydrate_lock = threading.Lock()
         self._rehydrate()
+
+    def _is_fresh(self) -> bool:
+        """True only if we have actually hydrated, recently. Never hydrated is
+        never fresh — see the note on ``_hydrated_at``."""
+        return self._hydrated_at is not None and (
+            time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S
+        )
 
     def _ensure_hydrated(self) -> None:
         """Refresh from Circle when required and stale. Raises (fail-closed) if
@@ -260,10 +275,10 @@ class FaucetLedger:
         ledger and let a drip through that the cap should have refused."""
         if not self._require_circle:
             return
-        if time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S:
+        if self._is_fresh():
             return
         with self._hydrate_lock:
-            if time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S:
+            if self._is_fresh():
                 return  # another thread just did it
             try:
                 paid = self._fetch_circle_drips()

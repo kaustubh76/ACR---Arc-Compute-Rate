@@ -162,6 +162,29 @@ def test_ledger_fails_closed_when_circle_is_unreachable(monkeypatch, tmp_path):
     assert led.spent() == 0  # and nothing was handed out
 
 
+def test_ledger_hydrates_on_a_freshly_booted_host(monkeypatch, tmp_path):
+    """A just-restarted container must still ask Circle before paying anyone.
+
+    time.monotonic() counts from an arbitrary origin — on Linux, host boot — so
+    on a fresh machine it returns a SMALL number. A staleness check written as
+    ``now - hydrated_at < TTL`` against an initial 0.0 therefore reads as
+    "hydrated moments ago" and skips the check for the host's first ten
+    minutes: exactly the window after a restart when the in-memory ledger is
+    empty and this is the only thing stopping a second drip. CI runners boot
+    fresh, which is how this surfaced; a long-running laptop never sees it.
+    """
+    monkeypatch.setattr(desk.time, "monotonic", lambda: 4.0)  # 4s of uptime
+    asked = []
+    monkeypatch.setattr(
+        desk, "_circle",
+        lambda *a, **k: (asked.append(1), {"data": {"transactions": []}})[1],
+    )
+    FaucetLedger(log_path=str(tmp_path / "led.jsonl"), require_circle=True).claim(
+        "0x" + "7" * 40
+    )
+    assert asked, "a freshly booted ledger paid out without consulting Circle"
+
+
 def test_ledger_rehydrates_from_circles_record(monkeypatch, tmp_path):
     """Production has no persistent disk, so the JSONL is empty on every boot;
     Circle's mirrored INBOUND rows are what make the caps real there."""
