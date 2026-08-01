@@ -20,19 +20,33 @@ const TOKEN_RE = /^[A-Za-z0-9._-]{16,4096}$/;
 const WALLET_ID_RE = /^[a-f0-9-]{8,64}$/i;
 const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw"]);
 
+/* 28s, just inside maxDuration. The read endpoints (`limits`, `withdrawable`)
+   make sequential Arc RPC calls whose retry backoff alone can approach 15s on a
+   throttled public node, so a 20s budget turned an answer that was on its way
+   into "the press is unreachable" — the desk telling a reader it is down while
+   it is up. There is no cheaper tier to fall back to here, so wait for it. */
 async function forward(path: string, init: RequestInit): Promise<NextResponse> {
   try {
     const res = await fetch(`${apiBase()}${path}`, {
       ...init,
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(28_000),
     });
     const body = await res.json().catch(() => ({ detail: "bad upstream response" }));
     return NextResponse.json(body, { status: res.status });
-  } catch {
+  } catch (e) {
+    // Distinguish slow from down. A cold desk read on a throttled Arc RPC can
+    // exceed even the budget above, and the desk polls — so telling a reader
+    // the press is UNREACHABLE when it is merely busy sends them away from a
+    // page that would have worked on the next tick.
+    const timedOut = e instanceof Error && e.name === "TimeoutError";
     return NextResponse.json(
-      { detail: "the press is unreachable — the desk needs the live press" },
+      {
+        detail: timedOut
+          ? "the desk is reading the chain and it is slow right now — this retries on its own"
+          : "the press is unreachable — the desk needs the live press",
+      },
       { status: 503 },
     );
   }
