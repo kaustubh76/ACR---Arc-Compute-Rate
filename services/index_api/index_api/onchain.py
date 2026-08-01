@@ -144,9 +144,13 @@ class FuturesReader:
             for iid, d in self.read_all(use_cache=use_cache).items()
         }
 
-    #: The trade tape wants fresher data than the aggregate desk — poll the
-    #: throttled RPC for fills a few times a minute at most.
-    _TRADES_TTL_S = 12.0
+    #: The trade tape wants fresher data than the aggregate desk, but every miss
+    #: costs an eth_getLogs against a throttled RPC — and that read sits on the
+    #: request path of the endpoint the trading desk's liveness is judged by, so
+    #: a too-eager TTL makes /futures intermittently slow enough for the
+    #: terminal to fall back a tier and hide the desk. The heartbeat trades
+    #: hourly; half a minute of tape staleness is invisible next to that.
+    _TRADES_TTL_S = 30.0
 
     def recent_trades(self, *, use_cache: bool = True) -> list[dict]:
         """Recent on-chain fills (newest-first), each stamped with the wall-clock

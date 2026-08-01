@@ -111,34 +111,27 @@ def main() -> None:
     from acr_oracle_client.futures import FUTURES_ABI
 
     fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address)
-    # The shared client ABI carries only Traded (it drives the tape); the desk
-    # also wants the collateral leg, so extend it here rather than widen that.
-    abi = FUTURES_ABI + [
-        {
-            "type": "event",
-            "name": "CollateralPosted",
-            "anonymous": False,
-            "inputs": [
-                {"name": "seriesId", "type": "uint256", "indexed": True},
-                {"name": "trader", "type": "address", "indexed": True},
-                {"name": "amount", "type": "uint256", "indexed": False},
-            ],
-        }
-    ]
-    contract = w3.eth.contract(address=Web3.to_checksum_address(s.futures_address), abi=abi)
+    # The shared ABI now carries the collateral round trip and Settled, so no
+    # local fragment is needed — the round trip IS the story worth proving.
+    contract = w3.eth.contract(address=Web3.to_checksum_address(s.futures_address), abi=FUTURES_ABI)
 
-    posts, pspan = scan_logs(w3, contract, "CollateralPosted", addr, trader=addr)
-    print(f"\n  CollateralPosted logs for this wallet (last {pspan} blocks): {len(posts)}")
-    for ev in posts:
-        print(
-            f"    series {int(ev['args']['seriesId'])} "
-            f"{int(ev['args']['amount']) / 1e6:.2f} USDC block {ev['blockNumber']}"
-        )
-        print(f"      {EXPLORER}/tx/{w3.to_hex(ev['transactionHash'])}")
-    if not posts:
-        ok = False
+    found = 0
+    for event, kw, unit in (
+        ("CollateralPosted", "trader", "in "),
+        ("CollateralWithdrawn", "trader", "OUT "),
+    ):
+        logs, span = scan_logs(w3, contract, event, addr, **{kw: addr})
+        found += len(logs)
+        print(f"\n  {event} for this wallet (last {span} blocks): {len(logs)}")
+        for ev in logs:
+            print(
+                f"    series {int(ev['args']['seriesId'])} {unit}"
+                f"{int(ev['args']['amount']) / 1e6:.2f} USDC block {ev['blockNumber']}"
+            )
+            print(f"      {EXPLORER}/tx/{w3.to_hex(ev['transactionHash'])}")
 
     trades, span = scan_logs(w3, contract, "Traded", addr, taker=addr)
+    found += len(trades)
     print(f"\n  Traded logs for this wallet (last {span} blocks): {len(trades)}")
     for ev in trades:
         a = ev["args"]
@@ -148,24 +141,32 @@ def main() -> None:
             f"block {ev['blockNumber']}"
         )
         print(f"      {EXPLORER}/tx/{w3.to_hex(ev['transactionHash'])}")
-    if not trades:
+    if not found:
+        # No desk activity in the scanned window at all. Old runs fall out of a
+        # bounded getLogs range, so say that rather than implying nothing happened.
+        print("\n  (no desk events in the scanned window — an older run may have "
+              "aged out; the Circle ledger above is the durable record)")
         ok = False
 
-    # --- The position itself: the state the trade actually created.
+    # --- The resulting state. A flat, empty account is NOT a failure: it is
+    # exactly what a completed round trip looks like once the stake is back in
+    # the wallet, so the verdict keys on evidence found, not on an open position.
     series_ids = sorted({int(ev["args"]["seriesId"]) for ev in trades}) or [0]
     for sid in series_ids:
         pos = fc.position_of(sid, addr)
         coll = fc.collateral_of(sid, addr)
         print(f"\n  positionOf(series {sid}) → {pos}")
         print(f"  collateral(series {sid}) → {coll} USDC")
-        if not pos or abs(pos["contracts"]) < 1e-9:
-            ok = False
 
     # Who actually paid the gas? Not answerable from Circle's networkFee (that
     # is the cost, whoever bore it) — the authority is the ERC-4337
     # UserOperationEvent's `paymaster` field: non-zero means sponsored.
-    if trades:
-        receipt = _rpc_retry(w3.eth.get_transaction_receipt, trades[-1]["transactionHash"])
+    probe = trades[-1]["transactionHash"] if trades else None
+    if probe is None:
+        wlogs, _ = scan_logs(w3, contract, "CollateralWithdrawn", addr, trader=addr)
+        probe = wlogs[-1]["transactionHash"] if wlogs else None
+    if probe is not None:
+        receipt = _rpc_retry(w3.eth.get_transaction_receipt, probe)
         paymaster = None
         for lg in receipt["logs"]:
             topics = [t.hex() if hasattr(t, "hex") else t for t in lg["topics"]]
@@ -180,7 +181,7 @@ def main() -> None:
     bal = _rpc_retry(w3.eth.get_balance, addr) / 1e18
     print(f"\n  wallet USDC (native == the 0x3600… ERC-20 view): {bal:.6f}")
 
-    print("\nevidence:", "CONFIRMED ON-CHAIN" if ok else "INCOMPLETE")
+    print("\nevidence:", "CONFIRMED ON-CHAIN" if ok else "NO ON-CHAIN EVIDENCE IN WINDOW")
     sys.exit(0 if ok else 1)
 
 

@@ -52,6 +52,10 @@ const SHOTS = process.env.DESK_E2E_SHOTS ?? "";
 const PROFILE = process.env.DESK_PROFILE ?? "";
 // How long a PIN entry is given to take effect before the screen is retried.
 const PIN_RETRY_MS = 45_000;
+// Resume an existing desk user by id (its browser profile may be long gone).
+const USER_ID = process.env.DESK_USER_ID ?? "";
+// "full" drives entry then exit; "withdraw" only takes money back out.
+const MODE = process.env.DESK_MODE ?? "full";
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -254,6 +258,37 @@ async function readIdentity(page) {
   });
 }
 
+/** The exit: take collateral back out. Skipped quietly when the desk offers
+ *  nothing to withdraw — a stake entirely pinned behind an open position is a
+ *  legitimate state, not a failure, and the desk says so on the page. */
+async function runWithdraw(page) {
+  const btn = page.getByRole("button", { name: /^withdraw |take back my /i }).first();
+  if (!(await visible(btn, 30_000))) {
+    const body = await page.locator("body").innerText().catch(() => "");
+    const pinned = /is margining your|is backing the trade/i.test(body);
+    log(pinned ? "  nothing free to withdraw — the stake is margining a position" : "  no withdraw offered");
+    state.withdraw = { offered: false, pinned };
+    return;
+  }
+  const label = (await btn.innerText()).trim();
+  log(`clicking: ${label}`);
+  state.withdraw = { offered: true, button: label };
+  await btn.click();
+
+  // Completion is the DESK's own state, not the button's: the label flips to
+  // "confirming…" the moment it is clicked, so keying on the button vanishing
+  // would report success before the PIN screen had even rendered.
+  const done = /take your \$0\.50 stake|get my 50 cents|put up my stake|post collateral/i;
+  await driveCircle(
+    page,
+    async () => done.test(await page.locator("body").innerText().catch(() => "")),
+    300_000,
+    "withdraw",
+  );
+  await milestone(page, done, 240_000, "collateral withdrawn — the wallet holds it again");
+  await shot(page, "5-withdrawn");
+}
+
 async function main() {
   // A persistent profile keeps localStorage, so a re-run RESUMES the same desk
   // user and SCA instead of minting a new one — the faucet is one drip per
@@ -268,6 +303,17 @@ async function main() {
   page.on("pageerror", (e) => log("  [pageerror]", String(e).slice(0, 200)));
 
   log(`opening ${TERMINAL}/curve`);
+  // Resume a SPECIFIC desk wallet. The desk keys its session off one
+  // localStorage value, so seeding it re-opens an existing user's wallet — the
+  // way to reach a wallet whose browser profile is long gone (e.g. to withdraw
+  // a stake left behind by an earlier run). The PIN is still required, so this
+  // grants nothing the operator doesn't already hold.
+  if (USER_ID) {
+    await page.goto(TERMINAL, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.evaluate((id) => localStorage.setItem("acr-desk-user", id), USER_ID);
+    log(`resuming desk user ${USER_ID}`);
+  }
+
   await page.goto(`${TERMINAL}/curve`, { waitUntil: "domcontentloaded", timeout: 120_000 });
 
   // The desk only renders its live form once /api/futures answers, and that
@@ -302,11 +348,19 @@ async function main() {
     );
     if (!ok) log("  pin-setup: budget spent — falling through to the page's own state");
   }
-  await milestone(page, /take your \$0\.50 stake|get my 50 cents|post collateral|put up my stake|BUY /i, 180_000, "wallet created (PIN ceremony complete)");
+  await milestone(page, /take your \$0\.50 stake|get my 50 cents|post collateral|put up my stake|BUY |withdraw /i, 180_000, "wallet ready");
   Object.assign(state, await readIdentity(page));
   log("  SCA:", state.address, "· user:", state.userId);
   save();
   await shot(page, "1-wallet");
+
+  if (MODE === "withdraw") {
+    await runWithdraw(page);
+    save();
+    log(`withdraw-only run complete — ${OUT}`);
+    await ctx.close();
+    return;
+  }
 
   // --- faucet: a REAL custody-wallet transfer on Arc.
   const stakeBtn = page.getByRole("button", { name: /take your \$0\.50 stake|get my 50 cents/i });
@@ -352,6 +406,7 @@ async function main() {
   log("  position:", state.position);
   await shot(page, "4-position");
 
+  await runWithdraw(page);
   save();
   log(`E2E complete — ${OUT}`);
   await ctx.close();

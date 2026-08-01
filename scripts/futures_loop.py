@@ -94,11 +94,25 @@ def main() -> None:
     except Exception:
         margin_bps = 2000
 
-    series = select_series_for_index(fc.read_all_series(), INDEX)
+    # select_series_for_index returns the newest UNSETTLED series, which past
+    # expiry is a dead one: every trade would revert "expired" and the loop
+    # would report success having done nothing. Filter on life, not settlement.
+    now = _rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"]
+    live = [x for x in fc.read_all_series() if x["expiry_ts"] > now]
+    series = select_series_for_index(live, INDEX)
     if series is None:
-        print(f"no open series for {INDEX} — run scripts/futures_seed.py first")
+        print(f"no LIVE series for {INDEX} — it may have expired; run `make futures-roll`")
         sys.exit(1)
     sid, mult = series["series_id"], series["multiplier"]
+
+    # A taker with no collateral joins the roster (consuming a MAX_TRADERS slot)
+    # and then reverts on every trade. That is exactly what happens when the
+    # configured key isn't the funded one, so refuse rather than limp.
+    taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
+    if taker_collateral <= 0:
+        print(f"taker {taker.address} has NO collateral on series {sid} — wrong key? "
+              f"(post collateral first, or check TAKER_PRIVATE_KEY matches the funded taker)")
+        sys.exit(1)
     print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
           f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
 
@@ -151,6 +165,12 @@ def main() -> None:
         time.sleep(INTERVAL + random.uniform(0, min(20.0, INTERVAL * 0.15)))
 
     print(f"  done — {done} trades over {(time.monotonic() - start) / 60:.1f} min")
+    # A heartbeat that beat zero times must not report success. `--once` breaks
+    # out of the loop on any tick failure, so without this the workflow goes
+    # green while the book has stopped moving — the worst kind of green.
+    if once and done == 0:
+        print("  ✗ heartbeat traded nothing — failing so the run is visibly red")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

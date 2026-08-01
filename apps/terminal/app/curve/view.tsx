@@ -124,9 +124,14 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         <FuturesTape trades={roster?.trades ?? []} explorer={explorer} live={futLive} />
       </section>
 
+      {/* Trading needs chain-backed series data, which the press and the direct
+          viem tier both provide — only the archived bundle can't. Requiring the
+          PRESS specifically used to hide the desk whenever Arc's RPC was slow
+          enough for the roster to fall through to the chain tier, which is
+          often. If the press really is unreachable, the desk's own calls say so. */}
       <PublicDesk
         desks={roster?.desks ?? env.data.futures}
-        live={futLive && roster?.source === "press"}
+        live={futLive && roster?.source !== "bundle"}
         explorer={explorer}
       />
 

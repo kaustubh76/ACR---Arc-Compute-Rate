@@ -3,8 +3,11 @@
 Holds the latest ACR prints and their recent history, and computes the derived
 surfaces the ACR Terminal shows: the term-structure curve (from the instrument
 layer), realized vol, and seller reliability scores (from the cleaning stack's
-verdicts). Backed by any ``TapeSource`` — ``SimSource`` in dev, ``ArcSource``
-against Arc testnet in prod.
+verdicts). Backed by any ``TapeSource``. The published deployment runs ``SimSource``:
+real Arc USDC transfers carry no compute-price signal, so the honest options
+are a labelled simulator or no index at all (``scripts/tape_audit.py`` measures
+this against live Arc rather than asserting it). ``ArcSource`` and
+``ReceiptSource`` are built and selectable via ``ACR_TAPE_SOURCE``.
 
 Prints *evolve*: each ``refresh`` advances a window cursor over the fixed tape
 (wrapping through the day) while the print timestamp ``k·step_s`` increases

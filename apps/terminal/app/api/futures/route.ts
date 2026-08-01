@@ -16,7 +16,11 @@ export const maxDuration = 30;
      chain  — direct viem reads of ACRFutures when the press is unreachable
      bundle — the archived snapshot's desks + captured tape as the floor. */
 export async function GET() {
-  const { data, upstream } = await fetchLiveMeta<FuturesRoster>("/futures");
+  /* 12s, not the 5s default: this endpoint's press tier can pay for an
+     eth_getLogs on a throttled RPC, and giving up early falls through to the
+     *slower* direct-chain crawl — or to the bundle, which reads as "the venue
+     is archived" and hides the trading desk on a perfectly healthy site. */
+  const { data, upstream } = await fetchLiveMeta<FuturesRoster>("/futures", 12_000);
   if (data) {
     const env: Envelope<FuturesRoster> = {
       live: true,

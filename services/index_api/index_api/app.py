@@ -383,9 +383,38 @@ def webhooks_recent() -> dict:
     }
 
 
+def provenance() -> dict:
+    """Where the numbers in a paid response actually come from.
+
+    An agent pays USDC for these endpoints and then acts on the answer, so it is
+    entitled to know that the estimator — which is real — currently runs over a
+    calibrated SIMULATED tape rather than observed settlement flow. That fact was
+    visible in `/health` and in the Terminal's chrome, but not in the machine
+    responses themselves, which is precisely where it matters most.
+
+    ``tape`` is the honest tier: "sim" (synthetic flow), "arc" (real Arc USDC
+    settlements) or "receipts" (this venue's own x402 ledger). ``estimator`` and
+    the on-chain print are real in every tier.
+    """
+    s = get_settings()
+    tape = (s.tape_source or "sim").lower()
+    return {
+        "tape": tape,
+        "simulated_tape": tape == "sim",
+        "estimator": "real",
+        "chain": "arc-testnet" if s.oracle_address else None,
+        "note": (
+            "prices are estimated from a calibrated simulated tape; the estimator, "
+            "the signature and the on-chain print are real"
+            if tape == "sim"
+            else f"prices are estimated from the {tape} tape"
+        ),
+    }
+
+
 @app.get("/prints")
 def prints(_: PaymentReceipt = Depends(require_payment)) -> dict:
-    return store.snapshot()
+    return {**store.snapshot(), "provenance": provenance()}
 
 
 @app.get("/prints/{index_id}")
@@ -405,6 +434,7 @@ def print_one(
         "cost_to_move_1pct": d.bound.cost_to_move_1pct,
         "cleaned_pct": 100 * d.cleaning.removed_fraction,
         "robustness": store.robustness(index_id),
+        "provenance": provenance(),
     }
 
 
@@ -413,7 +443,7 @@ def curve(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "curve": store.curve(index_id)}
+    return {"index_id": index_id, "curve": store.curve(index_id), "provenance": provenance()}
 
 
 @app.get("/vol/{index_id}")
@@ -421,7 +451,8 @@ def vol(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "annualized_vol": store.vol(index_id)}
+    return {"index_id": index_id, "annualized_vol": store.vol(index_id),
+            "provenance": provenance()}
 
 
 @app.get("/seller-scores/{index_id}")
@@ -429,7 +460,8 @@ def seller_scores(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "sellers": store.seller_scores(index_id)}
+    return {"index_id": index_id, "sellers": store.seller_scores(index_id),
+            "provenance": provenance()}
 
 
 @app.get("/marketplace/catalog")

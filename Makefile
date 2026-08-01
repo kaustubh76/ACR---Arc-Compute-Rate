@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle desk-preflight desk-e2e desk-evidence lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -25,6 +25,9 @@ help:
 	@echo "  make api             serve the x402-gated index API (:8000)"
 	@echo "  make terminal        run the ACR Terminal (:3000; ACR_API=<seller url>, ACR_BUYER_PRIVATE_KEY enables the LIVE buyer)"
 	@echo "  make lint            ruff check the python packages"
+	@echo ""
+	@echo "  make futures-roll    open a fresh series before the current one expires (idempotent)"
+	@echo "  make futures-settle  cash-settle expired series so collateral can be withdrawn"
 	@echo ""
 	@echo "  the Public Desk (readers trade ACRFutures with a Circle user-controlled wallet):"
 	@echo "  make desk-preflight  read-only gates: series life, margin capacity, custody balance"
@@ -120,6 +123,18 @@ deploy-futures:
 
 verify-testnet:
 	uv run python scripts/verify_deploy.py
+
+# --- futures venue lifecycle (a series expires; the venue must outlive it) ---
+
+# Idempotent: no-ops when a collateralized series still has life left, so it is
+# safe on a timer. Exits non-zero rather than leaving an uncollateralized series.
+futures-roll:
+	uv run python scripts/futures_roll.py
+
+# Permissionless. Refuses (rather than reverting) when the oracle print is too
+# stale for the contract's freshness guard — the window reopens on the next print.
+futures-settle:
+	uv run python scripts/futures_settle.py
 
 # --- the Public Desk (user-controlled wallets trading ACRFutures) ---
 

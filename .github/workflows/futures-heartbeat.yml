@@ -50,10 +50,9 @@ jobs:
       - name: One mean-reverting fill
         env:
           TAKER_PRIVATE_KEY: ${{ secrets.ACR_FUTURES_TAKER_KEY }}
-        # Rotate the traded index by hour so all three desks tick over a day
-        # (each still gets ~8 fills/day; a fill lands within the tape's window).
-        run: |
-          INDICES=(ACR-INF ACR-GPU ACR-DATA)
-          export SEED_INDEX="${INDICES[$(( $(date -u +%-H) % 3 ))]}"
-          echo "heartbeat index: $SEED_INDEX"
-          uv run python scripts/futures_loop.py --once
+          # Trade the index that actually has a series. This used to rotate over
+          # all three by hour, which meant two hours in three picked an index
+          # with no series at all and the workflow failed — noise that would
+          # have masked a real outage. Add indices here as they are seeded.
+          SEED_INDEX: ACR-INF
+        run: uv run python scripts/futures_loop.py --once
