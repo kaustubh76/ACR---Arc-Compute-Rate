@@ -132,8 +132,17 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
     );
   }
   if (c.tapeSource) {
+    // The one disclosure that must survive the fully-live state. Every other
+    // "sim" chip on the site reports CONNECTION tier, so once the press is up
+    // and the oracle is printing they all go teal while the flow underneath
+    // the number is still synthetic. Mark the simulated case explicitly.
+    const simTape = c.tapeSource === "sim";
     parts.push(
-      <span key="tape">
+      <span key="tape" className={simTape ? "chip chip-sim" : undefined} title={
+        simTape
+          ? "the estimator, the signature and the on-chain print are real; the settlement flow they run over is a calibrated simulation"
+          : `index computed from the ${c.tapeSource} tape`
+      }>
         <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>
       </span>,
     );

@@ -449,8 +449,18 @@ export function PublicDesk({
 
       <p className="muted" style={{ maxWidth: 620 }}>
         <Ed
-          x="Open a Circle user-controlled wallet (SCA on Arc — your PIN, Circle custody tech, our gas sponsorship), stake $0.50 USDC, and take a real position against the maker."
-          p="Make a small wallet secured by a PIN, get 50 cents of test money, and place a real trade on the blockchain — fees are covered."
+          x="Open a Circle user-controlled wallet (SCA on Arc — your PIN, Circle custody tech, our gas sponsorship), stake $0.50 USDC, and take a real position on ACRFutures. Withdraw it whenever you like."
+          p="Make a small wallet secured by a PIN, get 50 cents of test money, and place a real trade on the blockchain — fees are covered, and you can take your money back out whenever you want."
+        />
+      </p>
+
+      {/* Say whose book this is. The wallet, the PIN, the margin maths, the
+          settlement and every transaction are real; the counterparty and the
+          stake are ours. A reader should not have to infer that. */}
+      <p className="muted" style={{ maxWidth: 620 }}>
+        <Ed
+          x="Honest framing: the stake is a testnet grant from us, and the maker on the other side of your fill is our own market-making bot, funded by us. What is real is everything else — the wallet is yours alone, the PIN is the only thing that can sign, and the collateral, fills and settlement are on-chain."
+          p="To be straight with you: the 50 cents is a gift from us for testing, and the trader on the other side of your trade is also us. Everything else is real — only your PIN can move your money, and the trade itself really happens on the blockchain."
         />
       </p>
 

@@ -35,6 +35,14 @@ const ENDPOINTS: Array<[string, string, string, string, string, string | null]> 
   ["POST", "/webhooks/circle", "public", "Inbound Circle webhook receiver (signed)", "Where Circle reports each settled payment", null],
   ["GET", "/webhooks/recent", "public", "Recent Circle webhook events", "Circle's latest payment reports", null],
   ["GET", "/health", "public", "Liveness", "Is the server awake?", null],
+  // The Public Desk. All POST, so the console (which replays GETs) can't load
+  // them — but an integrator still needs to know the surface exists.
+  ["POST", "/desk/session", "public", "Open/resume a Circle user-controlled wallet session", "Start your own wallet on the trading desk", null],
+  ["POST", "/desk/wallet", "public", "That session's SCA + its USDC stake", "Your desk wallet and what's in it", null],
+  ["POST", "/desk/faucet", "public", "Drip the one-per-wallet testnet stake", "Get the 50-cent test stake, once per wallet", null],
+  ["POST", "/desk/limits", "public", "Live per-direction size caps (both margin checks)", "The biggest trade you could place right now", null],
+  ["POST", "/desk/withdrawable", "public", "What this wallet can take back out, per series", "How much of your money you can take back", null],
+  ["POST", "/desk/challenge", "public", "Mint a PIN challenge: approve / collateral / trade / withdraw", "Ask for the PIN prompt that authorizes one action", null],
 ];
 
 export function DevelopersView({ initial }: { initial: Envelope<TerminalData> }) {

@@ -77,6 +77,28 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           </>
         }
       />
+      {/* The teaser used to describe the desk as something to look at. A reader
+          can actually trade on it, and nothing on the home page said so. */}
+      {live && (
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
+          x={
+            <>
+              You can take a side yourself: the desk opens a Circle user-controlled wallet
+              (your PIN, our gas), stakes you $0.50 of testnet USDC, and puts your fill
+              on-chain. <Link href="/curve">Trade it →</Link>
+            </>
+          }
+          p={
+            <>
+              You can try it yourself — make a wallet with a PIN, get 50 cents of test money,
+              and place a real trade. <Link href="/curve">Try it →</Link>
+            </>
+          }
+        />
+      )}
     </section>
   );
 }
