@@ -117,6 +117,15 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 **Why sim is the default (honest rationale, from the code's own docstrings):** real Arc / x402 flow is **flat-at-reference and single-seller** — the x402 `exact` scheme's on-chain event carries *no amount, size, or service*, so `ArcSource`/`ReceiptSource` deliberately derive `size` so `price == reference` and **fabricate no price dispersion**. That flat, single-seller flow is *precisely* the degenerate wash-like pattern the cleaning stack is built to reject → fed to the estimator it yields **zero surviving observations** (correct behavior). The rich, dispersed, adversary-containing **simulator is the only source that produces a meaningful published number**, so it stays the transparently-labeled `sim` default. The real sources stand ready as **audit tape** and drop-in replacements "the day priced, multi-seller settlement flow exists." *(This is the SOFR defense: methodology-first, liquidity-second.)*
 
+**Measured, 2026-08-01 (`make tape-audit`).** That rationale is no longer only
+an argument. Run against live Arc it reads **16,339 real USDC settlements over
+20,000 blocks** — every one of them at the *same* price (the legacy decode
+recovers notional and fabricates no price signal, exactly as designed), all
+landing on a single index, with ACR-GPU and ACR-DATA seeing **zero** events. So
+the published number could not come from real flow today even in principle. The
+audit re-runs on demand, so the day priced multi-seller settlement exists the
+claim gets re-checked rather than re-asserted.
+
 **What is genuinely REAL:** the estimator (Louvain sybil cleaning, volume-time α-trimmed weighted median + bootstrap CI, Kalman deconvolution, WLS hedonic, closed-form cap-aware bound); the deployed contracts + reads/writes; EIP-712 postPrint via a Circle custody wallet; x402/Circle Gateway settlement (`exact`/GatewayWalletBatched, fail-closed); the durable settlement ledger; and Circle webhook (P-256) verification.
 
 **Honesty tiers** (all truthfully applied): `sim` (SimSource / `sim-` refs) · `dev` (mock gate, `dev-N` refs) · `gateway-ref` (real Circle Gateway batch UUID) · `tx` (real on-chain hash) · `live` (real circle gate + funded Gateway buyer).
