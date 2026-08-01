@@ -40,13 +40,21 @@ def _rpc_retry(fn, *args, tries: int = 5, base: float = 1.5, **kwargs):
         raise last
 
 
-def _get_traded_logs(contract, from_block: int):  # pragma: no cover - live chain
-    """web3 renamed the kwarg (fromBlock → from_block) across versions; try both."""
-    ev = contract.events.Traded
-    try:
-        return ev.get_logs(from_block=from_block)
-    except TypeError:
-        return ev.get_logs(fromBlock=from_block)
+def _get_traded_logs(w3, contract, from_block: int, to_block: int):  # pragma: no cover - live chain
+    """Raw topic-filtered ``eth_getLogs`` with EXPLICIT numeric bounds — the Arc
+    RPC answers 413 Payload Too Large when ``toBlock`` is the string "latest"
+    on a wide range (which is what web3's ``event.get_logs`` sends), but
+    accepts the same range with a number. Decoded through the contract event
+    so the args come back typed."""
+    sig = w3.keccak(text="Traded(uint256,address,int256,uint256)").hex()
+    topic0 = sig if sig.startswith("0x") else "0x" + sig
+    raw = w3.eth.get_logs({
+        "address": contract.address,
+        "fromBlock": from_block,
+        "toBlock": to_block,
+        "topics": [topic0],
+    })
+    return [contract.events.Traded().process_log(log) for log in raw]
 
 
 def bytes32_to_index_id(raw: bytes) -> str:
@@ -251,20 +259,22 @@ class FuturesClient:
         except Exception:
             return None
 
-    def recent_trades(self, lookback_blocks: int = 2500, limit: int = 25) -> list[dict]:  # pragma: no cover - live chain
+    def recent_trades(self, lookback_blocks: int = 10000, limit: int = 25) -> list[dict]:  # pragma: no cover - live chain
         """Recent on-chain fills from the ``Traded`` event, newest-first — the
         live trade tape. One bounded ``eth_getLogs`` (cheap even on the throttled
-        Arc RPC); falls back to a narrower window if the node caps the range."""
+        Arc RPC); falls back to a narrower window if the node caps the range.
+        10k blocks ≈ 85 min at Arc's ~0.5s cadence — deep enough that the tape
+        still shows the hourly heartbeat's last fill."""
         if self._connect() is None or not self.configured:
             return []
         try:
             w3 = self._connect()
             c = self._contract()
             latest = int(_rpc_retry(lambda: w3.eth.block_number))
-            for span in (lookback_blocks, 1000, 300):
+            for span in (lookback_blocks, 2500, 1000, 300):
                 start = max(0, latest - span)
                 try:
-                    logs = _rpc_retry(lambda s=start: _get_traded_logs(c, s))
+                    logs = _rpc_retry(lambda s=start: _get_traded_logs(w3, c, s, latest))
                     break
                 except Exception:
                     logs = []
