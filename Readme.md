@@ -209,7 +209,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | Path | What it is |
 |---|---|
 | `packages/` | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
-| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` (Foundry, 32 tests incl. 5 invariants) — deployed on Arc testnet |
+| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` (Foundry, 50 tests incl. 5 invariants) — deployed on Arc testnet |
 | `services/index_api/` | The x402-gated seller API (FastAPI) — deployed at acr-api-1fto.onrender.com |
 | `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |

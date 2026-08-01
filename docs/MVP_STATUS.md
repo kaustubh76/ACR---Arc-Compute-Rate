@@ -17,7 +17,7 @@
 | Core product (estimator + bound + red-team) | ✅ Complete, real math, CI-gated |
 | On-chain (Oracle + Registry + x402 + webhooks) | ✅ Deployed & live on Arc testnet |
 | Dashboard (Terminal UI) | ✅ MVP-ready, 6 pages, live on Vercel |
-| Tests / CI | ✅ 171 py + 32 forge + 37 node, 4-job CI green |
+| Tests / CI | ✅ 230 py + 50 forge + 60 node, 4-job CI green |
 | Instrument layer (futures/MM) | 🟡 Model complete, **not live-traded** |
 | Production hardening | 🟡 Paid cloud tier, Next 15, clean `.env`, 3 FLAGs to verify |
 
@@ -52,7 +52,7 @@ services/
 apps/
   agent            TS buyer agent (DevPayer / GatewayPayer, catalog, interop 12-field SDK check)
   terminal         Next.js 14 dashboard ("The Terminal") — 6 pages + 18 API proxies
-contracts/         Foundry (solc 0.8.24): ACROracle.sol, AttestationRegistry.sol + 32 tests
+contracts/         Foundry (solc 0.8.24): ACROracle.sol, AttestationRegistry.sol + 50 tests
 scripts/           eval (resistance gate), demo, gen_snapshot, deploy_circle, onchain_demo
 redteam/           wash_attack.py, optimal_attack.py (proves the bound attainable)
 docs/              this file + IMPLEMENTATION_STATUS, SUBMISSION, methodology, presentation (deck), runbooks
@@ -68,14 +68,14 @@ docs/              this file + IMPLEMENTATION_STATUS, SUBMISSION, methodology, p
 |---|---|---|---|
 | Estimator (4 pillars) | **Complete, real** | Runs on sim + Arc tape | Cap-denominator refinement (nice-to-have) |
 | Manipulation bound / red team | **Complete, CI-gated** | Yes | — |
-| Contracts (Oracle + Registry) | **Complete** (32 tests, 5 invariants) | **Deployed on Arc testnet** | Mainnet audit |
+| Contracts (Oracle + Registry) | **Complete** (50 tests, 5 invariants) | **Deployed on Arc testnet** | Mainnet audit |
 | Oracle signing (Circle custody) | **Complete** | **Live, hourly, in-cloud** | — |
 | x402 payment gate (Dev + Circle) | **Complete** | **Live, real USDC settled** | Verify webhook header/pubkey path (FLAG) |
 | Buyer agent + marketplace | **Complete** | **Proven end-to-end** | Submit to Circle Marketplace directory |
 | Tape / ArcSource | Real decode built | Sim is default (by design) | Verify real Arc event sig + service resolver (FLAG) |
 | API service | **Complete + deployed** | **Live (Render free tier)** | Paid tier to kill cold starts |
 | Terminal dashboard | **Complete + deployed** | **Live (Vercel)** | Next.js 15 upgrade (Dec-2025 advisory) |
-| **Instrument layer (W6)** | **Model complete, minimal** | Quotes served + rendered only | **Live trading loop, counterparties, on-chain future settlement** |
+| **Instrument layer (W6)** | **Complete** | **Live** — `ACRFutures` on Arc; readers trade it from their own Circle user-controlled wallets | Third-party market makers (the book is first-party today) |
 | Paymaster / ERC-4337 | **Deferred by design** | N/A | Not needed — USDC *is* gas on Arc |
 
 ---
@@ -100,7 +100,7 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 **Design system — "Arc Dawn":** permanently-dark chain-native terminal; navy→gold "pre-dawn sky" surfaces; `--sand` is THE rate color; `--finality` teal = settled; glass panels + tinted glows; 4 fonts (Space Grotesk / DM Sans / Space Mono / IBM Plex Mono). Motion is CSS-first and fully `prefers-reduced-motion`-safe. **Currently ~70% utilitarian / 30% hooky** — the hooky bits (rolling ticker numbers, breathing pill, marquee tape, adversary-room flip) are excellent, but there was **no first-viewport "wow"** (the signature dawn/`ArcHorizon` asset was stranded in a 96px footer). §8 addresses this.
 
-**Terminal tests:** 3 focused suites (`buyPlan`, `connection`, `onchainCodec`) on the security- and honesty-critical pure logic. Build config production-clean (`next.config.mjs` marks the Circle SDK external).
+**Terminal tests:** 7 suites (`buyPlan`, `connection`, `onchainCodec`, `futuresCodec`, `edition`, `glossary`, `coverage`) on the security- and honesty-critical pure logic. Build config production-clean (`next.config.mjs` marks the Circle SDK external).
 
 ---
 
@@ -151,6 +151,8 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 **The one genuinely half-built piece — instrument layer (W6):** `acr_instrument` is a *complete, correct model* (cash-settled `ACRFuture` + textbook Avellaneda–Stoikov MM, 168 LOC, tested) whose quotes are **computed and displayed** (`/curve`). **Update 2026-07-31:** the on-chain venue now exists — `ACRFutures` deployed on Arc (`0x29d9…42fe`), series 0 (ACR-INF, 10× multiplier) seeded with a long/short book, cash-settling against the oracle print. What remains aspirational is autonomous trading with external counterparties; the seeded book is first-party.
 
+**Update 2026-08-01:** the desk is no longer read-only. The **Public Desk** lets any reader open a Circle *user-controlled* wallet (SCA on Arc, PIN-secured in Circle's hosted UI) and run the whole lifecycle — faucet stake → `approve` → `postCollateral` → `trade` → `withdrawCollateral` — with settlement and series rolls automated. So the counterparties are now genuinely external *humans*, even though the **maker** on the other side of every fill is still our own bot and the stake is our grant; the UI says so. Verified on Arc with four independent witnesses per action, including a withdrawal that moved 0.50 USDC back out of the venue.
+
 **Deferred by design:** ERC-4337 Paymaster / gasless — intentionally out; Arc USDC *is* the native gas token, so gasless UX is intrinsic.
 
 ---
@@ -167,9 +169,9 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 ## 9. Tests & CI
 
-- **Python: 183 tests** (181 pass + 2 anvil-gated skips) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle), top-level `tests/`.
+- **Python: 230 tests** (incl. anvil-gated on-chain integration, skipped when anvil is down) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle), top-level `tests/`.
 - **Foundry: 50 tests** (17 ACROracle + 10 AttestationRegistry + 16 ACRFutures + 5 + 2 invariant, `fail_on_revert=true`).
-- **Node: 53 tests** (43 terminal + 10 agent) + `tsc` type-checks.
+- **Node: 60 tests** (50 terminal + 10 agent) + `tsc` type-checks.
 - **Gates:** ruff clean · glossary 332/332 · resistance eval-gate 4/4 · interop 12/12.
 - **CI** (`.github/workflows/ci.yml`, 4 jobs, every push/PR): python (ruff+pytest+eval-gate) · contracts (forge) · agent (build+test) · terminal (test + `next build`). Plus `keepalive.yml` (cron pings the API `/health`). Hermetic — `conftest.py` disables `.env` + strips `ACR_*`, so `make ci` needs no secrets.
 

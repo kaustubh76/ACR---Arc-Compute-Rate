@@ -209,7 +209,7 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 | **ACRFutures** `0x29d97c62…82642fe` | Series 0 seeded long/short book, cash-settles on the print |
 | **Terminal + Seller API** | API x402-gated at **$0.0001/query**, fail-closed |
 
-`make ci` green 2026-07-31: **181 py** (+2 skips) · **50 forge** (incl. futures + invariants) · **43 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **332/332** · GitHub CI **4/4**.
+`make ci` green 2026-07-31: **230 py** · **50 forge** (incl. futures + invariants) · **50 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **332/332** · GitHub CI **4/4**.
 
 Real settlement through **Circle Gateway** — batch-UUID receipts in-repo and on the public `/exchange` tape; Circle's own CLI paid the gate (`payable`).
 
@@ -225,12 +225,12 @@ Provenance labeled on every value — `sim` / `gateway-ref` / `tx`. Reproduce: `
 
 1. `/` — the print ticking live: rate + CI + attack cost. New to the jargon? Flip the masthead to **plain** — the whole paper re-sets in plain English.
 2. `/attack` — press the button: wash flow floods in, naive VWAP swings <span class="bad">~+110%</span>, **ACR holds**, and the counter burns the attacker's USDC. Offline twin: `make demo` — one command, ~1 minute.
-3. `/curve` — the term structure plus the **live futures desk**: series 0 book and trade tape read from ACRFutures on-chain.
+3. `/curve` — the term structure, the **live futures desk** read from ACRFutures on-chain, and **the Public Desk: trade it yourself.** Open a Circle *user-controlled* wallet in the browser (your PIN, our gas), take the stake, place a real fill, withdraw it again — the key never leaves your device, so every step is a challenge only your PIN can sign.
 4. `/exchange` — real Gateway settlements on the tape; paper trail in `docs/SUBMISSION.md`.
 
 **Live:** https://arc-compute-rate.vercel.app · reader's companion at `/companion`
 
-<!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. If series 0 has expired, re-seed with scripts/futures_seed.py before the session. -->
+<!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. Series rolls are automated (futures-lifecycle.yml); `make desk-preflight` confirms the venue is tradable before a session. The Public Desk needs a PIN ceremony per action, so allow ~30 s per step live. -->
 
 ---
 

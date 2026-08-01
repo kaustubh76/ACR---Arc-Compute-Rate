@@ -239,8 +239,32 @@ only honest verification drives a browser.
    address, so a fresh profile per attempt burns the cap.
 5. **[AUTOMATED]** `make desk-evidence USER_ID=<the id the run printed>` —
    confirms the run from two directions: Circle's own transaction ledger
-   (states, hashes, fees) and the venue's `CollateralPosted` / `Traded` logs
-   plus a live `positionOf`.
+   (states, hashes, fees) and the venue's `CollateralPosted` /
+   `CollateralWithdrawn` / `Traded` logs plus a live `positionOf`.
+6. **[AUTOMATED]** The exit is part of the flow, not an afterthought: the desk
+   shows a withdraw button per series a wallet holds collateral in — including
+   expired and settled ones, because collateral outlives the market it was
+   posted to and a roll leaves a returning reader holding a stake in the old
+   series. `DESK_MODE=withdraw DESK_USER_ID=<id> make desk-e2e` drives only
+   that step, which is how a wallet whose browser profile is long gone gets its
+   money back (the PIN is still required, so this grants nothing new).
+
+### Keeping the venue alive
+
+A series expires. Two idempotent commands own that, and
+`.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset
+from the heartbeat so they never race on the maker's nonce):
+
+- `make futures-roll` — opens a successor when the current series is running
+  out. No-ops on a healthy venue, guards the maker's gas budget before any
+  write, and **exits non-zero unless the collateral actually landed**. Do not
+  use `scripts/futures_seed.py` for this: it exits 0 after failing that step,
+  leaving an open series no one can trade against.
+- `make futures-settle` — cash-settles anything expired, which is what flattens
+  positions and frees each trader's whole cleared balance for withdrawal. It
+  refuses (rather than reverting) when the oracle print is outside the
+  contract's 2 h freshness window; that window reopens on the next print, so
+  the fix is to wait, not to force it.
 
 ### The first live run — 2026-08-01, series 0 (ACR-INF)
 
