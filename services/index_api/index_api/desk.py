@@ -105,10 +105,17 @@ class _TTLCache:
             self._data.pop(key, None)
 
 
-#: Short-lived read memos. Bounded on purpose: every one of these is keyed
-#: by a caller-supplied wallet address on a public endpoint, so an unbounded
-#: dict is a memory-growth vector rather than merely untidy.
-_limits_memo = _TTLCache(ttl_s=8.0, max_entries=512)
+#: Read memos. Bounded on purpose: every one of these is keyed by a
+#: caller-supplied wallet address on a public endpoint, so an unbounded dict is
+#: a memory-growth vector rather than merely untidy.
+#:
+#: The TTL is 45s, not the few seconds a "live quote" suggests, because the
+#: inputs do not actually change faster than that: the mark is an hourly print,
+#: and a wallet's own collateral/position only move when it acts — which mints a
+#: challenge, and that drops the entry explicitly. A short TTL bought no
+#: freshness and cost a full cold read (~29s against a throttled Arc RPC, enough
+#: to blow the proxy's budget) every few seconds of idling.
+_limits_memo = _TTLCache(ttl_s=45.0, max_entries=512)
 _maker_coll_memo = _TTLCache(ttl_s=60.0, max_entries=32)
 
 
@@ -629,9 +636,10 @@ def desk_limits(address: str, index_id: str) -> dict:
     return out
 
 
-#: The exit read walks every series (2 RPC calls each) and the UI polls it, so
-#: memoize briefly — the numbers only move when the mark or the position does.
-_withdrawable_memo = _TTLCache(ttl_s=8.0, max_entries=512)
+#: Same reasoning as _limits_memo: the exit read walks every series (2 RPC calls
+#: each), the UI polls it, and the numbers only move on an action that
+#: invalidates this entry anyway.
+_withdrawable_memo = _TTLCache(ttl_s=45.0, max_entries=512)
 
 
 def withdrawable(address: str) -> dict:
