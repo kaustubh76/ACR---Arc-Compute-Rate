@@ -215,6 +215,63 @@ cap) originates real Gateway settlements from `/exchange` — see agent-runbook
 7. **CHECKPOINT** — the Terminal's `/exchange` tape fills with settlements;
    receipts carry scheme `exact` and network **exactly** `eip155:5042002`.
 
+## 5b. The Public Desk — a reader trades with their own wallet
+
+The desk lets a visitor open a Circle **user-controlled** wallet (an SCA on
+Arc, PIN-secured in Circle's hosted UI) and take a real position against the
+maker. The key is derived and held client-side, so — unlike every other flow in
+this runbook — **no server-side script can stand in for the ceremony**. The
+only honest verification drives a browser.
+
+1. **[AUTOMATED]** `make desk-preflight` — read-only gates: the series has
+   life left, the oracle mark is fresh, the margin math leaves a tradable
+   size, the maker can absorb it both ways, and the custody wallet (the faucet
+   source) is funded. Exit 0 means clear to run.
+2. **[OPERATOR]** `make api` and `ACR_API=http://127.0.0.1:8000 make terminal`.
+   Hit `/api/futures` once first — a cold roster read can exceed the proxy's
+   upstream timeout, and the desk renders read-only until it answers.
+3. **[OPERATOR, once]** `npm i playwright && npx playwright install chromium`
+   anywhere (Node ≥ 20). Playwright is deliberately not a repo dependency.
+4. **[AUTOMATED]** `PLAYWRIGHT_DIR=<that>/node_modules make desk-e2e` — drives
+   PIN setup → faucet → `approve` → `postCollateral` → `trade`, then writes
+   `data/desk_e2e_last.json`. Set `DESK_PROFILE=<dir>` to reuse one browser
+   profile (and therefore one wallet) across runs; the faucet is one drip per
+   address, so a fresh profile per attempt burns the cap.
+5. **[AUTOMATED]** `make desk-evidence USER_ID=<the id the run printed>` —
+   confirms the run from two directions: Circle's own transaction ledger
+   (states, hashes, fees) and the venue's `CollateralPosted` / `Traded` logs
+   plus a live `positionOf`.
+
+### The first live run — 2026-08-01, series 0 (ACR-INF)
+
+Wallet `0x95DE70736E21e70DF921Fb3ab91dD56750965b59` (Circle user
+`acr-desk-1gkdjcmj`), driven entirely through the browser under a PIN:
+
+| Step | Transaction |
+|---|---|
+| faucet drip (0.5 USDC, from custody) | [`0xb6ef0981…`](https://testnet.arcscan.app/tx/0xb6ef098134690045ebf4012c8d2e28573d1c45d499e859efbf22efabb7d41572) |
+| `approve` USDC → the venue | [`0xb4ed94b9…`](https://testnet.arcscan.app/tx/0xb4ed94b9c5c6fdef97fdce407e05b1b56405b66b20a229cccab3f49b9d0998c3) |
+| `postCollateral` 0.50 USDC | [`0x272687b1…`](https://testnet.arcscan.app/tx/0x272687b15c31110cb7e64b4dfb540c49fac15bb7095f89ba9bf263c8101a1916) |
+| `trade` **+0.46 @ 0.48450** | [`0x0888fb1b…`](https://testnet.arcscan.app/tx/0x0888fb1bdf73313ecc9b9374c66c6cd70c9fb5813ae03f163450eecf26237876) |
+
+`positionOf(0, wallet)` reads back `0.46 contracts @ 0.48450`.
+
+Three facts this run settled, each previously assumed:
+
+- **Gas Station sponsors these SCAs.** The authority is the ERC-4337
+  `UserOperationEvent`'s `paymaster` field — here
+  `0x7cea357b5ac0639f89f9e378a1f03aa5005c0a25`, i.e. sponsored. Do **not** read
+  Circle's `networkFee` as a user debit: it is non-zero on every one of these
+  operations and the wallet still paid nothing. The balance agrees — 0.500000
+  in, 0.5 posted as collateral, 0.000000 left.
+- **Every desk action is a smart-account user operation**, routed through the
+  EntryPoint at `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` rather than a
+  direct call.
+- **$0.50 buys well under one contract** on a 10× index (~0.9955 USDC of
+  initial margin per contract at a 0.4977 mark) — which is why the desk quotes
+  a server-computed size (here 0.46) instead of a hardcoded 1. A "BUY 1" button
+  would have reverted `taker margin` *after* the reader entered their PIN.
+
 ## 6. Bake the real artifacts into the offline bundle
 
 **[AUTOMATED]** With the oracle configured in `.env`:
