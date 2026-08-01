@@ -101,6 +101,9 @@ class FuturesReader:
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
         self._cache_at = 0.0
+        #: The venue's whole series list, shared by the desk's exit path.
+        self._series: list[dict] = []
+        self._series_at = 0.0
         #: Short-TTL trade-tape cache + first-seen wall-clock per tx (so the UI can
         #: show an honest "seen Ns ago" without a per-block RPC round trip).
         self._trades: list[dict] = []
@@ -110,6 +113,30 @@ class FuturesReader:
     @property
     def configured(self) -> bool:
         return bool(self.futures_address)
+
+    def all_series(self, *, use_cache: bool = True) -> list[dict]:
+        """Every series on the venue, settled ones included — memoized.
+
+        The desk's exit path needs exactly the series ``read_all`` filters out
+        (a reader must be able to leave a series that has expired), so it used
+        to call the client directly and paid a full uncached scan every time:
+        measured at 9.5s on the request path against a warm host. Sharing one
+        memo means the background warm covers that path too.
+        """
+        if not self.configured:
+            return []
+        if use_cache:
+            with self._lock:
+                if self._series and time.monotonic() - self._series_at < FUTURES_TTL_S:
+                    return [dict(s) for s in self._series]
+        try:
+            out = self._client.read_all_series()
+        except Exception:
+            return []
+        with self._lock:
+            self._series = out
+            self._series_at = time.monotonic()
+        return [dict(s) for s in out]
 
     def read_desk(self, index_id: str, *, all_series: list[dict] | None = None) -> dict | None:
         if not self.configured:
@@ -134,10 +161,7 @@ class FuturesReader:
             with self._lock:
                 if self._cache and time.monotonic() - self._cache_at < FUTURES_TTL_S:
                     return dict(self._cache)
-        try:
-            series = self._client.read_all_series()
-        except Exception:
-            series = []
+        series = self.all_series(use_cache=use_cache)
         out: dict[str, dict] = {}
         for iid in ALL_INDEX_IDS:
             d = self.read_desk(iid, all_series=series)
