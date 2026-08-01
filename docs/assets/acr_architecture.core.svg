@@ -87,7 +87,7 @@
 <text x="1593" y="496.2" font-size="13" fill="#1e1e1e">attestWithSig — seller signs, relayer pays</text>
 <text x="1593" y="509.2" font-size="13" fill="#1e1e1e">→ one relayer registers many sellers</text>
 <text x="1593" y="588.5" font-size="15" fill="#e8590c">FOUNDRY</text>
-<text x="1593" y="611.2" font-size="13" fill="#1e1e1e">32 tests · invariant suite (fail_on_revert)</text>
+<text x="1593" y="611.2" font-size="13" fill="#1e1e1e">50 tests · invariant suite (fail_on_revert)</text>
 <text x="1593" y="692.5" font-size="15" fill="#e8590c">CIRCLE DEPLOY</text>
 <text x="1593" y="715.2" font-size="13" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>
 <text x="1593" y="728.2" font-size="13" fill="#1e1e1e">deploy / import-by-address → setSigner</text>

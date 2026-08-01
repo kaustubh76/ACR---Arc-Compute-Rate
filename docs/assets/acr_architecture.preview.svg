@@ -186,7 +186,7 @@
 <text x="2253" y="756.2" font-size="13" fill="#1e1e1e">attestWithSig — seller signs, relayer pays</text>
 <text x="2253" y="769.2" font-size="13" fill="#1e1e1e">→ one relayer registers many sellers</text>
 <text x="2253" y="848.5" font-size="15" fill="#e8590c">FOUNDRY</text>
-<text x="2253" y="871.2" font-size="13" fill="#1e1e1e">32 tests · invariant suite (fail_on_revert)</text>
+<text x="2253" y="871.2" font-size="13" fill="#1e1e1e">50 tests · invariant suite (fail_on_revert)</text>
 <text x="2253" y="952.5" font-size="15" fill="#e8590c">CIRCLE DEPLOY</text>
 <text x="2253" y="975.2" font-size="13" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>
 <text x="2253" y="988.2" font-size="13" fill="#1e1e1e">deploy / import-by-address → setSigner</text>
@@ -243,7 +243,7 @@
 <text x="73" y="1408.2" font-size="13" fill="#1e1e1e">runs the priced attack through real clean()</text>
 <text x="73" y="1421.2" font-size="13" fill="#1e1e1e">→ the bound is attainable, not loose</text>
 <text x="2238" y="1525.5" font-size="15" fill="#495057">H · VERIFICATION</text>
-<text x="2253" y="1575.5" font-size="15" fill="#495057">TESTS · 165 py + 32 forge</text>
+<text x="2253" y="1575.5" font-size="15" fill="#495057">TESTS · 181 py + 50 forge</text>
 <text x="2253" y="1598.2" font-size="13" fill="#1e1e1e">+ agent TS + interop conformance</text>
 <text x="2253" y="1611.2" font-size="13" fill="#1e1e1e">eval gate: VWAP 107–123% · ACR &lt;3% → 50–560×</text>
 <text x="2253" y="1624.2" font-size="13" fill="#1e1e1e">glossary gate · ruff · GitHub CI</text>
@@ -263,7 +263,7 @@
 <text x="2853" y="701.2" font-size="13" fill="#1e1e1e">live future quotes + Y settled trades</text>
 <text x="2853" y="714.2" font-size="13" fill="#1e1e1e">5+ sellers attested on-chain</text>
 <text x="2853" y="727.2" font-size="13" fill="#1e1e1e">100% Foundry invariants passing</text>
-<text x="2853" y="740.2" font-size="13" fill="#1e1e1e">100 python + 32 forge tests green</text>
+<text x="2853" y="740.2" font-size="13" fill="#1e1e1e">181 python + 50 forge tests green</text>
 <text x="2858" y="1115.5" font-size="15" fill="#f08c00">PLAIN ENGLISH  ·  read the jargon</text>
 <text x="2864" y="1141.9" font-size="11" fill="#1e1e1e">latent price — the real price you can't see; ACR estimates it</text>
 <text x="2864" y="1152.9" font-size="11" fill="#1e1e1e">benchmark / rate — the official number contracts settle on (SOFR)</text>

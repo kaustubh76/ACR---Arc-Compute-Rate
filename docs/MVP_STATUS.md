@@ -149,7 +149,7 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 5. Submit ACR to Circle's **Agent Marketplace** directory (manual form — not yet done).
 6. Cap-denominator methodology refinement (cap as fraction of surviving vs raw volume).
 
-**The one genuinely half-built piece — instrument layer (W6):** `acr_instrument` is a *complete, correct model* (cash-settled `ACRFuture` + textbook Avellaneda–Stoikov MM, 168 LOC, tested) whose quotes are **computed and displayed** (`/curve`), but there is **no live trading loop, no counterparties, and no on-chain settlement of futures**. The Readme's "Mission Control trading live" is the aspiration; today it's a *displayed* term structure. This is the least-productionized pillar.
+**The one genuinely half-built piece — instrument layer (W6):** `acr_instrument` is a *complete, correct model* (cash-settled `ACRFuture` + textbook Avellaneda–Stoikov MM, 168 LOC, tested) whose quotes are **computed and displayed** (`/curve`). **Update 2026-07-31:** the on-chain venue now exists — `ACRFutures` deployed on Arc (`0x29d9…42fe`), series 0 (ACR-INF, 10× multiplier) seeded with a long/short book, cash-settling against the oracle print. What remains aspirational is autonomous trading with external counterparties; the seeded book is first-party.
 
 **Deferred by design:** ERC-4337 Paymaster / gasless — intentionally out; Arc USDC *is* the native gas token, so gasless UX is intrinsic.
 
@@ -157,7 +157,7 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 ## 8. Roadmap (7-week hackathon) & the funky-UI hook
 
-**Roadmap** (from `Readme.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ built (not live-traded) · W7 SHIP 🔄 in progress** (repo pushed, CI green, cloud hardened + posting re-enabled). *Ahead of schedule — only ship/polish remains.*
+**Roadmap** (from `Readme.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ live on-chain (`ACRFutures` `0x29d9…42fe`, series 0 seeded) · W7 SHIP ✅ shipped** (repo pushed, CI green, cloud hardened + posting re-enabled, deck re-rendered at final submission 2026-07-31).
 
 **Funky-UI hook (this milestone):** the Terminal is polished but reads like a Bloomberg-meets-newspaper grid — it rewards reading, it doesn't grab in the first 300ms. **Shipping now:** a bolder full-viewport **dawn landing hero** on `/` — the signature `--dawn-full` gradient + rising-sun/arc SVG (previously buried in the footer) as the first-viewport moment, a **giant live-ticking flagship rate** (ACR-INF, honestly badged live/on-chain/archived), the tagline, the **562× resistance stat**, and a "Watch the attack →" CTA. Fully reduced-motion-safe; the other 6 pages are untouched.
 
@@ -167,9 +167,9 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 ## 9. Tests & CI
 
-- **Python: 171 tests** (169 pass + 2 anvil-gated skips) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle), top-level `tests/`.
-- **Foundry: 32 tests** (17 ACROracle + 10 AttestationRegistry + 5 invariant, `fail_on_revert=true`).
-- **Node: 37 tests** (27 terminal + 10 agent) + `tsc` type-checks.
+- **Python: 183 tests** (181 pass + 2 anvil-gated skips) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle), top-level `tests/`.
+- **Foundry: 50 tests** (17 ACROracle + 10 AttestationRegistry + 16 ACRFutures + 5 + 2 invariant, `fail_on_revert=true`).
+- **Node: 53 tests** (43 terminal + 10 agent) + `tsc` type-checks.
 - **Gates:** ruff clean · glossary 332/332 · resistance eval-gate 4/4 · interop 12/12.
 - **CI** (`.github/workflows/ci.yml`, 4 jobs, every push/PR): python (ruff+pytest+eval-gate) · contracts (forge) · agent (build+test) · terminal (test + `next build`). Plus `keepalive.yml` (cron pings the API `/health`). Hermetic — `conftest.py` disables `.env` + strips `ACR_*`, so `make ci` needs no secrets.
 

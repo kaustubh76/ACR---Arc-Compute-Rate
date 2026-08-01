@@ -83,9 +83,10 @@ make interop      # 12 field-level checks: our 402 vs GatewayClient's parser
 make agent-live   # 60 queries, $0.01 cap, discovery from /marketplace/catalog
 ```
 
-This loop is **proven live**: 24+ x402 paid queries have settled against the
-deployed gate (https://acr-api-1fto.onrender.com), with real Gateway batch
-refs on the tape. Each line prints the Gateway settlement reference; the
+This loop is **proven live**: real x402 paid queries have settled against the
+deployed gate (https://acr-api-1fto.onrender.com) — the durable in-repo proof
+is `data/x402_receipts_live.jsonl` (Gateway batch UUIDs, scheme `exact`);
+run tallies on the free-tier ledger are ephemeral. Each line prints the Gateway settlement reference; the
 summary block totals payments and distinct settlements. Watch them land live on the Terminal's
 **Exchange** tape (`make terminal` → /exchange) and in
 `GET /marketplace/receipts`.

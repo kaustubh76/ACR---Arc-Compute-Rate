@@ -228,7 +228,7 @@ def build() -> None:
           "attestWithSig — seller signs, relayer pays",
           "→ one relayer registers many sellers"], ORANGE)
     card("c_foundry", 2260, 825, 510, 92, "FOUNDRY",
-         ["32 tests · invariant suite (fail_on_revert)"], ORANGE)
+         ["50 tests · invariant suite (fail_on_revert)"], ORANGE)
     card("c_deploy", 2260, 929, 510, 132, "CIRCLE DEPLOY",
          ["Smart Contract Platform + Gas Station", "deploy / import-by-address → setSigner",
           "deploy_circle.py (--dry-run) · verify_deploy.py"], ORANGE)
@@ -276,7 +276,7 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1500, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1552, 510, 180, "TESTS · 165 py + 32 forge",
+    card("h_tests", 2260, 1552, 510, 180, "TESTS · 181 py + 50 forge",
          ["+ agent TS + interop conformance", "eval gate: VWAP 107–123% · ACR <3% → 50–560×",
           "glossary gate · ruff · GitHub CI", "hermetic conftest (Circle mocked)"], GRAY)
 
@@ -290,7 +290,7 @@ def build() -> None:
           "attack-cost-per-bp on EVERY print", "X wash attacks absorbed (red-team)",
           "naive-VWAP err  vs  ACR err  (chart)", "live future quotes + Y settled trades",
           "5+ sellers attested on-chain", "100% Foundry invariants passing",
-          "100 python + 32 forge tests green"], INK)
+          "181 python + 50 forge tests green"], INK)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
