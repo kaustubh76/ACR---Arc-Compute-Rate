@@ -26,6 +26,11 @@ help:
 	@echo "  make terminal        run the ACR Terminal (:3000; ACR_API=<seller url>, ACR_BUYER_PRIVATE_KEY enables the LIVE buyer)"
 	@echo "  make lint            ruff check the python packages"
 	@echo ""
+	@echo "  the Public Desk (readers trade ACRFutures with a Circle user-controlled wallet):"
+	@echo "  make desk-preflight  read-only gates: series life, margin capacity, custody balance"
+	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
+	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
+	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
 	@echo "  make agent           offline demo: discover the catalog, pay the dev gate"
 	@echo "                       (run ACR_X402_MODE=dev make api in another shell)"
@@ -115,6 +120,21 @@ deploy-futures:
 
 verify-testnet:
 	uv run python scripts/verify_deploy.py
+
+# --- the Public Desk (user-controlled wallets trading ACRFutures) ---
+
+desk-preflight:
+	uv run python scripts/desk_preflight.py
+
+# Drives the REAL browser ceremony (a user-controlled key only exists client
+# side). Playwright is not a repo dep — install it once, anywhere, and point
+# PLAYWRIGHT_DIR at that node_modules. Needs `make api` + `make terminal` up.
+desk-e2e:
+	@test -n "$(PLAYWRIGHT_DIR)" || { echo "set PLAYWRIGHT_DIR=<dir>/node_modules (npm i playwright && npx playwright install chromium)"; exit 1; }
+	node scripts/desk_e2e.mjs
+
+desk-evidence:
+	uv run python scripts/desk_evidence.py $(if $(USER_ID),--user $(USER_ID),)
 
 post-once:
 	uv run python scripts/post_once.py
