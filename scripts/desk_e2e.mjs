@@ -275,17 +275,44 @@ async function runWithdraw(page) {
   state.withdraw = { offered: true, button: label };
   await btn.click();
 
-  // Completion is the DESK's own state, not the button's: the label flips to
-  // "confirming…" the moment it is clicked, so keying on the button vanishing
-  // would report success before the PIN screen had even rendered.
-  const done = /take your \$0\.50 stake|get my 50 cents|put up my stake|post collateral/i;
-  await driveCircle(
-    page,
-    async () => done.test(await page.locator("body").innerText().catch(() => "")),
-    300_000,
-    "withdraw",
-  );
-  await milestone(page, done, 240_000, "collateral withdrawn — the wallet holds it again");
+  // Completion is the VENUE's answer, not the page's.
+  //
+  // Two wrong signals were tried first. The button vanishing fires instantly,
+  // because its label flips to "confirming…" on click. And the desk returning
+  // to its "take your stake" copy only happens on a FULL exit — after a partial
+  // withdrawal (free margin above an open position) the desk correctly stays in
+  // trading, so that predicate would never fire on the most interesting case.
+  // Ask what the wallet can still withdraw, and wait for it to fall.
+  const freeNow = async () => {
+    try {
+      const res = await page.request.post(`${TERMINAL}/api/desk/withdrawable`, {
+        data: { address: state.address },
+        timeout: 20_000,
+      });
+      const body = await res.json();
+      return Number(body?.total_free_usdc ?? 0);
+    } catch {
+      return before; // unreadable this tick — don't call it done
+    }
+  };
+  const before = await freeNow();
+  log(`  withdrawable before: ${before.toFixed(4)} USDC`);
+  const dropped = async () => (await freeNow()) < before - 0.005;
+
+  await driveCircle(page, dropped, 300_000, "withdraw");
+  const end = Date.now() + 180_000;
+  while (Date.now() < end) {
+    if (await dropped()) {
+      const left = await freeNow();
+      state.milestones.push({ what: "collateral withdrawn", at: new Date().toISOString() });
+      log(`✓ collateral withdrawn — withdrawable ${before.toFixed(4)} → ${left.toFixed(4)} USDC`);
+      save();
+      await shot(page, "5-withdrawn");
+      return;
+    }
+    await sleep(2500);
+  }
+  throw new Error("timed out waiting for the withdrawal to reduce the free balance");
   await shot(page, "5-withdrawn");
 }
 
