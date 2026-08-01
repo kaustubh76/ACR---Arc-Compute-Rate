@@ -111,24 +111,36 @@ class FuturesReader:
     def configured(self) -> bool:
         return bool(self.futures_address)
 
-    def read_desk(self, index_id: str) -> dict | None:
+    def read_desk(self, index_id: str, *, all_series: list[dict] | None = None) -> dict | None:
         if not self.configured:
             return None
         try:
-            return self._client.read_desk(index_id)
+            return self._client.read_desk(index_id, all_series=all_series)
         except Exception:
             return None
 
     def read_all(self, *, use_cache: bool = True) -> dict[str, dict]:
+        """Every index's live desk.
+
+        Scans the venue's series ONCE and hands the list to each index, rather
+        than letting each ``read_desk`` re-scan. That scan is the expensive part
+        and only one of the demo's three indices has a series, so the old shape
+        paid for the whole venue three times to produce one desk — the single
+        biggest contributor to a cold desk read.
+        """
         if not self.configured:
             return {}
         if use_cache:
             with self._lock:
                 if self._cache and time.monotonic() - self._cache_at < FUTURES_TTL_S:
                     return dict(self._cache)
+        try:
+            series = self._client.read_all_series()
+        except Exception:
+            series = []
         out: dict[str, dict] = {}
         for iid in ALL_INDEX_IDS:
-            d = self.read_desk(iid)
+            d = self.read_desk(iid, all_series=series)
             if d is not None:
                 out[iid] = d
         with self._lock:

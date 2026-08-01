@@ -25,6 +25,7 @@ from pathlib import Path
 
 import httpx
 from acr_core import get_settings
+from acr_oracle_client.futures import _rpc_gather
 
 log = logging.getLogger("index_api.desk")
 
@@ -671,13 +672,21 @@ def withdrawable(address: str) -> dict:
 
     try:
         rows: list[dict] = []
-        for s in client.read_all_series():
+        # One round trip's worth of reads, not two per series: a reader's exit
+        # walks EVERY series (that is the point — a roll strands a stake on the
+        # old one), so the serial version got slower with every roll, on the
+        # path a reader uses when they want their money back.
+        all_series = client.read_all_series()
+        balances = _rpc_gather(
+            [(lambda s=s: client.collateral_units_of(s["series_id"], trader)) for s in all_series]
+        )
+        held = [(s, u) for s, u in zip(all_series, balances, strict=True) if u]
+        positions = _rpc_gather(
+            [(lambda s=s: client.position_of(s["series_id"], trader)) for s, _ in held]
+        )
+        for (s, units), pos in zip(held, positions, strict=True):
             sid = s["series_id"]
-            units = client.collateral_units_of(sid, trader)
-            if not units:
-                continue
-            pos = client.position_of(sid, trader) or {"contracts": 0.0}
-            contracts = pos["contracts"]
+            contracts = (pos or {"contracts": 0.0})["contracts"]
             settled = bool(s.get("settled"))
             # Only an unsettled, non-flat account needs a mark at all — don't
             # make a reader's exit depend on the oracle when the contract won't.

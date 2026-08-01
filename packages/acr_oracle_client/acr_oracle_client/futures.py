@@ -10,6 +10,7 @@ demo maker/taker loop. Prices are WAD (1e18); collateral/PnL are USDC-6 (1e6).
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from acr_core import get_settings
@@ -38,6 +39,43 @@ def _rpc_retry(fn, *args, tries: int = 5, base: float = 1.5, **kwargs):
             raise
     if last:  # pragma: no cover - loop always returns or raises above
         raise last
+
+
+#: How many independent eth_calls to have in flight at once. **Default 1 —
+#: serial — and that is a measured choice, not caution.**
+#:
+#: Against Arc's public RPC, interleaved A/B over the desk's series scan:
+#:
+#:     fanout=1   median 3.0s   p90 12.2s
+#:     fanout=4   median 1.3-4.1s (unstable)   p90 30.8s
+#:
+#: The median is a coin flip at this fan-out width; the TAIL is not. Concurrency
+#: raises the odds of a 429, and every 429 costs a `_rpc_retry` backoff measured
+#: in seconds — which is how fanout=4 produced a 30s read. These calls sit on
+#: the request path behind a 28s proxy budget, so the tail is the number that
+#: decides whether a reader sees the desk or an error, and serial wins it.
+#:
+#: The real latency fix was doing FEWER calls (scan the venue once per sweep
+#: instead of once per index), not doing them at once. Raise this only against
+#: a private RPC that does not throttle, where concurrency is a clean win.
+RPC_FANOUT = int(os.environ.get("ACR_RPC_FANOUT", "1"))
+
+
+def _rpc_gather(calls: list) -> list:
+    """Run independent read-only RPC thunks in order, or concurrently when
+    ``RPC_FANOUT`` allows it.
+
+    Exists mainly to mark these calls as genuinely independent — the desk's
+    reads are a fan-out, not a chain — so the width is one tunable constant
+    rather than a rewrite. Exceptions propagate as they would serially, so a
+    caller's existing try/except keeps its meaning.
+    """
+    if RPC_FANOUT <= 1 or len(calls) <= 1:
+        return [fn() for fn in calls]
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=min(RPC_FANOUT, len(calls))) as pool:
+        return list(pool.map(lambda fn: fn(), calls))
 
 
 def _get_traded_logs(w3, contract, from_block: int, to_block: int):  # pragma: no cover - live chain
@@ -215,33 +253,55 @@ class FuturesClient:
         )
 
     def read_all_series(self) -> list[dict]:  # pragma: no cover - live chain
-        """All series as dicts (small N — one per index in the demo)."""
+        """All series as dicts (small N — one per index in the demo).
+
+        The per-series ``getSeries`` calls are independent, so they go out
+        together: N grows by one on every roll, and a serial scan meant the
+        venue got permanently slower to read the longer it stayed open.
+        """
         if self._connect() is None or not self.configured:
             return []
         try:
             c = self._contract()
             n = int(_rpc_retry(c.functions.seriesCount().call))
-            return [
-                descale_series(i, tuple(_rpc_retry(c.functions.getSeries(i).call)))
-                for i in range(n)
-            ]
+            raw = _rpc_gather(
+                [(lambda i=i: _rpc_retry(c.functions.getSeries(i).call)) for i in range(n)]
+            )
+            return [descale_series(i, tuple(r)) for i, r in enumerate(raw)]
         except Exception:
             return []
 
-    def read_desk(self, index_id: str) -> dict | None:  # pragma: no cover - live chain
+    def read_desk(
+        self, index_id: str, *, all_series: list[dict] | None = None
+    ) -> dict | None:  # pragma: no cover - live chain
         """The live desk for one index: series + maker inventory + PnL, or None
-        when nothing is configured / no series exists for the index yet."""
+        when nothing is configured / no series exists for the index yet.
+
+        ``all_series`` lets a caller reading several indices scan the venue ONCE
+        instead of once per index. That scan is the dominant cost, and two of
+        the three demo indices have no series at all — so without it the reader
+        paid for a full scan twice over to be told "nothing here".
+        """
         if self._connect() is None or not self.configured:
             return None
         try:
-            series = select_series_for_index(self.read_all_series(), index_id)
+            series = select_series_for_index(
+                self.read_all_series() if all_series is None else all_series, index_id
+            )
             if series is None:
                 return None
             c = self._contract()
             sid, maker, mult = series["series_id"], series["maker"], series["multiplier"]
-            pos = descale_position(tuple(_rpc_retry(c.functions.positionOf(sid, maker).call)), mult)
-            upnl = int(_rpc_retry(c.functions.unrealizedPnl(sid, maker).call)) / USDC
-            traders = int(_rpc_retry(c.functions.traderCount(sid).call))
+            raw_pos, raw_upnl, raw_traders = _rpc_gather(
+                [
+                    lambda: _rpc_retry(c.functions.positionOf(sid, maker).call),
+                    lambda: _rpc_retry(c.functions.unrealizedPnl(sid, maker).call),
+                    lambda: _rpc_retry(c.functions.traderCount(sid).call),
+                ]
+            )
+            pos = descale_position(tuple(raw_pos), mult)
+            upnl = int(raw_upnl) / USDC
+            traders = int(raw_traders)
             return {
                 **series,
                 "maker_inventory": pos["contracts"],

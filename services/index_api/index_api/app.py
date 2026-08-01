@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -98,6 +99,44 @@ def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, 
         return True
     newest = max((v.get("posted_at", 0) or 0 for v in onchain.values()), default=0)
     return (now - newest) > refresh_seconds
+
+
+#: How often to re-read the chain into the request-path caches. This is a
+#: SEPARATE cadence from ``refresh_seconds`` on purpose: that timer also posts
+#: an oracle print, which spends real gas, so production runs it hourly — while
+#: the read caches (``READ_ALL_TTL_S`` / ``FUTURES_TTL_S``) live 90 seconds.
+#: Tying the warm to the print meant the caches were cold for ~58 minutes of
+#: every hour and the next visitor paid a full sequential chain sweep on the
+#: request path: a measured 55s for /desk/limits, which is past the terminal
+#: proxy's budget, so the desk told a reader it was down while it was up.
+#: Reading costs nothing but RPC, so warm it on its own short timer.
+CHAIN_WARM_SECONDS = float(os.environ.get("ACR_CHAIN_WARM_SECONDS", "60"))
+
+
+async def _warm_chain(stop: asyncio.Event) -> None:
+    """Keep the on-chain read caches warm so no reader ever pays for a cold one.
+
+    Deliberately does NOT use ``use_cache=False`` blindly on a dead chain: every
+    call is already exception-tolerant and returns the last good value, so a
+    throttled Arc simply leaves the previous warm entry in place.
+    """
+    reader, futures = get_reader(), get_futures()
+    if not (reader.configured or futures.configured):
+        return
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=CHAIN_WARM_SECONDS)
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        try:
+            if reader.configured:
+                await asyncio.to_thread(reader.read_all, use_cache=False)
+            if futures.configured:
+                await asyncio.to_thread(futures.read_all, use_cache=False)
+        except Exception:  # pragma: no cover - keep the loop alive
+            log.exception("chain cache warm failed")
 
 
 async def _background(stop: asyncio.Event) -> None:
@@ -197,13 +236,14 @@ async def _background(stop: asyncio.Event) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     stop = asyncio.Event()
-    task = asyncio.create_task(_background(stop))
+    tasks = [asyncio.create_task(_background(stop)), asyncio.create_task(_warm_chain(stop))]
     try:
         yield
     finally:
         stop.set()
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 app = FastAPI(title="ACR — The Arc Compute Rate", version="0.1.0", lifespan=lifespan)
