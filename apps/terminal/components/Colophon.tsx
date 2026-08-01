@@ -91,6 +91,16 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             ACRFutures <AddressChip address={c.futures} explorer={c.explorer} copy={false} />
           </span>
         )}
+        {/* All three Circle wallet models are in use here; the colophon named
+            only the Gateway one. */}
+        {c.futures && (
+          <span
+            className="chip"
+            title="readers trade the venue from Circle user-controlled smart accounts — the key is derived on their device behind a PIN, so this site can never sign for them"
+          >
+            <Ed x="wallets custody · EOA · user-controlled" p="wallets: ours, yours, and the shop's" />
+          </span>
+        )}
         <a className="chip" href={c.explorer} target="_blank" rel="noreferrer">
           arcscan ↗
         </a>
