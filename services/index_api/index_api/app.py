@@ -137,6 +137,16 @@ async def _background(stop: asyncio.Event) -> None:
                 log.info("posted overdue print on wake")
             except Exception:  # pragma: no cover - defensive
                 log.exception("post-on-wake failed (timer loop continues)")
+    # Re-hydrate poster provenance from the PricePosted log after a cold start
+    # (last_posts is in-memory; a slept-through Render box would otherwise show
+    # "awaiting first live post" until the next hourly slot).
+    if reader.configured and not poster.last_posts:
+        try:
+            n = poster.rehydrate(await asyncio.to_thread(poster.client.recent_posts))
+            if n:
+                log.info("re-hydrated poster provenance from %d on-chain posts", n)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("poster provenance re-hydrate failed")
     # Warm the on-chain attestation summary too (catalog reads it) off-request.
     try:
         from .marketplace import warm_attestation_summary

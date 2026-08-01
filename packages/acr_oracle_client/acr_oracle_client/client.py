@@ -205,6 +205,20 @@ ORACLE_ABI = [
         ],
         "outputs": [{"name": "", "type": "bool"}],
     },
+    {
+        "type": "event",
+        "name": "PricePosted",
+        "anonymous": False,
+        "inputs": [
+            {"name": "indexId", "type": "bytes32", "indexed": True},
+            {"name": "value", "type": "uint256", "indexed": False},
+            {"name": "ciLo", "type": "uint256", "indexed": False},
+            {"name": "ciHi", "type": "uint256", "indexed": False},
+            {"name": "attackCostPerBp", "type": "uint256", "indexed": False},
+            {"name": "timestamp", "type": "uint64", "indexed": False},
+            {"name": "signer", "type": "address", "indexed": True},
+        ],
+    },
 ]
 
 
@@ -254,6 +268,61 @@ class OracleClient:
         return w3.eth.contract(
             address=w3.to_checksum_address(self.oracle_address), abi=ORACLE_ABI
         )
+
+    def recent_posts(self, lookback_blocks: int = 10000, limit: int = 60) -> list[dict]:  # pragma: no cover - live chain
+        """Recent ``PricePosted`` events, chronological — the settlement
+        provenance (tx / block / signer + the block's wall clock) that survives
+        process restarts. One bounded ``eth_getLogs`` with EXPLICIT numeric
+        bounds (the Arc RPC answers 413 Payload Too Large when ``toBlock`` is
+        the string "latest" on a wide range); narrows if the node caps it.
+        10k blocks ≈ 85 min at Arc's ~0.5s cadence — covers the hourly poster."""
+        from .futures import _rpc_retry, bytes32_to_index_id  # lazy: futures imports client
+
+        w3 = self._connect()
+        if w3 is None or not self.oracle_address:
+            return []
+        try:
+            c = self._contract()
+            latest = int(_rpc_retry(lambda: w3.eth.block_number))
+            sig = w3.keccak(
+                text="PricePosted(bytes32,uint256,uint256,uint256,uint256,uint64,address)"
+            ).hex()
+            topic0 = sig if sig.startswith("0x") else "0x" + sig
+            logs: list = []
+            for span in (lookback_blocks, 5000, 2500):
+                start = max(0, latest - span)
+                try:
+                    raw = _rpc_retry(lambda s=start: w3.eth.get_logs({
+                        "address": c.address,
+                        "fromBlock": s,
+                        "toBlock": latest,
+                        "topics": [topic0],
+                    }))
+                    logs = [c.events.PricePosted().process_log(log) for log in raw]
+                    break
+                except Exception:
+                    logs = []
+            out: list[dict] = []
+            block_ts: dict[int, float] = {}
+            for ev in logs[-limit:]:
+                args = ev["args"]
+                block = int(ev["blockNumber"])
+                # at_wall is the block's wall clock — the event's ``timestamp``
+                # is the print's DATA timestamp (sim-relative in this pipeline).
+                if block not in block_ts:
+                    block_ts[block] = float(
+                        _rpc_retry(lambda b=block: w3.eth.get_block(b).timestamp)
+                    )
+                out.append({
+                    "index_id": bytes32_to_index_id(args["indexId"]),
+                    "tx": w3.to_hex(ev["transactionHash"]),
+                    "block": block,
+                    "signer": args["signer"],
+                    "at_wall": block_ts[block],
+                })
+            return out
+        except Exception:
+            return []
 
     def post(self, p: ACRPrint, wait: bool = True) -> str | None:
         """Post a print; returns the tx hash hex, or None if offline.
