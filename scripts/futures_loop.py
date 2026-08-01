@@ -33,6 +33,8 @@ INTERVAL = float(os.environ.get("LOOP_INTERVAL", "120"))
 MAX_TRADES = int(os.environ.get("LOOP_MAX_TRADES", "100"))
 BAND = int(os.environ.get("LOOP_BAND", "4"))
 GAS_FLOOR = float(os.environ.get("GAS_FLOOR", "1.0"))  # native USDC; stop below this
+#: Posted when the taker has no stake on the selected series (i.e. after a roll).
+LOOP_COLLATERAL = float(os.environ.get("LOOP_COLLATERAL", "3.0"))
 MARGIN_SAFETY = 0.85  # only use 85% of margin headroom when clamping the band
 
 _MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "view",
@@ -105,19 +107,35 @@ def main() -> None:
         sys.exit(1)
     sid, mult = series["series_id"], series["multiplier"]
 
-    # A taker with no collateral joins the roster (consuming a MAX_TRADERS slot)
-    # and then reverts on every trade. That is exactly what happens when the
-    # configured key isn't the funded one, so refuse rather than limp.
-    taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
-    if taker_collateral <= 0:
-        print(f"taker {taker.address} has NO collateral on series {sid} — wrong key? "
-              f"(post collateral first, or check TAKER_PRIVATE_KEY matches the funded taker)")
-        sys.exit(1)
-    print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
-          f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
-
     def native_bal() -> float:
         return _rpc_retry(w3.eth.get_balance, taker.address) / 1e18
+
+    # A taker with no collateral joins the roster (consuming a MAX_TRADERS slot)
+    # and then reverts on every trade. Collateral is PER SERIES, so this is the
+    # normal state right after a roll — the stake sits on the retired series.
+    # Self-provision rather than requiring a human after every roll, which would
+    # make the lifecycle automation a lie; refuse only when it truly can't.
+    taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
+    if taker_collateral <= 0:
+        free = native_bal()
+        want = min(LOOP_COLLATERAL, free - GAS_FLOOR)
+        if want < 0.5:
+            print(f"taker {taker.address} has no collateral on series {sid} and only "
+                  f"{free:.2f} USDC free (needs {LOOP_COLLATERAL} + {GAS_FLOOR} gas floor) — "
+                  f"fund it, or check TAKER_PRIVATE_KEY matches the funded taker")
+            sys.exit(1)
+        print(f"  · no collateral on series {sid} (new series?) — posting {want:.2f} USDC")
+        try:
+            fc.post_collateral(sid, want)
+        except Exception as exc:
+            print(f"  ✗ could not post collateral: {str(exc)[:120]}")
+            sys.exit(1)
+        taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
+        if taker_collateral <= 0:
+            print("  ✗ collateral did not land — refusing to trade into a margin revert")
+            sys.exit(1)
+    print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
+          f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
 
     start = time.monotonic()
     done = 0
