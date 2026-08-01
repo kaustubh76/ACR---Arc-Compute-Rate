@@ -32,8 +32,23 @@ interface Position {
   upnl_usdc: number;
 }
 
+/** Server-computed size caps: the largest trade each way that clears BOTH the
+ *  taker's and the auto-mirrored maker's margin check on ACRFutures. */
+interface Limits {
+  mark: number;
+  max_buy: number;
+  max_sell: number;
+  collateral_usdc: number;
+  contracts: number;
+}
+
 const USER_KEY = "acr-desk-user";
 const COLLAT_KEY = "acr-desk-collateralized";
+/** Below this the contract's margin check leaves nothing worth trading. */
+const MIN_TRADE = 0.05;
+/** How long to wait on the wallet SDK's completion callback before falling
+ *  back to reading the venue. Comfortably longer than a confirmed Arc tx. */
+const SDK_CALLBACK_TIMEOUT_MS = 75_000;
 
 function deskUserId(): string {
   let id = localStorage.getItem(USER_KEY);
@@ -69,16 +84,28 @@ export function PublicDesk({
   const [usdc, setUsdc] = useState<number | null>(null);
   const [indexId, setIndexId] = useState("ACR-GPU");
   const [position, setPosition] = useState<Position | null>(null);
+  const [limits, setLimits] = useState<Limits | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sdkRef = useRef<{ setAuthentication: (a: object) => void; execute: (id: string, cb: (e: unknown) => void) => void } | null>(null);
 
   const tradable = Object.keys(desks ?? {});
   const desk = (desks ?? {})[indexId];
+  // Offer the full feasible size; before the first /limits answer, offer the
+  // floor — the server re-clamps every challenge anyway.
+  const buySize = limits ? limits.max_buy : MIN_TRADE;
+  const sellSize = limits ? limits.max_sell : MIN_TRADE;
 
   useEffect(() => {
     if (tradable.length && !tradable.includes(indexId)) setIndexId(tradable[0]);
   }, [tradable, indexId]);
+
+  // The wallet refresher is identity-stable (it runs inside poll loops), so it
+  // reads the selected index through a ref rather than closing over it.
+  const indexRef = useRef(indexId);
+  useEffect(() => {
+    indexRef.current = indexId;
+  }, [indexId]);
 
   /** Circle's Web SDK, loaded lazily in the browser only. getDeviceId() is
    *  load-bearing: without it execute() silently no-ops. */
@@ -92,31 +119,70 @@ export function PublicDesk({
     return sdkRef.current!;
   }, []);
 
+  /** Run one challenge through Circle's PIN ceremony.
+   *
+   *  Resolves on the SDK's callback — but ALSO resolves on a timeout, because
+   *  the callback is not reliable: the hosted UI can complete a transaction
+   *  (Circle reports it COMPLETE, it is on-chain) and still never invoke the
+   *  callback, which would otherwise hang the desk forever on an action that
+   *  actually succeeded. A rejection still means a real, reported failure. The
+   *  caller confirms the outcome against the venue either way. */
   const executeChallenge = useCallback(
     async (s: Session, challengeId: string) =>
       new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, SDK_CALLBACK_TIMEOUT_MS);
+        const done = (fn: () => void) => {
+          clearTimeout(timer);
+          fn();
+        };
         void sdk(s.app_id).then((w3s) => {
-          if (!w3s) return reject(new Error("wallet SDK unavailable"));
+          if (!w3s) return done(() => reject(new Error("wallet SDK unavailable")));
           w3s.setAuthentication({ userToken: s.user_token, encryptionKey: s.encryption_key });
           w3s.execute(challengeId, (error: unknown) =>
-            error ? reject(error instanceof Error ? error : new Error(String((error as { message?: string })?.message ?? "declined"))) : resolve(),
+            error
+              ? done(() =>
+                  reject(
+                    error instanceof Error
+                      ? error
+                      : new Error(String((error as { message?: string })?.message ?? "declined")),
+                  ),
+                )
+              : done(resolve),
           );
-        }, reject);
+        }, (e) => done(() => reject(e)));
       }),
     [sdk],
   );
 
+  /** Re-read the wallet + its stake. Returns the fresh balance so pollers can
+   *  test THIS value — reading the `usdc` state inside a loop would test the
+   *  render-time capture, which never updates while the loop runs. */
   const refreshWallet = useCallback(async (s: Session) => {
     const w = await api<{ wallet: Session["wallet"]; usdc: number | null }>("/api/desk/wallet", {
       user_token: s.user_token,
     });
     if (w.wallet) {
+      const { address } = w.wallet;
       setSession({ ...s, wallet: w.wallet });
       setUsdc(w.usdc);
-      const collateralized = localStorage.getItem(COLLAT_KEY) === w.wallet.address;
+      const collateralized = localStorage.getItem(COLLAT_KEY) === address;
       setPhase(w.usdc && w.usdc > 0 ? (collateralized ? "trading" : "collateral") : "unfunded");
+      // A wallet with a spent balance looks "unfunded", but if that balance
+      // went into MARGIN it is already trading — ask the venue rather than
+      // stranding a returning reader whose localStorage was cleared.
+      if (!(w.usdc && w.usdc > 0) && !collateralized) {
+        const live = await api<Limits>("/api/desk/limits", {
+          address,
+          index_id: indexRef.current,
+        }).catch(() => null);
+        if (live?.collateral_usdc) {
+          setLimits(live);
+          localStorage.setItem(COLLAT_KEY, address);
+          setPhase("trading");
+        }
+      }
     }
-    return w.wallet;
+    return w;
   }, []);
 
   const step = useCallback(
@@ -150,10 +216,11 @@ export function PublicDesk({
     step(async () => {
       if (!session?.challenge_id) return;
       await executeChallenge(session, session.challenge_id);
-      // Circle indexes the new wallet momentarily after the PIN ceremony.
-      for (let i = 0; i < 6; i++) {
+      // Circle provisions the SCA after the PIN ceremony — it is deploying a
+      // contract wallet, not writing a row, so give it a real minute.
+      for (let i = 0; i < 24; i++) {
         await new Promise((r) => setTimeout(r, 2500));
-        if (await refreshWallet(session)) return;
+        if ((await refreshWallet(session)).wallet) return;
       }
       setNote("wallet still provisioning — reopen the desk in a moment");
     });
@@ -161,42 +228,83 @@ export function PublicDesk({
   const stake = () =>
     step(async () => {
       if (!session?.wallet) return;
+      // The drip is fire-and-forget server-side (Circle's confirm outlives the
+      // request), so the balance IS the completion signal — poll for it.
       await api("/api/desk/faucet", { address: session.wallet.address });
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 24; i++) {
         await new Promise((r) => setTimeout(r, 2500));
-        await refreshWallet(session);
-        if (usdc && usdc > 0) return;
+        const w = await refreshWallet(session);
+        if (w.usdc && w.usdc > 0) return;
       }
+      setNote("the stake is still settling — give it a moment and reopen the desk");
     });
+
+  const refreshLimits = useCallback(async (address: string, id: string) => {
+    try {
+      const l = await api<Limits>("/api/desk/limits", { address, index_id: id });
+      setLimits(l);
+      return l;
+    } catch {
+      setLimits(null); // throttled or no margin yet — the buttons fall back
+      return null;
+    }
+  }, []);
 
   const collateralize = () =>
     step(async () => {
       if (!session?.wallet) return;
-      for (const action of ["approve", "collateral"] as const) {
-        const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
-          user_token: session.user_token,
-          wallet_id: session.wallet.wallet_id,
-          action,
-          index_id: indexId,
-        });
-        await executeChallenge(session, ch.challenge_id);
+      const { address } = session.wallet;
+      try {
+        for (const action of ["approve", "collateral"] as const) {
+          const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
+            user_token: session.user_token,
+            wallet_id: session.wallet.wallet_id,
+            action,
+            index_id: indexId,
+            address,
+          });
+          await executeChallenge(session, ch.challenge_id);
+        }
+      } catch (e) {
+        // The wallet SDK's callback is not the source of truth — the chain is.
+        // A dropped callback on a transaction that actually landed must not
+        // strand a reader whose collateral is already posted, so fall through
+        // to the on-chain check and only surface the error if it really failed.
+        const posted = await refreshLimits(address, indexId);
+        if (!posted?.collateral_usdc) throw e;
       }
-      localStorage.setItem(COLLAT_KEY, session.wallet.address);
+      const live = await refreshLimits(address, indexId);
+      if (!live?.collateral_usdc) {
+        setNote("collateral is still confirming — give it a moment");
+        return;
+      }
+      localStorage.setItem(COLLAT_KEY, address);
       setPhase("trading");
     });
 
   const trade = (qty: number) =>
     step(async () => {
       if (!session?.wallet) return;
+      const { address } = session.wallet;
+      const before = (await refreshLimits(address, indexId))?.contracts ?? 0;
       const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
         user_token: session.user_token,
         wallet_id: session.wallet.wallet_id,
         action: "trade",
         index_id: indexId,
         qty,
+        address,
       });
       await executeChallenge(session, ch.challenge_id);
       setNote(null);
+      // The fill is real when the VENUE says the position moved, not when the
+      // wallet SDK says so — poll past the challenge for the position change.
+      for (let i = 0; i < 12; i++) {
+        const live = await refreshLimits(address, indexId);
+        if (live && Math.abs(live.contracts - before) > 1e-9) return;
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+      setNote("the fill is still confirming — the tape above will show it");
     });
 
   // Position poll while trading (10s, matches the route's CDN window).
@@ -220,6 +328,12 @@ export function PublicDesk({
       clearInterval(t);
     };
   }, [phase, session, desk]);
+
+  // Size caps follow the mark, so re-read them with the position.
+  useEffect(() => {
+    if (phase !== "trading" || !session?.wallet) return;
+    void refreshLimits(session.wallet.address, indexId);
+  }, [phase, session, indexId, refreshLimits]);
 
   if (!live) {
     return (
@@ -313,15 +427,34 @@ export function PublicDesk({
               </option>
             ))}
           </select>
-          <button className="btn" onClick={() => trade(1)} disabled={busy}>
-            <Ed x="BUY 1" p="BUY 1" />
+          {/* Sizes come from the server's live margin math, never a hardcoded 1:
+              $0.50 of collateral buys well under a contract on a 10× index, and
+              an oversized order would revert AFTER the reader entered their PIN. */}
+          <button
+            className="btn"
+            onClick={() => trade(buySize)}
+            disabled={busy || buySize < MIN_TRADE}
+          >
+            <Ed x={`BUY ${buySize}`} p={`BUY ${buySize}`} />
           </button>
-          <button className="btn" onClick={() => trade(-1)} disabled={busy}>
-            <Ed x="SELL 1" p="SELL 1" />
+          <button
+            className="btn"
+            onClick={() => trade(-sellSize)}
+            disabled={busy || sellSize < MIN_TRADE}
+          >
+            <Ed x={`SELL ${sellSize}`} p={`SELL ${sellSize}`} />
           </button>
+          {limits && (
+            <span className="muted mono">
+              <Ed
+                x={`${limits.collateral_usdc.toFixed(2)} USDC margin @ ${fmt(limits.mark)} mark`}
+                p={`${limits.collateral_usdc.toFixed(2)} dollars backing your trade`}
+              />
+            </span>
+          )}
           {position && position.contracts !== 0 ? (
             <span className="mono">
-              {position.contracts > 0 ? "long" : "short"} {Math.abs(position.contracts).toFixed(0)} @ {fmt(position.avg_price)}{" "}
+              {position.contracts > 0 ? "long" : "short"} {Math.abs(position.contracts).toFixed(2)} @ {fmt(position.avg_price)}{" "}
               <span className={position.upnl_usdc >= 0 ? "green" : "vermilion"}>
                 {position.upnl_usdc >= 0 ? "+" : ""}
                 {position.upnl_usdc.toFixed(4)} USDC

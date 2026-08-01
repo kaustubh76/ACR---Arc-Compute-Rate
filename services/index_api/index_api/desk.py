@@ -37,6 +37,14 @@ TRADER_HEADROOM = 120
 #: The taker's per-trade clamp (contracts). Small by design — the desk is a
 #: hands-on demo, not a venue for size.
 MAX_QTY = 2.0
+#: Only ever quote/spend this fraction of true margin capacity: the mark moves
+#: between the quote and the fill, and a revert costs the reader a PIN ceremony.
+MARGIN_SAFETY = 0.90
+#: Below this the position is dust — refuse rather than mint a doomed challenge.
+MIN_QTY = 0.05
+#: Held back from the collateral post to cover that tx's own gas when the SCA
+#: turns out NOT to be Gas Station-sponsored (on Arc, gas is USDC).
+GAS_RESERVE_USDC = 0.01
 USDC_PREDEPLOY = "0x3600000000000000000000000000000000000000"
 
 
@@ -195,6 +203,32 @@ class FaucetLedger:
         with self._lock:
             self._dripped.pop(address.lower(), None)
 
+    def record_tx(self, address: str, tx: str) -> None:
+        """Append the confirmed drip's tx hash — the claim line is written before
+        the transfer (so a crash can't be farmed), this line is the receipt."""
+        if not self._log_path:
+            return
+        try:
+            p = Path(self._log_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with p.open("a") as f:
+                f.write(
+                    json.dumps({"address": address.lower(), "at": time.time(), "tx": tx}) + "\n"
+                )
+        except Exception as exc:  # pragma: no cover - disk hiccup
+            log.warning("faucet ledger receipt append failed: %s", exc)
+
+    def status(self, address: str) -> dict:
+        """What the UI needs to narrate the drip: claimed? confirmed? which tx?"""
+        a = address.lower()
+        with self._lock:
+            claimed = a in self._dripped
+        return {"claimed": claimed, "tx": _drip_tx.get(a), "spent": self.spent()}
+
+    def spent(self) -> int:
+        with self._lock:
+            return len(self._dripped)
+
 
 _ledger: FaucetLedger | None = None
 
@@ -206,39 +240,58 @@ def get_ledger() -> FaucetLedger:
     return _ledger
 
 
-def drip_stake(address: str) -> str:
-    """Send the 0.5 USDC stake from the custody wallet (the SAME
-    CircleWalletSigner path the prod poster uses). Returns the tx hash."""
+#: Confirmed drip hashes by address — the receipt the UI/evidence script reads
+#: back (the transfer itself confirms long after the HTTP request returns).
+_drip_tx: dict[str, str] = {}
+
+
+def _send_stake(address: str) -> str:
+    """The custody-wallet transfer itself (the SAME CircleWalletSigner path the
+    prod poster uses). Blocks on Circle's confirm poll — callers run it off the
+    request thread. Returns the tx hash."""
+    from acr_oracle_client.signer import CircleWalletSigner
+
+    s = get_settings()
+    signer = CircleWalletSigner(
+        wallet_id=s.circle_wallet_id,
+        api_key=s.circle_api_key,
+        entity_secret=s.circle_entity_secret,
+        base_url=s.circle_base_url,
+    )
+    amount = int(FAUCET_USDC * 1_000_000)
+    calldata = (
+        "0xa9059cbb"
+        + address.lower().replace("0x", "").rjust(64, "0")
+        + hex(amount)[2:].rjust(64, "0")
+    )
+    return signer.send_transaction(None, {"to": USDC_PREDEPLOY, "data": calldata})
+
+
+def drip_stake(address: str) -> dict:
+    """Claim a drip slot and start the 0.5 USDC transfer — **without waiting for
+    it**. Circle's confirm poll runs up to 120s; the browser's proxy hop gives up
+    at 20s, so a synchronous drip could only ever time out (burning the address's
+    one slot on a transfer that then succeeded). The slot is reserved on this
+    thread — the cap stays honest — and the transfer confirms on a daemon thread
+    that records the hash or frees the slot. The UI polls its wallet balance."""
     if not (address.startswith("0x") and len(address) == 42):
         raise DeskError(400, "not an address")
     ledger = get_ledger()
     ledger.claim(address)
-    try:
-        from acr_oracle_client.signer import CircleWalletSigner
 
-        s = get_settings()
-        signer = CircleWalletSigner(
-            wallet_id=s.circle_wallet_id,
-            api_key=s.circle_api_key,
-            entity_secret=s.circle_entity_secret,
-            base_url=s.circle_base_url,
-        )
-        amount = int(FAUCET_USDC * 1_000_000)
-        calldata = (
-            "0xa9059cbb"
-            + address.lower().replace("0x", "").rjust(64, "0")
-            + hex(amount)[2:].rjust(64, "0")
-        )
-        tx = signer.send_transaction(None, {"to": USDC_PREDEPLOY, "data": calldata})
+    def _confirm() -> None:
+        try:
+            tx = _send_stake(address)
+        except Exception as exc:
+            ledger.release(address)
+            log.warning("desk faucet transfer failed for %s: %s", address, exc)
+            return
+        _drip_tx[address.lower()] = tx
+        ledger.record_tx(address, tx)
         log.info("desk faucet: %.2f USDC -> %s (%s)", FAUCET_USDC, address, tx)
-        return tx
-    except DeskError:
-        ledger.release(address)
-        raise
-    except Exception as exc:
-        ledger.release(address)
-        log.warning("desk faucet transfer failed for %s: %s", address, exc)
-        raise DeskError(502, "stake transfer failed — try again") from exc
+
+    threading.Thread(target=_confirm, name="desk-faucet", daemon=True).start()
+    return {"state": "pending", "amount_usdc": FAUCET_USDC}
 
 
 def _live_series(index_id: str) -> dict:
@@ -256,8 +309,184 @@ def _live_series(index_id: str) -> dict:
     return desk
 
 
+def feasible_qty(
+    mark: float,
+    multiplier: int,
+    margin_bps: int,
+    taker_collateral: float,
+    taker_contracts: float,
+    maker_collateral: float,
+    maker_contracts: float,
+) -> tuple[float, float]:
+    """``(max_buy, max_sell)`` in contracts — the largest trade each way that
+    clears ``ACRFutures.trade``'s BOTH margin checks.
+
+    The contract requires, post-fill, ``collateral >= |contracts|·mark·mult·
+    MARGIN_BPS`` for the taker *and* the auto-mirrored maker. A buy of ``q``
+    takes the taker to ``t+q`` and the maker to ``m-q``; a sell mirrors it. So
+    each side contributes a cap and the tighter one wins — quoted at
+    ``MARGIN_SAFETY`` so a mark tick between quote and fill can't revert a
+    trade the reader already authorized with their PIN.
+    """
+    per_contract = mark * multiplier * (margin_bps / 10_000)
+    if per_contract <= 0:
+        return (0.0, 0.0)
+    t_cap = MARGIN_SAFETY * taker_collateral / per_contract
+    m_cap = MARGIN_SAFETY * maker_collateral / per_contract
+    max_buy = min(t_cap - taker_contracts, m_cap + maker_contracts)
+    max_sell = min(t_cap + taker_contracts, m_cap - maker_contracts)
+    clamp = lambda x: round(max(0.0, min(MAX_QTY, x)), 2)  # noqa: E731
+    return (clamp(max_buy), clamp(max_sell))
+
+
+#: Per-wallet limits memo. Arc's public RPC throttles hard and the desk polls
+#: alongside the tape and the position read — without this, a reader who is
+#: simply *looking* at the desk can 429 themselves out of trading.
+_LIMITS_TTL_S = 8.0
+_MAKER_COLL_TTL_S = 60.0
+_limits_memo: dict[tuple[str, str], tuple[float, dict]] = {}
+_maker_coll_memo: dict[int, tuple[float, float]] = {}
+
+
+def _checksum(address: str) -> str:
+    """EIP-55 form. web3 refuses a lowercase address, and Circle only ever
+    returns lowercase — every address crossing that boundary needs this."""
+    try:
+        from eth_utils import to_checksum_address
+
+        return to_checksum_address(address)
+    except Exception:
+        return address
+
+
+def _maker_collateral(client, sid: int, maker: str) -> float | None:
+    """The maker's posted collateral — it only moves when the operator tops the
+    book up, so a minute-old value is plenty and saves an RPC call per quote."""
+    hit = _maker_coll_memo.get(sid)
+    if hit and time.monotonic() - hit[0] < _MAKER_COLL_TTL_S:
+        return hit[1]
+    val = client.collateral_of(sid, maker)
+    if val is not None:
+        _maker_coll_memo[sid] = (time.monotonic(), val)
+    return val
+
+
+def desk_limits(address: str, index_id: str) -> dict:
+    """What this wallet can actually trade right now on ``index_id``: the live
+    mark plus the per-direction size caps. The UI offers exactly these, so the
+    reader never PIN-authorizes a trade the contract will revert."""
+    if not (address.startswith("0x") and len(address) == 42):
+        raise DeskError(400, "not an address")
+    key = (address.lower(), index_id)
+    hit = _limits_memo.get(key)
+    if hit and time.monotonic() - hit[0] < _LIMITS_TTL_S:
+        return hit[1]
+
+    desk = _live_series(index_id)
+    from .onchain import get_futures
+
+    client = get_futures()._client
+    sid, mult, maker = desk["series_id"], desk["multiplier"], desk["maker"]
+    mark = _live_mark(index_id)
+    # Circle hands back lowercase addresses; web3 rejects a non-checksum address
+    # outright, and the client swallows that as "offline" — which reads as a
+    # throttled venue when it is really a formatting mismatch.
+    trader = _checksum(address)
+    taker_pos = client.position_of(sid, trader) or {"contracts": 0.0}
+    taker_coll = client.collateral_of(sid, trader)
+    maker_coll = _maker_collateral(client, sid, _checksum(maker))
+    if taker_coll is None or maker_coll is None:
+        raise DeskError(503, "the venue is not reading right now — try again")
+    max_buy, max_sell = feasible_qty(
+        mark,
+        mult,
+        _margin_bps(),
+        taker_coll,
+        taker_pos["contracts"],
+        maker_coll,
+        desk.get("maker_inventory", 0.0),
+    )
+    out = {
+        "index_id": index_id,
+        "series_id": sid,
+        "mark": mark,
+        "collateral_usdc": taker_coll,
+        "contracts": taker_pos["contracts"],
+        "max_buy": max_buy,
+        "max_sell": max_sell,
+    }
+    _limits_memo[key] = (time.monotonic(), out)
+    return out
+
+
+def _live_mark(index_id: str) -> float:
+    """The oracle mark ``trade()`` will margin against (it reverts "no mark" at
+    zero, so a missing print is a desk-level 503, not a failed PIN ceremony).
+
+    Reads the reader's CACHED sweep, not a fresh single-index call: Arc's RPC
+    throttles hard, ``read_latest`` swallows a 429 as None, and a desk that
+    503s on a throttle would strand a reader who has already posted collateral.
+    The sweep is the same value the terminal is showing anyway."""
+    from .onchain import get_reader
+
+    reader = get_reader()
+    print_ = reader.read_all().get(index_id) or reader.read(index_id)
+    if not print_ or not print_.get("value"):
+        raise DeskError(503, f"no live mark for {index_id}")
+    return float(print_["value"])
+
+
+_margin_memo: int | None = None
+_MARGIN_ABI = [
+    {
+        "type": "function",
+        "name": "MARGIN_BPS",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint256"}],
+    }
+]
+
+
+def _margin_bps() -> int:
+    """The venue's initial-margin requirement — immutable on-chain, so read once.
+    Falls back to the deployed 2000bps if the RPC is throttled."""
+    global _margin_memo
+    if _margin_memo is None:
+        try:
+            from .onchain import get_futures
+
+            client = get_futures()._client
+            w3 = client._connect()
+            c = w3.eth.contract(
+                address=w3.to_checksum_address(client.futures_address), abi=_MARGIN_ABI
+            )
+            _margin_memo = int(c.functions.MARGIN_BPS().call())
+        except Exception:
+            return 2000
+    return _margin_memo
+
+
+def _wallet_usdc(address: str) -> float | None:
+    """The wallet's USDC (native on Arc — the predeploy is its ERC-20 view)."""
+    try:
+        from .onchain import get_futures
+
+        w3 = get_futures()._client._connect()
+        if w3 is None:
+            return None
+        return w3.eth.get_balance(w3.to_checksum_address(address)) / 1e18
+    except Exception:
+        return None
+
+
 def build_challenge(
-    user_token: str, wallet_id: str, action: str, index_id: str, qty: float = 0.0
+    user_token: str,
+    wallet_id: str,
+    action: str,
+    index_id: str,
+    qty: float = 0.0,
+    address: str = "",
 ) -> dict:
     """Create the contractExecution challenge for one desk action. The
     abiFunctionSignature form keeps the request auditable (no raw calldata)."""
@@ -274,16 +503,39 @@ def build_challenge(
         )
     elif action == "collateral":
         desk = _live_series(index_id)
+        # Post the stake, but never more than the wallet holds: if Gas Station
+        # is NOT sponsoring this SCA, the approve already spent some of the drip
+        # as gas (USDC *is* Arc's gas token) and a full-stake postCollateral
+        # would revert inside transferFrom. Keep a sliver back for this tx's own
+        # gas in that case.
+        stake = FAUCET_USDC
+        bal = _wallet_usdc(address) if address else None
+        if bal is not None and bal < FAUCET_USDC:
+            stake = max(0.0, bal - GAS_RESERVE_USDC)
+        if stake <= 0:
+            raise DeskError(409, "this wallet has no stake to post yet")
         contract, sig, params = (
             venue,
             "postCollateral(uint256,uint256)",
-            [str(desk["series_id"]), str(int(FAUCET_USDC * 1_000_000))],
+            [str(desk["series_id"]), str(int(stake * 1_000_000))],
         )
     elif action == "trade":
         desk = _live_series(index_id)
         q = max(-MAX_QTY, min(MAX_QTY, float(qty)))
         if q == 0:
-            raise DeskError(400, "qty must be non-zero (±1 or ±2)")
+            raise DeskError(400, "qty must be non-zero")
+        if address:
+            # Clamp to what BOTH margin checks allow, so the reader's PIN never
+            # authorizes a trade the contract will revert ("taker margin").
+            lim = desk_limits(address, index_id)
+            cap = lim["max_buy"] if q > 0 else lim["max_sell"]
+            if cap < MIN_QTY:
+                raise DeskError(
+                    409,
+                    f"no margin for a {'buy' if q > 0 else 'sell'} right now — "
+                    f"post collateral or trade the other way",
+                )
+            q = min(q, cap) if q > 0 else max(q, -cap)
         contract, sig, params = (
             venue,
             "trade(uint256,int256)",
@@ -291,6 +543,11 @@ def build_challenge(
         )
     else:
         raise DeskError(400, f"unknown action {action!r}")
+
+    # This action is about to change the wallet's on-chain state, so the cached
+    # quote is now wrong — drop it rather than serve a stale cap for 8s.
+    if address and action in ("collateral", "trade"):
+        _limits_memo.pop((address.lower(), index_id), None)
 
     ch = _circle(
         "POST",

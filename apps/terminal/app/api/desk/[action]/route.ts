@@ -73,13 +73,29 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
         body: JSON.stringify({ address }),
       });
     }
+    case "limits": {
+      const { address, index_id } = body as { address?: unknown; index_id?: unknown };
+      if (
+        typeof address !== "string" ||
+        !ADDR_RE.test(address) ||
+        typeof index_id !== "string" ||
+        !(INDICES as readonly string[]).includes(index_id)
+      ) {
+        return NextResponse.json({ detail: "bad limits request" }, { status: 400 });
+      }
+      return forward("/desk/limits", {
+        method: "POST",
+        body: JSON.stringify({ address, index_id }),
+      });
+    }
     case "challenge": {
-      const { user_token, wallet_id, action, index_id, qty } = body as {
+      const { user_token, wallet_id, action, index_id, qty, address } = body as {
         user_token?: unknown;
         wallet_id?: unknown;
         action?: unknown;
         index_id?: unknown;
         qty?: unknown;
+        address?: unknown;
       };
       if (
         typeof user_token !== "string" ||
@@ -89,14 +105,22 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
         typeof action !== "string" ||
         !ACTIONS.has(action) ||
         typeof index_id !== "string" ||
-        !(INDICES as readonly string[]).includes(index_id)
+        !(INDICES as readonly string[]).includes(index_id) ||
+        (address !== undefined && (typeof address !== "string" || !ADDR_RE.test(address)))
       ) {
         return NextResponse.json({ detail: "bad challenge request" }, { status: 400 });
       }
       const q = typeof qty === "number" && Number.isFinite(qty) ? qty : 0;
       return forward("/desk/challenge", {
         method: "POST",
-        body: JSON.stringify({ user_token, wallet_id, action, index_id, qty: q }),
+        body: JSON.stringify({
+          user_token,
+          wallet_id,
+          action,
+          index_id,
+          qty: q,
+          address: address ?? "",
+        }),
       });
     }
     default:

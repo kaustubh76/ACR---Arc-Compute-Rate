@@ -698,6 +698,12 @@ class DeskChallengeRequest(BaseModel):
     action: str  # approve | collateral | trade
     index_id: str = "ACR-GPU"
     qty: float = 0.0
+    address: str = ""  # the SCA — lets the server size the action to live margin
+
+
+class DeskLimitsRequest(BaseModel):
+    address: str
+    index_id: str = "ACR-GPU"
 
 
 def _desk_call(fn, *args):
@@ -732,23 +738,34 @@ def desk_wallet(req: DeskWalletRequest) -> dict:
     w = _desk_call(desk.wallet_of, req.user_token)
     if w is None:
         return {"wallet": None, "usdc": None}
-    balance = None
-    try:  # native == ERC-20 on Arc; a throttled read degrades to null
-        client = get_futures()._client._connect()
-        if client is not None:
-            balance = client.eth.get_balance(client.to_checksum_address(w["address"])) / 1e18
-    except Exception:
-        balance = None
-    return {"wallet": w, "usdc": balance}
+    # USDC *is* Arc's native token — the 0x3600… predeploy is its ERC-20 view of
+    # the same balance, so the native read (18-dec) is the 6-dec ERC-20 amount.
+    # A throttled read degrades to null rather than a failed desk step.
+    return {
+        "wallet": w,
+        "usdc": desk._wallet_usdc(w["address"]),
+        "faucet": desk.get_ledger().status(w["address"]),
+    }
 
 
 @app.post("/desk/faucet")
 def desk_faucet(req: DeskFaucetRequest) -> dict:
-    """Drip the one-per-wallet 0.5 USDC stake from the custody wallet."""
+    """Claim + start the one-per-wallet 0.5 USDC stake from the custody wallet.
+    Returns as soon as the slot is reserved — Circle's confirm poll outlives any
+    sane HTTP timeout, so the drip lands on a background thread and the client
+    watches its wallet balance."""
     from . import desk
 
-    tx = _desk_call(desk.drip_stake, req.address)
-    return {"tx": tx, "amount_usdc": desk.FAUCET_USDC}
+    return _desk_call(desk.drip_stake, req.address)
+
+
+@app.post("/desk/limits")
+def desk_limits(req: DeskLimitsRequest) -> dict:
+    """The live per-direction size caps for this wallet — what the desk may
+    offer without minting a challenge the contract would revert."""
+    from . import desk
+
+    return _desk_call(desk.desk_limits, req.address, req.index_id)
 
 
 @app.post("/desk/challenge")
@@ -758,7 +775,13 @@ def desk_challenge(req: DeskChallengeRequest) -> dict:
     from . import desk
 
     return _desk_call(
-        desk.build_challenge, req.user_token, req.wallet_id, req.action, req.index_id, req.qty
+        desk.build_challenge,
+        req.user_token,
+        req.wallet_id,
+        req.action,
+        req.index_id,
+        req.qty,
+        req.address,
     )
 
 
