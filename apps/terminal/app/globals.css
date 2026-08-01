@@ -1415,6 +1415,8 @@ details.disclosure .disclosure-body {
 }
 .arc-horizon .sun {
   opacity: 0.35;
+  transform-box: view-box;
+  transform-origin: 600px 78.72px; /* the sun point on the horizon */
 }
 .arc-horizon.breathe .sun {
   animation: horizon-breathe 8s ease-in-out infinite;
@@ -1423,9 +1425,37 @@ details.disclosure .disclosure-body {
   0%,
   100% {
     opacity: 0.35;
+    transform: scale(1);
   }
   50% {
     opacity: 0.22;
+    transform: scale(1.06);
+  }
+}
+/* light-waves: each ring scales out from the sun and fades as it travels;
+   -3s stagger on a 9s loop keeps a wave always mid-flight */
+.arc-horizon .ring {
+  transform-box: view-box;
+  transform-origin: 600px 78.72px;
+}
+.arc-horizon.breathe .ring {
+  animation: horizon-ripple 9s linear infinite;
+  animation-delay: calc(var(--i, 0) * -3s);
+}
+@keyframes horizon-ripple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
   }
 }
 .arc-horizon-mini {
@@ -1784,8 +1814,14 @@ details.disclosure .disclosure-body {
   .toast,
   .chip .dot.breathe,
   .arc-horizon.breathe .sun,
+  .arc-horizon.breathe .ring,
   .skel::after {
     animation: none !important;
+  }
+  /* dawn band stills to exactly the static composition */
+  .arc-horizon .sun,
+  .arc-horizon .ring {
+    transform: none !important;
   }
   /* funky reveals off — show the fully-drawn end state immediately */
   .defense-bar .fill-vwap,

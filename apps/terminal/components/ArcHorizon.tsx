@@ -2,8 +2,9 @@
 
 /* The signature fluid moment: Arc's dawn — deep-space navy rising into a
    gold horizon — as a live surface. Pure CSS/SVG, rendered as the colophon's
-   footer band. Idle it breathes on an 8s cycle; everything stills under
-   prefers-reduced-motion (CSS), leaving the static gradient. */
+   footer band. Idle, light-waves radiate outward from the sun on a staggered
+   9s loop while the sun itself breathes; everything stills under
+   prefers-reduced-motion (CSS), leaving the static composition. */
 export function ArcHorizon({ breathe = true }: { breathe?: boolean }) {
   const H = 96;
   const horizonY = H * 0.82;
@@ -30,9 +31,9 @@ export function ArcHorizon({ breathe = true }: { breathe?: boolean }) {
         {/* the rising sun */}
         <circle className="sun" cx={cx} cy={horizonY} r={60} fill="url(#ah-sun)" />
 
-        {/* concentric arcs of light over the horizon */}
-        {radii.map((r) => (
-          <g key={r}>
+        {/* concentric arcs of light, radiating out from the sun */}
+        {radii.map((r, i) => (
+          <g key={r} className="ring" style={{ ["--i" as string]: i }}>
             <path
               d={`M ${cx - r} ${horizonY} A ${r} ${r} 0 0 1 ${cx + r} ${horizonY}`}
               fill="none"
