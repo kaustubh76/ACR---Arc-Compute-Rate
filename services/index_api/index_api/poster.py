@@ -31,6 +31,21 @@ class OraclePoster:
         #: The Terminal's chain panel reads this via ``build_terminal_payload``.
         self.last_posts: dict[str, dict] = {}
 
+    def rehydrate(self, posts: list[dict]) -> int:
+        """Seed provenance from on-chain ``PricePosted`` events (chronological,
+        as ``OracleClient.recent_posts`` returns them) after a cold start —
+        ``last_posts`` is in-memory, so without this the Terminal's provenance
+        panel says "awaiting first live post" until the NEXT hourly post even
+        though real posts sit on chain. Never overwrites live state."""
+        if self.last_posts or not posts:
+            return 0
+        for ev in posts:  # chronological — the newest per index wins
+            self.last_posts[ev["index_id"]] = {
+                "tx": ev["tx"], "block": ev["block"], "at_wall": ev["at_wall"],
+            }
+        self.posts = max(self.posts, len(posts))
+        return len(posts)
+
     def post_latest(self) -> list[str]:
         """Post the store's current prints. Per-index try/except so one index's
         revert doesn't abort the rest. Returns tx refs / offline / error markers."""

@@ -10,13 +10,19 @@ The estimator therefore runs identically whether the tape is simulated or live.
 EIP-3009; the ``AuthorizationUsed(address authorizer, bytes32 nonce)`` event
 marks an authorization but carries *no amount, size, or service*. The USDC amount
 lives in the ERC-20 ``Transfer(from, to, value)`` event; ``size`` and ``service``
-are **not observable on-chain**. So decoding is fully config-driven with a
-documented ``Transfer`` default: ``buyer=from``, ``seller=to``, ``notional=value``,
-and ``service`` from a configurable resolver (default INFERENCE), with ``size``
-derived so ``price`` equals the index reference level — it recovers the notional
-exactly and fabricates no price signal. The *authoritative* ACR tape is the
-facilitator's own settlement log (only ACR knows each payment's service); this
-on-chain decoder is the fallback/audit path.
+are **not observable on-chain**. Two decode modes:
+
+* **Legacy audit decode** (default): ``buyer=from``, ``seller=to``,
+  ``notional=value``, ``service`` from a configurable resolver (default
+  INFERENCE), ``size`` derived so ``price`` equals the index reference level —
+  recovers the notional exactly and fabricates no price signal.
+* **Attested-market decode** (``ACR_ARC_ATTESTED_ONLY=1``): the market's
+  convention is that one settlement covers a fixed, published quantity per
+  index (``IndexSpec.arc_unit_qty``), so the transfer amount IS the price
+  signal: ``price = notional / arc_unit_qty``, ``size = arc_unit_qty``. Each
+  event's service resolves from the seller's on-chain EIP-712 attestation, and
+  events from non-attested sellers are dropped — attestation earns index
+  inclusion (the registry flywheel, made literal).
 """
 
 from __future__ import annotations
@@ -100,6 +106,7 @@ class ArcSource(TapeSource):
         field_map: dict[str, str] | None = None,
         service_resolver: Callable[[dict], Service] | None = None,
         lookback_blocks: int | None = None,
+        attested_only: bool | None = None,
     ) -> None:
         settings = get_settings()
         self.rpc_url = rpc_url or settings.arc_rpc_url
@@ -120,6 +127,14 @@ class ArcSource(TapeSource):
         self.event_name = self.event_abi["name"]
         self.field_map = field_map or DEFAULT_FIELD_MAP
         self.service_resolver = service_resolver or _default_service_resolver
+        self.attested_only = (
+            attested_only
+            if attested_only is not None
+            else bool(getattr(settings, "arc_attested_only", 0))
+        )
+        #: seller (lowercased) → attested service; built per stream() in
+        #: attested-market mode so a mid-run registry read stays fresh.
+        self._service_map: dict[str, Service] | None = None
         self._w3 = None
         self._block_time_cache: dict[int, int] = {}
 
@@ -157,11 +172,22 @@ class ArcSource(TapeSource):
             notional = int(a[self.field_map["value"]]) / (10**USDC_DECIMALS)
             if notional <= 0:
                 return None
-            service = self.service_resolver(dict(a))
-            # size derived so price == the index reference level (recovers notional
-            # exactly; no fabricated price signal — see module docstring).
-            ref = index_for_service(service).reference_level
-            size = notional / ref
+            if self._service_map is not None:
+                # Attested-market decode: only attested sellers are indexed;
+                # the seller's attestation names the service, and the published
+                # per-index quantity convention turns the amount into a PRICE.
+                service = self._service_map.get(seller.lower())
+                if service is None:
+                    return None
+                qty = index_for_service(service).arc_unit_qty
+                price = notional / qty
+                size = qty
+            else:
+                service = self.service_resolver(dict(a))
+                # size derived so price == the index reference level (recovers
+                # notional exactly; no fabricated price signal — module docstring).
+                price = index_for_service(service).reference_level
+                size = notional / price
             txh = log.get("transactionHash")
             txh = txh.hex() if hasattr(txh, "hex") else str(txh)
             return TapeEvent(
@@ -170,7 +196,7 @@ class ArcSource(TapeSource):
                 service=service,
                 seller=seller,
                 buyer=buyer,
-                price=ref,
+                price=price,
                 size=size,
             )
         except Exception as exc:  # pragma: no cover - decode tolerant
@@ -237,7 +263,21 @@ class ArcSource(TapeSource):
                     if "429" in msg or "too many" in msg or "rate" in msg:
                         time.sleep(1.5 * (attempt + 1))
                         continue
-                    if "413" in msg or "too large" in msg or "entity too large" in msg:
+                    # "The range is too wide" arrives in more than one dialect:
+                    # an HTTP 413, or a JSON-RPC -32602 whose message names a
+                    # result cap ("query exceeds max results 20000, retry with
+                    # the range X-Y"). Both mean shrink, and treating the second
+                    # as a hard failure returned an empty tape on a chain that
+                    # was answering perfectly well.
+                    if (
+                        "413" in msg
+                        or "too large" in msg
+                        or "entity too large" in msg
+                        or "-32602" in msg
+                        or "exceeds max results" in msg
+                        or "query returned more than" in msg
+                        or "log response size exceeded" in msg
+                    ):
                         break  # shrink the range
                     log.warning("ArcSource: log fetch failed (%s); empty tape", exc)
                     return []
@@ -251,6 +291,14 @@ class ArcSource(TapeSource):
         if not self._connected() or not self.x402_address:
             log.info("ArcSource: no live connection/address; empty tape")
             return
+        if self.attested_only:
+            atts = self.attestations()
+            self._service_map = {a.seller.lower(): a.service for a in atts}
+            if not self._service_map:
+                log.warning("ArcSource: attested-only mode with empty registry; empty tape")
+                return
+        else:
+            self._service_map = None
         w3 = self._web3()
         try:
             contract = w3.eth.contract(

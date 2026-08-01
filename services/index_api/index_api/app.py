@@ -19,6 +19,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -26,7 +28,8 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from .onchain import get_reader
+from . import ratelimit
+from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
 from .x402 import (
@@ -76,6 +79,17 @@ def reset_poster() -> None:
     _poster = None
 
 
+# /terminal/data payload cache. The background loop rebuilds this off the event
+# loop after each warm/refresh; the request handler serves this one shared dict
+# instead of running the heavy build (sim + attack_snapshot + 3 sequential RPC
+# reads) per request. On the 512MB free tier, N concurrent cold requests each
+# building would blow past memory and OOM-kill → restart → death-spiral; serving
+# a cached dict (with a single-flight lock for the pre-warm window) keeps the
+# single free instance alive. See _rebuild_terminal_cache / terminal_data.
+_terminal_payload_cache: dict | None = None
+_terminal_payload_lock = threading.Lock()
+
+
 def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, now: float) -> bool:
     """True when the freshest on-chain print is missing or older than one refresh
     cycle. A free-tier host sleeps through its hourly slot and every wake restarts
@@ -85,6 +99,44 @@ def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, 
         return True
     newest = max((v.get("posted_at", 0) or 0 for v in onchain.values()), default=0)
     return (now - newest) > refresh_seconds
+
+
+#: How often to re-read the chain into the request-path caches. This is a
+#: SEPARATE cadence from ``refresh_seconds`` on purpose: that timer also posts
+#: an oracle print, which spends real gas, so production runs it hourly — while
+#: the read caches (``READ_ALL_TTL_S`` / ``FUTURES_TTL_S``) live 90 seconds.
+#: Tying the warm to the print meant the caches were cold for ~58 minutes of
+#: every hour and the next visitor paid a full sequential chain sweep on the
+#: request path: a measured 55s for /desk/limits, which is past the terminal
+#: proxy's budget, so the desk told a reader it was down while it was up.
+#: Reading costs nothing but RPC, so warm it on its own short timer.
+CHAIN_WARM_SECONDS = float(os.environ.get("ACR_CHAIN_WARM_SECONDS", "60"))
+
+
+async def _warm_chain(stop: asyncio.Event) -> None:
+    """Keep the on-chain read caches warm so no reader ever pays for a cold one.
+
+    Deliberately does NOT use ``use_cache=False`` blindly on a dead chain: every
+    call is already exception-tolerant and returns the last good value, so a
+    throttled Arc simply leaves the previous warm entry in place.
+    """
+    reader, futures = get_reader(), get_futures()
+    if not (reader.configured or futures.configured):
+        return
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=CHAIN_WARM_SECONDS)
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        try:
+            if reader.configured:
+                await asyncio.to_thread(reader.read_all, use_cache=False)
+            if futures.configured:
+                await asyncio.to_thread(futures.read_all, use_cache=False)
+        except Exception:  # pragma: no cover - keep the loop alive
+            log.exception("chain cache warm failed")
 
 
 async def _background(stop: asyncio.Event) -> None:
@@ -99,6 +151,7 @@ async def _background(stop: asyncio.Event) -> None:
     except Exception:  # pragma: no cover - defensive
         log.exception("attack snapshot warm-up failed")
     reader = get_reader()  # construct at startup so oracle env is read now
+    futures = get_futures()  # on-chain futures desk (inventory-skewed curve)
     poster = OraclePoster(store)
     set_poster(poster)  # reachable for /terminal/data + /health provenance
     # Warm the on-chain read cache off the request path so /terminal/data never
@@ -124,6 +177,16 @@ async def _background(stop: asyncio.Event) -> None:
                 log.info("posted overdue print on wake")
             except Exception:  # pragma: no cover - defensive
                 log.exception("post-on-wake failed (timer loop continues)")
+    # Re-hydrate poster provenance from the PricePosted log after a cold start
+    # (last_posts is in-memory; a slept-through Render box would otherwise show
+    # "awaiting first live post" until the next hourly slot).
+    if reader.configured and not poster.last_posts:
+        try:
+            n = poster.rehydrate(await asyncio.to_thread(poster.client.recent_posts))
+            if n:
+                log.info("re-hydrated poster provenance from %d on-chain posts", n)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("poster provenance re-hydrate failed")
     # Warm the on-chain attestation summary too (catalog reads it) off-request.
     try:
         from .marketplace import warm_attestation_summary
@@ -131,6 +194,19 @@ async def _background(stop: asyncio.Event) -> None:
         await asyncio.to_thread(warm_attestation_summary)
     except Exception:  # pragma: no cover - defensive
         log.exception("attestation summary warm-up failed")
+    # Seed the term-structure skew from the live on-chain maker book (if any).
+    if futures.configured:
+        try:
+            inv = await asyncio.to_thread(futures.maker_inventory, use_cache=False)
+            store.set_maker_inventory(inv)
+        except Exception:  # pragma: no cover - defensive
+            log.exception("futures inventory warm-up failed")
+    # Prime the /terminal/data cache off-loop so the first visitor is served the
+    # shared dict, never a cold synchronous build (the free-tier OOM guard).
+    try:
+        await asyncio.to_thread(_rebuild_terminal_cache)
+    except Exception:  # pragma: no cover - defensive
+        log.exception("terminal payload warm-up failed")
     while not stop.is_set():
         try:
             await asyncio.wait_for(stop.wait(), timeout=settings.refresh_seconds)
@@ -147,6 +223,12 @@ async def _background(stop: asyncio.Event) -> None:
                 from .marketplace import warm_attestation_summary
 
                 await asyncio.to_thread(warm_attestation_summary)
+            if futures.configured:  # refresh the maker book so the curve skew tracks it
+                inv = await asyncio.to_thread(futures.maker_inventory, use_cache=False)
+                store.set_maker_inventory(inv)
+            # Rebuild the /terminal/data cache off-loop so the served snapshot
+            # reflects the fresh prints + on-chain reads (never on the request path).
+            await asyncio.to_thread(_rebuild_terminal_cache)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("refresh/post cycle failed")
 
@@ -154,13 +236,14 @@ async def _background(stop: asyncio.Event) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     stop = asyncio.Event()
-    task = asyncio.create_task(_background(stop))
+    tasks = [asyncio.create_task(_background(stop)), asyncio.create_task(_warm_chain(stop))]
     try:
         yield
     finally:
         stop.set()
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 app = FastAPI(title="ACR — The Arc Compute Rate", version="0.1.0", lifespan=lifespan)
@@ -341,9 +424,38 @@ def webhooks_recent() -> dict:
     }
 
 
+def provenance() -> dict:
+    """Where the numbers in a paid response actually come from.
+
+    An agent pays USDC for these endpoints and then acts on the answer, so it is
+    entitled to know that the estimator — which is real — currently runs over a
+    calibrated SIMULATED tape rather than observed settlement flow. That fact was
+    visible in `/health` and in the Terminal's chrome, but not in the machine
+    responses themselves, which is precisely where it matters most.
+
+    ``tape`` is the honest tier: "sim" (synthetic flow), "arc" (real Arc USDC
+    settlements) or "receipts" (this venue's own x402 ledger). ``estimator`` and
+    the on-chain print are real in every tier.
+    """
+    s = get_settings()
+    tape = (s.tape_source or "sim").lower()
+    return {
+        "tape": tape,
+        "simulated_tape": tape == "sim",
+        "estimator": "real",
+        "chain": "arc-testnet" if s.oracle_address else None,
+        "note": (
+            "prices are estimated from a calibrated simulated tape; the estimator, "
+            "the signature and the on-chain print are real"
+            if tape == "sim"
+            else f"prices are estimated from the {tape} tape"
+        ),
+    }
+
+
 @app.get("/prints")
 def prints(_: PaymentReceipt = Depends(require_payment)) -> dict:
-    return store.snapshot()
+    return {**store.snapshot(), "provenance": provenance()}
 
 
 @app.get("/prints/{index_id}")
@@ -363,6 +475,7 @@ def print_one(
         "cost_to_move_1pct": d.bound.cost_to_move_1pct,
         "cleaned_pct": 100 * d.cleaning.removed_fraction,
         "robustness": store.robustness(index_id),
+        "provenance": provenance(),
     }
 
 
@@ -371,7 +484,7 @@ def curve(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "curve": store.curve(index_id)}
+    return {"index_id": index_id, "curve": store.curve(index_id), "provenance": provenance()}
 
 
 @app.get("/vol/{index_id}")
@@ -379,7 +492,8 @@ def vol(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "annualized_vol": store.vol(index_id)}
+    return {"index_id": index_id, "annualized_vol": store.vol(index_id),
+            "provenance": provenance()}
 
 
 @app.get("/seller-scores/{index_id}")
@@ -387,7 +501,8 @@ def seller_scores(
     index_id: str = Depends(require_known_index),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
-    return {"index_id": index_id, "sellers": store.seller_scores(index_id)}
+    return {"index_id": index_id, "sellers": store.seller_scores(index_id),
+            "provenance": provenance()}
 
 
 @app.get("/marketplace/catalog")
@@ -425,6 +540,32 @@ def onchain_print(index_id: str) -> dict:
     return {"source": "onchain", "oracle": reader.oracle_address, **r}
 
 
+@app.get("/futures")
+def futures_roster() -> dict:
+    """The whole on-chain futures venue for the Terminal's live desk + trade tape:
+    the venue address, per-index desks, and recent fills (newest-first). Ungated;
+    empty (venue null) when no ACRFutures is configured. This is the fast endpoint
+    the desk polls — the heavy /terminal/data carries only the aggregate desks."""
+    return get_futures().roster()
+
+
+@app.get("/futures/{index_id}")
+def futures_desk(index_id: str = Depends(require_known_index)) -> dict:
+    """The live on-chain futures desk for an index — the maker's inventory,
+    mark-to-oracle PnL, and settlement status, read from ``ACRFutures``.
+
+    Ungated (a public read of chain state). 503 if no futures venue is
+    configured; 404 if no series exists for this index yet.
+    """
+    futures = get_futures()
+    if not futures.configured:
+        raise HTTPException(status_code=503, detail="no futures venue configured (set ACR_FUTURES_ADDRESS)")
+    desk = futures.read_desk(index_id)
+    if desk is None:
+        raise HTTPException(status_code=404, detail=f"no futures series for {index_id}")
+    return {"source": "onchain", "futures": futures.futures_address, **desk}
+
+
 def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> dict:
     """The full /terminal/data payload. ``scripts/gen_snapshot.py`` builds the
     Terminal's bundled offline snapshot from this same function, so the two
@@ -443,6 +584,8 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             signer_addr = None
     store.ensure()
     onchain = reader.read_all()
+    futures = get_futures()
+    futures_desks = futures.read_all() if futures.configured else {}
     prints = {
         iid: {
             **store.latest[iid].model_dump(),
@@ -471,6 +614,9 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
         # Seller reliability for the human Registry view; the machine endpoint
         # /seller-scores/{id} stays x402-gated.
         "sellers": {iid: store.seller_scores(iid) for iid in store.latest},
+        # The on-chain futures desk per index (maker inventory, mark-to-oracle
+        # PnL, settlement) — empty {} when no ACRFutures venue is configured.
+        "futures": futures_desks,
         "attack": attack_snapshot(),
         "oracle": reader.oracle_address if reader.configured else None,
         # Network identity card — the frontend contract for every chain-aware
@@ -485,12 +631,32 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             "gateway_wallet": settings.x402_gateway_wallet,
             "oracle_address": settings.oracle_address or None,
             "registry_address": settings.registry_address or None,
+            "futures_address": settings.futures_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,
             "poster": {"posts": poster.posts, "last": poster.last_posts} if poster else None,
         },
     }
+
+
+def _build_payload_locked() -> dict:
+    """Build the /terminal/data payload + store it in the module cache. Heavy
+    (sim estimate + attack exhibit + on-chain reads). The caller MUST hold
+    ``_terminal_payload_lock`` so two heavy builds never run at once — the whole
+    point of the cache on a 512MB box."""
+    global _terminal_payload_cache
+    _terminal_payload_cache = build_terminal_payload(
+        store, get_reader(), poster=get_poster(), fac=get_facilitator()
+    )
+    return _terminal_payload_cache
+
+
+def _rebuild_terminal_cache() -> dict:
+    """Force-rebuild the cache (the background loop, after each warm/refresh) —
+    lock-guarded so it can never run concurrently with a cold request's build."""
+    with _terminal_payload_lock:
+        return _build_payload_locked()
 
 
 @app.get("/terminal/data")
@@ -500,8 +666,22 @@ def terminal_data() -> dict:
     The Terminal is the human view; the x402 gate applies to the machine API.
     Includes a live attack comparison so the 'Attack the Index' panel renders,
     and — when an oracle is configured — the on-chain print for provenance.
+
+    Served from a background-maintained cache: the request path never runs the
+    heavy build concurrently, so N simultaneous visitors on the 512MB free tier
+    can't OOM-spiral the box (a single shared dict, ~13KB, is returned instead).
     """
-    return build_terminal_payload(store, get_reader(), poster=get_poster(), fac=get_facilitator())
+    cached = _terminal_payload_cache
+    if cached is not None:
+        return cached
+    # Pre-warm window (before the background loop has built the cache): build once
+    # under the lock — concurrent cold requests AND the background loop all
+    # serialize here, so the box never runs parallel heavy builds. First waiter
+    # builds + caches; the rest return that dict.
+    with _terminal_payload_lock:
+        if _terminal_payload_cache is not None:
+            return _terminal_payload_cache
+        return _build_payload_locked()
 
 
 class AttackStartRequest(BaseModel):
@@ -572,6 +752,139 @@ async def demo_buyer_start(req: BuyerStartRequest | None = None) -> dict:
     _demo_tasks.add(task)
     task.add_done_callback(_demo_tasks.discard)
     return {"state": "running", "count": count, "payer": payer}
+
+
+# --- the Public Desk: user-controlled wallets trading ACRFutures -----------
+
+
+class DeskSessionRequest(BaseModel):
+    user_id: str
+
+
+class DeskFaucetRequest(BaseModel):
+    # No address: the destination is derived from the session token, so a
+    # caller cannot choose where the faucet sends money (see desk.drip_stake).
+    user_token: str
+
+
+class DeskChallengeRequest(BaseModel):
+    user_token: str
+    wallet_id: str
+    action: str  # approve | collateral | trade | withdraw
+    index_id: str = "ACR-GPU"
+    qty: float = 0.0
+    address: str = ""  # the SCA — lets the server size the action to live margin
+    series_id: int | None = None  # withdraw: which series to empty
+
+
+class DeskLimitsRequest(BaseModel):
+    address: str
+    index_id: str = "ACR-GPU"
+
+
+class DeskWithdrawableRequest(BaseModel):
+    address: str
+
+
+def _desk_call(fn, *args):
+    from .desk import DeskError
+
+    try:
+        return fn(*args)
+    except DeskError as e:
+        raise HTTPException(status_code=e.status, detail=e.detail) from e
+
+
+@app.post("/desk/session")
+def desk_session(req: DeskSessionRequest, request: Request) -> dict:
+    """Open (or resume) a Public Desk session: Circle user + 60-min token, a
+    PIN-setup challenge on first contact, the existing SCA wallet afterwards.
+    Ungated — the desk IS the demo; guardrails live in desk.py."""
+    ratelimit.check(request, "session", req.user_id)
+    from . import desk
+
+    return _desk_call(desk.open_session, req.user_id)
+
+
+class DeskWalletRequest(BaseModel):
+    user_token: str
+
+
+@app.post("/desk/wallet")
+def desk_wallet(req: DeskWalletRequest, request: Request) -> dict:
+    """The session's ARC-TESTNET wallet + its USDC stake (null pre-PIN).
+    POST so the session token stays out of URLs and access logs."""
+    ratelimit.check(request, "wallet", ratelimit.session_ident(req.user_token))
+    from . import desk
+
+    w = _desk_call(desk.wallet_of, req.user_token)
+    if w is None:
+        return {"wallet": None, "usdc": None}
+    # USDC *is* Arc's native token — the 0x3600… predeploy is its ERC-20 view of
+    # the same balance, so the native read (18-dec) is the 6-dec ERC-20 amount.
+    # A throttled read degrades to null rather than a failed desk step.
+    return {
+        "wallet": w,
+        "usdc": desk._wallet_usdc(w["address"]),
+        "faucet": desk.get_ledger().status(w["address"]),
+    }
+
+
+@app.post("/desk/faucet")
+def desk_faucet(req: DeskFaucetRequest, request: Request) -> dict:
+    """Claim + start the one-per-wallet 0.5 USDC stake from the custody wallet.
+    The destination is THIS SESSION'S wallet — never a caller-supplied address.
+    Returns as soon as the slot is reserved: Circle's confirm poll outlives any
+    sane HTTP timeout, so the drip lands on a background thread and the client
+    watches its wallet balance."""
+    # Per SESSION, not per source IP: every reader reaches this through the same
+    # Vercel proxy, so an IP-keyed faucet limit is a global one. The one-drip-
+    # per-address rule that actually protects the custody wallet lives in
+    # desk.FaucetLedger.claim, which this cannot weaken.
+    ratelimit.check(request, "faucet", ratelimit.session_ident(req.user_token))
+    from . import desk
+
+    return _desk_call(desk.drip_stake, req.user_token)
+
+
+@app.post("/desk/limits")
+def desk_limits(req: DeskLimitsRequest, request: Request) -> dict:
+    """The live per-direction size caps for this wallet — what the desk may
+    offer without minting a challenge the contract would revert."""
+    ratelimit.check(request, "limits", req.address)
+    from . import desk
+
+    return _desk_call(desk.desk_limits, req.address, req.index_id)
+
+
+@app.post("/desk/withdrawable")
+def desk_withdrawable(req: DeskWithdrawableRequest, request: Request) -> dict:
+    """What this wallet can take back out, across every series it holds
+    collateral in — including expired and settled ones, which is exactly where
+    a reader needs an exit and where the tradable-series gate refuses to look."""
+    ratelimit.check(request, "withdrawable", req.address)
+    from . import desk
+
+    return _desk_call(desk.withdrawable, req.address)
+
+
+@app.post("/desk/challenge")
+def desk_challenge(req: DeskChallengeRequest, request: Request) -> dict:
+    """Mint the contractExecution challenge for one desk action; the browser
+    SDK executes it under the user's PIN."""
+    ratelimit.check(request, "challenge", ratelimit.session_ident(req.user_token))
+    from . import desk
+
+    return _desk_call(
+        desk.build_challenge,
+        req.user_token,
+        req.wallet_id,
+        req.action,
+        req.index_id,
+        req.qty,
+        req.address,
+        req.series_id,
+    )
 
 
 @app.get("/demo/buyer/status")

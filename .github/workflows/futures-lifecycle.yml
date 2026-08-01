@@ -1,0 +1,64 @@
+name: futures-lifecycle
+
+# Keeps the futures venue ALIVE ACROSS EXPIRIES, which the heartbeat cannot do:
+# it only trades, so when a series expires every tick reverts and the book stops.
+#
+# Two idempotent steps, both no-ops on a healthy venue:
+#   1. settle  — cash-settle anything expired, which is what frees traders'
+#                collateral for withdrawal (positions go flat, so the margin
+#                requirement that pins a stake disappears).
+#   2. roll    — open a fresh series when the current one is running out.
+#
+# Runs at :17 rather than :00 so it never shares a block with the heartbeat:
+# both spend from keys whose nonces would otherwise race.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: futures-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    # Base repo only — forks never carry the secret and must not run this.
+    if: github.repository == 'kaustubh76/ACR---Arc-Compute-Rate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ACR_ARC_RPC_URL: https://rpc.testnet.arc.network
+      ACR_ORACLE_ADDRESS: "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609"
+      ACR_FUTURES_ADDRESS: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
+      ROLL_INDEX: ACR-INF
+      ROLL_EXPIRY_DAYS: "7"
+      ROLL_MIN_LIFE_H: "24"
+      ROLL_COLLATERAL: "1.5"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Sync workspace
+        run: uv sync --all-packages
+
+      # Settling needs an oracle print inside the contract's freshness window.
+      # The script refuses (exit 1) rather than reverting when the print is
+      # stale — continue-on-error because that is a "come back next hour"
+      # condition, not a failure of this run. The roll still matters.
+      - name: Settle anything expired
+        continue-on-error: true
+        env:
+          MAKER_PRIVATE_KEY: ${{ secrets.ACR_POSTER_PRIVATE_KEY }}
+        run: uv run python scripts/futures_settle.py
+
+      # This one MUST be loud: a venue with no live series has no desk.
+      - name: Roll onto a fresh series if the current one is running out
+        env:
+          MAKER_PRIVATE_KEY: ${{ secrets.ACR_POSTER_PRIVATE_KEY }}
+        run: uv run python scripts/futures_roll.py

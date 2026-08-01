@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -25,6 +25,15 @@ help:
 	@echo "  make api             serve the x402-gated index API (:8000)"
 	@echo "  make terminal        run the ACR Terminal (:3000; ACR_API=<seller url>, ACR_BUYER_PRIVATE_KEY enables the LIVE buyer)"
 	@echo "  make lint            ruff check the python packages"
+	@echo ""
+	@echo "  make futures-roll    open a fresh series before the current one expires (idempotent)"
+	@echo "  make futures-settle  cash-settle expired series so collateral can be withdrawn"
+	@echo ""
+	@echo "  the Public Desk (readers trade ACRFutures with a Circle user-controlled wallet):"
+	@echo "  make desk-preflight  read-only gates: series life, margin capacity, custody balance"
+	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
+	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
+	@echo "  make tape-audit      measure what REAL Arc settlement flow yields as an index"
 	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
 	@echo "  make agent           offline demo: discover the catalog, pay the dev gate"
@@ -98,8 +107,59 @@ deploy-testnet:
 	@echo "    ACR_REGISTRY_ADDRESS=0x<AttestationRegistry address from the log above>"
 	@echo "  then: make verify-testnet"
 
+# Deploy ONLY ACRFutures against the already-deployed oracle (never redeploys it).
+# Requires ACR_ORACLE_ADDRESS (the live oracle) + DEPLOYER_PRIVATE_KEY (funded).
+deploy-futures-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
+	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-futures:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
+	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ACRFutures live — code shows at https://testnet.arcscan.app/address/<ACRFutures>"
+	@echo "  now set ACR_FUTURES_ADDRESS=0x<address above> in .env + on the Render seller."
+
 verify-testnet:
 	uv run python scripts/verify_deploy.py
+
+# --- futures venue lifecycle (a series expires; the venue must outlive it) ---
+
+# Idempotent: no-ops when a collateralized series still has life left, so it is
+# safe on a timer. Exits non-zero rather than leaving an uncollateralized series.
+futures-roll:
+	uv run python scripts/futures_roll.py
+
+# Permissionless. Refuses (rather than reverting) when the oracle print is too
+# stale for the contract's freshness guard — the window reopens on the next print.
+futures-settle:
+	uv run python scripts/futures_settle.py
+
+# Take a project key's collateral back out, across EVERY series it holds — a
+# roll strands the old stake where nothing trades and nothing reclaims it.
+# Reports only, unless you ask it to move money: WITHDRAW_DRY_RUN=0.
+futures-withdraw:
+	WITHDRAW_DRY_RUN=$${WITHDRAW_DRY_RUN-1} uv run python scripts/futures_withdraw.py
+
+# --- the Public Desk (user-controlled wallets trading ACRFutures) ---
+
+desk-preflight:
+	uv run python scripts/desk_preflight.py
+
+# Drives the REAL browser ceremony (a user-controlled key only exists client
+# side). Playwright is not a repo dep — install it once, anywhere, and point
+# PLAYWRIGHT_DIR at that node_modules. Needs `make api` + `make terminal` up.
+desk-e2e:
+	@test -n "$(PLAYWRIGHT_DIR)" || { echo "set PLAYWRIGHT_DIR=<dir>/node_modules (npm i playwright && npx playwright install chromium)"; exit 1; }
+	node scripts/desk_e2e.mjs
+
+tape-audit:
+	uv run python scripts/tape_audit.py
+
+desk-evidence:
+	uv run python scripts/desk_evidence.py $(if $(USER_ID),--user $(USER_ID),)
 
 post-once:
 	uv run python scripts/post_once.py

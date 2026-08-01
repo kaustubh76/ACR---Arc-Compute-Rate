@@ -239,6 +239,28 @@ export function ApiConsole({
           </span>
         </div>
 
+        {/* The `resource` in the challenge below is the live API host, which is a
+            different domain from this dashboard by design — not a stale link. */}
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 12, marginTop: 6, marginBottom: 0 }}
+          x={
+            <>
+              The <span className="mono">resource</span> in the challenge below is the live API
+              endpoint a machine pays for — the seller&apos;s own API host, a different domain from
+              this dashboard by design, and the current API (not a stale link).
+            </>
+          }
+          p={
+            <>
+              The <span className="mono">resource</span> in the paywall notice below is the live web
+              address a robot pays to use — our data server, a different address from this dashboard
+              on purpose, and the current one (not an old link).
+            </>
+          }
+        />
+
         <div className="console-actions">
           <button className="btn" onClick={query} disabled={!gateLive || busy}>
             {busy ? (

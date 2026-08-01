@@ -3,6 +3,7 @@
 import { HomeHero } from "@/components/HomeHero";
 import { RateBlock } from "@/components/RateBlock";
 import { DefensibilityStrip } from "@/components/DefensibilityStrip";
+import { FuturesTeaser } from "@/components/FuturesTeaser";
 import { PrintsTable } from "@/components/PrintsTable";
 import { PlainPrimer } from "@/components/PlainPrimer";
 import { Ed } from "@/components/Ed";
@@ -62,6 +63,8 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
       </section>
 
       <DefensibilityStrip data={env.data} />
+
+      <FuturesTeaser data={env.data} />
 
       <section className="section">
         <div className="section-head">

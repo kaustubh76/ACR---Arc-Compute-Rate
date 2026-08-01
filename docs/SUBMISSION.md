@@ -1,6 +1,6 @@
 # ACR — Submission
 
-**Arc / Circle 7-week Hackathon · Agentic Economy track · Halfway checkpoint 2026-07-27 · Ship-week update 2026-07-29**
+**Arc / Circle 7-week Hackathon · Agentic Economy track · Halfway checkpoint 2026-07-27 · Ship-week update 2026-07-29 · Final update 2026-07-31**
 
 > **ACR (Arc Compute Rate)** is "SOFR for machine commerce" — a manipulation-resistant reference-rate family that recovers the *latent constant-quality price of machine services* from the noisy, batched, adversarial payment exhaust on Circle's Arc L1, and publishes it as a live on-chain benchmark that contracts can settle against.
 >
@@ -14,27 +14,27 @@ This is the one-page status for judges. For depth: [`Readme.md`](../Readme.md) (
 
 | Index | Measures | Latest on-chain value (Arc testnet) |
 |---|---|---|
-| **ACR-INF** | Inference — $/1k tokens | **0.49112** |
-| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01083** |
-| **ACR-DATA** | Data egress — $/MB | **0.00203** |
+| **ACR-INF** | Inference — $/1k tokens | **0.49236** |
+| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01110** |
+| **ACR-DATA** | Data egress — $/MB | **0.00209** |
 
-Every hourly print ships **three numbers, not one**: the rate, a **confidence interval**, and an **attack-cost-per-bp** — the USDC an attacker must burn to move the print by one basis point (e.g. ACR-INF attack-cost-per-bp ≈ **0.0055 USDC/bp**). Values read live from ACROracle at commit time; posts run **in-cloud, hourly, signed by the Circle Developer-Controlled custody wallet** (latest `postPrint`: [`0xa26c…643f`](https://testnet.arcscan.app/tx/0xa26c5977dcd8408f29e35f426f0ac6df0a26491ac39c056184a78bb1a7af643f)).
+Every hourly print ships **three numbers, not one**: the rate, a **confidence interval**, and an **attack-cost-per-bp** — the USDC an attacker must burn to move the print by one basis point (e.g. ACR-INF attack-cost-per-bp ≈ **0.0094 USDC/bp**). Values read live from ACROracle at final submission (2026-07-31); posts run **in-cloud, hourly, signed by the Circle Developer-Controlled custody wallet** (e.g. `postPrint` [`0xa26c…643f`](https://testnet.arcscan.app/tx/0xa26c5977dcd8408f29e35f426f0ac6df0a26491ac39c056184a78bb1a7af643f)).
 
 ---
 
 ## 2. Progress vs the 7-week roadmap
 
-Halfway checkpoint falls at ~week 3.5. **ACR is ahead of schedule** — the estimator, on-chain layer, adoption surface, red-team, and instrument layer are all built and running; only the final ship/polish week remains.
+**All seven weeks of scope are shipped.** The estimator, on-chain layer, adoption surface, red-team, and instrument layer are built and running — and the W6 instrument is now **live on-chain**: a cash-settled futures venue trading against the oracle print.
 
 | Week | Focus | Deliverable | Status |
 |---|---|---|---|
 | **W1** | TAPE | Indexer on Arc + batching study | ✅ Done — `SimSource` (calibrated) + `ArcSource` (decodes real Arc USDC `Transfer` logs at `0x3600…0000`) behind one `TapeSource` interface |
 | **W2** | ESTIMATOR v1 | Methodology paper + first live prints | ✅ Done — four-pillar estimator live; [`docs/methodology.md`](methodology.md) published |
-| **W3** | ON-CHAIN | Registry + Oracle + invariant suite | ✅ Done — both contracts deployed on Arc testnet; **32 Foundry tests incl. 5 invariants** (`fail_on_revert=true`) |
+| **W3** | ON-CHAIN | Registry + Oracle + invariant suite | ✅ Done — contracts deployed on Arc testnet; full Foundry suite incl. invariants (`fail_on_revert=true`) |
 | **W4** ★ | ADOPTION | Sellers attest + x402 index API live | ✅ Done — x402 gate live on Circle Gateway; **real machine-to-machine settlement proven on-chain**; 4 seller attestations on-chain; public cloud API |
 | **W5** | RED TEAM | Manipulation bound + attack own index | ✅ Done — `redteam/` wash + optimal-attack harnesses; attack-cost-per-bp on every print; CI-gated resistance claims |
-| **W6** | INSTRUMENT | Weekly cash-settled future + A-S MM | ✅ Built — `acr_instrument` (cash-settled `ACRFuture` + Avellaneda–Stoikov MM); term-structure curve served + rendered |
-| **W7** | SHIP | Freeze + paper polish + rehearse | 🔄 In progress — repo 100% pushed; 4-job GitHub CI green; Terminal hardened (connection ladder, instant shell, direct on-chain reads) and redeployed; cloud posting re-enabled via Circle custody + keep-alive |
+| **W6** | INSTRUMENT | Weekly cash-settled future + A-S MM | ✅ **Live** — `ACRFutures` deployed on Arc ([`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe)): series 0 (ACR-INF, 10× multiplier) seeded with a live long/short book, cash-settling against the oracle print; `acr_instrument` (Avellaneda–Stoikov MM) serves the term structure |
+| **W7** | SHIP | Freeze + paper polish + rehearse | ✅ Done — repo 100% pushed; 4-job GitHub CI green; Terminal hardened (connection ladder, instant shell, direct on-chain reads) and redeployed; cloud posting re-enabled via Circle custody + keep-alive; deck re-rendered at final submission |
 
 ---
 
@@ -47,10 +47,12 @@ Halfway checkpoint falls at ~week 3.5. **ACR is ahead of schedule** — the esti
 **On-chain contracts** (explorer: `https://testnet.arcscan.app`)
 - **ACROracle** [`0x4f00e3BDd224F4c4b4958D54cD774E84B9092609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) — hourly EIP-712-signed prints; `ecrecover` signer auth; monotone-ts + print-within-CI + bound-sanity enforced.
 - **AttestationRegistry** [`0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) — 4 real seller attestations (the hedonic-quality flywheel).
+- **ACRFutures** [`0x29d97c629a8278f7ec4218ab0bd8baa9182642fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) — cash-settled futures on the print: Arc-native USDC collateral, 20% initial margin, settlement print must be ≤ 2 h old, socialized-loss clearing. Series roll automatically week to week (`make futures-roll` / `futures-lifecycle.yml`); desk + trade tape on the Terminal's `/curve`.
+- **The Public Desk** — a reader opens a Circle **user-controlled** wallet in the browser (SCA on Arc; PIN ceremony in Circle's hosted UI, so the key exists only client-side and this server never holds it), takes a faucet stake, and trades the venue for real. Full lifecycle: `approve` → `postCollateral` → `trade` → **`withdrawCollateral`**, plus permissionless `settle` at expiry. Every action is a server-minted challenge the reader authorizes with their PIN; guardrails (one drip per session-derived wallet, live margin-feasible sizing against *both* sides' checks, expiry gating, rate limits) are server-side. Gas Station sponsorship confirmed from the ERC-4337 `UserOperationEvent` paymaster, not from a fee field. **Honest framing:** the stake is our testnet grant and the maker on the other side is our own bot — the wallet, the PIN, the margin maths, the fills and the settlement are real.
 - Poster/owner EOA `0x33189c643774ED2713EbFf5A6923e5fa42b96eE8`; Circle Developer-Controlled custody signer `0x8366968f84a343CF70941EBe858428643d825cb0` (verified `setSigner` + Circle-signed+relayed `postPrint`).
 
 **Proven x402 settlement (real USDC moved)**
-A machine buyer agent (`apps/agent`, `0x870f…`) paid the Circle-gated endpoints; Circle Gateway settled on-chain: **60 paid queries · 0.006 USDC**, buyer Gateway balance dropped **0.500000 → 0.494000** (exactly 0.006), `pendingBatch: 0`. Settlement refs are Gateway **batch UUIDs** (GatewayWalletBatched) — the honest transaction story is *x402 payments + Gateway batch settlements + the oracle's own `postPrint` txs*, not "60 L1 transactions."
+A machine buyer agent (`apps/agent`, `0x870f…`) paid the Circle-gated endpoints; Circle Gateway settled on-chain: a live run recorded **60 paid queries · 0.006 USDC**, buyer Gateway balance dropping **0.500000 → 0.494000** (exactly 0.006), `pendingBatch: 0` — that ledger lives on the free-tier press and is **ephemeral**. The **durable, in-repo artifact** is [`data/x402_receipts_live.jsonl`](../data/x402_receipts_live.jsonl): Gateway-settled receipts with batch UUIDs `02c28e72-…` and `5c02b811-…` (scheme `exact`, `eip155:5042002`, $0.0001 each). Circle's own CLI also paid the gate end-to-end (§4). Settlement refs are Gateway **batch UUIDs** (GatewayWalletBatched) — the honest transaction story is *x402 payments + Gateway batch settlements + the oracle's own `postPrint` txs*, not "N L1 transactions."
 
 ---
 
@@ -59,14 +61,14 @@ A machine buyer agent (`apps/agent`, `0x870f…`) paid the Circle-gated endpoint
 | Circle pillar | Where in ACR |
 |---|---|
 | **Agent Nanopayments** (Gateway x402) | Seller gate `services/index_api/index_api/x402.py` → `/v1/x402/verify`+`/settle` on `gateway-api-testnet.circle.com`; scheme `exact`/GatewayWalletBatched on `eip155:5042002` |
-| **Agent Wallets** | Buyer `apps/agent/` pays via `@circle-fin/x402-batching` `GatewayClient`; oracle signs prints via Circle Developer-Controlled Wallets (`packages/acr_oracle_client/signer.py`) |
+| **Agent Wallets** | **All three Circle wallet models, live.** Buyer `apps/agent/` pays via `@circle-fin/x402-batching` `GatewayClient` (raw EOA); the oracle signs prints via Circle **Developer-Controlled** Wallets (`packages/acr_oracle_client/signer.py`); and any reader trades the futures venue from a Circle **user-controlled** SCA on the Public Desk — their PIN is the only thing that can sign, Gas Station pays (`services/index_api/index_api/desk.py`, `apps/terminal/components/chain/PublicDesk.tsx`) |
 | **Agent Marketplace** | `GET /marketplace/catalog` (Bazaar-shaped listings + on-chain attestation provenance); `GET /marketplace/receipts` (public settlement tape); Terminal `/exchange` |
 | **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` — `docs/agent-runbook.md`. **Proven end-to-end**: Circle's own CLI buyer settled against the deployed gate (`circle services inspect …/prints` → `payable`; `circle services pay` from a faucet-funded agent wallet paid $0.0001 and received the full prints payload) |
 | **Circle Skills** | `circle-skills` Claude Code plugin (`make skills-install`) |
 
 ---
 
-## 5. Verification evidence (re-run at ship week — 2026-07-29)
+## 5. Verification evidence (re-run at final submission — 2026-07-31)
 
 Every gate below was executed fresh; results captured verbatim. The same gates
 run on every push as **GitHub Actions CI — 4 jobs (python / contracts / agent /
@@ -75,14 +77,17 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Gate | Command | Result |
 |---|---|---|
 | Lint | `ruff check packages services scripts redteam` | ✅ All checks passed |
+| Desk preflight | `make desk-preflight` | ✅ CLEAR TO RUN — series life, margin capacity both directions, custody funding, faucet slots |
+| Desk round trip on Arc | `make desk-e2e` → `make desk-evidence` | ✅ stake → collateral → trade → **withdraw**, confirmed by four independent witnesses (venue balance, contract state, wallet balance, `CollateralWithdrawn` + paymaster) |
+| Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~11.9k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
 | Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 332/332 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **169 passed, 2 skipped** |
+| Python suite | `pytest packages services tests` | ✅ **230 passed** (incl. anvil-gated on-chain integration) |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
-| Contracts | `forge test -vvv` | ✅ **32 passed** (17 oracle + 10 registry + 5 invariant) |
+| Contracts | `forge test -vvv` | ✅ **50 passed** (17 oracle + 10 registry + 16 futures + 7 invariants, `fail_on_revert=true`) |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |
-| Terminal | `npm test && next build` | ✅ **27/27 node tests** (buy plan · connection ladder · oracle codec) + clean build (7 pages + 13 API proxies) |
-| Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient`) |
-| On-chain read | `make verify-testnet` | ✅ chain id + both contracts' bytecode + 3 live prints read from Arc |
+| Terminal | `npm test && next build` | ✅ **50/50 node tests** (7 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage) + clean build (8 pages + 15 API proxies) |
+| Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient` — re-run 2026-07-31 against the **deployed** gate) |
+| On-chain read | `make verify-testnet` | ✅ chain id + contracts' bytecode + 3 live prints read from Arc (+ `cast code` shows bytecode at ACRFutures) |
 | GitHub CI | push to `main` | ✅ 4/4 jobs green |
 
 **The headline claim — manipulation resistance** (`make demo`, $8,000 wash-attack budget, 36,000 adversarial authorizations, attacker burned **$147.60**):

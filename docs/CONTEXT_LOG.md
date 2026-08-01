@@ -169,3 +169,65 @@ Also open: no git commits yet; the repo `.env` needs re-copying from the fixed `
 - **Measured, not aspirational:** docs state the numbers the code actually produces, and CI gates them below reality with margin.
 
 Keep these invariants (see STATUS §"decisions not to undo") and the codebase stays honest.
+
+---
+
+## 9. Session — the Public Desk's first real transactions (2026-08-01)
+
+The desk (commit `89e96d4`) shipped fully written and **never once exercised**:
+no faucet ledger on disk, no tx hash anywhere, hermetic tests only. The spike
+script had verified session creation and `user/initialize` and explicitly
+deferred "the PIN ceremony + the gasless-trade check" to a browser step that
+never happened. This session ran that step for real. Evidence and the operator
+sequence live in [`TESTNET_RUNBOOK.md`](TESTNET_RUNBOOK.md) §5b.
+
+### What was actually broken (found by running it, not by reading it)
+
+1. **`ACR_FUTURES_ADDRESS` was absent from `.env`** (and `ACR_ORACLE_ADDRESS`
+   was blank) — every `/desk/challenge` 503'd before touching Circle. The
+   single largest blocker was a missing config line.
+2. **Lowercase addresses.** Circle returns them; web3 refuses a non-checksum
+   address and `FuturesClient` swallows that as `None`, which surfaces as "the
+   venue is not reading right now". It looked exactly like RPC throttling and
+   wasn't. Fixed at the boundary (`desk._checksum`).
+3. **The faucet could only ever time out.** Circle's confirm poll runs up to
+   120s; the terminal's proxy aborts at 20s. Worse, the timeout left the
+   address's one-and-only drip slot consumed. Now the slot is claimed
+   synchronously (the cap stays honest) and the transfer confirms on a daemon
+   thread; the client watches its balance instead.
+4. **The wallet SDK's completion callback is not reliable.** Observed twice:
+   the transaction completed (Circle `COMPLETE`, event on-chain) and the
+   callback never fired, hanging the desk forever on an action that had
+   *succeeded*. The desk now treats the venue as the source of truth —
+   `executeChallenge` resolves on a timeout as well as the callback, and each
+   step confirms against `/desk/limits` before advancing.
+5. **"BUY 1" was unpayable.** At a 0.4977 mark on a 10× index, one contract
+   needs ~0.9955 USDC of initial margin — twice the whole faucet stake. The
+   button would have reverted `taker margin` *after* the reader entered their
+   PIN. The server now computes the feasible size from the live mark against
+   **both** margin checks (the taker's and the auto-mirrored maker's) and the
+   UI offers exactly that. The first live trade was `BUY 0.46`.
+
+### Facts established, that had only been assumed
+
+- **Gas Station sponsorship is real** for these SCAs on Arc Testnet. The
+  authority is the ERC-4337 `UserOperationEvent`'s `paymaster` topic, not
+  Circle's `networkFee` — the fee is non-zero on every desk operation and the
+  wallet is still debited nothing. An early draft of `desk_evidence.py`
+  concluded "NO — the wallet paid its own gas" from the fee alone; the balance
+  arithmetic (0.5 in, 0.5 posted, 0.0 left) contradicted it, and the paymaster
+  field settled it. **Do not reintroduce the fee-based heuristic.**
+- Circle's hosted PIN flow has a screen that gates Continue behind literally
+  typing **"I agree"**. Automation stalls there silently — it was the reason
+  three full ceremony runs died at "Confirmation" with a disabled button.
+- The PIN inputs are `maxlength=1` and auto-advance on **keystrokes**;
+  Playwright's `fill()` sets values without triggering that and does nothing.
+
+### Landmine noted
+
+Running `make api` locally with `ACR_POSTER_PRIVATE_KEY` set makes the **local**
+box post oracle prints on its own timer, spending real testnet USDC from the
+poster EOA — which is also the futures **maker**. A few hours of local dev
+drained it to 0.007 USDC and prod prints started failing `insufficient funds`.
+Refilled from custody (`0x8170d08b…`). For local work either blank the key or
+raise `ACR_REFRESH_SECONDS`.

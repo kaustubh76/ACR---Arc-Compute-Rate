@@ -1,0 +1,92 @@
+# The live seller's configuration, in version control.
+#
+# Production runs on Render as the `acr-api` web service
+# (https://acr-api-1fto.onrender.com). Until this file existed the deploy was
+# unreproducible: `deploy/deploy-render.sh` is create-only and sets none of the
+# desk-critical variables, so `ACR_FUTURES_ADDRESS` and all four `ACR_CIRCLE_*`
+# values lived only in the dashboard. Deleting the service would have lost them.
+#
+# Secrets carry `sync: false` — the NAME is tracked here, the VALUE stays in the
+# dashboard and is never committed. Non-secret values are inlined because they
+# are the deploy's actual identity (which contracts, which chain, which tape)
+# and belong under review.
+#
+# Render is NOT wired to this repo: the service pulls a prebuilt image from
+# Docker Hub, so a code change reaches production only via
+# `deploy/redeploy-render.sh` (build → push → redeploy). Blueprint sync is
+# therefore optional — the value here is that the configuration is recorded.
+
+services:
+  - type: web
+    name: acr-api
+    runtime: image
+    plan: free # NB: no persistent disk. See the faucet ledger note below.
+    region: oregon
+    image:
+      url: docker.io/kaushtubh02/acr-api:latest
+    healthCheckPath: /health
+    envVars:
+      # --- Arc + the deployed contracts -----------------------------------
+      - key: ACR_ARC_RPC_URL
+        value: https://rpc.testnet.arc.network
+      - key: ACR_ORACLE_ADDRESS
+        value: "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609"
+      - key: ACR_REGISTRY_ADDRESS
+        value: "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7"
+      # The futures venue. Without this the Public Desk 503s on every action.
+      - key: ACR_FUTURES_ADDRESS
+        value: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
+
+      # --- Circle: the custody wallet that signs prints and funds the desk --
+      - key: ACR_CIRCLE_API_KEY
+        sync: false
+      - key: ACR_CIRCLE_ENTITY_SECRET
+        sync: false
+      - key: ACR_CIRCLE_WEBHOOK_PUBLIC_KEY
+        sync: false
+      - key: ACR_CIRCLE_WALLET_ID
+        value: 52251d34-9575-5bab-8631-52afae6ac3cd
+      - key: ACR_CIRCLE_WALLET_SET_ID
+        value: 69c39de5-9d31-5ef0-bccb-731028f68c6b
+      - key: ACR_CIRCLE_BASE_URL
+        value: https://api.circle.com
+
+      # --- x402: the real Circle Gateway gate ------------------------------
+      - key: ACR_X402_MODE
+        value: circle
+      - key: ACR_X402_FACILITATOR_URL
+        value: https://gateway-api-testnet.circle.com
+      - key: ACR_X402_PAY_TO
+        value: "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8"
+
+      # --- The published tape is the SIMULATOR, deliberately ---------------
+      # Real Arc USDC transfers carry no compute-price signal — measured, not
+      # assumed: `scripts/tape_audit.py` reads ~11.9k real settlements that
+      # collapse to a single price. Every paid response labels this.
+      - key: ACR_TAPE_SOURCE
+        value: sim
+      # Sized for the 512MB free tier — larger values OOM-kill the instance.
+      - key: ACR_SIM_EVENTS_PER_SERVICE
+        value: "2500"
+      - key: ACR_SIM_HORIZON_SECONDS
+        value: "14400"
+      - key: ACR_ATTACK_SIM_EVENTS_PER_SERVICE
+        value: "800"
+      # Hourly, not every 30s: each refresh posts on-chain and costs real gas.
+      - key: ACR_REFRESH_SECONDS
+        value: "3600"
+
+      # --- Paths + CORS ----------------------------------------------------
+      # NOTE: the free plan has NO persistent disk, so these files (and the
+      # faucet ledger beside them) are empty on every boot. That is why the
+      # ledger also rehydrates from Circle's own record of the transfers —
+      # see FaucetLedger in services/index_api/index_api/desk.py.
+      - key: ACR_RECEIPT_LOG_PATH
+        value: data/x402_receipts.jsonl
+      - key: ACR_WEBHOOK_LOG_PATH
+        value: data/webhook_events.jsonl
+      # Open by design (agents call this from anywhere). The desk endpoints are
+      # therefore directly reachable, which is why their guardrails are
+      # server-side: session-bound faucet, rate limits, qty clamps.
+      - key: ACR_CORS_ORIGINS
+        value: "*"

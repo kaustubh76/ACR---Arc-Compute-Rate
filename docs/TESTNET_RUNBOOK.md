@@ -85,6 +85,42 @@ the deployer as a signer, so poster == deployer means no extra `setSigner` step.
 4. **CHECKPOINT** — both `https://testnet.arcscan.app/address/<address>` pages
    show **contract code** (not an empty EOA).
 
+## 2b. Deploy the futures venue (ACRFutures) against the existing oracle
+
+The cash-settled futures venue (pillar 4) settles against the **already-deployed**
+`ACROracle` — so it is deployed on its own (`DeployFutures.s.sol`), NOT via
+`Deploy.s.sol` (which would redeploy the oracle/registry). It reads
+`ACR_ORACLE_ADDRESS` from the env, uses Arc's native USDC (`0x3600…0000`) for
+collateral, and 20% initial margin by default (`ACR_FUTURES_MARGIN_BPS`).
+
+```sh
+ACR_ORACLE_ADDRESS=0x<the live ACROracle> \
+DEPLOYER_PRIVATE_KEY=0x<funded deployer> \
+make deploy-futures            # add --legacy to the forge call if EIP-1559 estimation fails
+```
+
+Then **seed a live series** (opens a series, maker + taker post USDC collateral —
+verifying Arc's USDC `transferFrom` — and put on a trade so the desk shows a real
+book). Small multiplier keeps notional within testnet balances:
+
+```sh
+ACR_FUTURES_ADDRESS=0x<from deploy-futures> \
+MAKER_PRIVATE_KEY=0x<deployer / maker> \
+TAKER_PRIVATE_KEY=0x<a second funded testnet key> \
+uv run python scripts/futures_seed.py
+```
+
+**Live deployment (2026-07-31):** `ACRFutures` = `0x29d97c629a8278f7ec4218ab0bd8baa9182642fe`
+(arcscan `/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe`), settling against
+oracle `0x4f00e3BDd224F4c4b4958D54cD774E84B9092609`; series 0 (ACR-INF, multiplier
+10) seeded with a live long/short book. Arc's native USDC supports standard
+`approve`/`transferFrom` — collateral works.
+
+**Propagation:** set `ACR_FUTURES_ADDRESS` on the Render seller (env-var →
+`/terminal/data` gains a `futures` block + `chain.futures_address`) and rebuild
+the image so the new `FuturesReader`/`/futures` code ships. The Vercel Terminal
+needs **no** futures env — it reads the address purely from `/terminal/data`.
+
 ## 3. Point `.env` at the deploy
 
 **[OPERATOR]** Edit `.env` and set exactly these lines — the value on the
@@ -96,6 +132,7 @@ line replaces it):
 ```
 ACR_ORACLE_ADDRESS=0x<ACROracle address from step 2>
 ACR_REGISTRY_ADDRESS=0x<AttestationRegistry address from step 2>
+ACR_FUTURES_ADDRESS=0x<ACRFutures address from step 2b — optional; enables the desk>
 ACR_X402_PAY_TO=0x<seller wallet that receives USDC — the deployer EOA is fine>
 ACR_X402_FACILITATOR_URL=https://gateway-api-testnet.circle.com
 ACR_EXPLORER_BASE=https://testnet.arcscan.app
@@ -177,6 +214,87 @@ cap) originates real Gateway settlements from `/exchange` — see agent-runbook
    $0.01 cap.
 7. **CHECKPOINT** — the Terminal's `/exchange` tape fills with settlements;
    receipts carry scheme `exact` and network **exactly** `eip155:5042002`.
+
+## 5b. The Public Desk — a reader trades with their own wallet
+
+The desk lets a visitor open a Circle **user-controlled** wallet (an SCA on
+Arc, PIN-secured in Circle's hosted UI) and take a real position against the
+maker. The key is derived and held client-side, so — unlike every other flow in
+this runbook — **no server-side script can stand in for the ceremony**. The
+only honest verification drives a browser.
+
+1. **[AUTOMATED]** `make desk-preflight` — read-only gates: the series has
+   life left, the oracle mark is fresh, the margin math leaves a tradable
+   size, the maker can absorb it both ways, and the custody wallet (the faucet
+   source) is funded. Exit 0 means clear to run.
+2. **[OPERATOR]** `make api` and `ACR_API=http://127.0.0.1:8000 make terminal`.
+   Hit `/api/futures` once first — a cold roster read can exceed the proxy's
+   upstream timeout, and the desk renders read-only until it answers.
+3. **[OPERATOR, once]** `npm i playwright && npx playwright install chromium`
+   anywhere (Node ≥ 20). Playwright is deliberately not a repo dependency.
+4. **[AUTOMATED]** `PLAYWRIGHT_DIR=<that>/node_modules make desk-e2e` — drives
+   PIN setup → faucet → `approve` → `postCollateral` → `trade`, then writes
+   `data/desk_e2e_last.json`. Set `DESK_PROFILE=<dir>` to reuse one browser
+   profile (and therefore one wallet) across runs; the faucet is one drip per
+   address, so a fresh profile per attempt burns the cap.
+5. **[AUTOMATED]** `make desk-evidence USER_ID=<the id the run printed>` —
+   confirms the run from two directions: Circle's own transaction ledger
+   (states, hashes, fees) and the venue's `CollateralPosted` /
+   `CollateralWithdrawn` / `Traded` logs plus a live `positionOf`.
+6. **[AUTOMATED]** The exit is part of the flow, not an afterthought: the desk
+   shows a withdraw button per series a wallet holds collateral in — including
+   expired and settled ones, because collateral outlives the market it was
+   posted to and a roll leaves a returning reader holding a stake in the old
+   series. `DESK_MODE=withdraw DESK_USER_ID=<id> make desk-e2e` drives only
+   that step, which is how a wallet whose browser profile is long gone gets its
+   money back (the PIN is still required, so this grants nothing new).
+
+### Keeping the venue alive
+
+A series expires. Two idempotent commands own that, and
+`.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset
+from the heartbeat so they never race on the maker's nonce):
+
+- `make futures-roll` — opens a successor when the current series is running
+  out. No-ops on a healthy venue, guards the maker's gas budget before any
+  write, and **exits non-zero unless the collateral actually landed**. Do not
+  use `scripts/futures_seed.py` for this: it exits 0 after failing that step,
+  leaving an open series no one can trade against.
+- `make futures-settle` — cash-settles anything expired, which is what flattens
+  positions and frees each trader's whole cleared balance for withdrawal. It
+  refuses (rather than reverting) when the oracle print is outside the
+  contract's 2 h freshness window; that window reopens on the next print, so
+  the fix is to wait, not to force it.
+
+### The first live run — 2026-08-01, series 0 (ACR-INF)
+
+Wallet `0x95DE70736E21e70DF921Fb3ab91dD56750965b59` (Circle user
+`acr-desk-1gkdjcmj`), driven entirely through the browser under a PIN:
+
+| Step | Transaction |
+|---|---|
+| faucet drip (0.5 USDC, from custody) | [`0xb6ef0981…`](https://testnet.arcscan.app/tx/0xb6ef098134690045ebf4012c8d2e28573d1c45d499e859efbf22efabb7d41572) |
+| `approve` USDC → the venue | [`0xb4ed94b9…`](https://testnet.arcscan.app/tx/0xb4ed94b9c5c6fdef97fdce407e05b1b56405b66b20a229cccab3f49b9d0998c3) |
+| `postCollateral` 0.50 USDC | [`0x272687b1…`](https://testnet.arcscan.app/tx/0x272687b15c31110cb7e64b4dfb540c49fac15bb7095f89ba9bf263c8101a1916) |
+| `trade` **+0.46 @ 0.48450** | [`0x0888fb1b…`](https://testnet.arcscan.app/tx/0x0888fb1bdf73313ecc9b9374c66c6cd70c9fb5813ae03f163450eecf26237876) |
+
+`positionOf(0, wallet)` reads back `0.46 contracts @ 0.48450`.
+
+Three facts this run settled, each previously assumed:
+
+- **Gas Station sponsors these SCAs.** The authority is the ERC-4337
+  `UserOperationEvent`'s `paymaster` field — here
+  `0x7cea357b5ac0639f89f9e378a1f03aa5005c0a25`, i.e. sponsored. Do **not** read
+  Circle's `networkFee` as a user debit: it is non-zero on every one of these
+  operations and the wallet still paid nothing. The balance agrees — 0.500000
+  in, 0.5 posted as collateral, 0.000000 left.
+- **Every desk action is a smart-account user operation**, routed through the
+  EntryPoint at `0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789` rather than a
+  direct call.
+- **$0.50 buys well under one contract** on a 10× index (~0.9955 USDC of
+  initial margin per contract at a 0.4977 mark) — which is why the desk quotes
+  a server-computed size (here 0.46) instead of a hardcoded 1. A "BUY 1" button
+  would have reverted `taker margin` *after* the reader entered their PIN.
 
 ## 6. Bake the real artifacts into the offline bundle
 

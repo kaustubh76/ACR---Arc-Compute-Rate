@@ -2,11 +2,12 @@
 
 import { HistoryChart } from "@/components/charts/HistoryChart";
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
+import { FuturesDesk } from "@/components/chain/FuturesDesk";
 import { OracleProvenance } from "@/components/chain/OracleProvenance";
 import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
-import { useOnchainHistory } from "@/lib/useLive";
+import { useFutures, useOnchainHistory } from "@/lib/useLive";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
 import { editionLabel, fmt, fmtInt, halfCiBp, heroFigure, money, serviceName } from "@/lib/format";
@@ -19,6 +20,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   // The heavier direct read (prints + this index's on-chain history) only
   // spins up while the press is down — null SWR key on the healthy path.
   const direct = useOnchainHistory(id, !env.live && env.fetchedAt !== 0);
+  const futures = useFutures();
+  const futRow = futures.roster?.data?.desks?.[id] ?? env.data.futures?.[id] ?? null;
   const raw = env.data.prints[id];
   const directPrint = !env.live ? direct?.data?.prints?.[id] ?? conn.onchain?.data?.prints?.[id] : null;
 
@@ -316,6 +319,15 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
         </div>
         <QuoteCorridor prints={{ [p.index_id]: p }} only={p.index_id} />
       </section>
+
+      {futRow ? (
+        <FuturesDesk
+          desks={{ [p.index_id]: futRow }}
+          trades={futures.roster?.data?.trades}
+          chain={env.data.chain}
+          live={Boolean(futures.roster?.live)}
+        />
+      ) : null}
     </>
   );
 }

@@ -3,19 +3,26 @@
 import { fmt, fmtInt, serviceName } from "@/lib/format";
 import { useEdition } from "@/lib/useEdition";
 import { linear } from "./scale";
+import { useCrosshair } from "./useCrosshair";
 import type { PrintRow } from "@/lib/types";
 
 /* The maker's quote corridor: one interval per index — bid to ask as a share
    of spot, gold tick at the mid, dashed rule at spot itself. The A-S maker
    currently quotes a common corridor across tenors (mid pinned to spot, width
    set by realized vol), so the corridor is the honest visualization; the
-   per-tenor sheet below keeps the granularity. */
+   per-tenor sheet below keeps the granularity.
+
+   A reading line (the same crosshair the other charts use) scrubs the price
+   axis: the axis is continuous %-of-spot, so we sample it at RES steps and let
+   `useCrosshair` resolve the cursor to a step — pointer OR ←/→/Home/End/Esc —
+   then print the implied price per index into a fixed caption row above. */
 
 const W = 760;
 const ROW_H = 76;
 const PAD_TOP = 34;
 const PAD_BOTTOM = 10;
 const M = { left: 16, right: 16 };
+const RES = 120; // price-axis sampling resolution for the reading line
 
 export function QuoteCorridor({
   prints,
@@ -26,6 +33,12 @@ export function QuoteCorridor({
 }) {
   // SVG <text> cannot host the <Ed> span pair — swap words via the hook.
   const plain = useEdition() === "plain";
+  // Hooks run before any early return; the x-range is fixed, so it's safe here.
+  const { idx, svgRef, onPointerMove, onPointerLeave, onKeyDown } = useCrosshair(
+    RES,
+    M.left,
+    W - M.right,
+  );
   const rows = Object.values(prints).filter(
     (p) => p.curve?.length && p.value > 0 && (!only || p.index_id === only),
   );
@@ -38,8 +51,34 @@ export function QuoteCorridor({
   const x = linear([lo - pad, hi + pad], [M.left, W - M.right]);
   const H = PAD_TOP + rows.length * ROW_H + PAD_BOTTOM;
 
+  // Resolve the crosshair step → the %-of-spot the cursor sits on, and the
+  // implied price that reads out per index (mid pinned to 100% = spot).
+  const cursorPct = idx == null ? null : (lo - pad) + (idx / (RES - 1)) * (hi + pad - (lo - pad));
+  const lineX = cursorPct == null ? null : x(cursorPct);
+  const caption =
+    cursorPct == null
+      ? plain
+        ? "hover or use ← → to read a price across the corridor"
+        : "hover or ← → to read the corridor at any level"
+      : `${cursorPct.toFixed(1)}% of spot · ` +
+        rows.map((p) => `${p.index_id} ${fmt((p.value * cursorPct) / 100)}`).join(" · ");
+
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`}>
+    <>
+      <div className="reading" aria-hidden>
+        {caption}
+      </div>
+      <svg
+        ref={svgRef}
+        className="chart"
+        viewBox={`0 0 ${W} ${H}`}
+        tabIndex={0}
+        role="img"
+        aria-label="Quote corridor — bid to ask as a share of spot, per index"
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
+        onKeyDown={onKeyDown}
+      >
       {/* spot — the reference everything is quoted around */}
       <line
         x1={x(100)}
@@ -83,6 +122,20 @@ export function QuoteCorridor({
           </g>
         );
       })}
-    </svg>
+
+      {/* the reading line — a vertical crosshair at the scrubbed price level */}
+      {lineX != null ? (
+        <line
+          x1={lineX}
+          y1={PAD_TOP - 14}
+          x2={lineX}
+          y2={H - PAD_BOTTOM}
+          stroke="var(--rate-mark)"
+          strokeOpacity={0.7}
+          strokeWidth={1}
+        />
+      ) : null}
+      </svg>
+    </>
   );
 }

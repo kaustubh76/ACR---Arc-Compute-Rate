@@ -26,6 +26,7 @@ export function chainFacts(chain?: ChainFactsData | null) {
     gatewayWallet: chain?.gateway_wallet ?? CHAIN.gatewayWallet,
     oracle: chain?.oracle_address ?? null,
     registry: chain?.registry_address ?? null,
+    futures: chain?.futures_address ?? null,
     gate: chain?.gate ?? null,
     tapeSource: chain?.tape_source ?? "sim",
     signer: chain?.signer ?? null,

@@ -23,7 +23,7 @@ from acr_tape import SimSource
 from fastapi import Response
 from index_api.app import build_terminal_payload, revenue, x402_info
 from index_api.marketplace import build_catalog, build_sim_receipts
-from index_api.onchain import get_reader
+from index_api.onchain import get_futures, get_reader
 from index_api.store import PrintStore
 from index_api.x402 import DevFacilitator
 
@@ -81,6 +81,17 @@ def record_x402_exchange() -> dict:
     }
 
 
+def capture_futures_trades() -> list[dict]:
+    """Real on-chain fills for the archived tape, read straight from ACRFutures
+    at snapshot time (every call is ``_rpc_retry``-wrapped inside the reader).
+    Hermetic when no venue is configured: instantly ``[]``, no network — the
+    key is still embedded so the drift test enforces it."""
+    try:
+        return get_futures().recent_trades(use_cache=False)
+    except Exception:
+        return []
+
+
 def embed_bundle_sections(payload: dict) -> dict:
     """Embed the crypto-rich offline sections alongside the terminal payload.
 
@@ -88,13 +99,18 @@ def embed_bundle_sections(payload: dict) -> dict:
     ``revenue``, ``x402_info``); the ledger rows are ``build_sim_receipts`` —
     honestly labeled sim by scheme + tx_ref prefix.
     """
+    sim_ledger = build_sim_receipts()
     payload["marketplace"] = {
         "catalog": build_catalog(""),  # resource base "" — host-less offline bundle
-        "receipts": build_sim_receipts(),
+        "receipts": sim_ledger,
     }
-    # /revenue shape with zeroed counters (a fresh dev gate has sold nothing);
-    # the recent ring carries the first 5 sim receipts, oldest first like live.
+    # /revenue shape with counters that AGREE with the embedded sim ledger —
+    # the offline /developers page must never show $0 above a table of paid
+    # receipts. The recent ring carries the first 5 rows, oldest first like live.
     rev = revenue(fac=DevFacilitator())
+    rev["paid_queries"] = sim_ledger["paid_queries"]
+    rev["revenue_usdc"] = sim_ledger["revenue_usdc"]
+    rev["note"] = "sim ledger — archived edition"
     rev["recent"] = [
         {"payer": r["payer"], "amount_usdc": r["amount_usdc"], "tx_ref": r["tx_ref"]}
         for r in build_sim_receipts(n=5)["receipts"][::-1]
@@ -102,7 +118,29 @@ def embed_bundle_sections(payload: dict) -> dict:
     payload["revenue"] = rev
     payload["x402"] = x402_info(fac=DevFacilitator())  # the dev gate descriptor
     payload["x402_exchange_sample"] = record_x402_exchange()
+    # The archived futures tape — real fills; [] when no venue is configured.
+    payload["futures_trades"] = capture_futures_trades()
     return payload
+
+
+def capture_poster_provenance(reader) -> tuple[dict | None, str | None]:
+    """The newest ``PricePosted`` event per index — REAL committed txs, so the
+    archived OracleProvenance panel shows genuine settlement provenance instead
+    of a permanent "awaiting first live post". Reuses ``OracleClient.recent_posts``
+    (the same reader the press uses to re-hydrate provenance after a cold
+    start). Best-effort: any failure returns ``(None, None)`` and the payload
+    keeps its honest nulls."""
+    try:
+        posts = reader._client.recent_posts()
+        if not posts:
+            return None, None
+        last = {
+            ev["index_id"]: {"tx": ev["tx"], "block": ev["block"], "at_wall": ev["at_wall"]}
+            for ev in posts  # chronological — the newest per index wins
+        }
+        return {"posts": len(posts), "last": last}, posts[-1]["signer"]
+    except Exception:
+        return None, None
 
 
 def _connected_chain_id(reader) -> int | None:
@@ -139,9 +177,25 @@ def main() -> None:
     # makes the offline Terminal show a false "on-chain ✓" badge.
     reader = get_reader()
     configured = bool(get_settings().oracle_address)
+    # Seed the term-structure skew from the live on-chain maker book — the
+    # exact wiring the running app does before every curve (app.py). Without
+    # it the A-S quoter prices a flat book and every bundled corridor is an
+    # identical degenerate spread.
+    futures = get_futures()
+    if futures.configured:
+        try:
+            store.set_maker_inventory(futures.maker_inventory(use_cache=False))
+        except Exception:
+            pass  # best-effort — a flat skew is survivable, a crash is not
     payload = build_terminal_payload(store, reader)
     if configured:
         check_oracle_commit_guard(_connected_chain_id(reader))
+        # Real postPrint provenance off the PricePosted event log — only ever
+        # captured behind the commit guard (same rule as the oracle data).
+        poster, signer = capture_poster_provenance(reader)
+        if poster:
+            payload["chain"]["poster"] = poster
+            payload["chain"]["signer"] = signer
     else:
         assert payload["oracle"] is None
         assert all(p["onchain"] is None for p in payload["prints"].values())

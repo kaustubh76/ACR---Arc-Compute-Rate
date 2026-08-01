@@ -35,6 +35,14 @@ const ENDPOINTS: Array<[string, string, string, string, string, string | null]> 
   ["POST", "/webhooks/circle", "public", "Inbound Circle webhook receiver (signed)", "Where Circle reports each settled payment", null],
   ["GET", "/webhooks/recent", "public", "Recent Circle webhook events", "Circle's latest payment reports", null],
   ["GET", "/health", "public", "Liveness", "Is the server awake?", null],
+  // The Public Desk. All POST, so the console (which replays GETs) can't load
+  // them — but an integrator still needs to know the surface exists.
+  ["POST", "/desk/session", "public", "Open/resume a Circle user-controlled wallet session", "Start your own wallet on the trading desk", null],
+  ["POST", "/desk/wallet", "public", "That session's SCA + its USDC stake", "Your desk wallet and what's in it", null],
+  ["POST", "/desk/faucet", "public", "Drip the one-per-wallet testnet stake", "Get the 50-cent test stake, once per wallet", null],
+  ["POST", "/desk/limits", "public", "Live per-direction size caps (both margin checks)", "The biggest trade you could place right now", null],
+  ["POST", "/desk/withdrawable", "public", "What this wallet can take back out, per series", "How much of your money you can take back", null],
+  ["POST", "/desk/challenge", "public", "Mint a PIN challenge: approve / collateral / trade / withdraw", "Ask for the PIN prompt that authorizes one action", null],
 ];
 
 export function DevelopersView({ initial }: { initial: Envelope<TerminalData> }) {
@@ -44,6 +52,12 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
   const info = useX402Info();
   // The gate's live advertised price (ACR_X402_PRICE_USDC) — what is PAID.
   const price = info?.data?.price_usdc ?? rev?.price_usdc ?? PRICE_FALLBACK_USDC;
+  // The gate column tracks what the press actually charges for: the live
+  // /x402/info gated_endpoints list (bundled x402 section offline) wins over
+  // the authored value, so a re-gated endpoint can't silently lie here.
+  const gated = info?.data?.gated_endpoints;
+  const gateFor = (path: string, authored: string) =>
+    Array.isArray(gated) && gated.length ? (gated.includes(path) ? "x402" : "public") : authored;
   const explorer = chainFacts(env.data.chain).explorer;
   const [loadPath, setLoadPath] = useState<string | null>(null);
 
@@ -230,7 +244,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                     {load && <span className="muted"> ↑</span>}
                   </td>
                   <td>
-                    {gate === "x402" ? (
+                    {gateFor(path, gate) === "x402" ? (
                       <span className="gold">
                         <Ed x={<>402 · ${price}</>} p={<>${price} to ask</>} />
                       </span>

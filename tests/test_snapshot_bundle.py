@@ -56,3 +56,13 @@ def test_fallback_marketplace_section_is_usable():
     assert all("timestamp" not in r and "date" not in r for r in receipts)
     assert snapshot["x402"]["price_usdc"] > 0
     assert snapshot["revenue"]["recent"], "bundled revenue ring is empty"
+
+
+def test_fallback_revenue_counters_agree_with_the_ledger():
+    """The offline /developers page shows the revenue counters ABOVE the
+    receipts table — they must tell the same story (never $0 over 24 paid
+    rows, the self-contradiction this guards against)."""
+    snapshot = json.loads(FALLBACK.read_text())
+    ledger = snapshot["marketplace"]["receipts"]
+    assert snapshot["revenue"]["paid_queries"] == ledger["paid_queries"]
+    assert snapshot["revenue"]["revenue_usdc"] == ledger["revenue_usdc"]

@@ -101,6 +101,7 @@ export interface ChainFactsData {
   gateway_wallet: string;
   oracle_address: string | null;
   registry_address: string | null;
+  futures_address: string | null;
   gate: "dev" | "circle";
   tape_source: string;
   signer: string | null;
@@ -119,10 +120,53 @@ export interface ExchangeSample {
   };
 }
 
+/** The live on-chain futures desk for one index, read from ACRFutures — the
+ *  maker's book (inventory + mark-to-oracle PnL) and settlement status. Emitted
+ *  per index under TerminalData.futures; empty {} when no venue is configured. */
+export interface FuturesDeskRow {
+  series_id: number;
+  index_id: string;
+  expiry_ts: number;
+  multiplier: number;
+  maker: string;
+  settled: boolean;
+  settlement_price: number;
+  maker_inventory: number;
+  maker_avg_price: number;
+  maker_realized_usdc: number;
+  maker_unrealized_usdc: number;
+  open_interest: number;
+  trader_count: number;
+}
+
+/** One real on-chain futures fill (an ACRFutures `Traded` event), for the tape. */
+export interface FuturesTradeRow {
+  series_id: number;
+  taker: string;
+  qty: number; // signed contracts (+buy / −sell)
+  side: "buy" | "sell";
+  mark: number;
+  block: number;
+  tx: string;
+  seen_at: number; // server-first-seen wall-clock (epoch seconds)
+}
+
+/** The whole futures venue for the live desk + tape (GET /futures).
+ *  `source` says which ladder tier served it: the FastAPI press, a direct
+ *  viem read of ACRFutures, or the archived bundle. */
+export interface FuturesRoster {
+  venue: string | null;
+  desks: Record<string, FuturesDeskRow>;
+  trades: FuturesTradeRow[];
+  source?: "press" | "chain" | "bundle";
+}
+
 export interface TerminalData {
   prints: Record<string, PrintRow>;
   history?: Record<string, HistoryPoint[]>;
   sellers?: Record<string, SellerRow[]>;
+  /** On-chain futures desks per index (absent/empty when no venue configured). */
+  futures?: Record<string, FuturesDeskRow>;
   attack: {
     per_index: AttackIndexRow[];
     series: SeriesPoint[];
@@ -132,6 +176,8 @@ export interface TerminalData {
   oracle?: string | null;
   chain?: ChainFactsData | null;
   /* bundle-only sections (snapshot enrichment — absent from live /terminal/data) */
+  /** Real on-chain fills captured at snapshot time — the archived tape. */
+  futures_trades?: FuturesTradeRow[];
   marketplace?: { catalog: CatalogData | null; receipts: MarketReceiptsData | null } | null;
   revenue?: RevenueData | null;
   x402?: X402Info | null;

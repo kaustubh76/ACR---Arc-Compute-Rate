@@ -730,7 +730,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0309",
+     "id": "arr-0314",
      "type": "arrow"
     }
    ],
@@ -836,7 +836,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0311",
+     "id": "arr-0316",
      "type": "arrow"
     }
    ],
@@ -942,11 +942,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0327",
+     "id": "arr-0332",
      "type": "arrow"
     },
     {
-     "id": "arr-0335",
+     "id": "arr-0340",
      "type": "arrow"
     }
    ],
@@ -1052,11 +1052,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0313",
+     "id": "arr-0318",
      "type": "arrow"
     },
     {
-     "id": "arr-0357",
+     "id": "arr-0366",
      "type": "arrow"
     }
    ],
@@ -1162,7 +1162,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0315",
+     "id": "arr-0320",
      "type": "arrow"
     }
    ],
@@ -1333,31 +1333,31 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0309",
+     "id": "arr-0314",
      "type": "arrow"
     },
     {
-     "id": "arr-0311",
+     "id": "arr-0316",
      "type": "arrow"
     },
     {
-     "id": "arr-0313",
+     "id": "arr-0318",
      "type": "arrow"
     },
     {
-     "id": "arr-0315",
+     "id": "arr-0320",
      "type": "arrow"
     },
     {
-     "id": "arr-0317",
+     "id": "arr-0322",
      "type": "arrow"
     },
     {
-     "id": "arr-0319",
+     "id": "arr-0324",
      "type": "arrow"
     },
     {
-     "id": "arr-0355",
+     "id": "arr-0364",
      "type": "arrow"
     }
    ],
@@ -1463,11 +1463,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0317",
+     "id": "arr-0322",
      "type": "arrow"
     },
     {
-     "id": "arr-0321",
+     "id": "arr-0326",
      "type": "arrow"
     }
    ],
@@ -1573,11 +1573,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0319",
+     "id": "arr-0324",
      "type": "arrow"
     },
     {
-     "id": "arr-0323",
+     "id": "arr-0328",
      "type": "arrow"
     }
    ],
@@ -1683,19 +1683,19 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0321",
+     "id": "arr-0326",
      "type": "arrow"
     },
     {
-     "id": "arr-0323",
+     "id": "arr-0328",
      "type": "arrow"
     },
     {
-     "id": "arr-0325",
+     "id": "arr-0330",
      "type": "arrow"
     },
     {
-     "id": "arr-0329",
+     "id": "arr-0334",
      "type": "arrow"
     }
    ],
@@ -1801,15 +1801,15 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0325",
+     "id": "arr-0330",
      "type": "arrow"
     },
     {
-     "id": "arr-0327",
+     "id": "arr-0332",
      "type": "arrow"
     },
     {
-     "id": "arr-0331",
+     "id": "arr-0336",
      "type": "arrow"
     }
    ],
@@ -1915,7 +1915,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0329",
+     "id": "arr-0334",
      "type": "arrow"
     }
    ],
@@ -2021,15 +2021,15 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0331",
+     "id": "arr-0336",
      "type": "arrow"
     },
     {
-     "id": "arr-0333",
+     "id": "arr-0338",
      "type": "arrow"
     },
     {
-     "id": "arr-0339",
+     "id": "arr-0344",
      "type": "arrow"
     }
    ],
@@ -2135,11 +2135,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0333",
+     "id": "arr-0338",
      "type": "arrow"
     },
     {
-     "id": "arr-0347",
+     "id": "arr-0356",
      "type": "arrow"
     }
    ],
@@ -2310,7 +2310,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0337",
+     "id": "arr-0342",
      "type": "arrow"
     }
    ],
@@ -2416,19 +2416,19 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0337",
+     "id": "arr-0342",
      "type": "arrow"
     },
     {
-     "id": "arr-0339",
+     "id": "arr-0344",
      "type": "arrow"
     },
     {
-     "id": "arr-0341",
+     "id": "arr-0346",
      "type": "arrow"
     },
     {
-     "id": "arr-0345",
+     "id": "arr-0354",
      "type": "arrow"
     }
    ],
@@ -2534,7 +2534,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0335",
+     "id": "arr-0340",
      "type": "arrow"
     }
    ],
@@ -2690,16 +2690,16 @@
    "x": 2273,
    "y": 859.5,
    "width": 486,
-   "height": 16.2,
+   "height": 30.0,
    "strokeColor": "#1e1e1e",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontFamily": 2,
    "textAlign": "left",
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "32 tests · invariant suite (fail_on_revert)",
-   "originalText": "32 tests · invariant suite (fail_on_revert)",
+   "text": "50 tests · invariants: oracle · registry · futures\nnetOI=0 · collateral-backed · fail_on_revert",
+   "originalText": "50 tests · invariants: oracle · registry · futures\nnetOI=0 · collateral-backed · fail_on_revert",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -2799,8 +2799,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "Smart Contract Platform + Gas Station\ndeploy / import-by-address → setSigner\ndeploy_circle.py (--dry-run) · verify_deploy.py",
-   "originalText": "Smart Contract Platform + Gas Station\ndeploy / import-by-address → setSigner\ndeploy_circle.py (--dry-run) · verify_deploy.py",
+   "text": "Smart Contract Platform + Gas Station\noracle + registry + ACRFutures → setSigner\ndeploy_circle.py · Deploy / DeployFutures.s.sol",
+   "originalText": "Smart Contract Platform + Gas Station\noracle + registry + ACRFutures → setSigner\ndeploy_circle.py · Deploy / DeployFutures.s.sol",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -2864,8 +2864,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "D · INSTRUMENT (Pillar 4)",
-   "originalText": "D · INSTRUMENT (Pillar 4)",
+   "text": "D · INSTRUMENT & PUBLIC DESK (Pillar 4 · on-chain)",
+   "originalText": "D · INSTRUMENT & PUBLIC DESK (Pillar 4 · on-chain)",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -2890,9 +2890,9 @@
    "id": "d_future",
    "type": "rectangle",
    "x": 2260,
-   "y": 1162,
+   "y": 1156,
    "width": 510,
-   "height": 128,
+   "height": 96,
    "strokeColor": "#2f9e44",
    "backgroundColor": "transparent",
    "strokeStyle": "solid",
@@ -2907,11 +2907,19 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0341",
+     "id": "arr-0346",
      "type": "arrow"
     },
     {
-     "id": "arr-0343",
+     "id": "arr-0348",
+     "type": "arrow"
+    },
+    {
+     "id": "arr-0350",
+     "type": "arrow"
+    },
+    {
+     "id": "arr-0352",
      "type": "arrow"
     }
    ],
@@ -2928,7 +2936,7 @@
    "id": "t-0148",
    "type": "text",
    "x": 2273,
-   "y": 1172,
+   "y": 1166,
    "width": 486,
    "height": 18.8,
    "strokeColor": "#2f9e44",
@@ -2938,8 +2946,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "ACR-WEEKLY FUTURE",
-   "originalText": "ACR-WEEKLY FUTURE",
+   "text": "ACRFutures.sol  (on-chain venue)",
+   "originalText": "ACRFutures.sol  (on-chain venue)",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -2964,18 +2972,18 @@
    "id": "t-0150",
    "type": "text",
    "x": 2273,
-   "y": 1196.5,
+   "y": 1190.5,
    "width": 486,
-   "height": 48.8,
+   "height": 45.0,
    "strokeColor": "#1e1e1e",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontFamily": 2,
    "textAlign": "left",
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "cash-settled vs oracle print\nno delivery · no bonds\nfuture.py",
-   "originalText": "cash-settled vs oracle print\nno delivery · no bonds\nfuture.py",
+   "text": "weekly cash-settled vs oracle · stale-guard (7200s)\nmaker mirrors every taker → net OI = 0 · 20% margin\nUSDC collateral · Traded tape · socialized-loss settle",
+   "originalText": "weekly cash-settled vs oracle · stale-guard (7200s)\nmaker mirrors every taker → net OI = 0 · 20% margin\nUSDC collateral · Traded tape · socialized-loss settle",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -3000,9 +3008,9 @@
    "id": "d_mm",
    "type": "rectangle",
    "x": 2260,
-   "y": 1302,
+   "y": 1258,
    "width": 510,
-   "height": 128,
+   "height": 96,
    "strokeColor": "#2f9e44",
    "backgroundColor": "transparent",
    "strokeStyle": "solid",
@@ -3017,7 +3025,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0343",
+     "id": "arr-0348",
      "type": "arrow"
     }
    ],
@@ -3034,7 +3042,7 @@
    "id": "t-0153",
    "type": "text",
    "x": 2273,
-   "y": 1312,
+   "y": 1268,
    "width": 486,
    "height": 18.8,
    "strokeColor": "#2f9e44",
@@ -3044,8 +3052,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "MARKET MAKER",
-   "originalText": "MARKET MAKER",
+   "text": "MARKET MAKER (Avellaneda–Stoikov)",
+   "originalText": "MARKET MAKER (Avellaneda–Stoikov)",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -3070,18 +3078,18 @@
    "id": "t-0155",
    "type": "text",
    "x": 2273,
-   "y": 1336.5,
+   "y": 1292.5,
    "width": 486,
-   "height": 48.8,
+   "height": 45.0,
    "strokeColor": "#1e1e1e",
-   "fontSize": 13,
+   "fontSize": 12,
    "fontFamily": 2,
    "textAlign": "left",
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "Avellaneda–Stoikov quotes\nfirst term structure in machine commerce\nmarket_maker.py",
-   "originalText": "Avellaneda–Stoikov quotes\nfirst term structure in machine commerce\nmarket_maker.py",
+   "text": "r = s − q·γ·σ²·(T−t) · seeds the on-chain book\nfutures_loop.py / futures_seed.py\nmaker inventory skews the term-structure curve",
+   "originalText": "r = s − q·γ·σ²·(T−t) · seeds the on-chain book\nfutures_loop.py / futures_seed.py\nmaker inventory skews the term-structure curve",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -3103,7 +3111,113 @@
    "updated": 1731542400000
   },
   {
-   "id": "zone-0157",
+   "id": "d_desk",
+   "type": "rectangle",
+   "x": 2260,
+   "y": 1360,
+   "width": 510,
+   "height": 96,
+   "strokeColor": "#2f9e44",
+   "backgroundColor": "transparent",
+   "strokeStyle": "solid",
+   "strokeWidth": 2,
+   "roundness": {
+    "type": 3
+   },
+   "angle": 0,
+   "roughness": 0,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "boundElements": [
+    {
+     "id": "arr-0350",
+     "type": "arrow"
+    }
+   ],
+   "link": null,
+   "locked": false,
+   "isDeleted": false,
+   "fillStyle": "solid",
+   "seed": 101099,
+   "version": 1,
+   "versionNonce": 202041,
+   "updated": 1731542400000
+  },
+  {
+   "id": "t-0158",
+   "type": "text",
+   "x": 2273,
+   "y": 1370,
+   "width": 486,
+   "height": 18.8,
+   "strokeColor": "#2f9e44",
+   "fontSize": 15,
+   "fontFamily": 3,
+   "textAlign": "left",
+   "verticalAlign": "top",
+   "containerId": null,
+   "lineHeight": 1.25,
+   "text": "PUBLIC DESK",
+   "originalText": "PUBLIC DESK",
+   "autoResize": false,
+   "angle": 0,
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 0,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "boundElements": null,
+   "link": null,
+   "locked": false,
+   "isDeleted": false,
+   "fillStyle": "solid",
+   "backgroundColor": "transparent",
+   "seed": 101113,
+   "version": 1,
+   "versionNonce": 202067,
+   "updated": 1731542400000
+  },
+  {
+   "id": "t-0160",
+   "type": "text",
+   "x": 2273,
+   "y": 1394.5,
+   "width": 486,
+   "height": 45.0,
+   "strokeColor": "#1e1e1e",
+   "fontSize": 12,
+   "fontFamily": 2,
+   "textAlign": "left",
+   "verticalAlign": "top",
+   "containerId": null,
+   "lineHeight": 1.25,
+   "text": "readers trade ACRFutures via Circle user-controlled wallet\nPIN ceremony · SCA · Gas-Station gas\ndesk.py · /desk/* · the server never holds the key",
+   "originalText": "readers trade ACRFutures via Circle user-controlled wallet\nPIN ceremony · SCA · Gas-Station gas\ndesk.py · /desk/* · the server never holds the key",
+   "autoResize": false,
+   "angle": 0,
+   "strokeWidth": 2,
+   "strokeStyle": "solid",
+   "roughness": 0,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "boundElements": null,
+   "link": null,
+   "locked": false,
+   "isDeleted": false,
+   "fillStyle": "solid",
+   "backgroundColor": "transparent",
+   "seed": 101127,
+   "version": 1,
+   "versionNonce": 202093,
+   "updated": 1731542400000
+  },
+  {
+   "id": "zone-0162",
    "type": "rectangle",
    "x": 720,
    "y": 1250,
@@ -3126,13 +3240,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101106,
+   "seed": 101141,
    "version": 1,
-   "versionNonce": 202054,
+   "versionNonce": 202119,
    "updated": 1731542400000
   },
   {
-   "id": "t-0159",
+   "id": "t-0164",
    "type": "text",
    "x": 738,
    "y": 1262,
@@ -3162,9 +3276,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101120,
+   "seed": 101155,
    "version": 1,
-   "versionNonce": 202080,
+   "versionNonce": 202145,
    "updated": 1731542400000
   },
   {
@@ -3188,27 +3302,31 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0345",
+     "id": "arr-0352",
      "type": "arrow"
     },
     {
-     "id": "arr-0347",
+     "id": "arr-0354",
      "type": "arrow"
     },
     {
-     "id": "arr-0349",
+     "id": "arr-0356",
      "type": "arrow"
     },
     {
-     "id": "arr-0351",
+     "id": "arr-0358",
      "type": "arrow"
     },
     {
-     "id": "arr-0353",
+     "id": "arr-0360",
      "type": "arrow"
     },
     {
-     "id": "arr-0363",
+     "id": "arr-0362",
+     "type": "arrow"
+    },
+    {
+     "id": "arr-0372",
      "type": "arrow"
     }
    ],
@@ -3216,13 +3334,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101127,
+   "seed": 101162,
    "version": 1,
-   "versionNonce": 202093,
+   "versionNonce": 202158,
    "updated": 1731542400000
   },
   {
-   "id": "t-0162",
+   "id": "t-0167",
    "type": "text",
    "x": 758,
    "y": 1312,
@@ -3252,13 +3370,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101141,
+   "seed": 101176,
    "version": 1,
-   "versionNonce": 202119,
+   "versionNonce": 202184,
    "updated": 1731542400000
   },
   {
-   "id": "t-0164",
+   "id": "t-0169",
    "type": "text",
    "x": 758,
    "y": 1336.5,
@@ -3271,8 +3389,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "x402-gated: /prints /curve /vol\n/marketplace /webhooks /demo/buyer\nlifespan refresh + poster loop\n/onchain reader (90s TTL cache)",
-   "originalText": "x402-gated: /prints /curve /vol\n/marketplace /webhooks /demo/buyer\nlifespan refresh + poster loop\n/onchain reader (90s TTL cache)",
+   "text": "x402-gated: /prints /curve /vol\n/futures /desk/* /marketplace /webhooks\nlifespan: refresh + poster + book warm\n/onchain + futures readers (90s TTL)",
+   "originalText": "x402-gated: /prints /curve /vol\n/futures /desk/* /marketplace /webhooks\nlifespan: refresh + poster + book warm\n/onchain + futures readers (90s TTL)",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -3288,9 +3406,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101155,
+   "seed": 101190,
    "version": 1,
-   "versionNonce": 202145,
+   "versionNonce": 202210,
    "updated": 1731542400000
   },
   {
@@ -3314,15 +3432,15 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0349",
+     "id": "arr-0358",
      "type": "arrow"
     },
     {
-     "id": "arr-0359",
+     "id": "arr-0368",
      "type": "arrow"
     },
     {
-     "id": "arr-0365",
+     "id": "arr-0374",
      "type": "arrow"
     }
    ],
@@ -3330,13 +3448,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101162,
+   "seed": 101197,
    "version": 1,
-   "versionNonce": 202158,
+   "versionNonce": 202223,
    "updated": 1731542400000
   },
   {
-   "id": "t-0167",
+   "id": "t-0172",
    "type": "text",
    "x": 1208,
    "y": 1312,
@@ -3366,13 +3484,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101176,
+   "seed": 101211,
    "version": 1,
-   "versionNonce": 202184,
+   "versionNonce": 202249,
    "updated": 1731542400000
   },
   {
-   "id": "t-0169",
+   "id": "t-0174",
    "type": "text",
    "x": 1208,
    "y": 1336.5,
@@ -3402,9 +3520,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101190,
+   "seed": 101225,
    "version": 1,
-   "versionNonce": 202210,
+   "versionNonce": 202275,
    "updated": 1731542400000
   },
   {
@@ -3428,7 +3546,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0351",
+     "id": "arr-0360",
      "type": "arrow"
     }
    ],
@@ -3436,13 +3554,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101197,
+   "seed": 101232,
    "version": 1,
-   "versionNonce": 202223,
+   "versionNonce": 202288,
    "updated": 1731542400000
   },
   {
-   "id": "t-0172",
+   "id": "t-0177",
    "type": "text",
    "x": 1673,
    "y": 1312,
@@ -3472,13 +3590,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101211,
+   "seed": 101246,
    "version": 1,
-   "versionNonce": 202249,
+   "versionNonce": 202314,
    "updated": 1731542400000
   },
   {
-   "id": "t-0174",
+   "id": "t-0179",
    "type": "text",
    "x": 1673,
    "y": 1336.5,
@@ -3491,8 +3609,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "editorial 'The Fixing' · /attack /curve /exchange\nChainFactsStrip · OracleProvenance (tx·block)\nFinalityBadge · SettlementTape · WebhookActivity\nSWR live polling · apps/terminal",
-   "originalText": "editorial 'The Fixing' · /attack /curve /exchange\nChainFactsStrip · OracleProvenance (tx·block)\nFinalityBadge · SettlementTape · WebhookActivity\nSWR live polling · apps/terminal",
+   "text": "editorial 'The Fixing' · /curve /exchange /companion\nPublicDesk · FuturesDesk · FuturesTape · QuoteCorridor\nChainFactsStrip · OracleProvenance · FinalityBadge\nSWR live polling · apps/terminal",
+   "originalText": "editorial 'The Fixing' · /curve /exchange /companion\nPublicDesk · FuturesDesk · FuturesTape · QuoteCorridor\nChainFactsStrip · OracleProvenance · FinalityBadge\nSWR live polling · apps/terminal",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -3508,13 +3626,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101225,
+   "seed": 101260,
    "version": 1,
-   "versionNonce": 202275,
+   "versionNonce": 202340,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0176",
+   "id": "zone-0181",
    "type": "rectangle",
    "x": 720,
    "y": 1630,
@@ -3537,13 +3655,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101239,
+   "seed": 101274,
    "version": 1,
-   "versionNonce": 202301,
+   "versionNonce": 202366,
    "updated": 1731542400000
   },
   {
-   "id": "t-0178",
+   "id": "t-0183",
    "type": "text",
    "x": 738,
    "y": 1642,
@@ -3573,9 +3691,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101253,
+   "seed": 101288,
    "version": 1,
-   "versionNonce": 202327,
+   "versionNonce": 202392,
    "updated": 1731542400000
   },
   {
@@ -3599,11 +3717,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0361",
+     "id": "arr-0370",
      "type": "arrow"
     },
     {
-     "id": "arr-0363",
+     "id": "arr-0372",
      "type": "arrow"
     }
    ],
@@ -3611,13 +3729,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101260,
+   "seed": 101295,
    "version": 1,
-   "versionNonce": 202340,
+   "versionNonce": 202405,
    "updated": 1731542400000
   },
   {
-   "id": "t-0181",
+   "id": "t-0186",
    "type": "text",
    "x": 758,
    "y": 1692,
@@ -3647,13 +3765,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101274,
+   "seed": 101309,
    "version": 1,
-   "versionNonce": 202366,
+   "versionNonce": 202431,
    "updated": 1731542400000
   },
   {
-   "id": "t-0183",
+   "id": "t-0188",
    "type": "text",
    "x": 758,
    "y": 1716.5,
@@ -3683,9 +3801,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101288,
+   "seed": 101323,
    "version": 1,
-   "versionNonce": 202392,
+   "versionNonce": 202457,
    "updated": 1731542400000
   },
   {
@@ -3709,11 +3827,11 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0359",
+     "id": "arr-0368",
      "type": "arrow"
     },
     {
-     "id": "arr-0361",
+     "id": "arr-0370",
      "type": "arrow"
     }
    ],
@@ -3721,13 +3839,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101295,
+   "seed": 101330,
    "version": 1,
-   "versionNonce": 202405,
+   "versionNonce": 202470,
    "updated": 1731542400000
   },
   {
-   "id": "t-0186",
+   "id": "t-0191",
    "type": "text",
    "x": 1208,
    "y": 1692,
@@ -3757,13 +3875,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101309,
+   "seed": 101344,
    "version": 1,
-   "versionNonce": 202431,
+   "versionNonce": 202496,
    "updated": 1731542400000
   },
   {
-   "id": "t-0188",
+   "id": "t-0193",
    "type": "text",
    "x": 1208,
    "y": 1716.5,
@@ -3793,9 +3911,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101323,
+   "seed": 101358,
    "version": 1,
-   "versionNonce": 202457,
+   "versionNonce": 202522,
    "updated": 1731542400000
   },
   {
@@ -3819,7 +3937,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0365",
+     "id": "arr-0374",
      "type": "arrow"
     }
    ],
@@ -3827,13 +3945,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101330,
+   "seed": 101365,
    "version": 1,
-   "versionNonce": 202470,
+   "versionNonce": 202535,
    "updated": 1731542400000
   },
   {
-   "id": "t-0191",
+   "id": "t-0196",
    "type": "text",
    "x": 1673,
    "y": 1692,
@@ -3863,13 +3981,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101344,
+   "seed": 101379,
    "version": 1,
-   "versionNonce": 202496,
+   "versionNonce": 202561,
    "updated": 1731542400000
   },
   {
-   "id": "t-0193",
+   "id": "t-0198",
    "type": "text",
    "x": 1673,
    "y": 1716.5,
@@ -3899,13 +4017,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101358,
+   "seed": 101393,
    "version": 1,
-   "versionNonce": 202522,
+   "versionNonce": 202587,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0195",
+   "id": "zone-0200",
    "type": "rectangle",
    "x": 60,
    "y": 1150,
@@ -3928,13 +4046,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101372,
+   "seed": 101407,
    "version": 1,
-   "versionNonce": 202548,
+   "versionNonce": 202613,
    "updated": 1731542400000
   },
   {
-   "id": "t-0197",
+   "id": "t-0202",
    "type": "text",
    "x": 78,
    "y": 1162,
@@ -3964,9 +4082,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101386,
+   "seed": 101421,
    "version": 1,
-   "versionNonce": 202574,
+   "versionNonce": 202639,
    "updated": 1731542400000
   },
   {
@@ -3990,7 +4108,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0357",
+     "id": "arr-0366",
      "type": "arrow"
     }
    ],
@@ -3998,13 +4116,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101393,
+   "seed": 101428,
    "version": 1,
-   "versionNonce": 202587,
+   "versionNonce": 202652,
    "updated": 1731542400000
   },
   {
-   "id": "t-0200",
+   "id": "t-0205",
    "type": "text",
    "x": 93,
    "y": 1212,
@@ -4034,13 +4152,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101407,
+   "seed": 101442,
    "version": 1,
-   "versionNonce": 202613,
+   "versionNonce": 202678,
    "updated": 1731542400000
   },
   {
-   "id": "t-0202",
+   "id": "t-0207",
    "type": "text",
    "x": 93,
    "y": 1236.5,
@@ -4070,9 +4188,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101421,
+   "seed": 101456,
    "version": 1,
-   "versionNonce": 202639,
+   "versionNonce": 202704,
    "updated": 1731542400000
   },
   {
@@ -4099,13 +4217,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101428,
+   "seed": 101463,
    "version": 1,
-   "versionNonce": 202652,
+   "versionNonce": 202717,
    "updated": 1731542400000
   },
   {
-   "id": "t-0205",
+   "id": "t-0210",
    "type": "text",
    "x": 93,
    "y": 1372,
@@ -4135,13 +4253,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101442,
+   "seed": 101477,
    "version": 1,
-   "versionNonce": 202678,
+   "versionNonce": 202743,
    "updated": 1731542400000
   },
   {
-   "id": "t-0207",
+   "id": "t-0212",
    "type": "text",
    "x": 93,
    "y": 1396.5,
@@ -4171,13 +4289,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101456,
+   "seed": 101491,
    "version": 1,
-   "versionNonce": 202704,
+   "versionNonce": 202769,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0209",
+   "id": "zone-0214",
    "type": "rectangle",
    "x": 2240,
    "y": 1500,
@@ -4200,13 +4318,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101470,
+   "seed": 101505,
    "version": 1,
-   "versionNonce": 202730,
+   "versionNonce": 202795,
    "updated": 1731542400000
   },
   {
-   "id": "t-0211",
+   "id": "t-0216",
    "type": "text",
    "x": 2258,
    "y": 1512,
@@ -4236,9 +4354,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101484,
+   "seed": 101519,
    "version": 1,
-   "versionNonce": 202756,
+   "versionNonce": 202821,
    "updated": 1731542400000
   },
   {
@@ -4265,13 +4383,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101491,
+   "seed": 101526,
    "version": 1,
-   "versionNonce": 202769,
+   "versionNonce": 202834,
    "updated": 1731542400000
   },
   {
-   "id": "t-0214",
+   "id": "t-0219",
    "type": "text",
    "x": 2273,
    "y": 1562,
@@ -4284,8 +4402,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "TESTS · 165 py + 32 forge",
-   "originalText": "TESTS · 165 py + 32 forge",
+   "text": "TESTS · 230 py + 50 forge",
+   "originalText": "TESTS · 230 py + 50 forge",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -4301,13 +4419,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101505,
+   "seed": 101540,
    "version": 1,
-   "versionNonce": 202795,
+   "versionNonce": 202860,
    "updated": 1731542400000
   },
   {
-   "id": "t-0216",
+   "id": "t-0221",
    "type": "text",
    "x": 2273,
    "y": 1586.5,
@@ -4320,8 +4438,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "+ agent TS + interop conformance\neval gate: VWAP 107–123% · ACR <3% → 50–560×\nglossary gate · ruff · GitHub CI\nhermetic conftest (Circle mocked)",
-   "originalText": "+ agent TS + interop conformance\neval gate: VWAP 107–123% · ACR <3% → 50–560×\nglossary gate · ruff · GitHub CI\nhermetic conftest (Circle mocked)",
+   "text": "+ agent TS + terminal + interop conformance\neval gate: VWAP 107–123% · ACR <3% → 50–560×\nglossary gate · ruff · GitHub CI · make deck\nhermetic conftest (Circle mocked)",
+   "originalText": "+ agent TS + terminal + interop conformance\neval gate: VWAP 107–123% · ACR <3% → 50–560×\nglossary gate · ruff · GitHub CI · make deck\nhermetic conftest (Circle mocked)",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -4337,9 +4455,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101519,
+   "seed": 101554,
    "version": 1,
-   "versionNonce": 202821,
+   "versionNonce": 202886,
    "updated": 1731542400000
   },
   {
@@ -4366,13 +4484,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101526,
+   "seed": 101561,
    "version": 1,
-   "versionNonce": 202834,
+   "versionNonce": 202899,
    "updated": 1731542400000
   },
   {
-   "id": "t-0219",
+   "id": "t-0224",
    "type": "text",
    "x": 2873,
    "y": 330,
@@ -4402,13 +4520,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101540,
+   "seed": 101575,
    "version": 1,
-   "versionNonce": 202860,
+   "versionNonce": 202925,
    "updated": 1731542400000
   },
   {
-   "id": "t-0221",
+   "id": "t-0226",
    "type": "text",
    "x": 2873,
    "y": 354.5,
@@ -4438,9 +4556,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101554,
+   "seed": 101589,
    "version": 1,
-   "versionNonce": 202886,
+   "versionNonce": 202951,
    "updated": 1731542400000
   },
   {
@@ -4467,13 +4585,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101561,
+   "seed": 101596,
    "version": 1,
-   "versionNonce": 202899,
+   "versionNonce": 202964,
    "updated": 1731542400000
   },
   {
-   "id": "t-0224",
+   "id": "t-0229",
    "type": "text",
    "x": 2873,
    "y": 600,
@@ -4503,13 +4621,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101575,
+   "seed": 101610,
    "version": 1,
-   "versionNonce": 202925,
+   "versionNonce": 202990,
    "updated": 1731542400000
   },
   {
-   "id": "t-0226",
+   "id": "t-0231",
    "type": "text",
    "x": 2873,
    "y": 624.5,
@@ -4522,8 +4640,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "methodology paper published (OSS)\nN hourly prints live on-chain\nattack-cost-per-bp on EVERY print\nX wash attacks absorbed (red-team)\nnaive-VWAP err  vs  ACR err  (chart)\nlive future quotes + Y settled trades\n5+ sellers attested on-chain\n100% Foundry invariants passing\n100 python + 32 forge tests green",
-   "originalText": "methodology paper published (OSS)\nN hourly prints live on-chain\nattack-cost-per-bp on EVERY print\nX wash attacks absorbed (red-team)\nnaive-VWAP err  vs  ACR err  (chart)\nlive future quotes + Y settled trades\n5+ sellers attested on-chain\n100% Foundry invariants passing\n100 python + 32 forge tests green",
+   "text": "methodology paper published (OSS)\nN hourly prints live on-chain\nattack-cost-per-bp on EVERY print\nX wash attacks absorbed (red-team)\nnaive-VWAP err  vs  ACR err  (chart)\nlive future quotes + Y settled trades\n5+ sellers attested on-chain\n100% Foundry invariants passing\n230 python + 50 forge tests green",
+   "originalText": "methodology paper published (OSS)\nN hourly prints live on-chain\nattack-cost-per-bp on EVERY print\nX wash attacks absorbed (red-team)\nnaive-VWAP err  vs  ACR err  (chart)\nlive future quotes + Y settled trades\n5+ sellers attested on-chain\n100% Foundry invariants passing\n230 python + 50 forge tests green",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -4539,13 +4657,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101589,
+   "seed": 101624,
    "version": 1,
-   "versionNonce": 202951,
+   "versionNonce": 203016,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0228",
+   "id": "zone-0233",
    "type": "rectangle",
    "x": 2860,
    "y": 1090,
@@ -4568,13 +4686,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101603,
+   "seed": 101638,
    "version": 1,
-   "versionNonce": 202977,
+   "versionNonce": 203042,
    "updated": 1731542400000
   },
   {
-   "id": "t-0230",
+   "id": "t-0235",
    "type": "text",
    "x": 2878,
    "y": 1102,
@@ -4604,18 +4722,18 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101617,
+   "seed": 101652,
    "version": 1,
-   "versionNonce": 203003,
+   "versionNonce": 203068,
    "updated": 1731542400000
   },
   {
-   "id": "t-0232",
+   "id": "t-0237",
    "type": "text",
    "x": 2884,
    "y": 1132,
    "width": 588,
-   "height": 701.2,
+   "height": 728.8,
    "strokeColor": "#1e1e1e",
    "fontSize": 11,
    "fontFamily": 2,
@@ -4623,8 +4741,8 @@
    "verticalAlign": "top",
    "containerId": null,
    "lineHeight": 1.25,
-   "text": "latent price — the real price you can't see; ACR estimates it\nbenchmark / rate — the official number contracts settle on (SOFR)\nVWAP — a plain volume-weighted average; fake volume fools it\nhedonic — strip quality gaps so you compare like-for-like\nconstant-quality — price with quality removed; moves w/ the market\nobservation model — 'what we see = true price, blurred + noisy'\nconvolution / batching — settlements smear trades together in time\ndeconvolution — un-smear it to recover the true price\nKalman filter — recover a clean signal from noisy, delayed data\nRTS smoother — a backward pass that sharpens earlier estimates\nbatch operator H — the known 'recipe' of the blur, so we can invert\nvolume-time bars — sample per equal $ traded, not per clock tick\nWLS — regression that weights bigger trades more heavily\nα-trim median (VWM) — drop the extreme few %, keep the middle\nbreakdown ½ — survives up to 50% bad data before it breaks\nbootstrap CI — resample to get an honest 'give-or-take' range\nLOCO — drop each cluster in turn; how far does the rate move?\nsybil — many fake identities run by one attacker\nwash trade / self-deal — fake trades to pump volume or price\nreciprocal ring — money loops A→B→A; volume looks real, net ≈ 0\nLouvain — finds tight clusters in a who-paid-whom graph\nmanipulation bound — least USDC (N*) to move the rate 1 bp\nbasis point (bp) — one hundredth of a percent (0.01%)\noracle — on-chain contract that publishes the rate to read\npostPrint / relayer — publish the rate; anyone may submit it\nsigner (Local | Circle) — who holds the key that signs the rate\nEIP-712 verify — contract checks WHO signed, not who sent it\nMAX_TS_SKEW / isStale — reject far-future or too-old prints\nnonce + deadline — one-time counter + expiry ⇒ replay-proof\n2-step ownership — new admin must accept ⇒ no wrong-address handoff\nMalachite finality — Arc confirms in <1s and never reverses (no reorgs)\nEIP-3009 — pay by signing a message (no separate approval tx)\nx402 / Nanopayments — pay-per-call in sub-cent USDC (HTTP 402)\nfacilitator /verify /settle — check the payment, then move the USDC\nfail-closed — if payment can't verify, deny (the safe default)\nArc / USDC-gas — Circle's chain; fees are paid in USDC itself\ntestnet — a practice chain with fake-value tokens\nTapeSource — one data-in interface: SimSource | ArcSource\n/onchain reader — API serves the rate read straight from chain\nSSR — web page built on the server; loads fast\nsettlement-grade — trustworthy enough for contracts to settle on\ncash-settled future — bet on the rate; pays the diff, no delivery\nAvellaneda–Stoikov — a recipe for a market maker's buy/sell quotes\nbuyer agent — a machine that auto-discovers + pays for the index\nAgent Marketplace — catalog of payable services + receipts ledger\nGatewayWalletBatched — Circle contract the x402 payment signs against\nmeta-attestation (attestWithSig) — seller signs, a relayer pays gas\nCircle wallet / SCP — custodial signer + on-chain deploy platform\nwebhook — Circle pings the API when a settlement lands\nSettlementTape — the Terminal's live feed of on-chain settlements\nSWR — the Terminal auto-refreshes its data every few seconds",
-   "originalText": "latent price — the real price you can't see; ACR estimates it\nbenchmark / rate — the official number contracts settle on (SOFR)\nVWAP — a plain volume-weighted average; fake volume fools it\nhedonic — strip quality gaps so you compare like-for-like\nconstant-quality — price with quality removed; moves w/ the market\nobservation model — 'what we see = true price, blurred + noisy'\nconvolution / batching — settlements smear trades together in time\ndeconvolution — un-smear it to recover the true price\nKalman filter — recover a clean signal from noisy, delayed data\nRTS smoother — a backward pass that sharpens earlier estimates\nbatch operator H — the known 'recipe' of the blur, so we can invert\nvolume-time bars — sample per equal $ traded, not per clock tick\nWLS — regression that weights bigger trades more heavily\nα-trim median (VWM) — drop the extreme few %, keep the middle\nbreakdown ½ — survives up to 50% bad data before it breaks\nbootstrap CI — resample to get an honest 'give-or-take' range\nLOCO — drop each cluster in turn; how far does the rate move?\nsybil — many fake identities run by one attacker\nwash trade / self-deal — fake trades to pump volume or price\nreciprocal ring — money loops A→B→A; volume looks real, net ≈ 0\nLouvain — finds tight clusters in a who-paid-whom graph\nmanipulation bound — least USDC (N*) to move the rate 1 bp\nbasis point (bp) — one hundredth of a percent (0.01%)\noracle — on-chain contract that publishes the rate to read\npostPrint / relayer — publish the rate; anyone may submit it\nsigner (Local | Circle) — who holds the key that signs the rate\nEIP-712 verify — contract checks WHO signed, not who sent it\nMAX_TS_SKEW / isStale — reject far-future or too-old prints\nnonce + deadline — one-time counter + expiry ⇒ replay-proof\n2-step ownership — new admin must accept ⇒ no wrong-address handoff\nMalachite finality — Arc confirms in <1s and never reverses (no reorgs)\nEIP-3009 — pay by signing a message (no separate approval tx)\nx402 / Nanopayments — pay-per-call in sub-cent USDC (HTTP 402)\nfacilitator /verify /settle — check the payment, then move the USDC\nfail-closed — if payment can't verify, deny (the safe default)\nArc / USDC-gas — Circle's chain; fees are paid in USDC itself\ntestnet — a practice chain with fake-value tokens\nTapeSource — one data-in interface: SimSource | ArcSource\n/onchain reader — API serves the rate read straight from chain\nSSR — web page built on the server; loads fast\nsettlement-grade — trustworthy enough for contracts to settle on\ncash-settled future — bet on the rate; pays the diff, no delivery\nAvellaneda–Stoikov — a recipe for a market maker's buy/sell quotes\nbuyer agent — a machine that auto-discovers + pays for the index\nAgent Marketplace — catalog of payable services + receipts ledger\nGatewayWalletBatched — Circle contract the x402 payment signs against\nmeta-attestation (attestWithSig) — seller signs, a relayer pays gas\nCircle wallet / SCP — custodial signer + on-chain deploy platform\nwebhook — Circle pings the API when a settlement lands\nSettlementTape — the Terminal's live feed of on-chain settlements\nSWR — the Terminal auto-refreshes its data every few seconds",
+   "text": "latent price — the real price you can't see; ACR estimates it\nbenchmark / rate — the official number contracts settle on (SOFR)\nVWAP — a plain volume-weighted average; fake volume fools it\nhedonic — strip quality gaps so you compare like-for-like\nconstant-quality — price with quality removed; moves w/ the market\nobservation model — 'what we see = true price, blurred + noisy'\nconvolution / batching — settlements smear trades together in time\ndeconvolution — un-smear it to recover the true price\nKalman filter — recover a clean signal from noisy, delayed data\nRTS smoother — a backward pass that sharpens earlier estimates\nWLS — regression that weights bigger trades more heavily\nα-trim median (VWM) — drop the extreme few %, keep the middle\nbreakdown ½ — survives up to 50% bad data before it breaks\nbootstrap CI — resample to get an honest 'give-or-take' range\nsybil — many fake identities run by one attacker\nwash trade / self-deal — fake trades to pump volume or price\nLouvain — finds tight clusters in a who-paid-whom graph\nmanipulation bound — least USDC (N*) to move the rate 1 bp\nbasis point (bp) — one hundredth of a percent (0.01%)\noracle — on-chain contract that publishes the rate to read\npostPrint / relayer — publish the rate; anyone may submit it\nsigner (Local | Circle) — who holds the key that signs the rate\nEIP-712 verify — contract checks WHO signed, not who sent it\nMAX_TS_SKEW / isStale — reject far-future or too-old prints\nnonce + deadline — one-time counter + expiry ⇒ replay-proof\n2-step ownership — new admin must accept ⇒ no wrong-address handoff\nMalachite finality — Arc confirms in <1s and never reverses (no reorgs)\nEIP-3009 — pay by signing a message (no separate approval tx)\nx402 / Nanopayments — pay-per-call in sub-cent USDC (HTTP 402)\nfacilitator /verify /settle — check the payment, then move the USDC\nfail-closed — if payment can't verify, deny (the safe default)\nArc / USDC-gas — Circle's chain; fees are paid in USDC itself\ntestnet — a practice chain with fake-value tokens\nTapeSource — one data-in interface: SimSource | ArcSource\n/onchain reader — API serves the rate read straight from chain\nSSR — web page built on the server; loads fast\nsettlement-grade — trustworthy enough for contracts to settle on\ncash-settled future — bet on the rate; pays the diff, no delivery\nAvellaneda–Stoikov — a recipe for a market maker's buy/sell quotes\nACRFutures — an on-chain weekly future, cash-settled vs the oracle\ninitial margin — post ~20% collateral to hold a futures position\nmaker mirror-side — one maker takes the opposite of every fill (net 0)\nsocialized-loss — if a loser can't pay, winners are haircut pro-rata\nPublic Desk — trade the future with a Circle user-controlled wallet\nuser-controlled wallet — the user's own PIN/passkey keys; server has none\nbuyer agent — a machine that auto-discovers + pays for the index\nAgent Marketplace — catalog of payable services + receipts ledger\nGatewayWalletBatched — Circle contract the x402 payment signs against\nmeta-attestation (attestWithSig) — seller signs, a relayer pays gas\nCircle wallet / SCP — custodial signer + on-chain deploy platform\nwebhook — Circle pings the API when a settlement lands\nSettlementTape — the Terminal's live feed of on-chain settlements\nSWR — the Terminal auto-refreshes its data every few seconds",
+   "originalText": "latent price — the real price you can't see; ACR estimates it\nbenchmark / rate — the official number contracts settle on (SOFR)\nVWAP — a plain volume-weighted average; fake volume fools it\nhedonic — strip quality gaps so you compare like-for-like\nconstant-quality — price with quality removed; moves w/ the market\nobservation model — 'what we see = true price, blurred + noisy'\nconvolution / batching — settlements smear trades together in time\ndeconvolution — un-smear it to recover the true price\nKalman filter — recover a clean signal from noisy, delayed data\nRTS smoother — a backward pass that sharpens earlier estimates\nWLS — regression that weights bigger trades more heavily\nα-trim median (VWM) — drop the extreme few %, keep the middle\nbreakdown ½ — survives up to 50% bad data before it breaks\nbootstrap CI — resample to get an honest 'give-or-take' range\nsybil — many fake identities run by one attacker\nwash trade / self-deal — fake trades to pump volume or price\nLouvain — finds tight clusters in a who-paid-whom graph\nmanipulation bound — least USDC (N*) to move the rate 1 bp\nbasis point (bp) — one hundredth of a percent (0.01%)\noracle — on-chain contract that publishes the rate to read\npostPrint / relayer — publish the rate; anyone may submit it\nsigner (Local | Circle) — who holds the key that signs the rate\nEIP-712 verify — contract checks WHO signed, not who sent it\nMAX_TS_SKEW / isStale — reject far-future or too-old prints\nnonce + deadline — one-time counter + expiry ⇒ replay-proof\n2-step ownership — new admin must accept ⇒ no wrong-address handoff\nMalachite finality — Arc confirms in <1s and never reverses (no reorgs)\nEIP-3009 — pay by signing a message (no separate approval tx)\nx402 / Nanopayments — pay-per-call in sub-cent USDC (HTTP 402)\nfacilitator /verify /settle — check the payment, then move the USDC\nfail-closed — if payment can't verify, deny (the safe default)\nArc / USDC-gas — Circle's chain; fees are paid in USDC itself\ntestnet — a practice chain with fake-value tokens\nTapeSource — one data-in interface: SimSource | ArcSource\n/onchain reader — API serves the rate read straight from chain\nSSR — web page built on the server; loads fast\nsettlement-grade — trustworthy enough for contracts to settle on\ncash-settled future — bet on the rate; pays the diff, no delivery\nAvellaneda–Stoikov — a recipe for a market maker's buy/sell quotes\nACRFutures — an on-chain weekly future, cash-settled vs the oracle\ninitial margin — post ~20% collateral to hold a futures position\nmaker mirror-side — one maker takes the opposite of every fill (net 0)\nsocialized-loss — if a loser can't pay, winners are haircut pro-rata\nPublic Desk — trade the future with a Circle user-controlled wallet\nuser-controlled wallet — the user's own PIN/passkey keys; server has none\nbuyer agent — a machine that auto-discovers + pays for the index\nAgent Marketplace — catalog of payable services + receipts ledger\nGatewayWalletBatched — Circle contract the x402 payment signs against\nmeta-attestation (attestWithSig) — seller signs, a relayer pays gas\nCircle wallet / SCP — custodial signer + on-chain deploy platform\nwebhook — Circle pings the API when a settlement lands\nSettlementTape — the Terminal's live feed of on-chain settlements\nSWR — the Terminal auto-refreshes its data every few seconds",
    "autoResize": false,
    "angle": 0,
    "strokeWidth": 2,
@@ -4640,13 +4758,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101631,
+   "seed": 101666,
    "version": 1,
-   "versionNonce": 203029,
+   "versionNonce": 203094,
    "updated": 1731542400000
   },
   {
-   "id": "t-0234",
+   "id": "t-0239",
    "type": "text",
    "x": 2884,
    "y": 1862,
@@ -4676,13 +4794,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101645,
+   "seed": 101680,
    "version": 1,
-   "versionNonce": 203055,
+   "versionNonce": 203120,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0236",
+   "id": "zone-0241",
    "type": "rectangle",
    "x": 60,
    "y": 1900,
@@ -4705,13 +4823,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101659,
+   "seed": 101694,
    "version": 1,
-   "versionNonce": 203081,
+   "versionNonce": 203146,
    "updated": 1731542400000
   },
   {
-   "id": "t-0238",
+   "id": "t-0243",
    "type": "text",
    "x": 78,
    "y": 1912,
@@ -4741,9 +4859,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101673,
+   "seed": 101708,
    "version": 1,
-   "versionNonce": 203107,
+   "versionNonce": 203172,
    "updated": 1731542400000
   },
   {
@@ -4767,7 +4885,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0355",
+     "id": "arr-0364",
      "type": "arrow"
     }
    ],
@@ -4775,13 +4893,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101680,
+   "seed": 101715,
    "version": 1,
-   "versionNonce": 203120,
+   "versionNonce": 203185,
    "updated": 1731542400000
   },
   {
-   "id": "t-0241",
+   "id": "t-0246",
    "type": "text",
    "x": 93,
    "y": 1985,
@@ -4811,13 +4929,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101694,
+   "seed": 101729,
    "version": 1,
-   "versionNonce": 203146,
+   "versionNonce": 203211,
    "updated": 1731542400000
   },
   {
-   "id": "t-0243",
+   "id": "t-0248",
    "type": "text",
    "x": 93,
    "y": 2009.5,
@@ -4847,9 +4965,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101708,
+   "seed": 101743,
    "version": 1,
-   "versionNonce": 203172,
+   "versionNonce": 203237,
    "updated": 1731542400000
   },
   {
@@ -4876,13 +4994,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101715,
+   "seed": 101750,
    "version": 1,
-   "versionNonce": 203185,
+   "versionNonce": 203250,
    "updated": 1731542400000
   },
   {
-   "id": "t-0246",
+   "id": "t-0251",
    "type": "text",
    "x": 659,
    "y": 1985,
@@ -4912,13 +5030,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101729,
+   "seed": 101764,
    "version": 1,
-   "versionNonce": 203211,
+   "versionNonce": 203276,
    "updated": 1731542400000
   },
   {
-   "id": "t-0248",
+   "id": "t-0253",
    "type": "text",
    "x": 659,
    "y": 2009.5,
@@ -4948,9 +5066,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101743,
+   "seed": 101778,
    "version": 1,
-   "versionNonce": 203237,
+   "versionNonce": 203302,
    "updated": 1731542400000
   },
   {
@@ -4974,7 +5092,7 @@
    "frameId": null,
    "boundElements": [
     {
-     "id": "arr-0353",
+     "id": "arr-0362",
      "type": "arrow"
     }
    ],
@@ -4982,13 +5100,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101750,
+   "seed": 101785,
    "version": 1,
-   "versionNonce": 203250,
+   "versionNonce": 203315,
    "updated": 1731542400000
   },
   {
-   "id": "t-0251",
+   "id": "t-0256",
    "type": "text",
    "x": 1225,
    "y": 1985,
@@ -5018,13 +5136,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101764,
+   "seed": 101799,
    "version": 1,
-   "versionNonce": 203276,
+   "versionNonce": 203341,
    "updated": 1731542400000
   },
   {
-   "id": "t-0253",
+   "id": "t-0258",
    "type": "text",
    "x": 1225,
    "y": 2009.5,
@@ -5054,9 +5172,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101778,
+   "seed": 101813,
    "version": 1,
-   "versionNonce": 203302,
+   "versionNonce": 203367,
    "updated": 1731542400000
   },
   {
@@ -5083,13 +5201,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101785,
+   "seed": 101820,
    "version": 1,
-   "versionNonce": 203315,
+   "versionNonce": 203380,
    "updated": 1731542400000
   },
   {
-   "id": "t-0256",
+   "id": "t-0261",
    "type": "text",
    "x": 1791,
    "y": 1985,
@@ -5119,13 +5237,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101799,
+   "seed": 101834,
    "version": 1,
-   "versionNonce": 203341,
+   "versionNonce": 203406,
    "updated": 1731542400000
   },
   {
-   "id": "t-0258",
+   "id": "t-0263",
    "type": "text",
    "x": 1791,
    "y": 2009.5,
@@ -5155,9 +5273,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101813,
+   "seed": 101848,
    "version": 1,
-   "versionNonce": 203367,
+   "versionNonce": 203432,
    "updated": 1731542400000
   },
   {
@@ -5184,13 +5302,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101820,
+   "seed": 101855,
    "version": 1,
-   "versionNonce": 203380,
+   "versionNonce": 203445,
    "updated": 1731542400000
   },
   {
-   "id": "t-0261",
+   "id": "t-0266",
    "type": "text",
    "x": 2357,
    "y": 1985,
@@ -5220,13 +5338,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101834,
+   "seed": 101869,
    "version": 1,
-   "versionNonce": 203406,
+   "versionNonce": 203471,
    "updated": 1731542400000
   },
   {
-   "id": "t-0263",
+   "id": "t-0268",
    "type": "text",
    "x": 2357,
    "y": 2009.5,
@@ -5256,9 +5374,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101848,
+   "seed": 101883,
    "version": 1,
-   "versionNonce": 203432,
+   "versionNonce": 203497,
    "updated": 1731542400000
   },
   {
@@ -5285,13 +5403,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101855,
+   "seed": 101890,
    "version": 1,
-   "versionNonce": 203445,
+   "versionNonce": 203510,
    "updated": 1731542400000
   },
   {
-   "id": "t-0266",
+   "id": "t-0271",
    "type": "text",
    "x": 2923,
    "y": 1985,
@@ -5321,13 +5439,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101869,
+   "seed": 101904,
    "version": 1,
-   "versionNonce": 203471,
+   "versionNonce": 203536,
    "updated": 1731542400000
   },
   {
-   "id": "t-0268",
+   "id": "t-0273",
    "type": "text",
    "x": 2923,
    "y": 2009.5,
@@ -5357,13 +5475,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101883,
+   "seed": 101918,
    "version": 1,
-   "versionNonce": 203497,
+   "versionNonce": 203562,
    "updated": 1731542400000
   },
   {
-   "id": "zone-0270",
+   "id": "zone-0275",
    "type": "rectangle",
    "x": 60,
    "y": 2200,
@@ -5386,13 +5504,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101897,
+   "seed": 101932,
    "version": 1,
-   "versionNonce": 203523,
+   "versionNonce": 203588,
    "updated": 1731542400000
   },
   {
-   "id": "t-0272",
+   "id": "t-0277",
    "type": "text",
    "x": 78,
    "y": 2212,
@@ -5422,9 +5540,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101911,
+   "seed": 101946,
    "version": 1,
-   "versionNonce": 203549,
+   "versionNonce": 203614,
    "updated": 1731542400000
   },
   {
@@ -5451,13 +5569,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101918,
+   "seed": 101953,
    "version": 1,
-   "versionNonce": 203562,
+   "versionNonce": 203627,
    "updated": 1731542400000
   },
   {
-   "id": "t-0275",
+   "id": "t-0280",
    "type": "text",
    "x": 93,
    "y": 2280,
@@ -5487,13 +5605,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101932,
+   "seed": 101967,
    "version": 1,
-   "versionNonce": 203588,
+   "versionNonce": 203653,
    "updated": 1731542400000
   },
   {
-   "id": "t-0277",
+   "id": "t-0282",
    "type": "text",
    "x": 93,
    "y": 2304.5,
@@ -5523,9 +5641,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101946,
+   "seed": 101981,
    "version": 1,
-   "versionNonce": 203614,
+   "versionNonce": 203679,
    "updated": 1731542400000
   },
   {
@@ -5552,13 +5670,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101953,
+   "seed": 101988,
    "version": 1,
-   "versionNonce": 203627,
+   "versionNonce": 203692,
    "updated": 1731542400000
   },
   {
-   "id": "t-0280",
+   "id": "t-0285",
    "type": "text",
    "x": 579,
    "y": 2280,
@@ -5588,13 +5706,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101967,
+   "seed": 102002,
    "version": 1,
-   "versionNonce": 203653,
+   "versionNonce": 203718,
    "updated": 1731542400000
   },
   {
-   "id": "t-0282",
+   "id": "t-0287",
    "type": "text",
    "x": 579,
    "y": 2304.5,
@@ -5624,9 +5742,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 101981,
+   "seed": 102016,
    "version": 1,
-   "versionNonce": 203679,
+   "versionNonce": 203744,
    "updated": 1731542400000
   },
   {
@@ -5653,13 +5771,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 101988,
+   "seed": 102023,
    "version": 1,
-   "versionNonce": 203692,
+   "versionNonce": 203757,
    "updated": 1731542400000
   },
   {
-   "id": "t-0285",
+   "id": "t-0290",
    "type": "text",
    "x": 1065,
    "y": 2280,
@@ -5689,13 +5807,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102002,
+   "seed": 102037,
    "version": 1,
-   "versionNonce": 203718,
+   "versionNonce": 203783,
    "updated": 1731542400000
   },
   {
-   "id": "t-0287",
+   "id": "t-0292",
    "type": "text",
    "x": 1065,
    "y": 2304.5,
@@ -5725,9 +5843,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102016,
+   "seed": 102051,
    "version": 1,
-   "versionNonce": 203744,
+   "versionNonce": 203809,
    "updated": 1731542400000
   },
   {
@@ -5754,13 +5872,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 102023,
+   "seed": 102058,
    "version": 1,
-   "versionNonce": 203757,
+   "versionNonce": 203822,
    "updated": 1731542400000
   },
   {
-   "id": "t-0290",
+   "id": "t-0295",
    "type": "text",
    "x": 1551,
    "y": 2280,
@@ -5790,13 +5908,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102037,
+   "seed": 102072,
    "version": 1,
-   "versionNonce": 203783,
+   "versionNonce": 203848,
    "updated": 1731542400000
   },
   {
-   "id": "t-0292",
+   "id": "t-0297",
    "type": "text",
    "x": 1551,
    "y": 2304.5,
@@ -5826,9 +5944,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102051,
+   "seed": 102086,
    "version": 1,
-   "versionNonce": 203809,
+   "versionNonce": 203874,
    "updated": 1731542400000
   },
   {
@@ -5855,13 +5973,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 102058,
+   "seed": 102093,
    "version": 1,
-   "versionNonce": 203822,
+   "versionNonce": 203887,
    "updated": 1731542400000
   },
   {
-   "id": "t-0295",
+   "id": "t-0300",
    "type": "text",
    "x": 2037,
    "y": 2280,
@@ -5891,13 +6009,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102072,
+   "seed": 102107,
    "version": 1,
-   "versionNonce": 203848,
+   "versionNonce": 203913,
    "updated": 1731542400000
   },
   {
-   "id": "t-0297",
+   "id": "t-0302",
    "type": "text",
    "x": 2037,
    "y": 2304.5,
@@ -5927,9 +6045,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102086,
+   "seed": 102121,
    "version": 1,
-   "versionNonce": 203874,
+   "versionNonce": 203939,
    "updated": 1731542400000
   },
   {
@@ -5956,13 +6074,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 102093,
+   "seed": 102128,
    "version": 1,
-   "versionNonce": 203887,
+   "versionNonce": 203952,
    "updated": 1731542400000
   },
   {
-   "id": "t-0300",
+   "id": "t-0305",
    "type": "text",
    "x": 2523,
    "y": 2280,
@@ -5992,13 +6110,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102107,
+   "seed": 102142,
    "version": 1,
-   "versionNonce": 203913,
+   "versionNonce": 203978,
    "updated": 1731542400000
   },
   {
-   "id": "t-0302",
+   "id": "t-0307",
    "type": "text",
    "x": 2523,
    "y": 2304.5,
@@ -6028,9 +6146,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102121,
+   "seed": 102156,
    "version": 1,
-   "versionNonce": 203939,
+   "versionNonce": 204004,
    "updated": 1731542400000
   },
   {
@@ -6057,13 +6175,13 @@
    "locked": false,
    "isDeleted": false,
    "fillStyle": "solid",
-   "seed": 102128,
+   "seed": 102163,
    "version": 1,
-   "versionNonce": 203952,
+   "versionNonce": 204017,
    "updated": 1731542400000
   },
   {
-   "id": "t-0305",
+   "id": "t-0310",
    "type": "text",
    "x": 3009,
    "y": 2280,
@@ -6093,13 +6211,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102142,
+   "seed": 102177,
    "version": 1,
-   "versionNonce": 203978,
+   "versionNonce": 204043,
    "updated": 1731542400000
   },
   {
-   "id": "t-0307",
+   "id": "t-0312",
    "type": "text",
    "x": 3009,
    "y": 2304.5,
@@ -6129,13 +6247,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102156,
+   "seed": 102191,
    "version": 1,
-   "versionNonce": 204004,
+   "versionNonce": 204069,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0309",
+   "id": "arr-0314",
    "type": "arrow",
    "x": 640.0,
    "y": 410.0,
@@ -6179,13 +6297,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102170,
+   "seed": 102205,
    "version": 1,
-   "versionNonce": 204030,
+   "versionNonce": 204095,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0311",
+   "id": "arr-0316",
    "type": "arrow",
    "x": 635.41,
    "y": 474.0,
@@ -6229,13 +6347,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102184,
+   "seed": 102219,
    "version": 1,
-   "versionNonce": 204056,
+   "versionNonce": 204121,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0313",
+   "id": "arr-0318",
    "type": "arrow",
    "x": 449.84,
    "y": 726.0,
@@ -6279,13 +6397,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102198,
+   "seed": 102233,
    "version": 1,
-   "versionNonce": 204082,
+   "versionNonce": 204147,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0315",
+   "id": "arr-0320",
    "type": "arrow",
    "x": 426.67,
    "y": 856.0,
@@ -6329,13 +6447,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102212,
+   "seed": 102247,
    "version": 1,
-   "versionNonce": 204108,
+   "versionNonce": 204173,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0317",
+   "id": "arr-0322",
    "type": "arrow",
    "x": 1095.0,
    "y": 423.6,
@@ -6379,13 +6497,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102226,
+   "seed": 102261,
    "version": 1,
-   "versionNonce": 204134,
+   "versionNonce": 204199,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0319",
+   "id": "arr-0324",
    "type": "arrow",
    "x": 921.53,
    "y": 472.0,
@@ -6429,13 +6547,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102240,
+   "seed": 102275,
    "version": 1,
-   "versionNonce": 204160,
+   "versionNonce": 204225,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0321",
+   "id": "arr-0326",
    "type": "arrow",
    "x": 1347.47,
    "y": 527.0,
@@ -6479,13 +6597,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102254,
+   "seed": 102289,
    "version": 1,
-   "versionNonce": 204186,
+   "versionNonce": 204251,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0323",
+   "id": "arr-0328",
    "type": "arrow",
    "x": 1105.0,
    "y": 624.89,
@@ -6529,13 +6647,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102268,
+   "seed": 102303,
    "version": 1,
-   "versionNonce": 204212,
+   "versionNonce": 204277,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0325",
+   "id": "arr-0330",
    "type": "arrow",
    "x": 1180.0,
    "y": 733.69,
@@ -6579,13 +6697,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102282,
+   "seed": 102317,
    "version": 1,
-   "versionNonce": 204238,
+   "versionNonce": 204303,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0327",
+   "id": "arr-0332",
    "type": "arrow",
    "x": 542.0,
    "y": 716.0,
@@ -6629,13 +6747,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102296,
+   "seed": 102331,
    "version": 1,
-   "versionNonce": 204264,
+   "versionNonce": 204329,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0329",
+   "id": "arr-0334",
    "type": "arrow",
    "x": 1365.0,
    "y": 740.0,
@@ -6679,13 +6797,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102310,
+   "seed": 102345,
    "version": 1,
-   "versionNonce": 204290,
+   "versionNonce": 204355,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0331",
+   "id": "arr-0336",
    "type": "arrow",
    "x": 1145.0,
    "y": 898.57,
@@ -6729,13 +6847,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102324,
+   "seed": 102359,
    "version": 1,
-   "versionNonce": 204316,
+   "versionNonce": 204381,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0333",
+   "id": "arr-0338",
    "type": "arrow",
    "x": 1180.0,
    "y": 1006.61,
@@ -6779,13 +6897,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102338,
+   "seed": 102373,
    "version": 1,
-   "versionNonce": 204342,
+   "versionNonce": 204407,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0335",
+   "id": "arr-0340",
    "type": "arrow",
    "x": 640.0,
    "y": 660.0,
@@ -6837,13 +6955,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102352,
+   "seed": 102387,
    "version": 1,
-   "versionNonce": 204368,
+   "versionNonce": 204433,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0337",
+   "id": "arr-0342",
    "type": "arrow",
    "x": 2515.0,
    "y": 468.0,
@@ -6887,13 +7005,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102366,
+   "seed": 102401,
    "version": 1,
-   "versionNonce": 204394,
+   "versionNonce": 204459,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0339",
+   "id": "arr-0344",
    "type": "arrow",
    "x": 1550.0,
    "y": 901.79,
@@ -6937,18 +7055,18 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102380,
+   "seed": 102415,
    "version": 1,
-   "versionNonce": 204420,
+   "versionNonce": 204485,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0341",
+   "id": "arr-0346",
    "type": "arrow",
    "x": 2515.0,
    "y": 685.0,
    "width": 0.0,
-   "height": 477.0,
+   "height": 471.0,
    "strokeColor": "#2f9e44",
    "strokeStyle": "solid",
    "strokeWidth": 2,
@@ -6959,7 +7077,7 @@
     ],
     [
      0.0,
-     477.0
+     471.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6987,18 +7105,18 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102394,
+   "seed": 102429,
    "version": 1,
-   "versionNonce": 204446,
+   "versionNonce": 204511,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0343",
+   "id": "arr-0348",
    "type": "arrow",
    "x": 2515.0,
-   "y": 1302.0,
+   "y": 1258.0,
    "width": 0.0,
-   "height": 12.0,
+   "height": 6.0,
    "strokeColor": "#2f9e44",
    "strokeStyle": "solid",
    "strokeWidth": 2,
@@ -7009,7 +7127,7 @@
     ],
     [
      0.0,
-     -12.0
+     -6.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7037,13 +7155,121 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102408,
+   "seed": 102443,
    "version": 1,
-   "versionNonce": 204472,
+   "versionNonce": 204537,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0345",
+   "id": "arr-0350",
+   "type": "arrow",
+   "x": 2515.0,
+   "y": 1360.0,
+   "width": 0.0,
+   "height": 108.0,
+   "strokeColor": "#2f9e44",
+   "strokeStyle": "solid",
+   "strokeWidth": 2,
+   "points": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     -108.0
+    ]
+   ],
+   "lastCommittedPoint": null,
+   "startArrowhead": null,
+   "endArrowhead": "arrow",
+   "startBinding": {
+    "elementId": "d_desk",
+    "focus": 0.0,
+    "gap": 6.0
+   },
+   "endBinding": {
+    "elementId": "d_future",
+    "focus": 0.0,
+    "gap": 6.0
+   },
+   "angle": 0,
+   "roughness": 0,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "boundElements": null,
+   "link": null,
+   "locked": false,
+   "isDeleted": false,
+   "fillStyle": "solid",
+   "backgroundColor": "transparent",
+   "seed": 102457,
+   "version": 1,
+   "versionNonce": 204563,
+   "updated": 1731542400000
+  },
+  {
+   "id": "arr-0352",
+   "type": "arrow",
+   "x": 2260.0,
+   "y": 1234.1,
+   "width": 1104.67,
+   "height": 67.9,
+   "strokeColor": "#2f9e44",
+   "strokeStyle": "dashed",
+   "strokeWidth": 2,
+   "points": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     -50.0,
+     5.9
+    ],
+    [
+     -1080.0,
+     55.9
+    ],
+    [
+     -1104.67,
+     67.9
+    ]
+   ],
+   "lastCommittedPoint": null,
+   "startArrowhead": null,
+   "endArrowhead": "arrow",
+   "startBinding": {
+    "elementId": "d_future",
+    "focus": 0.0,
+    "gap": 6.0
+   },
+   "endBinding": {
+    "elementId": "e_api",
+    "focus": 0.0,
+    "gap": 6.0
+   },
+   "angle": 0,
+   "roughness": 0,
+   "opacity": 100,
+   "groupIds": [],
+   "frameId": null,
+   "roundness": null,
+   "boundElements": null,
+   "link": null,
+   "locked": false,
+   "isDeleted": false,
+   "fillStyle": "solid",
+   "backgroundColor": "transparent",
+   "seed": 102471,
+   "version": 1,
+   "versionNonce": 204589,
+   "updated": 1731542400000
+  },
+  {
+   "id": "arr-0354",
    "type": "arrow",
    "x": 2416.54,
    "y": 685.0,
@@ -7095,13 +7321,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102422,
+   "seed": 102485,
    "version": 1,
-   "versionNonce": 204498,
+   "versionNonce": 204615,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0347",
+   "id": "arr-0356",
    "type": "arrow",
    "x": 949.48,
    "y": 1162.0,
@@ -7145,13 +7371,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102436,
+   "seed": 102499,
    "version": 1,
-   "versionNonce": 204524,
+   "versionNonce": 204641,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0349",
+   "id": "arr-0358",
    "type": "arrow",
    "x": 1195.0,
    "y": 1397.0,
@@ -7195,13 +7421,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102450,
+   "seed": 102513,
    "version": 1,
-   "versionNonce": 204550,
+   "versionNonce": 204667,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0351",
+   "id": "arr-0360",
    "type": "arrow",
    "x": 1175.0,
    "y": 1397.0,
@@ -7245,13 +7471,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102464,
+   "seed": 102527,
    "version": 1,
-   "versionNonce": 204576,
+   "versionNonce": 204693,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0353",
+   "id": "arr-0362",
    "type": "arrow",
    "x": 1034.49,
    "y": 1492.0,
@@ -7295,13 +7521,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102478,
+   "seed": 102541,
    "version": 1,
-   "versionNonce": 204602,
+   "versionNonce": 204719,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0355",
+   "id": "arr-0364",
    "type": "arrow",
    "x": 600.0,
    "y": 1985.0,
@@ -7353,13 +7579,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102492,
+   "seed": 102555,
    "version": 1,
-   "versionNonce": 204628,
+   "versionNonce": 204745,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0357",
+   "id": "arr-0366",
    "type": "arrow",
    "x": 360.0,
    "y": 846.0,
@@ -7403,13 +7629,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102506,
+   "seed": 102569,
    "version": 1,
-   "versionNonce": 204654,
+   "versionNonce": 204771,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0359",
+   "id": "arr-0368",
    "type": "arrow",
    "x": 1410.0,
    "y": 1682.0,
@@ -7453,13 +7679,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102520,
+   "seed": 102583,
    "version": 1,
-   "versionNonce": 204680,
+   "versionNonce": 204797,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0361",
+   "id": "arr-0370",
    "type": "arrow",
    "x": 1195.0,
    "y": 1766.0,
@@ -7503,13 +7729,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102534,
+   "seed": 102597,
    "version": 1,
-   "versionNonce": 204706,
+   "versionNonce": 204823,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0363",
+   "id": "arr-0372",
    "type": "arrow",
    "x": 960.0,
    "y": 1492.0,
@@ -7553,13 +7779,13 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102548,
+   "seed": 102611,
    "version": 1,
-   "versionNonce": 204732,
+   "versionNonce": 204849,
    "updated": 1731542400000
   },
   {
-   "id": "arr-0365",
+   "id": "arr-0374",
    "type": "arrow",
    "x": 1540.01,
    "y": 1492.0,
@@ -7603,9 +7829,9 @@
    "isDeleted": false,
    "fillStyle": "solid",
    "backgroundColor": "transparent",
-   "seed": 102562,
+   "seed": 102625,
    "version": 1,
-   "versionNonce": 204758,
+   "versionNonce": 204875,
    "updated": 1731542400000
   }
  ],

@@ -1,7 +1,7 @@
 ---
 marp: true
 title: ACR — Arc Compute Rate · Submission
-description: Arc/Circle 7-week hackathon · Agentic Economy track · ship week (2026-07-29)
+description: Arc/Circle 7-week hackathon · Agentic Economy track · final submission (2026-07-31)
 size: 16:9
 paginate: true
 style: |
@@ -28,6 +28,7 @@ style: |
   }
   section.light { background: #f7f5f0; color: #16233a; }
   section.light h6 { color: #a06915; }
+  section.light h2 { color: #16233a; }
   section.light em { color: #41537a; }
   h1 { font-size: 1.7em; letter-spacing: -0.015em; color: var(--ether); }
   h2 { font-size: 1.25em; color: var(--ether); margin-top: 0.1em; }
@@ -65,24 +66,24 @@ style: |
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 12px; letter-spacing: 0.15em; color: rgba(172, 198, 233, 0.55);
   }
-footer: "ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-29"
+footer: "ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-31"
 ---
 
 <!-- _class: lead -->
 <!-- _paginate: false -->
 <!-- _footer: "" -->
 
-###### ARC / CIRCLE 7-WEEK HACKATHON · AGENTIC ECONOMY TRACK · MIDWAY CHECKPOINT
+###### ARC / CIRCLE 7-WEEK HACKATHON · AGENTIC ECONOMY TRACK · FINAL SUBMISSION
 
 # ACR — the Arc Compute Rate
 
 ## Machine commerce just got its **SOFR** — and it prints its own **attack cost**.
 
-A manipulation-resistant reference rate for machine services, live on Arc testnet.
+A manipulation-resistant reference rate for machine services, live on Arc testnet — and the cash-settled futures venue that trades on it.
 
 `arc-compute-rate.vercel.app` · `github.com/kaustubh76/ACR---Arc-Compute-Rate`
 
-<!-- Open cold: every financial market runs on a reference rate. Machine commerce — agents buying inference, GPU time, bandwidth — has none. We built it, and it's printing on-chain right now. -->
+<!-- Open cold: every financial market runs on a reference rate. Machine commerce — agents buying inference, GPU time, bandwidth — has none. We built it, it's printing on-chain right now, and by slide 3 you'll meet its first customer. -->
 
 ---
 
@@ -94,7 +95,22 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 - The raw payment exhaust is **noisy, batched, and adversarial**.
 - A naive volume-weighted average is an open invitation: our own red team moves it <span class="bad">+122%</span> with wash trades.
 
-<!-- Key beat: this is benchmark construction, not a dashboard. Everything downstream depends on the print being manipulation-resistant. -->
+> No benchmark means no hedging, no term markets, no credit. Machine commerce is stuck at spot.
+
+<!-- Key beat: this is benchmark construction, not a dashboard. Everything downstream depends on the print being manipulation-resistant. And the next slide is who pays for that gap. -->
+
+---
+
+###### THE USE CASE · WHO NEEDS THIS NUMBER
+
+# Meet the hedger: an agent business with a floating USDC burn
+
+- **Portia**, an autonomous paralegal fleet, resells LLM work at fixed prices but pays for inference per call — ~**100M tokens/mo × 0.49236 $/1k tokens** (the ACR-INF print) ≈ **$49,236/mo**, all floating. One +10% month is **+$4,924** of unbudgeted burn.
+- The fix: go **long ACR-INF futures**. Cash-settled — at expiry the venue **freezes the freshest oracle print** (≤ 2 h old, enforced on-chain) and pays the difference in USDC. **No delivery, no GPU repossession, no seller cooperation.**
+- A hedge is only as good as its settlement print: every ACR print ships its **CI** and its **attack-cost-per-bp**, so both sides can read — on-chain — what bending the settle would cost.
+- **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — series 0 (ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing) with a **seeded long/short book**, settling against the same ACROracle. Watch it on `/curve`.
+
+<!-- Every compute future before this died one of two deaths: physical delivery you can't enforce, or cash settlement against an index you can bend. We amputated delivery — "capacity forwards with the hardest organ amputated" — and made bending priced. Portia's math is a worked example at the ship-week print; the venue is testnet-scale by design (10× multiplier). The mechanism, not the notional, is the product. -->
 
 ---
 
@@ -104,15 +120,15 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 
 | Index | Measures | Latest on-chain value |
 |---|---|---|
-| **ACR-INF** | Inference — $/1k tokens | **0.49112** |
-| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01083** |
-| **ACR-DATA** | Data egress — $/MB | **0.00203** |
+| **ACR-INF** | Inference — $/1k tokens | **0.49236** |
+| **ACR-GPU** | GPU compute — $/GPU-sec | **0.01110** |
+| **ACR-DATA** | Data egress — $/MB | **0.00209** |
 
-Every hourly print ships **three numbers**: the rate, a confidence interval, and the **attack-cost-per-bp** (ACR-INF ≈ **0.0055 USDC/bp**).
+Every hourly print ships **three numbers**: the rate, a confidence interval, and the **attack-cost-per-bp** (ACR-INF ≈ **0.0094 USDC/bp**).
 
-Read live from ACROracle at ship week — posted **hourly, in-cloud, signed by a Circle custody wallet**.
+Read live from ACROracle at final submission — posted **hourly, in-cloud, signed by a Circle custody wallet** — and now the print the **futures venue freezes at expiry**.
 
-<!-- The attack-cost-per-bp is the differentiator: the index quantifies its own manipulation cost on every print. -->
+<!-- LIVE PATH: skim unless asked. The attack-cost-per-bp is the differentiator: the index quantifies its own manipulation cost on every print. The previous slide's hedge settles on exactly these numbers. -->
 
 ---
 
@@ -153,11 +169,15 @@ Read live from ACROracle at ship week — posted **hourly, in-cloud, signed by a
 <!-- _footer: "" -->
 <!-- _paginate: false -->
 
-###### ARCHITECTURE · ESTIMATOR CORE → SETTLEMENT-GRADE ORACLE
+###### ARCHITECTURE · ONE PIPELINE
 
-![w:1180](assets/acr_architecture.core.svg)
+## Adversarial exhaust in → settleable print out
 
-<!-- Tape indexer → observation model → cleaning → robust estimator → hedonic + cost bound → hourly prints → EIP-712 oracle + attestation registry. Generated deterministically by scripts/gen_architecture.py. -->
+![w:1000](assets/acr_architecture.core.svg)
+
+*Tape → clean (wash · sybil) → deconvolve (Kalman/RTS) → α-trim median + hedonic → print + CI + attack-cost → EIP-712 oracle → futures settle → agents buy the rate back via x402.*
+
+<!-- LIVE PATH: skip unless asked — the caption carries the pipeline for PDF readers. Generated deterministically by scripts/gen_architecture.py. -->
 
 ---
 
@@ -174,54 +194,43 @@ Read live from ACROracle at ship week — posted **hourly, in-cloud, signed by a
 
 Full spec: `docs/methodology.md` — published before liquidity, the way SOFR was.
 
-<!-- One analogy per pillar if asked: deblurring a photo; a funding-graph spam filter; Case-Shiller for compute; a published price-of-corruption. -->
+<!-- LIVE PATH: skim unless asked. One analogy per pillar: deblurring a photo; a funding-graph spam filter; Case-Shiller for compute; a published price-of-corruption. -->
 
 ---
 
-###### LIVE ON ARC · REAL USDC MOVED
+###### LIVE ON ARC · ALL GATES RE-RUN 2026-07-31
 
-# Deployed, printing, and **already selling itself**
+# Deployed, printing, hedgeable — all seven weeks shipped
 
-- **ACROracle** `0x4f00e3BD…9092609` — hourly EIP-712-signed prints; signed via raw key or a **Circle Developer-Controlled Wallet**.
-- **AttestationRegistry** `0x23ae3E1A…2f63dFb7` — 4 real seller attestations.
-- **Proven x402 settlement:** a machine buyer paid the Circle-gated API — **60 queries · 0.006 USDC**, Gateway balance **0.500000 → 0.494000**, settled in Gateway batches.
-- All **5 Circle Agent Stack pillars** mapped to code; interop **12/12** against Circle's own `GatewayClient`.
+| Contract / surface | Live proof |
+|---|---|
+| **ACROracle** `0x4f00e3BD…9092609` | Hourly EIP-712 prints, Circle custody signer |
+| **AttestationRegistry** `0x23ae3E1A…2f63dFb7` | 4 seller attestations on-chain |
+| **ACRFutures** `0x29d97c62…82642fe` | Series 0 seeded long/short book, cash-settles on the print |
+| **Terminal + Seller API** | API x402-gated at **$0.0001/query**, fail-closed |
 
-<!-- Honest framing: settlement refs are Gateway batch UUIDs, not "60 L1 transactions." The index about machine commerce is bought by machines — $0.0001/query. -->
+`make ci` green 2026-07-31: **230 py** · **50 forge** (incl. futures + invariants) · **50 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **332/332** · GitHub CI **4/4**.
 
----
+Real settlement through **Circle Gateway** — batch-UUID receipts in-repo and on the public `/exchange` tape; Circle's own CLI paid the gate (`payable`).
 
-###### VERIFICATION · ALL RE-RUN 2026-07-29 (SHIP WEEK)
+Provenance labeled on every value — `sim` / `gateway-ref` / `tx`. Reproduce: `make setup && make ci && make demo`.
 
-# Ten gates, **all green**
-
-| Gate | Result | Gate | Result |
-|---|---|---|---|
-| Python suite | <span class="ok">169 pass · 2 skip</span> | Terminal | <span class="ok">27/27 tests + clean build</span> |
-| Foundry | <span class="ok">32/32 + 5 invariants</span> | Buyer agent | <span class="ok">10/10</span> |
-| Resistance gate | <span class="ok">4/4</span> | Interop | <span class="ok">12/12</span> |
-| Lint + glossary | <span class="ok">clean · 332/332</span> | On-chain read | <span class="ok">3 live prints</span> |
-| GitHub CI | <span class="ok">4/4 jobs</span> | Live commerce | <span class="ok">24+ settled x402 queries</span> |
-
-Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the data **and** in the Terminal UI. Reproduce: `make setup && make ci && make demo`.
-
-<!-- The honesty tiers earn trust: sim is labeled sim, and flat query fees are never laundered into the index as prices. -->
+<!-- LIVE PATH: skim — one breath on addresses, then: three make commands reproduce every claim. The honesty tiers earn trust: sim is labeled sim, and flat query fees are never laundered into the index as prices. -->
 
 ---
 
-###### ROADMAP · SHIP WEEK
+###### THE LIVE DEMO · 4 MINUTES
 
-# All seven weeks of scope **built and live**
+# Attack the index, then hedge on it
 
-| W1 TAPE | W2 ESTIMATOR | W3 ON-CHAIN | W4 ADOPTION ★ | W5 RED TEAM | W6 INSTRUMENT | W7 SHIP |
-|---|---|---|---|---|---|---|
-| <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">✅</span> | <span class="ok">🔄</span> |
+1. `/` — the print ticking live: rate + CI + attack cost. New to the jargon? Flip the masthead to **plain** — the whole paper re-sets in plain English.
+2. `/attack` — press the button: wash flow floods in, naive VWAP swings <span class="bad">~+110%</span>, **ACR holds**, and the counter burns the attacker's USDC. Offline twin: `make demo` — one command, ~1 minute.
+3. `/curve` — the term structure, the **live futures desk** read from ACRFutures on-chain, and **the Public Desk: trade it yourself.** Open a Circle *user-controlled* wallet in the browser (your PIN, our gas), take the stake, place a real fill, withdraw it again — the key never leaves your device, so every step is a challenge only your PIN can sign.
+4. `/exchange` — real Gateway settlements on the tape; paper trail in `docs/SUBMISSION.md`.
 
-- The credentialed Arc round trip is **done** — 24+ x402 queries settled through Circle Gateway; the Terminal's own LIVE buyer settles from the browser (capped $0.01). Circle's own CLI classifies the gate as `payable` (`circle services inspect`); directory listing is a form-only submission, prepared.
-- **Live demo:** https://arc-compute-rate.vercel.app — `/attack` (wash the index in the browser) and `/exchange` (real x402 settlements on the tape).
-- **New to the jargon?** Flip the masthead to **plain** — one click re-sets the whole paper in plain English (same numbers) — or read https://arc-compute-rate.vercel.app/companion.
+**Live:** https://arc-compute-rate.vercel.app · reader's companion at `/companion`
 
-<!-- "Everything built and live at ship week" is the takeaway. W6 = cash-settled ACRFuture + Avellaneda–Stoikov market maker — the index already has a term structure. -->
+<!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. Series rolls are automated (futures-lifecycle.yml); `make desk-preflight` confirms the venue is tradable before a session. The Public Desk needs a PIN ceremony per action, so allow ~30 s per step live. -->
 
 ---
 
@@ -234,9 +243,10 @@ Every value labels its provenance — `sim` / `gateway-ref` / `tx` — in the da
 
 - **Judge fit:** ICE — a benchmark administrator — is on Arc's testnet roster; Apollo, BNY, Mastercard are rate-native.
 - **The neutrality moat:** Circle can't own the benchmark (the LIBOR lesson) — ACR is a partner, not a feature.
-- **The loop closes:** resistant print → on-chain oracle → x402-paying machine customers → attestations → a better print.
+- **The loop closes:** resistant print → on-chain oracle → **cash-settled futures** + x402-paying machine customers → attestations → a better print.
+- The first machine-commerce benchmark with a **live derivative venue** — a term structure from day one.
 
 **Terminal** `arc-compute-rate.vercel.app` · **API** `acr-api-1fto.onrender.com`
-**Contracts** `0x4f00e3BD…` / `0x23ae3E1A…` on `testnet.arcscan.app` · `docs/SUBMISSION.md`
+**Contracts** `0x4f00e3BD…` / `0x23ae3E1A…` / `0x29d97c62…` on `testnet.arcscan.app` · `docs/SUBMISSION.md`
 
-<!-- Close on the tagline: "Machine commerce just got its SOFR — and it prints its own attack cost." -->
+<!-- Close on the tagline: "Machine commerce just got its SOFR — and it prints its own attack cost." Live path: 1 → 2 → 3 → 5 → 6 → demo → here. -->

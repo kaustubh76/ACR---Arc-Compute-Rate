@@ -46,6 +46,11 @@ sets the live env (`ACR_X402_MODE=circle`, `FACILITATOR_URL`, `PAY_TO`, oracle +
 registry addresses, `TAPE_SOURCE=arc`, `CORS=*`). It prints the public URL:
 `https://acr-api-XXXX.run.app`.
 
+> **The live deployment is not this one.** Production runs on Render
+> (`deploy/deploy-render.sh`, image `docker.io/kaushtubh02/acr-api`) with
+> `ACR_TAPE_SOURCE=sim` — the Cloud Run script's `TAPE_SOURCE=arc` above is not
+> what serves `https://acr-api-1fto.onrender.com`. Check `/health` for the truth.
+
 **Options:**
 - `ALWAYS_ON=1 ./deploy/deploy-cloudrun.sh` — one warm instance so the background
   loop (cache warm + optional posting) never dies (~$5–15/mo).

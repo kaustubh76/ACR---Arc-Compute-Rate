@@ -1415,6 +1415,8 @@ details.disclosure .disclosure-body {
 }
 .arc-horizon .sun {
   opacity: 0.35;
+  transform-box: view-box;
+  transform-origin: 600px 78.72px; /* the sun point on the horizon */
 }
 .arc-horizon.breathe .sun {
   animation: horizon-breathe 8s ease-in-out infinite;
@@ -1423,9 +1425,37 @@ details.disclosure .disclosure-body {
   0%,
   100% {
     opacity: 0.35;
+    transform: scale(1);
   }
   50% {
     opacity: 0.22;
+    transform: scale(1.06);
+  }
+}
+/* light-waves: each ring scales out from the sun and fades as it travels;
+   -3s stagger on a 9s loop keeps a wave always mid-flight */
+.arc-horizon .ring {
+  transform-box: view-box;
+  transform-origin: 600px 78.72px;
+}
+.arc-horizon.breathe .ring {
+  animation: horizon-ripple 9s linear infinite;
+  animation-delay: calc(var(--i, 0) * -3s);
+}
+@keyframes horizon-ripple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
   }
 }
 .arc-horizon-mini {
@@ -1550,6 +1580,17 @@ details.disclosure .disclosure-body {
   align-items: baseline;
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* the maker-inventory sparkline under the futures desk — the book "breathing" */
+.desk-spark {
+  margin-top: 14px;
+  display: grid;
+  gap: 4px;
+}
+.desk-spark .reading {
+  height: auto;
+  color: var(--ether-45);
 }
 
 /* ---------- provenance panel ---------- */
@@ -1714,6 +1755,57 @@ details.disclosure .disclosure-body {
 }
 
 /* ---------- reduced motion ---------- */
+/* ---------- funky reveals: the story animates itself on first paint ---------- */
+/* Defensibility money-shot: the bars grow from the left on load — naive VWAP
+   shoots out fast + far, ACR (delayed) barely moves — so the resistance ratio
+   lands instantly. The `width` transition (already set) still drives live poll
+   updates; this scaleX runs once on mount. */
+.defense-bar .fill-vwap,
+.defense-bar .fill-acr {
+  transform-origin: left center;
+  animation: defense-grow 0.9s var(--ease-expo) both;
+}
+.defense-bar .fill-acr {
+  animation-delay: 0.5s;
+}
+@keyframes defense-grow {
+  from {
+    transform: scaleX(0.02);
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* Chart SVGs rise + fade in on mount instead of popping into place. */
+.chart {
+  animation: chart-in var(--dur-3) var(--ease-expo) both;
+}
+@keyframes chart-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The hero-card sparkline draws itself in on load (pathLength-normalized dash). */
+.draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-line 1.15s var(--ease-expo) forwards;
+}
+@keyframes draw-line {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot,
   .digit-in,
@@ -1722,8 +1814,29 @@ details.disclosure .disclosure-body {
   .toast,
   .chip .dot.breathe,
   .arc-horizon.breathe .sun,
+  .arc-horizon.breathe .ring,
   .skel::after {
     animation: none !important;
+  }
+  /* dawn band stills to exactly the static composition */
+  .arc-horizon .sun,
+  .arc-horizon .ring {
+    transform: none !important;
+  }
+  /* funky reveals off — show the fully-drawn end state immediately */
+  .defense-bar .fill-vwap,
+  .defense-bar .fill-acr,
+  .chart,
+  .draw-line {
+    animation: none !important;
+    transform: none !important;
+  }
+  .defense-bar .fill-vwap,
+  .defense-bar .fill-acr {
+    opacity: 1 !important;
+  }
+  .draw-line {
+    stroke-dashoffset: 0 !important;
   }
   .tape-track {
     animation: none !important;
