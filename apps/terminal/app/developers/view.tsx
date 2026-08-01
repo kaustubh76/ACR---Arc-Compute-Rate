@@ -44,6 +44,12 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
   const info = useX402Info();
   // The gate's live advertised price (ACR_X402_PRICE_USDC) — what is PAID.
   const price = info?.data?.price_usdc ?? rev?.price_usdc ?? PRICE_FALLBACK_USDC;
+  // The gate column tracks what the press actually charges for: the live
+  // /x402/info gated_endpoints list (bundled x402 section offline) wins over
+  // the authored value, so a re-gated endpoint can't silently lie here.
+  const gated = info?.data?.gated_endpoints;
+  const gateFor = (path: string, authored: string) =>
+    Array.isArray(gated) && gated.length ? (gated.includes(path) ? "x402" : "public") : authored;
   const explorer = chainFacts(env.data.chain).explorer;
   const [loadPath, setLoadPath] = useState<string | null>(null);
 
@@ -230,7 +236,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                     {load && <span className="muted"> ↑</span>}
                   </td>
                   <td>
-                    {gate === "x402" ? (
+                    {gateFor(path, gate) === "x402" ? (
                       <span className="gold">
                         <Ed x={<>402 · ${price}</>} p={<>${price} to ask</>} />
                       </span>

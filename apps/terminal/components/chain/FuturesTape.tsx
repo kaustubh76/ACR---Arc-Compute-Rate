@@ -35,8 +35,8 @@ export function FuturesTape({
         <div className="tape-static">
           <span className="tape-item muted">
             <Ed
-              x="awaiting fills — the desk is quiet (the maker/taker loop trades every ~90s)"
-              p="waiting for trades — the desk is quiet (the robot dealer trades every ~90s)"
+              x="awaiting fills — the desk is quiet (fills print here the moment they land on-chain)"
+              p="waiting for trades — the desk is quiet (trades appear here the moment they happen)"
             />
           </span>
         </div>
