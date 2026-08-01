@@ -162,8 +162,11 @@ class ACRSettings(BaseSettings):
     # --- pricing / instrument ---
     #: Avellaneda–Stoikov inventory risk aversion.
     as_gamma: float = 0.1
-    #: A-S order-book liquidity parameter.
-    as_kappa: float = 1.5
+    #: A-S order-book liquidity (fill-intensity decay). The quoter's base
+    #: spread is (2/γ)·ln(1+γ/κ) of mid — κ=1.5 made that ~129% (a degenerate
+    #: full-width corridor); κ=400 models the deep simulated book and lands
+    #: the base spread at ~50bp, with the inventory term skewing on top.
+    as_kappa: float = 400.0
 
     def caip2(self) -> str:
         """CAIP-2 network id for x402 PaymentRequirements (e.g. ``eip155:5042002``)."""
