@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -136,6 +136,12 @@ futures-roll:
 # stale for the contract's freshness guard — the window reopens on the next print.
 futures-settle:
 	uv run python scripts/futures_settle.py
+
+# Take a project key's collateral back out, across EVERY series it holds — a
+# roll strands the old stake where nothing trades and nothing reclaims it.
+# Reports only, unless you ask it to move money: WITHDRAW_DRY_RUN=0.
+futures-withdraw:
+	WITHDRAW_DRY_RUN=$${WITHDRAW_DRY_RUN-1} uv run python scripts/futures_withdraw.py
 
 # --- the Public Desk (user-controlled wallets trading ACRFutures) ---
 
