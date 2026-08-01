@@ -237,21 +237,37 @@ class FaucetLedger:
         #: Off in tests and local runs (the file is real there); on in the app.
         self._require_circle = require_circle
         self._hydrated_at = 0.0
+        #: Separate from the data lock: one hydration at a time, without holding
+        #: the data lock across a network call.
+        self._hydrate_lock = threading.Lock()
         self._rehydrate()
 
     def _ensure_hydrated(self) -> None:
         """Refresh from Circle when required and stale. Raises (fail-closed) if
-        the record can't be read and this ledger is configured to require it."""
+        the record can't be read and this ledger is configured to require it.
+
+        Two locks on purpose. The network call must NOT happen under the data
+        lock (it would stall every concurrent claim for its timeout), but the
+        merge must, or a claim running alongside could count a half-loaded
+        ledger and let a drip through that the cap should have refused."""
         if not self._require_circle:
             return
         if time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S:
             return
-        try:
-            self._rehydrate_from_circle()
+        with self._hydrate_lock:
+            if time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S:
+                return  # another thread just did it
+            try:
+                paid = self._fetch_circle_drips()
+            except Exception as exc:
+                log.warning("faucet ledger could not reach Circle: %s", exc)
+                raise DeskError(
+                    503, "the faucet is warming up — try again in a moment"
+                ) from exc
+            with self._lock:
+                for address in paid:
+                    self._dripped.setdefault(address, time.time())
             self._hydrated_at = time.monotonic()
-        except Exception as exc:
-            log.warning("faucet ledger could not reach Circle: %s", exc)
-            raise DeskError(503, "the faucet is warming up — try again in a moment") from exc
 
     def _rehydrate(self) -> None:
         """Load prior drips from the local JSONL. Durable only where the disk is
@@ -269,8 +285,9 @@ class FaucetLedger:
             except Exception:
                 continue
 
-    def _rehydrate_from_circle(self) -> None:
-        """Rebuild the ledger from Circle's own record of the drips.
+    def _fetch_circle_drips(self) -> list[str]:
+        """Every address Circle has already sent a drip to (network only — the
+        caller merges under the data lock).
 
         The JSONL is written to a container filesystem with no persistent disk,
         so in production it is empty on every boot — meaning the one-drip-per-
@@ -291,12 +308,11 @@ class FaucetLedger:
             "/v1/w3s/transactions?blockchain=ARC-TESTNET&custodyType=ENDUSER"
             "&operation=TRANSFER&pageSize=50",
         )["data"].get("transactions", [])
-        for t in rows:
-            if (t.get("state") or "").upper() == "FAILED":
-                continue
-            dest = (t.get("destinationAddress") or "").lower()
-            if dest:
-                self._dripped.setdefault(dest, time.time())
+        return [
+            (t.get("destinationAddress") or "").lower()
+            for t in rows
+            if (t.get("state") or "").upper() != "FAILED" and t.get("destinationAddress")
+        ]
 
     def claim(self, address: str) -> None:
         """Reserve a drip slot or raise (409 dup / 429 exhausted / 503 unknown)."""
