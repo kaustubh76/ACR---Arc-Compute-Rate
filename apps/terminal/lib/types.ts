@@ -151,11 +151,14 @@ export interface FuturesTradeRow {
   seen_at: number; // server-first-seen wall-clock (epoch seconds)
 }
 
-/** The whole futures venue for the live desk + tape (GET /futures). */
+/** The whole futures venue for the live desk + tape (GET /futures).
+ *  `source` says which ladder tier served it: the FastAPI press, a direct
+ *  viem read of ACRFutures, or the archived bundle. */
 export interface FuturesRoster {
   venue: string | null;
   desks: Record<string, FuturesDeskRow>;
   trades: FuturesTradeRow[];
+  source?: "press" | "chain" | "bundle";
 }
 
 export interface TerminalData {
@@ -173,6 +176,8 @@ export interface TerminalData {
   oracle?: string | null;
   chain?: ChainFactsData | null;
   /* bundle-only sections (snapshot enrichment — absent from live /terminal/data) */
+  /** Real on-chain fills captured at snapshot time — the archived tape. */
+  futures_trades?: FuturesTradeRow[];
   marketplace?: { catalog: CatalogData | null; receipts: MarketReceiptsData | null } | null;
   revenue?: RevenueData | null;
   x402?: X402Info | null;
