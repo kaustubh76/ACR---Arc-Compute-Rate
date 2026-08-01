@@ -155,6 +155,26 @@ def test_poster_records_last_posts_markers(small_store):
     assert all(e["tx"] is None for e in poster.last_posts.values())
 
 
+def test_poster_rehydrates_provenance_from_onchain_events(small_store):
+    """Cold-start re-hydration: PricePosted events (as OracleClient.recent_posts
+    returns them, chronological) seed last_posts so the provenance panel never
+    says "awaiting first live post" over a chain full of real posts."""
+    poster = OraclePoster(small_store)
+    events = [
+        {"index_id": "ACR-INF", "tx": "0xold", "block": 1, "signer": "0xs", "at_wall": 100.0},
+        {"index_id": "ACR-INF", "tx": "0xnew", "block": 5, "signer": "0xs", "at_wall": 500.0},
+        {"index_id": "ACR-GPU", "tx": "0xgpu", "block": 6, "signer": "0xs", "at_wall": 600.0},
+    ]
+    assert poster.rehydrate(events) == 3
+    assert poster.last_posts["ACR-INF"] == {"tx": "0xnew", "block": 5, "at_wall": 500.0}
+    assert poster.last_posts["ACR-GPU"]["tx"] == "0xgpu"
+    assert poster.posts == 3
+    # Never clobbers live state, and an empty chain read is a clean no-op.
+    assert poster.rehydrate([{"index_id": "ACR-DATA", "tx": "0xd", "block": 9, "at_wall": 9.0}]) == 0
+    assert "ACR-DATA" not in poster.last_posts
+    assert OraclePoster(small_store).rehydrate([]) == 0
+
+
 def test_snapshot_builder_embeds_bundle_sections():
     payload: dict = {}
     gen_snapshot.embed_bundle_sections(payload)
@@ -166,11 +186,18 @@ def test_snapshot_builder_embeds_bundle_sections():
     assert all(i["resource"].startswith("/") for i in cat["items"])  # host-less
     assert payload["marketplace"]["receipts"]["receipts"][0]["scheme"] == "sim"
 
-    # Revenue: the /revenue shape, zeroed, with the first 5 sim receipts.
+    # Revenue: the /revenue shape with counters that AGREE with the embedded
+    # sim ledger (the offline /developers page shows both — they must never
+    # contradict each other), plus the first 5 sim receipts.
     rev = payload["revenue"]
-    assert rev["paid_queries"] == 0 and rev["revenue_usdc"] == 0.0
+    ledger = payload["marketplace"]["receipts"]
+    assert rev["paid_queries"] == ledger["paid_queries"]
+    assert rev["revenue_usdc"] == ledger["revenue_usdc"]
     assert rev["price_usdc"] == 0.0001
     assert [r["tx_ref"] for r in rev["recent"]] == [f"sim-{i}" for i in range(1, 6)]
+
+    # Futures tape: key always present ([] hermetically — no venue configured).
+    assert payload["futures_trades"] == []
 
     # x402: the dev gate descriptor exactly as /x402/info serves it.
     assert payload["x402"]["facilitator"] == "dev"
