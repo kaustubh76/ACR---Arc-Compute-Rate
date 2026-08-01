@@ -677,7 +677,8 @@ def withdrawable(address: str) -> dict:
         raise DeskError(400, "not an address")
     from .onchain import get_futures
 
-    client = get_futures()._client
+    futures = get_futures()
+    client = futures._client
     if not client.configured:
         raise DeskError(503, "no futures venue configured")
     trader = _checksum(address)
@@ -691,7 +692,9 @@ def withdrawable(address: str) -> dict:
         # walks EVERY series (that is the point — a roll strands a stake on the
         # old one), so the serial version got slower with every roll, on the
         # path a reader uses when they want their money back.
-        all_series = client.read_all_series()
+        # The reader's memo, not a fresh scan: the background warm keeps this
+        # hot, and the series list only changes on a roll or a settle.
+        all_series = futures.all_series()
         balances = _rpc_gather(
             [(lambda s=s: client.collateral_units_of(s["series_id"], trader)) for s in all_series]
         )

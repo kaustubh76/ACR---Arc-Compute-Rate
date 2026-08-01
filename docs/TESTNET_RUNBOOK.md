@@ -251,6 +251,13 @@ only honest verification drives a browser.
 
 ### Keeping the venue alive
 
+> **A workflow file on a feature branch is not a scheduled job.** GitHub runs
+> `cron` **only** from the default branch. These workflows sat on
+> `feat/onchain-futures` for days and never fired once — the book was alive
+> only while somebody ran the loop locally. If you add or move a scheduled
+> workflow, confirm it by finding its **runs**
+> (`gh run list --workflow <file>`), never by reading its cron line.
+
 A series expires. Two idempotent commands own that, and
 `.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset
 from the heartbeat so they never race on the maker's nonce):
@@ -265,6 +272,40 @@ from the heartbeat so they never race on the maker's nonce):
   refuses (rather than reverting) when the oracle print is outside the
   contract's 2 h freshness window; that window reopens on the next print, so
   the fix is to wait, not to force it.
+
+### Getting the project's own collateral back out
+
+Collateral is **per series**, so a roll leaves the previous stake behind on a
+series where nothing trades and nothing reclaims it. Readers have the desk's
+withdraw button for this; the keys that run the book (the heartbeat taker, the
+maker) live only as repository secrets, so they get a workflow:
+
+```sh
+make futures-withdraw                       # dry run: what is free, everywhere
+WITHDRAW_DRY_RUN=0 WITHDRAW_SERIES=0 make futures-withdraw
+```
+
+or `futures-recover.yml` → **Run workflow** (dispatch-only, `dry_run` defaults
+to true). **Run the dry pass first and read it.** Without `WITHDRAW_SERIES` the
+job takes the free margin out of the *live* series too — during the 2026-08-02
+recovery that would have pulled 1.904305 USDC of working collateral out from
+under the heartbeat.
+
+The amount is computed by the same `free_collateral_units` the desk quotes to
+readers, so a run doubles as a check on the product. Each withdrawal must show
+four independent witnesses agreeing — the contract's record, the venue's USDC,
+the recipient's USDC, and the `CollateralWithdrawn` event — because a mined
+transaction is not evidence that money moved:
+
+```
+  series 0 (ACR-INF, settled): holds 6.096010 USDC, free 6.096010
+    tx 0x09264fc62a69be7394f8a962dce84a5f393115bc7c4dca64e38ed5718bce1875
+    contract balance  6096010 → 0 units
+    venue USDC        11.051299 → 4.955289
+    wallet USDC       8.629074 → 14.723416  (gas is paid from this)
+    CollateralWithdrawn event  6096010 units
+    ✓ all witnesses agree
+```
 
 ### The first live run — 2026-08-01, series 0 (ACR-INF)
 

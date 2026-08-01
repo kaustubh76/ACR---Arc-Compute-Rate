@@ -231,3 +231,116 @@ poster EOA — which is also the futures **maker**. A few hours of local dev
 drained it to 0.007 USDC and prod prints started failing `insufficient funds`.
 Refilled from custody (`0x8170d08b…`). For local work either blank the key or
 raise `ACR_REFRESH_SECONDS`.
+
+---
+
+## 10. Session — arming the automation, and the chokepoints nobody could see (2026-08-02)
+
+Three defects found by looking at the running system rather than the code. None
+of them could fail a test, and all three made the product worse for a visitor
+than for its author.
+
+### The scheduled jobs had never run. Not once.
+
+`futures-heartbeat.yml` and `futures-lifecycle.yml` lived on
+`feat/onchain-futures`. **GitHub schedules `cron` exclusively from the default
+branch**, and `main` carried only `ci.yml` and `keepalive.yml`. `gh run list`
+showed days of keepalive and CI runs and zero heartbeat runs, ever. The "24/7
+living book" was alive only while somebody ran the loop on a laptop — on-chain,
+series 1 had a maker position and *no taker collateral at all*.
+
+Merging PR #1 is what armed them; nothing else could have. The first dispatched
+run then exercised a path that had never executed with the real key: the taker
+found no collateral on the new series (a roll strands it on the retired one),
+posted its own 3.00 USDC, and traded `BUY 1 @ 0.49773`.
+
+**The general lesson:** a workflow file on a feature branch is not a scheduled
+job, it is a *proposal* for one. Test that a cron fires by finding its runs, not
+by reading its cron line.
+
+### The rate limiter rationed the whole world to one bucket
+
+Every reader reaches the desk through a server-side Next.js proxy, so the
+`X-Forwarded-For` the seller sees is a **Vercel edge IP** — the same one for
+every visitor on earth. Keyed on that, "5 sessions and 3 faucet drips per hour"
+was never a per-person limit; it was a global one. The sixth person to open the
+desk in an hour would have been told "the desk is busy" by a desk sitting idle,
+and a single tester can never observe it.
+
+Now the **identity** bucket (desk user id, hashed session token, wallet address)
+is the per-person limit, and the **host** bucket is a runaway guard sized for a
+shared proxy. Raising the host ceiling is safe because that counter was never
+what protected the custody wallet — `FaucetLedger.claim`, the global cap and the
+reserve floor are — and it now sits deliberately *above* the ledger cap so the
+ledger is what says no, honestly.
+
+While there: `client_key` took the **left-most** forwarded hop, which is the one
+the caller types. On a public host that let an abuser mint a fresh bucket per
+request. It takes the right-most non-private hop now.
+
+### A cold desk read took 55 seconds against a 28-second budget
+
+Measured, not inferred: the first `/desk/limits` after an idle gap took
+**55.24s** and `/desk/withdrawable` 9.64s, so the proxy gave up and the desk
+reported itself down while it was up. Two causes.
+
+`FuturesReader.read_all` called `read_desk` per index and every `read_desk`
+began by scanning **all** series — the venue was scanned three times to produce
+one desk, about eighteen sequential `eth_call`s. And the loop that warms those
+caches also posts an oracle print, which spends gas, so production runs it
+hourly (`ACR_REFRESH_SECONDS=3600`) while the caches live 90 seconds — cold for
+~58 minutes of every hour. Reads cost nothing but RPC, so they got their own
+short timer (`ACR_CHAIN_WARM_SECONDS`).
+
+| path | before (prod, cold) | after (uncached) |
+|---|---|---|
+| `/desk/limits` | 55.24s | 8.17s median · 11.87s worst |
+| `/desk/withdrawable` | 9.64s | 6.20s median · 8.55s worst |
+
+**A measurement that reversed a decision.** The obvious fix — issue the
+independent calls concurrently — was tested rather than assumed. Interleaved A/B
+against Arc:
+
+    fanout=1   median 3.0s        p90 12.2s
+    fanout=4   median 1.3-4.1s    p90 30.8s
+
+The median is a coin flip; the tail is not. Concurrency raises the odds of a
+429, and every 429 costs a retry backoff measured in seconds. Behind a 28s
+budget the tail is the number that decides whether a reader sees the desk, so
+the default is **serial** (`ACR_RPC_FANOUT`). The real win was doing *fewer*
+calls, not doing them at once. Single samples had said the opposite twice, in
+both directions — this endpoint's variance is wide enough to fabricate any
+conclusion you go looking for.
+
+### A just-booted host skipped the faucet's fail-closed check
+
+CI failed two ledger tests that pass on a laptop, and the difference was
+**uptime**. `time.monotonic()` counts from host boot on Linux, so on a fresh
+machine it returns a small number, and a staleness check written as
+`now - hydrated_at < TTL` against an initial `0.0` reads as "hydrated moments
+ago". For the first ten minutes of a container's life the ledger skipped its
+fail-closed hydration from Circle — exactly the window after a restart when the
+in-memory record is empty and that check is the only thing between an
+already-paid address and a second drip. The durable ledger was added to close
+that hole; on every fresh boot it was open again.
+
+`None` now means never hydrated, and never hydrated is never fresh. The test
+pins the clock to four seconds of uptime.
+
+### The keys that run the book had no exit
+
+The desk gives a *reader* an exit; the project's own keys had none, for the same
+reason readers need one — collateral is **per series**, so a roll strands a stake
+where nothing trades and nothing reclaims it. The heartbeat taker had 6.096010
+USDC sitting in settled series 0 exactly that way.
+
+`scripts/futures_withdraw.py` sizes the withdrawal with the *same* function the
+desk quotes to readers, so a run is also a check on the product: if the two ever
+disagree about what is free, one of them is lying to somebody about their money.
+Recovered by `futures-recover.yml` (dispatch-only, dry by default) with all four
+witnesses agreeing — contract `6096010 → 0` units, venue `11.051299 → 4.955289`,
+wallet `8.629074 → 14.723416`, and a `CollateralWithdrawn` event for `6096010`.
+Tx `0x09264fc62a69be7394f8a962dce84a5f393115bc7c4dca64e38ed5718bce1875`.
+
+The dry run also earned its keep: unfiltered it would have pulled 1.904305 USDC
+of *working* collateral out of the live series as well.
