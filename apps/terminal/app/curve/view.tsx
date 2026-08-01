@@ -3,6 +3,7 @@
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
 import { FuturesTape } from "@/components/chain/FuturesTape";
+import { PublicDesk } from "@/components/chain/PublicDesk";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
@@ -122,6 +123,13 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         </div>
         <FuturesTape trades={roster?.trades ?? []} explorer={explorer} live={futLive} />
       </section>
+
+      <PublicDesk
+        desks={roster?.desks ?? env.data.futures}
+        live={futLive && roster?.source === "press"}
+        explorer={explorer}
+      />
+
 
       <section className="section">
         <div className="section-head">

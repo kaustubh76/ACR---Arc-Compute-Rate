@@ -198,6 +198,64 @@ async function readTape(venue: `0x${string}`): Promise<FuturesTradeRow[]> {
   return [];
 }
 
+/* Per-trader position reads for the Public Desk — small (2 calls), memoized
+   15s per (series, trader) so a polling position row costs ≤1 RPC round per
+   window; the memo map is pruned so desk visitors can't grow it unbounded. */
+const posMemo = new Map<string, { at: number; data: TraderPosition | null }>();
+const POS_MEMO_MS = 15_000;
+
+export interface TraderPosition {
+  contracts: number;
+  avg_price: number;
+  upnl_usdc: number;
+}
+
+export async function readTraderPosition(
+  seriesId: number,
+  trader: `0x${string}`,
+): Promise<TraderPosition | null> {
+  const venue = futuresAddress();
+  if (!venue) return null;
+  const key = `${seriesId}:${trader.toLowerCase()}`;
+  const hit = posMemo.get(key);
+  if (hit && Date.now() - hit.at < POS_MEMO_MS) return hit.data;
+  let data: TraderPosition | null = null;
+  try {
+    const pos = (await client().readContract({
+      address: venue,
+      abi: FUTURES_ABI,
+      functionName: "positionOf",
+      args: [BigInt(seriesId), trader],
+    } as never)) as unknown as RawPosition;
+    await sleep(RPC_GAP_MS);
+    const upnl = (await client().readContract({
+      address: venue,
+      abi: FUTURES_ABI,
+      functionName: "unrealizedPnl",
+      args: [BigInt(seriesId), trader],
+    } as never)) as unknown as bigint;
+    const row = buildDeskRow(
+      { series_id: seriesId, index_id: "", expiry_ts: 0, multiplier: 1, maker: trader, exists: true, settled: false, settlement_price: 0 },
+      pos,
+      upnl,
+      0n,
+    );
+    data = {
+      contracts: row.maker_inventory,
+      avg_price: row.maker_avg_price,
+      upnl_usdc: row.maker_unrealized_usdc,
+    };
+  } catch {
+    data = null; // throttled — the poll retries next window
+  }
+  if (posMemo.size > 64) {
+    const oldest = [...posMemo.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) posMemo.delete(oldest[0]);
+  }
+  posMemo.set(key, { at: Date.now(), data });
+  return data;
+}
+
 /** Read the whole venue — desks per index plus the recent fill tape — straight
  *  from ACRFutures. Null when no venue is configured or nothing resolved (the
  *  caller then falls back to the archived bundle). */

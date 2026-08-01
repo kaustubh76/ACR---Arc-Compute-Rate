@@ -681,6 +681,87 @@ async def demo_buyer_start(req: BuyerStartRequest | None = None) -> dict:
     return {"state": "running", "count": count, "payer": payer}
 
 
+# --- the Public Desk: user-controlled wallets trading ACRFutures -----------
+
+
+class DeskSessionRequest(BaseModel):
+    user_id: str
+
+
+class DeskFaucetRequest(BaseModel):
+    address: str
+
+
+class DeskChallengeRequest(BaseModel):
+    user_token: str
+    wallet_id: str
+    action: str  # approve | collateral | trade
+    index_id: str = "ACR-GPU"
+    qty: float = 0.0
+
+
+def _desk_call(fn, *args):
+    from .desk import DeskError
+
+    try:
+        return fn(*args)
+    except DeskError as e:
+        raise HTTPException(status_code=e.status, detail=e.detail) from e
+
+
+@app.post("/desk/session")
+def desk_session(req: DeskSessionRequest) -> dict:
+    """Open (or resume) a Public Desk session: Circle user + 60-min token, a
+    PIN-setup challenge on first contact, the existing SCA wallet afterwards.
+    Ungated — the desk IS the demo; guardrails live in desk.py."""
+    from . import desk
+
+    return _desk_call(desk.open_session, req.user_id)
+
+
+class DeskWalletRequest(BaseModel):
+    user_token: str
+
+
+@app.post("/desk/wallet")
+def desk_wallet(req: DeskWalletRequest) -> dict:
+    """The session's ARC-TESTNET wallet + its USDC stake (null pre-PIN).
+    POST so the session token stays out of URLs and access logs."""
+    from . import desk
+
+    w = _desk_call(desk.wallet_of, req.user_token)
+    if w is None:
+        return {"wallet": None, "usdc": None}
+    balance = None
+    try:  # native == ERC-20 on Arc; a throttled read degrades to null
+        client = get_futures()._client._connect()
+        if client is not None:
+            balance = client.eth.get_balance(client.to_checksum_address(w["address"])) / 1e18
+    except Exception:
+        balance = None
+    return {"wallet": w, "usdc": balance}
+
+
+@app.post("/desk/faucet")
+def desk_faucet(req: DeskFaucetRequest) -> dict:
+    """Drip the one-per-wallet 0.5 USDC stake from the custody wallet."""
+    from . import desk
+
+    tx = _desk_call(desk.drip_stake, req.address)
+    return {"tx": tx, "amount_usdc": desk.FAUCET_USDC}
+
+
+@app.post("/desk/challenge")
+def desk_challenge(req: DeskChallengeRequest) -> dict:
+    """Mint the contractExecution challenge for one desk action; the browser
+    SDK executes it under the user's PIN."""
+    from . import desk
+
+    return _desk_call(
+        desk.build_challenge, req.user_token, req.wallet_id, req.action, req.index_id, req.qty
+    )
+
+
 @app.get("/demo/buyer/status")
 def demo_buyer_status() -> dict:
     from . import buyer_demo
