@@ -35,6 +35,10 @@ BAND = int(os.environ.get("LOOP_BAND", "4"))
 GAS_FLOOR = float(os.environ.get("GAS_FLOOR", "1.0"))  # native USDC; stop below this
 #: Posted when the taker has no stake on the selected series (i.e. after a roll).
 LOOP_COLLATERAL = float(os.environ.get("LOOP_COLLATERAL", "3.0"))
+#: How many times `--once` will try before reporting the tick as failed. Arc's
+#: public RPC 429s routinely, and with escalating backoff (5s, 10s, …) five
+#: attempts stay well inside the heartbeat job's timeout.
+ONCE_ATTEMPTS = int(os.environ.get("LOOP_ONCE_ATTEMPTS", "5"))
 MARGIN_SAFETY = 0.85  # only use 85% of margin headroom when clamping the band
 
 _MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "view",
@@ -173,7 +177,14 @@ def main() -> None:
             if fails >= 30:  # the endpoint has been down a long time — give up cleanly
                 print("  ⏹ 30 consecutive RPC failures — endpoint looks down; stopping")
                 break
-            if once:
+            # `--once` means "land one fill", NOT "make at most one attempt".
+            # It used to give up on the first exception, so a single Arc 429 —
+            # routine on the public endpoint — failed the whole hourly
+            # heartbeat. The first scheduled run did exactly that. A heartbeat
+            # that cries wolf most hours teaches everyone to ignore it, which
+            # costs more than the outage it was meant to announce.
+            if once and fails >= ONCE_ATTEMPTS:
+                print(f"  ⏹ {fails} attempts, all failed — giving up this tick")
                 break
             time.sleep(min(60.0, 5.0 * fails))  # escalating backoff while the RPC is unhappy
             continue
@@ -183,9 +194,9 @@ def main() -> None:
         time.sleep(INTERVAL + random.uniform(0, min(20.0, INTERVAL * 0.15)))
 
     print(f"  done — {done} trades over {(time.monotonic() - start) / 60:.1f} min")
-    # A heartbeat that beat zero times must not report success. `--once` breaks
-    # out of the loop on any tick failure, so without this the workflow goes
-    # green while the book has stopped moving — the worst kind of green.
+    # A heartbeat that beat zero times must not report success. `--once` can
+    # exhaust its attempts without landing a fill, so without this the workflow
+    # goes green while the book has stopped moving — the worst kind of green.
     if once and done == 0:
         print("  ✗ heartbeat traded nothing — failing so the run is visibly red")
         sys.exit(1)
