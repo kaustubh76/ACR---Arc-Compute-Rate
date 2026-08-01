@@ -257,6 +257,10 @@ only honest verification drives a browser.
 > only while somebody ran the loop locally. If you add or move a scheduled
 > workflow, confirm it by finding its **runs**
 > (`gh run list --workflow <file>`), never by reading its cron line.
+>
+> Free-tier `cron` is also **late** — the first real heartbeat tick ran the
+> `21:00` slot at `21:51`. Tens of minutes of delay is normal; don't read a
+> missing run in the first half hour as a broken schedule.
 
 A series expires. Two idempotent commands own that, and
 `.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset

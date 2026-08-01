@@ -258,6 +258,23 @@ posted its own 3.00 USDC, and traded `BUY 1 @ 0.49773`.
 job, it is a *proposal* for one. Test that a cron fires by finding its runs, not
 by reading its cron line.
 
+The first genuinely *scheduled* run then arrived — for the `21:00` slot, at
+`21:51`. Free-tier cron is delayed by tens of minutes and that is normal; do not
+read a missing run in the first half hour as a broken schedule. It also went
+**red** on one `429 Too Many Requests` from Arc's public RPC, because `--once`
+broke out of the loop on the first exception having traded nothing. `--once`
+means "land one fill", not "make at most one attempt": as written, the heartbeat
+would have failed most hours for an entirely transient reason, and a heartbeat
+that cries wolf hourly teaches everyone to ignore it — which costs more than the
+outage it exists to announce. It now retries `LOOP_ONCE_ATTEMPTS` (5) times with
+the escalating backoff already present. The rule that a beat which traded
+nothing must exit non-zero is untouched; the point was to make the signal
+trustworthy, not to soften it.
+
+Worth noting what worked: that `done == 0 → exit 1` guard, added in the previous
+session, is the only reason this was visible at all. Without it the run would
+have gone green having done nothing.
+
 ### The rate limiter rationed the whole world to one bucket
 
 Every reader reaches the desk through a server-side Next.js proxy, so the
