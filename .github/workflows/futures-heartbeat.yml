@@ -50,4 +50,10 @@ jobs:
       - name: One mean-reverting fill
         env:
           TAKER_PRIVATE_KEY: ${{ secrets.ACR_FUTURES_TAKER_KEY }}
-        run: uv run python scripts/futures_loop.py --once
+        # Rotate the traded index by hour so all three desks tick over a day
+        # (each still gets ~8 fills/day; a fill lands within the tape's window).
+        run: |
+          INDICES=(ACR-INF ACR-GPU ACR-DATA)
+          export SEED_INDEX="${INDICES[$(( $(date -u +%-H) % 3 ))]}"
+          echo "heartbeat index: $SEED_INDEX"
+          uv run python scripts/futures_loop.py --once

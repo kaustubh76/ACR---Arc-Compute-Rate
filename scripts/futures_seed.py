@@ -33,6 +33,10 @@ MULT = int(os.environ.get("SEED_MULT", "10"))
 COLLATERAL = float(os.environ.get("SEED_COLLATERAL", "3"))  # USDC each side
 QTY = float(os.environ.get("SEED_QTY", "2"))  # contracts the taker longs
 EXPIRY_DAYS = float(os.environ.get("SEED_EXPIRY_DAYS", "2"))
+#: Open a NEW series even when an unsettled one exists for the index — used to
+#: roll the venue onto a longer expiry before the old series lapses
+#: (select_series_for_index prefers the newest unsettled, so the roll is clean).
+FORCE_NEW = os.environ.get("SEED_FORCE_NEW", "") == "1"
 
 _ERC20 = [
     {"type": "function", "name": "approve", "stateMutability": "nonpayable",
@@ -88,12 +92,14 @@ def main() -> None:
 
     # 1) Open the series (owner == maker, since the deployer is the maker).
     expiry = int(w3.eth.get_block("latest")["timestamp"] + EXPIRY_DAYS * 86400)
-    # Reuse an existing open series for this index if one exists (idempotent-ish).
+    # Reuse an existing open series for this index if one exists (idempotent-ish),
+    # unless SEED_FORCE_NEW=1 rolls the index onto a fresh series.
     existing = None
-    for s in maker_fc.read_all_series():
-        if s["index_id"] == INDEX and not s["settled"]:
-            existing = s
-            break
+    if not FORCE_NEW:
+        for s in maker_fc.read_all_series():
+            if s["index_id"] == INDEX and not s["settled"]:
+                existing = s
+                break
     if existing:
         sid = existing["series_id"]
         print(f"  ↩ reusing open series {sid} ({INDEX}, mult {existing['multiplier']})")
