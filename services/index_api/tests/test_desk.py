@@ -249,26 +249,134 @@ def test_challenge_rejects_zero_qty_and_unknown_action(circle_capture):
         desk.build_challenge("tok", "wid", "trade", "ACR-GPU", qty=0.0)
     assert e.value.status == 400
     with pytest.raises(DeskError):
-        desk.build_challenge("tok", "wid", "withdraw", "ACR-GPU")
+        desk.build_challenge("tok", "wid", "liquidate", "ACR-GPU")
 
 
-def test_live_series_guards(monkeypatch):
+def _fake_futures(monkeypatch, desks):
     class _Fut:
         configured = True
 
         def read_all(self):
-            return {
-                "ACR-GPU": {"series_id": 1, "settled": False, "trader_count": 127},
-                "ACR-INF": {"series_id": 0, "settled": True, "trader_count": 2},
-            }
+            return desks
 
     monkeypatch.setattr("index_api.onchain.get_futures", lambda: _Fut())
+
+
+def _series(**kw):
+    """A fake desk row. Every one needs a real ``expiry_ts`` now — the gate
+    reads it, and a missing key would silently make other guards fire."""
+    row = {"series_id": 0, "settled": False, "trader_count": 2, "expiry_ts": time.time() + 86400}
+    row.update(kw)
+    return row
+
+
+def test_live_series_guards(monkeypatch):
+    _fake_futures(
+        monkeypatch,
+        {
+            "ACR-GPU": _series(series_id=1, trader_count=127),
+            "ACR-INF": _series(settled=True),
+        },
+    )
     with pytest.raises(DeskError) as full:
         desk._live_series("ACR-GPU")  # roster ≥ TRADER_HEADROOM
     assert full.value.status == 409
+    assert "roster" in full.value.detail  # not the expiry gate firing by accident
     with pytest.raises(DeskError) as settled:
         desk._live_series("ACR-INF")
     assert settled.value.status == 404
     with pytest.raises(DeskError) as missing:
         desk._live_series("ACR-DATA")
     assert missing.value.status == 404
+
+
+def test_live_series_refuses_an_expired_series(monkeypatch):
+    """Past expiry the contract reverts `trade`, so quoting one would mint a
+    challenge that dies AFTER the reader has already entered their PIN."""
+    _fake_futures(monkeypatch, {"ACR-INF": _series(expiry_ts=time.time() - 1)})
+    with pytest.raises(DeskError) as e:
+        desk._live_series("ACR-INF")
+    assert e.value.status == 409
+    assert "expired" in e.value.detail
+
+
+def test_live_series_refuses_a_series_inside_the_expiry_buffer(monkeypatch):
+    """The buffer is the point: 30s of life is already gone by the time a PIN
+    ceremony completes, and the desk read is 90s-cached on top of that."""
+    _fake_futures(monkeypatch, {"ACR-INF": _series(expiry_ts=time.time() + 30)})
+    with pytest.raises(DeskError) as e:
+        desk._live_series("ACR-INF")
+    assert e.value.status == 409
+
+
+def test_live_series_accepts_a_series_with_life_left(monkeypatch):
+    _fake_futures(monkeypatch, {"ACR-INF": _series(expiry_ts=time.time() + 3600)})
+    assert desk._live_series("ACR-INF")["series_id"] == 0
+
+
+# --- the exit --------------------------------------------------------------
+
+
+#: `withdrawable()` is orchestration over live contract reads — it is proven
+#: against a REAL ACRFutures deployment in tests/test_desk_onchain.py, where the
+#: quote is checked by actually withdrawing it. What belongs here is the pure
+#: arithmetic it delegates to, which has no chain in it to stand in for.
+
+
+def test_free_collateral_is_everything_once_the_series_settles():
+    """Settled means flat, and the contract skips the margin check entirely."""
+    assert desk.free_collateral_units(554338, 0.0, 0.0, 10, 2000, settled=True) == 554338
+
+
+def test_free_collateral_is_everything_when_the_trader_is_flat():
+    """A flat account needs no margin — which is why the caller never has to
+    read a mark for it, and why a dead oracle can't trap a flat reader."""
+    assert desk.free_collateral_units(500000, 0.0, 0.0, 10, 2000, settled=False) == 500000
+
+
+def test_free_collateral_subtracts_required_margin_on_an_open_position():
+    """0.5 posted against +0.46 contracts at 0.4974 on a 10x index at 2000bps
+    pins 0.4576, leaving ~0.042 — quoted under the safety haircut."""
+    free = desk.free_collateral_units(500000, 0.46, 0.4974, 10, 2000, settled=False) / 1e6
+    true_free = 0.5 - 0.46 * 0.4974 * 10 * 0.20
+    assert 0 < free < true_free
+    assert free == pytest.approx(true_free * desk.WITHDRAW_SAFETY, abs=1e-6)
+
+
+ADDR = "0x" + "a" * 40
+
+
+def test_free_collateral_never_goes_negative():
+    """A position needing more margin than the collateral behind it clamps to
+    zero rather than quoting a withdrawal the contract would revert."""
+    assert desk.free_collateral_units(100000, 2.0, 0.4974, 10, 2000, settled=False) == 0
+    assert desk.free_collateral_units(0, 0.0, 0.0, 10, 2000, settled=True) == 0
+
+def test_challenge_withdraw_targets_the_venue_with_raw_units(circle_capture, monkeypatch):
+    monkeypatch.setattr(
+        desk, "withdrawable", lambda a: {"series_id": 3, "free_units": 554338, "contracts": 0.0}
+    )
+    out = desk.build_challenge("tok", "wid", "withdraw", "ACR-INF", address=ADDR)
+    assert out["action"] == "withdraw"
+    b = circle_capture["body"]
+    assert b["contractAddress"] == "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
+    assert b["abiFunctionSignature"] == "withdrawCollateral(uint256,uint256)"
+    assert b["abiParameters"] == ["3", "554338"]
+
+
+def test_challenge_withdraw_explains_a_pinned_stake(circle_capture, monkeypatch):
+    """"Nothing to withdraw" would be a lie to someone whose money is simply
+    backing a position — the error has to name the case."""
+    monkeypatch.setattr(
+        desk, "withdrawable", lambda a: {"series_id": 0, "free_units": 0, "contracts": 0.46}
+    )
+    with pytest.raises(DeskError) as e:
+        desk.build_challenge("tok", "wid", "withdraw", "ACR-INF", address=ADDR)
+    assert e.value.status == 409
+    assert "open position" in e.value.detail
+
+
+def test_challenge_withdraw_requires_an_address(circle_capture):
+    with pytest.raises(DeskError) as e:
+        desk.build_challenge("tok", "wid", "withdraw", "ACR-INF")
+    assert e.value.status == 400

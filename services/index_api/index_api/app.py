@@ -695,15 +695,20 @@ class DeskFaucetRequest(BaseModel):
 class DeskChallengeRequest(BaseModel):
     user_token: str
     wallet_id: str
-    action: str  # approve | collateral | trade
+    action: str  # approve | collateral | trade | withdraw
     index_id: str = "ACR-GPU"
     qty: float = 0.0
     address: str = ""  # the SCA — lets the server size the action to live margin
+    series_id: int | None = None  # withdraw: which series to empty
 
 
 class DeskLimitsRequest(BaseModel):
     address: str
     index_id: str = "ACR-GPU"
+
+
+class DeskWithdrawableRequest(BaseModel):
+    address: str
 
 
 def _desk_call(fn, *args):
@@ -768,6 +773,16 @@ def desk_limits(req: DeskLimitsRequest) -> dict:
     return _desk_call(desk.desk_limits, req.address, req.index_id)
 
 
+@app.post("/desk/withdrawable")
+def desk_withdrawable(req: DeskWithdrawableRequest) -> dict:
+    """What this wallet can take back out, across every series it holds
+    collateral in — including expired and settled ones, which is exactly where
+    a reader needs an exit and where the tradable-series gate refuses to look."""
+    from . import desk
+
+    return _desk_call(desk.withdrawable, req.address)
+
+
 @app.post("/desk/challenge")
 def desk_challenge(req: DeskChallengeRequest) -> dict:
     """Mint the contractExecution challenge for one desk action; the browser
@@ -782,6 +797,7 @@ def desk_challenge(req: DeskChallengeRequest) -> dict:
         req.index_id,
         req.qty,
         req.address,
+        req.series_id,
     )
 
 

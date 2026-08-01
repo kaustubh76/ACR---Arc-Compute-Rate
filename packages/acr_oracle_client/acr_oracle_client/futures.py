@@ -148,6 +148,8 @@ FUTURES_ABI = [
      "inputs": [{"name": "seriesId", "type": "uint256"}, {"name": "amount", "type": "uint256"}], "outputs": []},
     {"type": "function", "name": "trade", "stateMutability": "nonpayable",
      "inputs": [{"name": "seriesId", "type": "uint256"}, {"name": "qty", "type": "int256"}], "outputs": []},
+    {"type": "function", "name": "withdrawCollateral", "stateMutability": "nonpayable",
+     "inputs": [{"name": "seriesId", "type": "uint256"}, {"name": "amount", "type": "uint256"}], "outputs": []},
     {"type": "function", "name": "settle", "stateMutability": "nonpayable",
      "inputs": [{"name": "seriesId", "type": "uint256"}], "outputs": []},
     {"type": "event", "name": "Traded", "anonymous": False, "inputs": [
@@ -155,6 +157,20 @@ FUTURES_ABI = [
         {"name": "taker", "type": "address", "indexed": True},
         {"name": "qty", "type": "int256", "indexed": False},
         {"name": "mark", "type": "uint256", "indexed": False}]},
+    # The collateral round trip and the settlement itself — evidence tooling
+    # reads these, and without them every caller has to re-declare the fragment.
+    {"type": "event", "name": "CollateralPosted", "anonymous": False, "inputs": [
+        {"name": "seriesId", "type": "uint256", "indexed": True},
+        {"name": "trader", "type": "address", "indexed": True},
+        {"name": "amount", "type": "uint256", "indexed": False}]},
+    {"type": "event", "name": "CollateralWithdrawn", "anonymous": False, "inputs": [
+        {"name": "seriesId", "type": "uint256", "indexed": True},
+        {"name": "trader", "type": "address", "indexed": True},
+        {"name": "amount", "type": "uint256", "indexed": False}]},
+    {"type": "event", "name": "Settled", "anonymous": False, "inputs": [
+        {"name": "seriesId", "type": "uint256", "indexed": True},
+        {"name": "settlementPrice", "type": "uint256", "indexed": False},
+        {"name": "participants", "type": "uint256", "indexed": False}]},
 ]
 
 
@@ -259,6 +275,18 @@ class FuturesClient:
         except Exception:
             return None
 
+    def collateral_units_of(self, series_id: int, trader: str) -> int | None:  # pragma: no cover - live chain
+        """The same balance in RAW USDC-6 units. A withdrawal has to name an
+        exact integer to drain an account to zero — going through the float in
+        :meth:`collateral_of` leaves a micro-USDC of dust behind."""
+        if self._connect() is None or not self.configured:
+            return None
+        try:
+            c = self._contract()
+            return int(_rpc_retry(c.functions.collateral(int(series_id), trader).call))
+        except Exception:
+            return None
+
     def recent_trades(self, lookback_blocks: int = 10000, limit: int = 25) -> list[dict]:  # pragma: no cover - live chain
         """Recent on-chain fills from the ``Traded`` event, newest-first — the
         live trade tape. One bounded ``eth_getLogs`` (cheap even on the throttled
@@ -337,6 +365,16 @@ class FuturesClient:
             return None
         c = self._contract()
         return self._send(c.functions.postCollateral(int(series_id), int(round(amount_usdc * USDC))))
+
+    def withdraw_collateral(self, series_id: int, amount_units: int) -> str | None:  # pragma: no cover - live chain
+        """Take collateral back out, in RAW USDC-6 units (see
+        :meth:`collateral_units_of`). The contract lets an unsettled account
+        withdraw only down to its initial margin; a settled one is flat, so the
+        whole cleared balance is free."""
+        if not self.can_write():
+            return None
+        c = self._contract()
+        return self._send(c.functions.withdrawCollateral(int(series_id), int(amount_units)))
 
     def trade(self, series_id: int, qty_contracts: float) -> str | None:  # pragma: no cover - live chain
         if not self.can_write():

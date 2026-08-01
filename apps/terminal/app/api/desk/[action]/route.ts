@@ -18,7 +18,7 @@ const USER_ID_RE = /^[A-Za-z0-9._-]{5,64}$/;
 // Circle userTokens are JWTs; bound charset+length, never interpolated in URLs.
 const TOKEN_RE = /^[A-Za-z0-9._-]{16,4096}$/;
 const WALLET_ID_RE = /^[a-f0-9-]{8,64}$/i;
-const ACTIONS = new Set(["approve", "collateral", "trade"]);
+const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw"]);
 
 async function forward(path: string, init: RequestInit): Promise<NextResponse> {
   try {
@@ -88,14 +88,25 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
         body: JSON.stringify({ address, index_id }),
       });
     }
+    case "withdrawable": {
+      const { address } = body as { address?: unknown };
+      if (typeof address !== "string" || !ADDR_RE.test(address)) {
+        return NextResponse.json({ detail: "bad withdrawable request" }, { status: 400 });
+      }
+      return forward("/desk/withdrawable", {
+        method: "POST",
+        body: JSON.stringify({ address }),
+      });
+    }
     case "challenge": {
-      const { user_token, wallet_id, action, index_id, qty, address } = body as {
+      const { user_token, wallet_id, action, index_id, qty, address, series_id } = body as {
         user_token?: unknown;
         wallet_id?: unknown;
         action?: unknown;
         index_id?: unknown;
         qty?: unknown;
         address?: unknown;
+        series_id?: unknown;
       };
       if (
         typeof user_token !== "string" ||
@@ -106,7 +117,10 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
         !ACTIONS.has(action) ||
         typeof index_id !== "string" ||
         !(INDICES as readonly string[]).includes(index_id) ||
-        (address !== undefined && (typeof address !== "string" || !ADDR_RE.test(address)))
+        (address !== undefined && (typeof address !== "string" || !ADDR_RE.test(address))) ||
+        (series_id !== undefined &&
+          series_id !== null &&
+          !(typeof series_id === "number" && Number.isInteger(series_id) && series_id >= 0))
       ) {
         return NextResponse.json({ detail: "bad challenge request" }, { status: 400 });
       }
@@ -120,6 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
           index_id,
           qty: q,
           address: address ?? "",
+          series_id: series_id ?? null,
         }),
       });
     }

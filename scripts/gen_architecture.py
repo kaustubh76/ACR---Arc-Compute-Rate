@@ -228,30 +228,38 @@ def build() -> None:
           "attestWithSig — seller signs, relayer pays",
           "→ one relayer registers many sellers"], ORANGE)
     card("c_foundry", 2260, 825, 510, 92, "FOUNDRY",
-         ["50 tests · invariant suite (fail_on_revert)"], ORANGE)
+         ["50 tests · invariants: oracle · registry · futures",
+          "netOI=0 · collateral-backed · fail_on_revert"], ORANGE, body_size=12)
     card("c_deploy", 2260, 929, 510, 132, "CIRCLE DEPLOY",
-         ["Smart Contract Platform + Gas Station", "deploy / import-by-address → setSigner",
-          "deploy_circle.py (--dry-run) · verify_deploy.py"], ORANGE)
+         ["Smart Contract Platform + Gas Station", "oracle + registry + ACRFutures → setSigner",
+          "deploy_circle.py · Deploy / DeployFutures.s.sol"], ORANGE)
 
     # ---------- D · INSTRUMENT ----------
-    zone(2240, 1110, 560, 350, "D · INSTRUMENT (Pillar 4)", GREEN)
-    card("d_future", 2260, 1162, 510, 128, "ACR-WEEKLY FUTURE",
-         ["cash-settled vs oracle print", "no delivery · no bonds", "future.py"], GREEN)
-    card("d_mm", 2260, 1302, 510, 128, "MARKET MAKER",
-         ["Avellaneda–Stoikov quotes", "first term structure in machine commerce",
-          "market_maker.py"], GREEN)
+    zone(2240, 1110, 560, 350, "D · INSTRUMENT & PUBLIC DESK (Pillar 4 · on-chain)", GREEN)
+    card("d_future", 2260, 1156, 510, 96, "ACRFutures.sol  (on-chain venue)",
+         ["weekly cash-settled vs oracle · stale-guard (7200s)",
+          "maker mirrors every taker → net OI = 0 · 20% margin",
+          "USDC collateral · Traded tape · socialized-loss settle"], GREEN, body_size=12)
+    card("d_mm", 2260, 1258, 510, 96, "MARKET MAKER (Avellaneda–Stoikov)",
+         ["r = s − q·γ·σ²·(T−t) · seeds the on-chain book",
+          "futures_loop.py / futures_seed.py",
+          "maker inventory skews the term-structure curve"], GREEN, body_size=12)
+    card("d_desk", 2260, 1360, 510, 96, "PUBLIC DESK",
+         ["readers trade ACRFutures via Circle user-controlled wallet",
+          "PIN ceremony · SCA · Gas-Station gas",
+          "desk.py · /desk/* · the server never holds the key"], GREEN, body_size=12)
 
     # ---------- E · DISTRIBUTION ----------
     zone(720, 1250, 1480, 360, "E · DISTRIBUTION (self-referential · x402-monetized)", PURPLE)
     card("e_api", 745, 1302, 430, 190, "INDEX API (FastAPI)",
-         ["x402-gated: /prints /curve /vol", "/marketplace /webhooks /demo/buyer",
-          "lifespan refresh + poster loop", "/onchain reader (90s TTL cache)"], PURPLE)
+         ["x402-gated: /prints /curve /vol", "/futures /desk/* /marketplace /webhooks",
+          "lifespan: refresh + poster + book warm", "/onchain + futures readers (90s TTL)"], PURPLE)
     card("e_facil", 1195, 1302, 430, 190, "x402 FACILITATOR",
          ["Dev (mock) | Circle (Nanopayments)", "gateway-api-testnet.circle.com /v1/x402",
           "verify+settle · exact · x402Version 2 · fail-closed", "GatewayWalletBatched · GatewayWallet 0x0077…"], PURPLE)
     card("e_term", 1660, 1302, 510, 190, "ACR TERMINAL (Next.js · 'Arc Dawn')",
-         ["editorial 'The Fixing' · /attack /curve /exchange", "ChainFactsStrip · OracleProvenance (tx·block)",
-          "FinalityBadge · SettlementTape · WebhookActivity", "SWR live polling · apps/terminal"], PURPLE)
+         ["editorial 'The Fixing' · /curve /exchange /companion", "PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor",
+          "ChainFactsStrip · OracleProvenance · FinalityBadge", "SWR live polling · apps/terminal"], PURPLE)
 
     # ---------- K · AGENTIC ECONOMY (demand side) ----------
     zone(720, 1630, 1480, 250, "K · AGENTIC ECONOMY (demand side · the loop closes)", PURPLE)
@@ -276,9 +284,9 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1500, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1552, 510, 180, "TESTS · 181 py + 50 forge",
-         ["+ agent TS + interop conformance", "eval gate: VWAP 107–123% · ACR <3% → 50–560×",
-          "glossary gate · ruff · GitHub CI", "hermetic conftest (Circle mocked)"], GRAY)
+    card("h_tests", 2260, 1552, 510, 180, "TESTS · 217 py + 50 forge",
+         ["+ agent TS + terminal + interop conformance", "eval gate: VWAP 107–123% · ACR <3% → 50–560×",
+          "glossary gate · ruff · GitHub CI · make deck", "hermetic conftest (Circle mocked)"], GRAY)
 
     # ---------- Judge Fit + Demo Metrics (far right) ----------
     card("j_judge", 2860, 320, 620, 240, "JUDGE FIT (surgical)",
@@ -305,16 +313,12 @@ def build() -> None:
         "deconvolution — un-smear it to recover the true price",
         "Kalman filter — recover a clean signal from noisy, delayed data",
         "RTS smoother — a backward pass that sharpens earlier estimates",
-        "batch operator H — the known 'recipe' of the blur, so we can invert",
-        "volume-time bars — sample per equal $ traded, not per clock tick",
         "WLS — regression that weights bigger trades more heavily",
         "α-trim median (VWM) — drop the extreme few %, keep the middle",
         "breakdown ½ — survives up to 50% bad data before it breaks",
         "bootstrap CI — resample to get an honest 'give-or-take' range",
-        "LOCO — drop each cluster in turn; how far does the rate move?",
         "sybil — many fake identities run by one attacker",
         "wash trade / self-deal — fake trades to pump volume or price",
-        "reciprocal ring — money loops A→B→A; volume looks real, net ≈ 0",
         "Louvain — finds tight clusters in a who-paid-whom graph",
         "manipulation bound — least USDC (N*) to move the rate 1 bp",
         "basis point (bp) — one hundredth of a percent (0.01%)",
@@ -338,6 +342,12 @@ def build() -> None:
         "settlement-grade — trustworthy enough for contracts to settle on",
         "cash-settled future — bet on the rate; pays the diff, no delivery",
         "Avellaneda–Stoikov — a recipe for a market maker's buy/sell quotes",
+        "ACRFutures — an on-chain weekly future, cash-settled vs the oracle",
+        "initial margin — post ~20% collateral to hold a futures position",
+        "maker mirror-side — one maker takes the opposite of every fill (net 0)",
+        "socialized-loss — if a loser can't pay, winners are haircut pro-rata",
+        "Public Desk — trade the future with a Circle user-controlled wallet",
+        "user-controlled wallet — the user's own PIN/passkey keys; server has none",
         "buyer agent — a machine that auto-discovers + pays for the index",
         "Agent Marketplace — catalog of payable services + receipts ledger",
         "GatewayWalletBatched — Circle contract the x402 payment signs against",
@@ -400,7 +410,10 @@ def build() -> None:
     wire("c_signer", "c_oracle", ORANGE)           # signer signs the print
     wire("b_prints", "c_oracle", ORANGE)           # ⑧ signed print posted
     wire("c_oracle", "d_future", GREEN)            # ⑨ cash-settlement reference
-    wire("d_mm", "d_future", GREEN)                # quotes
+    wire("d_mm", "d_future", GREEN)                # maker seeds the on-chain book
+    wire("d_desk", "d_future", GREEN)              # readers take a position (PIN-signed)
+    wire("d_future", "e_api", GREEN, dashed=True,
+         waypoints=[(2210, 1240), (1180, 1290)])   # FuturesReader: desk/inventory → curve skew
     wire("c_oracle", "e_api", ORANGE, dashed=True,
          waypoints=[(2210, 900), (1180, 1290)])    # /onchain read
     wire("b_bound", "e_api", PURPLE)               # ⑩ prints sold via x402

@@ -349,6 +349,69 @@ and it proves its own tamper-resistance.
 - **SWR** — a React library that automatically re-fetches data every few seconds
   so the Terminal stays live. *An auto-refreshing scoreboard.*
 
+## On-chain futures & the Public Desk (Pillar 4, live)
+
+- **ACRFutures.sol** — the on-chain venue: a weekly **cash-settled** future per index
+  that resolves against the oracle. *A betting window at the stadium that pays out
+  against the official scoreboard.*
+- **series** — one tradeable contract line (an index + expiry + multiplier + a
+  designated maker). *One specific "Team A to win, by Friday" market.*
+- **multiplier** — USDC paid per 1.0 of index value per contract (e.g. 1000). *How
+  many dollars each "point" is worth.*
+- **designated maker / mirror side** — one appointed counterparty takes the exact
+  opposite of every taker's fill, so the book's net position is always zero
+  (**open interest = 0**). *The house automatically takes the other side of your
+  bet.*
+- **open interest (OI)** — the total size of open positions; here it nets to zero
+  because the maker mirrors everyone. *How much money is riding on the table.*
+- **initial margin (`MARGIN_BPS`, 20%)** — collateral you must post to hold a
+  position; trades/withdrawals revert below it. *The deposit you leave to hold
+  the bet.* (Initial-margin only — no intraday liquidation, a documented testnet
+  simplification.)
+- **mark-to-oracle** — positions are valued at the live oracle price. *Your bet's
+  worth, updated to the current score.*
+- **collateral / `post_collateral` / withdrawable** — the USDC you lock to trade,
+  and what you're allowed to take back out. *Chips you buy in with, and what you
+  can cash out.*
+- **`Traded` event / trade tape / fill** — every executed trade emits a `Traded`
+  log; the Terminal streams these as the live tape. *The ticker of trades
+  scrolling by.*
+- **socialized-loss settlement** — at expiry (via `latestPrintWithAge`, rejecting
+  a mark older than `MAX_SETTLE_AGE` = 7200s), losers are floored to zero and any
+  shortfall haircuts the winners pro-rata, so the contract never pays out more
+  USDC than it holds (**solvency**, no minting). *If a loser can't cover, the pot
+  is shared out fairly rather than promising money that isn't there.*
+- **`FuturesClient` / `FuturesReader`** — the Python client that reads/writes the
+  venue, and the API-side cached reader that serves the desk, maker inventory, and
+  trade tape to the Terminal. *The cashier who reads the board and takes orders.*
+- **maker inventory** — the maker's current net position; read back on-chain and
+  used to **skew the term-structure curve** (a long book pulls the curve down).
+  *Which way the house is leaning, which tilts its quotes.*
+- **`futures_loop.py` / `futures_seed.py`** — the maker bot that seeds and keeps
+  the on-chain book moving. *The market-stall owner who keeps restocking so
+  there's always something to trade.*
+- **Public Desk** — the feature that lets an ordinary reader take a **real**
+  ACRFutures position from the Terminal. *A "place your bet" button for the public.*
+- **user-controlled wallet / SCA** — a smart-contract account whose keys the *user*
+  holds (PIN/passkey), not the server; contrast the developer-controlled (custody)
+  wallet and the Gateway EOA. **Three wallet types** now: user-controlled (the
+  desk taker) · developer-controlled (the poster/custody) · Gateway EOA (the buyer
+  agent). *Your own safe vs the bank's vault vs a prepaid travel card.*
+- **PIN ceremony / passkey / `@circle-fin/w3s-pw-web-sdk`** — the browser flow where
+  the user's PIN authorizes each on-chain action; the server never sees the key.
+  *Tapping your own PIN at the terminal — the shop never learns it.*
+- **challenge-response / challengeId** — the server mints a signed "challenge" the
+  browser SDK executes under the user's PIN. *A one-time authorization slip you
+  personally sign.*
+- **faucet drip** — a small, one-per-wallet USDC stake handed out (from custody) so
+  a new desk user can trade. *A free starter chip to get you playing.*
+- **`PublicDesk` / `FuturesDesk` / `FuturesTape` / `QuoteCorridor`** — Terminal
+  panels: the take-a-position widget, the maker's book, the live fill tape, and the
+  bid/ask corridor chart. *The betting slip, the odds board, the ticker, and the
+  price chart.*
+- **`make deck` / marp** — renders the submission slides (`docs/presentation.md` →
+  `.html`/`.pdf`) with the marp tool. *The "export to slides" button.*
+
 ## Instrument (Pillar 4)
 
 - **Future (cash-settled)** — a contract to settle the *difference* vs the index

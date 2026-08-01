@@ -20,6 +20,7 @@ import logging
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 
 import httpx
@@ -45,6 +46,16 @@ MIN_QTY = 0.05
 #: Held back from the collateral post to cover that tx's own gas when the SCA
 #: turns out NOT to be Gas Station-sponsored (on Arc, gas is USDC).
 GAS_RESERVE_USDC = 0.01
+#: Stop offering a series this long before it expires. Generous on purpose: the
+#: desk read is 90s-cached (``onchain.FUTURES_TTL_S``) and a challenge minted
+#: now is only signed after the reader's PIN ceremony.
+EXPIRY_BUFFER_S = 120.0
+#: Quote a withdrawal slightly under the true free margin — ``_requiredMargin``
+#: rises with the mark, so a tick between the quote and the signature would
+#: revert "below margin" on an exact quote.
+WITHDRAW_SAFETY = 0.95
+#: Below this a withdrawal isn't worth a PIN ceremony.
+MIN_WITHDRAW_USDC = 0.01
 USDC_PREDEPLOY = "0x3600000000000000000000000000000000000000"
 
 
@@ -295,7 +306,14 @@ def drip_stake(address: str) -> dict:
 
 
 def _live_series(index_id: str) -> dict:
-    """The tradable series for an index (the same selection the desk shows)."""
+    """The TRADABLE series for an index (the same selection the desk shows).
+
+    "Tradable" is stricter than "unsettled": the contract rejects a trade at
+    ``block.timestamp >= expiryTs``, and a desk action is not one round trip —
+    the reader still has a PIN ceremony to complete after the challenge is
+    minted. Without the buffer the desk would mint challenges that revert
+    *after* the reader has authorized them, which reads as a silent failure.
+    """
     from .onchain import get_futures
 
     futures = get_futures()
@@ -304,6 +322,12 @@ def _live_series(index_id: str) -> dict:
     desk = futures.read_all().get(index_id)
     if desk is None or desk.get("settled"):
         raise DeskError(404, f"no open series for {index_id}")
+    if desk.get("expiry_ts", 0) - time.time() <= EXPIRY_BUFFER_S:
+        raise DeskError(
+            409,
+            f"the {index_id} series has expired — nothing new can be traded on it. "
+            "Withdraw your collateral once it settles.",
+        )
     if desk.get("trader_count", 0) >= TRADER_HEADROOM:
         raise DeskError(409, "this series' trader roster is full")
     return desk
@@ -337,6 +361,34 @@ def feasible_qty(
     max_sell = min(t_cap + taker_contracts, m_cap - maker_contracts)
     clamp = lambda x: round(max(0.0, min(MAX_QTY, x)), 2)  # noqa: E731
     return (clamp(max_buy), clamp(max_sell))
+
+
+def free_collateral_units(
+    units: int,
+    contracts: float,
+    mark: float,
+    multiplier: int,
+    margin_bps: int,
+    settled: bool,
+) -> int:
+    """How much of a posted stake (RAW USDC-6) the contract will actually let go.
+
+    Mirrors ``ACRFutures.withdrawCollateral``: what stays behind must still cover
+    initial margin on the open position — except on a settled series, where
+    positions are flat and the whole cleared balance is free. A flat account
+    needs no margin either, which is why neither of those cases reads a mark.
+
+    Pure arithmetic on purpose: this is the part worth asserting in a unit test,
+    while the reads that feed it are proven against a real chain (see
+    tests/test_desk_onchain.py) rather than against a stand-in.
+    """
+    if units <= 0:
+        return 0
+    if settled or contracts == 0:
+        return units
+    required = abs(contracts) * mark * multiplier * (margin_bps / 10_000)
+    free = max(0.0, units / 1_000_000 - required)
+    return int(free * WITHDRAW_SAFETY * 1_000_000)
 
 
 #: Per-wallet limits memo. Arc's public RPC throttles hard and the desk polls
@@ -419,6 +471,120 @@ def desk_limits(address: str, index_id: str) -> dict:
     return out
 
 
+class _TTLCache:
+    """A tiny bounded TTL memo. Bounded matters: these are keyed by caller-
+    supplied wallet address, so an unbounded dict is a memory-growth vector on
+    a public endpoint, not just an untidiness."""
+
+    def __init__(self, ttl_s: float, max_entries: int) -> None:
+        self._ttl, self._max = ttl_s, max_entries
+        self._data: OrderedDict[object, tuple[float, object]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            hit = self._data.get(key)
+            if hit is None:
+                return None
+            if time.monotonic() - hit[0] >= self._ttl:
+                self._data.pop(key, None)
+                return None
+            self._data.move_to_end(key)
+            return hit[1]
+
+    def put(self, key, value) -> None:
+        with self._lock:
+            self._data[key] = (time.monotonic(), value)
+            self._data.move_to_end(key)
+            while len(self._data) > self._max:
+                self._data.popitem(last=False)  # evict least-recently-used
+
+    def drop(self, key) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
+
+#: The exit read walks every series (2 RPC calls each) and the UI polls it, so
+#: memoize briefly — the numbers only move when the mark or the position does.
+_withdrawable_memo = _TTLCache(ttl_s=8.0, max_entries=512)
+
+
+def withdrawable(address: str) -> dict:
+    """What this wallet can take back out, across EVERY series it has collateral
+    in — expired and settled ones included.
+
+    Deliberately does NOT go through :func:`_live_series`: the whole point is to
+    serve exactly the expired/settled series that gate rejects. That asymmetry
+    is the feature — a reader must always be able to leave, even once the market
+    they entered has stopped trading.
+
+    The contract's rule (``ACRFutures.withdrawCollateral``) is that what's left
+    behind must still cover initial margin, *unless* the series is settled, in
+    which case positions are flat and the whole cleared balance is free. Note
+    ``_requiredMargin`` returns 0 for a flat account before it ever reads the
+    oracle — so a flat trader can withdraw even with no live print.
+    """
+    if not (address.startswith("0x") and len(address) == 42):
+        raise DeskError(400, "not an address")
+    from .onchain import get_futures
+
+    client = get_futures()._client
+    if not client.configured:
+        raise DeskError(503, "no futures venue configured")
+    trader = _checksum(address)
+    cached = _withdrawable_memo.get(trader.lower())
+    if cached is not None:
+        return cached
+
+    try:
+        rows: list[dict] = []
+        for s in client.read_all_series():
+            sid = s["series_id"]
+            units = client.collateral_units_of(sid, trader)
+            if not units:
+                continue
+            pos = client.position_of(sid, trader) or {"contracts": 0.0}
+            contracts = pos["contracts"]
+            settled = bool(s.get("settled"))
+            # Only an unsettled, non-flat account needs a mark at all — don't
+            # make a reader's exit depend on the oracle when the contract won't.
+            mark = 0.0 if (settled or contracts == 0) else _live_mark(s["index_id"])
+            free_units = free_collateral_units(
+                units, contracts, mark, s["multiplier"], _margin_bps(), settled
+            )
+            rows.append(
+                {
+                    "series_id": sid,
+                    "index_id": s["index_id"],
+                    "settled": bool(s.get("settled")),
+                    "expired": s.get("expiry_ts", 0) <= time.time(),
+                    "collateral_usdc": units / 1_000_000,
+                    "contracts": contracts,
+                    "free_usdc": free_units / 1_000_000,
+                    "free_units": free_units,
+                }
+            )
+    except DeskError:
+        raise
+    except Exception as exc:
+        log.warning("withdrawable read failed for %s: %s", address, exc)
+        raise DeskError(503, "the venue is not reading right now — try again") from exc
+
+    # Richest first: the UI offers one row per series, because a roll leaves a
+    # returning reader holding collateral in the OLD series and none in the new
+    # one — showing only the best would read as money vanishing.
+    rows.sort(key=lambda r: r["free_units"], reverse=True)
+    out = {
+        "series": rows,
+        "total_free_usdc": sum(r["free_usdc"] for r in rows),
+        # Convenience mirror of the richest row, so a caller that just wants
+        # "the withdrawal" (the challenge builder) needn't re-sort.
+        **(rows[0] if rows else {"free_usdc": 0.0, "free_units": 0}),
+    }
+    _withdrawable_memo.put(trader.lower(), out)
+    return out
+
+
 def _live_mark(index_id: str) -> float:
     """The oracle mark ``trade()`` will margin against (it reverts "no mark" at
     zero, so a missing print is a desk-level 503, not a failed PIN ceremony).
@@ -487,6 +653,7 @@ def build_challenge(
     index_id: str,
     qty: float = 0.0,
     address: str = "",
+    series_id: int | None = None,
 ) -> dict:
     """Create the contractExecution challenge for one desk action. The
     abiFunctionSignature form keeps the request auditable (no raw calldata)."""
@@ -541,13 +708,40 @@ def build_challenge(
             "trade(uint256,int256)",
             [str(desk["series_id"]), str(int(q * 10**18))],
         )
+    elif action == "withdraw":
+        if not address:
+            raise DeskError(400, "withdraw needs the wallet address")
+        w = withdrawable(address)
+        if series_id is not None:
+            # The reader picked a specific series — honour it rather than
+            # silently emptying a different one than the button they pressed.
+            w = next(
+                (r for r in w["series"] if r["series_id"] == series_id),
+                {"series_id": series_id, "free_units": 0, "contracts": 0.0},
+            )
+        if w["free_units"] < int(MIN_WITHDRAW_USDC * 1_000_000):
+            # Name the CASE, not just the number — "nothing to withdraw" would
+            # be a lie to someone whose money is simply backing a position.
+            if w.get("contracts"):
+                raise DeskError(
+                    409,
+                    "your stake is backing an open position — close it, or wait "
+                    "for the series to settle, and it frees up",
+                )
+            raise DeskError(409, "nothing to withdraw")
+        contract, sig, params = (
+            venue,
+            "withdrawCollateral(uint256,uint256)",
+            [str(w["series_id"]), str(w["free_units"])],
+        )
     else:
         raise DeskError(400, f"unknown action {action!r}")
 
-    # This action is about to change the wallet's on-chain state, so the cached
-    # quote is now wrong — drop it rather than serve a stale cap for 8s.
-    if address and action in ("collateral", "trade"):
+    # This action is about to change the wallet's on-chain state, so both cached
+    # quotes are now wrong — drop them rather than serve stale numbers for 8s.
+    if address and action in ("collateral", "trade", "withdraw"):
         _limits_memo.pop((address.lower(), index_id), None)
+        _withdrawable_memo.drop(_checksum(address).lower())
 
     ch = _circle(
         "POST",

@@ -41,7 +41,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/PrintsTable.tsx": 6,
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
-  "components/chain/PublicDesk.tsx": 10,
+  "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,

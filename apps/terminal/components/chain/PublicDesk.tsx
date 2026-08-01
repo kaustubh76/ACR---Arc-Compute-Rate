@@ -32,6 +32,26 @@ interface Position {
   upnl_usdc: number;
 }
 
+/** One series this wallet holds collateral in. */
+interface ExitRow {
+  series_id: number;
+  index_id: string;
+  settled: boolean;
+  expired: boolean;
+  collateral_usdc: number;
+  contracts: number;
+  free_usdc: number;
+}
+
+/** Everything the venue will let this wallet take back out. Spans EVERY series
+ *  it holds collateral in, including expired and settled ones — the exit has to
+ *  keep working after the market you entered stops trading, and a series roll
+ *  leaves a returning reader holding a stake in the old one. */
+interface Withdrawable {
+  series: ExitRow[];
+  total_free_usdc: number;
+}
+
 /** Server-computed size caps: the largest trade each way that clears BOTH the
  *  taker's and the auto-mirrored maker's margin check on ACRFutures. */
 interface Limits {
@@ -46,6 +66,8 @@ const USER_KEY = "acr-desk-user";
 const COLLAT_KEY = "acr-desk-collateralized";
 /** Below this the contract's margin check leaves nothing worth trading. */
 const MIN_TRADE = 0.05;
+/** Below this a withdrawal is not worth a PIN ceremony (mirrors the server). */
+const MIN_WITHDRAW = 0.01;
 /** How long to wait on the wallet SDK's completion callback before falling
  *  back to reading the venue. Comfortably longer than a confirmed Arc tx. */
 const SDK_CALLBACK_TIMEOUT_MS = 75_000;
@@ -85,6 +107,7 @@ export function PublicDesk({
   const [indexId, setIndexId] = useState("ACR-GPU");
   const [position, setPosition] = useState<Position | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
+  const [exit, setExit] = useState<Withdrawable | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sdkRef = useRef<{ setAuthentication: (a: object) => void; execute: (id: string, cb: (e: unknown) => void) => void } | null>(null);
@@ -239,6 +262,17 @@ export function PublicDesk({
       setNote("the stake is still settling — give it a moment and reopen the desk");
     });
 
+  const refreshExit = useCallback(async (address: string) => {
+    try {
+      const w = await api<Withdrawable>("/api/desk/withdrawable", { address });
+      setExit(w);
+      return w;
+    } catch {
+      setExit(null); // throttled — the button just stays hidden this tick
+      return null;
+    }
+  }, []);
+
   const refreshLimits = useCallback(async (address: string, id: string) => {
     try {
       const l = await api<Limits>("/api/desk/limits", { address, index_id: id });
@@ -301,10 +335,42 @@ export function PublicDesk({
       // wallet SDK says so — poll past the challenge for the position change.
       for (let i = 0; i < 12; i++) {
         const live = await refreshLimits(address, indexId);
-        if (live && Math.abs(live.contracts - before) > 1e-9) return;
+        if (live && Math.abs(live.contracts - before) > 1e-9) {
+          void refreshExit(address);
+          return;
+        }
         await new Promise((r) => setTimeout(r, 2500));
       }
       setNote("the fill is still confirming — the tape above will show it");
+    });
+
+  /** Take collateral back out of one series. Works on a settled or expired
+   *  series too — that is the whole point, so it is deliberately not gated on
+   *  `phase`. */
+  const withdraw = (row: ExitRow) =>
+    step(async () => {
+      if (!session?.wallet) return;
+      const { address } = session.wallet;
+      const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
+        user_token: session.user_token,
+        wallet_id: session.wallet.wallet_id,
+        action: "withdraw",
+        index_id: row.index_id,
+        series_id: row.series_id,
+        address,
+      });
+      await executeChallenge(session, ch.challenge_id);
+      // Same rule as every other step: the chain decides, not the SDK callback.
+      for (let i = 0; i < 12; i++) {
+        const [w, after] = await Promise.all([refreshWallet(session), refreshExit(address)]);
+        const still = after?.series.find((r) => r.series_id === row.series_id);
+        if ((still?.free_usdc ?? 0) < MIN_WITHDRAW || (w.usdc ?? 0) > 0) {
+          localStorage.removeItem(COLLAT_KEY);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+      setNote("the withdrawal is still confirming — your balance will update");
     });
 
   // Position poll while trading (10s, matches the route's CDN window).
@@ -334,6 +400,13 @@ export function PublicDesk({
     if (phase !== "trading" || !session?.wallet) return;
     void refreshLimits(session.wallet.address, indexId);
   }, [phase, session, indexId, refreshLimits]);
+
+  // The exit is read for ANY wallet at ANY phase — a reader whose series
+  // settled while they were away should land straight on the withdraw button.
+  useEffect(() => {
+    if (!session?.wallet) return;
+    void refreshExit(session.wallet.address);
+  }, [session, phase, refreshExit]);
 
   if (!live) {
     return (
@@ -466,6 +539,51 @@ export function PublicDesk({
             </span>
           )}
         </div>
+      )}
+
+      {/* The exit — one row per series. Rendered independently of `phase`:
+          collateral outlives the market it was posted to, and after a roll a
+          returning reader holds a stake in the OLD series and none in the new
+          one. Showing only the richest would read as money vanishing. */}
+      {exit?.series.map((row) =>
+        row.free_usdc >= MIN_WITHDRAW ? (
+          <p
+            key={row.series_id}
+            style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <button className="btn" onClick={() => withdraw(row)} disabled={busy}>
+              <Ed
+                x={busy ? "confirming…" : `withdraw ${row.free_usdc.toFixed(2)} USDC`}
+                p={busy ? "sending…" : `take back my ${row.free_usdc.toFixed(2)} dollars`}
+              />
+            </button>
+            <span className="muted">
+              {row.settled ? (
+                <Ed
+                  x={`${row.index_id} series ${row.series_id} settled — your cleared balance is free`}
+                  p="this market has finished — your money is ready to take back"
+                />
+              ) : row.expired ? (
+                <Ed
+                  x={`${row.index_id} series ${row.series_id} expired — awaiting settlement`}
+                  p="this market has closed — waiting for the final price"
+                />
+              ) : (
+                <Ed
+                  x={`${row.index_id} — free margin above your position`}
+                  p="the part not backing a trade"
+                />
+              )}
+            </span>
+          </p>
+        ) : row.contracts !== 0 ? (
+          <p className="muted" key={row.series_id}>
+            <Ed
+              x={`${row.collateral_usdc.toFixed(2)} USDC is margining your ${row.index_id} position — it frees up when you close it or the series settles`}
+              p={`your ${row.collateral_usdc.toFixed(2)} dollars is backing the trade you have open — close it, or wait for this market to finish, and you can take it back`}
+            />
+          </p>
+        ) : null,
       )}
 
       {note && <p className="muted vermilion">{note}</p>}

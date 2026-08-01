@@ -52,7 +52,7 @@ COMMON = set(
     deal variance apps ci anyone handoff heavily reverses serves sharpens recover
     agentic economy autonomous demand deploy platform webhooks zone auto-discovers auto-refreshes
     discovers cache editorial events lands mocked pings registers seconds spend query intrinsic
-    listings paid-query rpc.testnet.arc.network floor
+    listings paid-query rpc.testnet.arc.network floor backed netoi none skews warm
     """.split()
 )
 
