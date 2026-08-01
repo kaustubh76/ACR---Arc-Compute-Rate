@@ -223,6 +223,6 @@ export const PRIMER_BEATS: PrimerBeat[] = [
   },
   {
     head: "The desk",
-    body: "You can trade on the rate yourself. Make a small wallet protected by a PIN, take 50 cents of test money, and place a real trade that settles against the published rate — then take your money back out whenever you like. Only your PIN can move it; we never hold it. Fair warning: the test money is ours, and so is the trader on the other side.",
+    body: "You can trade on the rate yourself: make a small wallet protected by a PIN, take 50 cents of test money, place a real trade, and take your money back whenever you like. Only your PIN can move it. The test money is ours, and so is the trader on the other side.",
   },
 ];

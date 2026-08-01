@@ -50,8 +50,8 @@ test("gloss hygiene: one plain line each, house limits", () => {
   }
 });
 
-test("primer: exactly five beats, each within budget", () => {
-  assert.equal(PRIMER_BEATS.length, 5);
+test("primer: exactly six beats, each within budget", () => {
+  assert.equal(PRIMER_BEATS.length, 6);
   for (const beat of PRIMER_BEATS) {
     assert.ok(beat.head.trim().length > 0);
     assert.ok(beat.body.trim().length > 0);
