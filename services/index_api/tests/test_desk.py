@@ -59,6 +59,52 @@ def test_faucet_receipt_does_not_consume_a_second_slot(tmp_path):
     assert reborn.spent() == 1
 
 
+ADDR6 = "0x" + "6" * 40
+
+
+def _session_wallet(monkeypatch, address):
+    """Stand in for Circle's wallet lookup — the ONLY source of the drip's
+    destination now, so the caller cannot choose where the money goes."""
+    monkeypatch.setattr(desk, "wallet_of", lambda tok: {"wallet_id": "w", "address": address})
+    monkeypatch.setattr(desk, "_custody_balance", lambda: 100.0)
+
+
+def test_drip_goes_to_the_session_wallet_not_a_caller_supplied_address(monkeypatch, tmp_path):
+    """The faucet endpoint is unauthenticated and CORS is open, so a body field
+    naming the destination let anyone drain the budget to addresses they chose.
+    The destination is derived from the session token instead."""
+    monkeypatch.setattr(desk, "_ledger", FaucetLedger(log_path=str(tmp_path / "led.jsonl")))
+    _session_wallet(monkeypatch, ADDR6)
+    sent: list[str] = []
+    monkeypatch.setattr(desk, "_send_stake", lambda a: sent.append(a) or "0xfeed")
+
+    desk.drip_stake("some-user-token")
+    for _ in range(50):
+        if sent:
+            break
+        time.sleep(0.05)
+    assert sent == [desk._checksum(ADDR6)]
+
+
+def test_drip_refuses_a_session_with_no_wallet_yet(monkeypatch, tmp_path):
+    monkeypatch.setattr(desk, "_ledger", FaucetLedger(log_path=str(tmp_path / "led.jsonl")))
+    monkeypatch.setattr(desk, "wallet_of", lambda tok: None)
+    with pytest.raises(DeskError) as e:
+        desk.drip_stake("tok")
+    assert e.value.status == 409
+
+
+def test_drip_refuses_when_the_funding_wallet_is_nearly_empty(monkeypatch, tmp_path):
+    """A backstop independent of the ledger: whatever the ledger believes, never
+    drain the wallet every drip is paid from."""
+    monkeypatch.setattr(desk, "_ledger", FaucetLedger(log_path=str(tmp_path / "led.jsonl")))
+    _session_wallet(monkeypatch, ADDR6)
+    monkeypatch.setattr(desk, "_custody_balance", lambda: desk.FAUCET_RESERVE_USDC)
+    with pytest.raises(DeskError) as e:
+        desk.drip_stake("tok")
+    assert e.value.status == 429
+
+
 def test_drip_returns_immediately_and_confirms_off_thread(monkeypatch, tmp_path):
     """The request thread must not wait on Circle's confirm poll — it outlives
     the browser's proxy timeout. The slot is reserved synchronously (the cap
@@ -66,6 +112,7 @@ def test_drip_returns_immediately_and_confirms_off_thread(monkeypatch, tmp_path)
     import threading
 
     monkeypatch.setattr(desk, "_ledger", FaucetLedger(log_path=str(tmp_path / "led.jsonl")))
+    _session_wallet(monkeypatch, ADDR6)
     sending = threading.Event()
     release = threading.Event()
 
@@ -75,32 +122,62 @@ def test_drip_returns_immediately_and_confirms_off_thread(monkeypatch, tmp_path)
         return "0xfeed"
 
     monkeypatch.setattr(desk, "_send_stake", slow_send)
-    addr = "0x" + "6" * 40
-    out = desk.drip_stake(addr)
+    out = desk.drip_stake("tok")
     assert out["state"] == "pending"  # returned while the transfer is in flight
     assert sending.wait(2)
     assert desk.get_ledger().spent() == 1  # slot already reserved
     release.set()
     for _ in range(50):
-        if desk._drip_tx.get(addr):
+        if desk._drip_tx.get(ADDR6):
             break
         time.sleep(0.05)
-    assert desk._drip_tx[addr] == "0xfeed"
+    assert desk._drip_tx.get(ADDR6) == "0xfeed"
 
 
 def test_drip_failure_frees_the_slot(monkeypatch, tmp_path):
     monkeypatch.setattr(desk, "_ledger", FaucetLedger(log_path=str(tmp_path / "led.jsonl")))
+    _session_wallet(monkeypatch, "0x" + "7" * 40)
 
     def boom(address):
         raise RuntimeError("circle down")
 
     monkeypatch.setattr(desk, "_send_stake", boom)
-    desk.drip_stake("0x" + "7" * 40)
+    desk.drip_stake("tok")
     for _ in range(50):
         if desk.get_ledger().spent() == 0:
             break
         time.sleep(0.05)
     assert desk.get_ledger().spent() == 0  # the address may try again
+
+
+def test_ledger_fails_closed_when_circle_is_unreachable(monkeypatch, tmp_path):
+    """The most important guard here: failing OPEN would restore the exact bug
+    the durable ledger exists to prevent — a restart handing fresh drips to
+    addresses already paid."""
+    led = FaucetLedger(log_path=str(tmp_path / "led.jsonl"), require_circle=True)
+    monkeypatch.setattr(desk, "_circle", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    with pytest.raises(DeskError) as e:
+        led.claim("0x" + "8" * 40)
+    assert e.value.status == 503
+    assert led.spent() == 0  # and nothing was handed out
+
+
+def test_ledger_rehydrates_from_circles_record(monkeypatch, tmp_path):
+    """Production has no persistent disk, so the JSONL is empty on every boot;
+    Circle's mirrored INBOUND rows are what make the caps real there."""
+    paid = "0x" + "9" * 40
+    monkeypatch.setattr(
+        desk, "_circle",
+        lambda *a, **k: {"data": {"transactions": [
+            {"state": "COMPLETE", "destinationAddress": paid},
+            {"state": "FAILED", "destinationAddress": "0x" + "e" * 40},
+        ]}},
+    )
+    led = FaucetLedger(log_path=str(tmp_path / "led.jsonl"), require_circle=True)
+    with pytest.raises(DeskError) as dup:
+        led.claim(paid)  # already paid, per Circle — even with an empty file
+    assert dup.value.status == 409
+    led.claim("0x" + "e" * 40)  # the FAILED row consumed nothing
 
 
 # --- margin math -----------------------------------------------------------

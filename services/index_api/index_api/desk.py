@@ -33,6 +33,10 @@ log = logging.getLogger("index_api.desk")
 FAUCET_USDC = 0.5
 #: One drip per address, and a global cap so the custody wallet can't drain.
 FAUCET_GLOBAL_CAP = 25
+#: Never drip the funding wallet below this. An independent backstop on top of
+#: the ledger: durable by construction, needs no API, and states the real
+#: constraint ("don't drain the wallet") rather than a proxy for it.
+FAUCET_RESERVE_USDC = 2.0
 #: Refuse new desk traders when the on-chain roster nears MAX_TRADERS (128).
 TRADER_HEADROOM = 120
 #: The taker's per-trade clamp (contracts). Small by design — the desk is a
@@ -66,6 +70,46 @@ class DeskError(Exception):
         super().__init__(detail)
         self.status = status
         self.detail = detail
+
+
+class _TTLCache:
+    """A tiny bounded TTL memo. Bounded matters: these are keyed by caller-
+    supplied wallet address, so an unbounded dict is a memory-growth vector on
+    a public endpoint, not just an untidiness."""
+
+    def __init__(self, ttl_s: float, max_entries: int) -> None:
+        self._ttl, self._max = ttl_s, max_entries
+        self._data: OrderedDict[object, tuple[float, object]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            hit = self._data.get(key)
+            if hit is None:
+                return None
+            if time.monotonic() - hit[0] >= self._ttl:
+                self._data.pop(key, None)
+                return None
+            self._data.move_to_end(key)
+            return hit[1]
+
+    def put(self, key, value) -> None:
+        with self._lock:
+            self._data[key] = (time.monotonic(), value)
+            self._data.move_to_end(key)
+            while len(self._data) > self._max:
+                self._data.popitem(last=False)  # evict least-recently-used
+
+    def drop(self, key) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
+
+#: Short-lived read memos. Bounded on purpose: every one of these is keyed
+#: by a caller-supplied wallet address on a public endpoint, so an unbounded
+#: dict is a memory-growth vector rather than merely untidy.
+_limits_memo = _TTLCache(ttl_s=8.0, max_entries=512)
+_maker_coll_memo = _TTLCache(ttl_s=60.0, max_entries=32)
 
 
 def _circle(
@@ -165,19 +209,54 @@ def wallet_of(user_token: str) -> dict | None:
     return None
 
 
-class FaucetLedger:
-    """Once-per-address, globally-capped drip ledger — JSONL-persisted so a
-    restart can't be farmed for extra drips (webhooks.py idiom)."""
+#: Re-ask Circle this often, so a process that booted during a Circle blip
+#: converges instead of staying degraded for its whole lifetime.
+_HYDRATE_TTL_S = 600.0
 
-    def __init__(self, log_path: str | None = None) -> None:
+
+class FaucetLedger:
+    """Once-per-address, globally-capped drip ledger.
+
+    Persisted two ways, unioned: a local JSONL (authoritative and free when
+    there IS a disk) and Circle's own record of the transfers (authoritative
+    where there isn't — the production host has no persistent disk, so the file
+    is empty on every boot). See :meth:`_rehydrate_from_circle`.
+
+    **Fails closed.** If the Circle side can't be reached, no drip is issued at
+    all. Failing open would restore precisely the bug this exists to prevent —
+    a restart that hands out fresh drips to addresses already paid — and the
+    cost of failing closed is that a reader waits half a minute.
+    """
+
+    def __init__(self, log_path: str | None = None, *, require_circle: bool = False) -> None:
         self._lock = threading.Lock()
         self._dripped: dict[str, float] = {}
         if log_path is None:
             log_path = str(Path(get_settings().webhook_log_path or "data/x.jsonl").parent / "desk_faucet.jsonl")
         self._log_path = log_path
+        #: Off in tests and local runs (the file is real there); on in the app.
+        self._require_circle = require_circle
+        self._hydrated_at = 0.0
         self._rehydrate()
 
+    def _ensure_hydrated(self) -> None:
+        """Refresh from Circle when required and stale. Raises (fail-closed) if
+        the record can't be read and this ledger is configured to require it."""
+        if not self._require_circle:
+            return
+        if time.monotonic() - self._hydrated_at < _HYDRATE_TTL_S:
+            return
+        try:
+            self._rehydrate_from_circle()
+            self._hydrated_at = time.monotonic()
+        except Exception as exc:
+            log.warning("faucet ledger could not reach Circle: %s", exc)
+            raise DeskError(503, "the faucet is warming up — try again in a moment") from exc
+
     def _rehydrate(self) -> None:
+        """Load prior drips from the local JSONL. Durable only where the disk is
+        — see :meth:`_rehydrate_from_circle`, which is what makes the caps real
+        on an ephemeral host."""
         if not self._log_path:
             return
         p = Path(self._log_path)
@@ -190,8 +269,38 @@ class FaucetLedger:
             except Exception:
                 continue
 
+    def _rehydrate_from_circle(self) -> None:
+        """Rebuild the ledger from Circle's own record of the drips.
+
+        The JSONL is written to a container filesystem with no persistent disk,
+        so in production it is empty on every boot — meaning the one-drip-per-
+        address rule and the global cap silently reset on each restart and could
+        be farmed. Circle keeps the transfers, so ask it.
+
+        The custody wallet's OUTBOUND rows are useless here (the drip is sent as
+        raw calldata, so Circle records no destination or amount), but the
+        mirrored INBOUND row on each recipient's own wallet carries both. That
+        only sees wallets under our entity — which is exactly what the
+        session-derived faucet address guarantees, so the two changes belong
+        together.
+
+        Counts every non-failed state, so an in-flight drip still holds its slot.
+        """
+        rows = _circle(
+            "GET",
+            "/v1/w3s/transactions?blockchain=ARC-TESTNET&custodyType=ENDUSER"
+            "&operation=TRANSFER&pageSize=50",
+        )["data"].get("transactions", [])
+        for t in rows:
+            if (t.get("state") or "").upper() == "FAILED":
+                continue
+            dest = (t.get("destinationAddress") or "").lower()
+            if dest:
+                self._dripped.setdefault(dest, time.time())
+
     def claim(self, address: str) -> None:
-        """Reserve a drip slot or raise (409 dup / 429 exhausted)."""
+        """Reserve a drip slot or raise (409 dup / 429 exhausted / 503 unknown)."""
+        self._ensure_hydrated()
         a = address.lower()
         with self._lock:
             if a in self._dripped:
@@ -245,15 +354,33 @@ _ledger: FaucetLedger | None = None
 
 
 def get_ledger() -> FaucetLedger:
+    """The app's ledger. Requires the Circle record because the deployed host
+    has no persistent disk — see FaucetLedger. Tests build their own."""
     global _ledger
     if _ledger is None:
-        _ledger = FaucetLedger()
+        _ledger = FaucetLedger(require_circle=True)
     return _ledger
 
 
 #: Confirmed drip hashes by address — the receipt the UI/evidence script reads
 #: back (the transfer itself confirms long after the HTTP request returns).
-_drip_tx: dict[str, str] = {}
+_drip_tx = _TTLCache(ttl_s=3600.0, max_entries=64)
+
+
+def _custody_balance() -> float | None:
+    """The funding wallet's USDC. ``None`` when it can't be read — the ledger is
+    the primary gate, so a throttled RPC must not become a faucet outage."""
+    try:
+        from acr_oracle_client.signer import CircleWalletSigner
+
+        s = get_settings()
+        signer = CircleWalletSigner(
+            wallet_id=s.circle_wallet_id, api_key=s.circle_api_key,
+            entity_secret=s.circle_entity_secret, base_url=s.circle_base_url,
+        )
+        return _wallet_usdc(signer.address)
+    except Exception:
+        return None
 
 
 def _send_stake(address: str) -> str:
@@ -278,15 +405,34 @@ def _send_stake(address: str) -> str:
     return signer.send_transaction(None, {"to": USDC_PREDEPLOY, "data": calldata})
 
 
-def drip_stake(address: str) -> dict:
-    """Claim a drip slot and start the 0.5 USDC transfer — **without waiting for
-    it**. Circle's confirm poll runs up to 120s; the browser's proxy hop gives up
-    at 20s, so a synchronous drip could only ever time out (burning the address's
-    one slot on a transfer that then succeeded). The slot is reserved on this
-    thread — the cap stays honest — and the transfer confirms on a daemon thread
-    that records the hash or frees the slot. The UI polls its wallet balance."""
-    if not (address.startswith("0x") and len(address) == 42):
-        raise DeskError(400, "not an address")
+def drip_stake(user_token: str) -> dict:
+    """Drip the stake to THIS SESSION'S wallet.
+
+    The destination is derived from the session token, never taken from the
+    caller. It used to be a plain body field validated only as "looks like an
+    address" — and since the endpoint is unauthenticated and CORS is open, the
+    browser proxy's checks were trivially bypassable, so anyone could pour the
+    whole faucet budget into addresses they chose. A valid ``user_token`` is
+    proof the caller completed Circle's PIN ceremony for a user under *our*
+    entity, which is exactly the property the faucet needs.
+
+    The transfer itself is fire-and-forget: Circle's confirm poll runs up to
+    120s and the browser's proxy hop gives up at 20s, so waiting could only ever
+    time out — burning the address's one slot on a transfer that then succeeded.
+    The slot is reserved on this thread (the cap stays honest) and the transfer
+    confirms on a daemon thread. The UI polls its wallet balance.
+    """
+    w = wallet_of(user_token)
+    if w is None:
+        raise DeskError(409, "set your PIN first — the wallet isn't provisioned yet")
+    address = _checksum(w["address"])
+
+    # An independent, zero-API backstop on top of the ledger: whatever the
+    # ledger believes, never drain the wallet that funds every drip.
+    custody = _custody_balance()
+    if custody is not None and custody - FAUCET_USDC < FAUCET_RESERVE_USDC:
+        raise DeskError(429, "the faucet is out of funds for now")
+
     ledger = get_ledger()
     ledger.claim(address)
 
@@ -297,7 +443,7 @@ def drip_stake(address: str) -> dict:
             ledger.release(address)
             log.warning("desk faucet transfer failed for %s: %s", address, exc)
             return
-        _drip_tx[address.lower()] = tx
+        _drip_tx.put(address.lower(), tx)
         ledger.record_tx(address, tx)
         log.info("desk faucet: %.2f USDC -> %s (%s)", FAUCET_USDC, address, tx)
 
@@ -391,13 +537,9 @@ def free_collateral_units(
     return int(free * WITHDRAW_SAFETY * 1_000_000)
 
 
-#: Per-wallet limits memo. Arc's public RPC throttles hard and the desk polls
-#: alongside the tape and the position read — without this, a reader who is
-#: simply *looking* at the desk can 429 themselves out of trading.
-_LIMITS_TTL_S = 8.0
-_MAKER_COLL_TTL_S = 60.0
-_limits_memo: dict[tuple[str, str], tuple[float, dict]] = {}
-_maker_coll_memo: dict[int, tuple[float, float]] = {}
+#: Arc's public RPC throttles hard and the desk polls alongside the tape and the
+#: position read — without the memos above, a reader who is simply *looking* at
+#: the desk can 429 themselves out of trading.
 
 
 def _checksum(address: str) -> str:
@@ -415,11 +557,11 @@ def _maker_collateral(client, sid: int, maker: str) -> float | None:
     """The maker's posted collateral — it only moves when the operator tops the
     book up, so a minute-old value is plenty and saves an RPC call per quote."""
     hit = _maker_coll_memo.get(sid)
-    if hit and time.monotonic() - hit[0] < _MAKER_COLL_TTL_S:
-        return hit[1]
+    if hit is not None:
+        return hit
     val = client.collateral_of(sid, maker)
     if val is not None:
-        _maker_coll_memo[sid] = (time.monotonic(), val)
+        _maker_coll_memo.put(sid, val)
     return val
 
 
@@ -431,8 +573,8 @@ def desk_limits(address: str, index_id: str) -> dict:
         raise DeskError(400, "not an address")
     key = (address.lower(), index_id)
     hit = _limits_memo.get(key)
-    if hit and time.monotonic() - hit[0] < _LIMITS_TTL_S:
-        return hit[1]
+    if hit is not None:
+        return hit
 
     desk = _live_series(index_id)
     from .onchain import get_futures
@@ -467,41 +609,8 @@ def desk_limits(address: str, index_id: str) -> dict:
         "max_buy": max_buy,
         "max_sell": max_sell,
     }
-    _limits_memo[key] = (time.monotonic(), out)
+    _limits_memo.put(key, out)
     return out
-
-
-class _TTLCache:
-    """A tiny bounded TTL memo. Bounded matters: these are keyed by caller-
-    supplied wallet address, so an unbounded dict is a memory-growth vector on
-    a public endpoint, not just an untidiness."""
-
-    def __init__(self, ttl_s: float, max_entries: int) -> None:
-        self._ttl, self._max = ttl_s, max_entries
-        self._data: OrderedDict[object, tuple[float, object]] = OrderedDict()
-        self._lock = threading.Lock()
-
-    def get(self, key):
-        with self._lock:
-            hit = self._data.get(key)
-            if hit is None:
-                return None
-            if time.monotonic() - hit[0] >= self._ttl:
-                self._data.pop(key, None)
-                return None
-            self._data.move_to_end(key)
-            return hit[1]
-
-    def put(self, key, value) -> None:
-        with self._lock:
-            self._data[key] = (time.monotonic(), value)
-            self._data.move_to_end(key)
-            while len(self._data) > self._max:
-                self._data.popitem(last=False)  # evict least-recently-used
-
-    def drop(self, key) -> None:
-        with self._lock:
-            self._data.pop(key, None)
 
 
 #: The exit read walks every series (2 RPC calls each) and the UI polls it, so
@@ -740,7 +849,7 @@ def build_challenge(
     # This action is about to change the wallet's on-chain state, so both cached
     # quotes are now wrong — drop them rather than serve stale numbers for 8s.
     if address and action in ("collateral", "trade", "withdraw"):
-        _limits_memo.pop((address.lower(), index_id), None)
+        _limits_memo.drop((address.lower(), index_id))
         _withdrawable_memo.drop(_checksum(address).lower())
 
     ch = _circle(

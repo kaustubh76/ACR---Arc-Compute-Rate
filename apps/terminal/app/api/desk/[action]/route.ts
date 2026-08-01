@@ -64,13 +64,15 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
       });
     }
     case "faucet": {
-      const address = body.address;
-      if (typeof address !== "string" || !ADDR_RE.test(address)) {
-        return NextResponse.json({ detail: "bad address" }, { status: 400 });
+      // The session token, not an address: upstream derives the destination
+      // from it, so the drip cannot be aimed at a wallet the caller doesn't own.
+      const token = body.user_token;
+      if (typeof token !== "string" || !TOKEN_RE.test(token)) {
+        return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
       }
       return forward("/desk/faucet", {
         method: "POST",
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ user_token: token }),
       });
     }
     case "limits": {

@@ -75,7 +75,15 @@ const SDK_CALLBACK_TIMEOUT_MS = 75_000;
 function deskUserId(): string {
   let id = localStorage.getItem(USER_KEY);
   if (!id) {
-    id = `acr-desk-${Math.random().toString(36).slice(2, 10)}`;
+    // A session id is a bearer credential: whoever knows it can open the
+    // session. Math.random() is not a CSPRNG, so use one (with a fallback for
+    // any context where crypto.randomUUID is unavailable).
+    id = `acr-desk-${
+      globalThis.crypto?.randomUUID?.() ??
+      Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+    }`;
     localStorage.setItem(USER_KEY, id);
   }
   return id;
@@ -253,7 +261,7 @@ export function PublicDesk({
       if (!session?.wallet) return;
       // The drip is fire-and-forget server-side (Circle's confirm outlives the
       // request), so the balance IS the completion signal — poll for it.
-      await api("/api/desk/faucet", { address: session.wallet.address });
+      await api("/api/desk/faucet", { user_token: session.user_token });
       for (let i = 0; i < 24; i++) {
         await new Promise((r) => setTimeout(r, 2500));
         const w = await refreshWallet(session);

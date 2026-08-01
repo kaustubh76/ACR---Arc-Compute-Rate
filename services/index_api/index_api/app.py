@@ -27,6 +27,7 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+from . import ratelimit
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
@@ -721,7 +722,9 @@ class DeskSessionRequest(BaseModel):
 
 
 class DeskFaucetRequest(BaseModel):
-    address: str
+    # No address: the destination is derived from the session token, so a
+    # caller cannot choose where the faucet sends money (see desk.drip_stake).
+    user_token: str
 
 
 class DeskChallengeRequest(BaseModel):
@@ -753,10 +756,11 @@ def _desk_call(fn, *args):
 
 
 @app.post("/desk/session")
-def desk_session(req: DeskSessionRequest) -> dict:
+def desk_session(req: DeskSessionRequest, request: Request) -> dict:
     """Open (or resume) a Public Desk session: Circle user + 60-min token, a
     PIN-setup challenge on first contact, the existing SCA wallet afterwards.
     Ungated — the desk IS the demo; guardrails live in desk.py."""
+    ratelimit.check(request, "session")
     from . import desk
 
     return _desk_call(desk.open_session, req.user_id)
@@ -767,9 +771,10 @@ class DeskWalletRequest(BaseModel):
 
 
 @app.post("/desk/wallet")
-def desk_wallet(req: DeskWalletRequest) -> dict:
+def desk_wallet(req: DeskWalletRequest, request: Request) -> dict:
     """The session's ARC-TESTNET wallet + its USDC stake (null pre-PIN).
     POST so the session token stays out of URLs and access logs."""
+    ratelimit.check(request, "wallet")
     from . import desk
 
     w = _desk_call(desk.wallet_of, req.user_token)
@@ -786,39 +791,44 @@ def desk_wallet(req: DeskWalletRequest) -> dict:
 
 
 @app.post("/desk/faucet")
-def desk_faucet(req: DeskFaucetRequest) -> dict:
+def desk_faucet(req: DeskFaucetRequest, request: Request) -> dict:
     """Claim + start the one-per-wallet 0.5 USDC stake from the custody wallet.
-    Returns as soon as the slot is reserved — Circle's confirm poll outlives any
+    The destination is THIS SESSION'S wallet — never a caller-supplied address.
+    Returns as soon as the slot is reserved: Circle's confirm poll outlives any
     sane HTTP timeout, so the drip lands on a background thread and the client
     watches its wallet balance."""
+    ratelimit.check(request, "faucet")
     from . import desk
 
-    return _desk_call(desk.drip_stake, req.address)
+    return _desk_call(desk.drip_stake, req.user_token)
 
 
 @app.post("/desk/limits")
-def desk_limits(req: DeskLimitsRequest) -> dict:
+def desk_limits(req: DeskLimitsRequest, request: Request) -> dict:
     """The live per-direction size caps for this wallet — what the desk may
     offer without minting a challenge the contract would revert."""
+    ratelimit.check(request, "limits")
     from . import desk
 
     return _desk_call(desk.desk_limits, req.address, req.index_id)
 
 
 @app.post("/desk/withdrawable")
-def desk_withdrawable(req: DeskWithdrawableRequest) -> dict:
+def desk_withdrawable(req: DeskWithdrawableRequest, request: Request) -> dict:
     """What this wallet can take back out, across every series it holds
     collateral in — including expired and settled ones, which is exactly where
     a reader needs an exit and where the tradable-series gate refuses to look."""
+    ratelimit.check(request, "withdrawable")
     from . import desk
 
     return _desk_call(desk.withdrawable, req.address)
 
 
 @app.post("/desk/challenge")
-def desk_challenge(req: DeskChallengeRequest) -> dict:
+def desk_challenge(req: DeskChallengeRequest, request: Request) -> dict:
     """Mint the contractExecution challenge for one desk action; the browser
     SDK executes it under the user's PIN."""
+    ratelimit.check(request, "challenge")
     from . import desk
 
     return _desk_call(
