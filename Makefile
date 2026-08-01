@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle desk-preflight desk-e2e desk-evidence lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -33,6 +33,7 @@ help:
 	@echo "  make desk-preflight  read-only gates: series life, margin capacity, custody balance"
 	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
 	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
+	@echo "  make tape-audit      measure what REAL Arc settlement flow yields as an index"
 	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
 	@echo "  make agent           offline demo: discover the catalog, pay the dev gate"
@@ -147,6 +148,9 @@ desk-preflight:
 desk-e2e:
 	@test -n "$(PLAYWRIGHT_DIR)" || { echo "set PLAYWRIGHT_DIR=<dir>/node_modules (npm i playwright && npx playwright install chromium)"; exit 1; }
 	node scripts/desk_e2e.mjs
+
+tape-audit:
+	uv run python scripts/tape_audit.py
 
 desk-evidence:
 	uv run python scripts/desk_evidence.py $(if $(USER_ID),--user $(USER_ID),)

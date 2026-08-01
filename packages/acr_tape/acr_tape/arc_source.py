@@ -263,7 +263,21 @@ class ArcSource(TapeSource):
                     if "429" in msg or "too many" in msg or "rate" in msg:
                         time.sleep(1.5 * (attempt + 1))
                         continue
-                    if "413" in msg or "too large" in msg or "entity too large" in msg:
+                    # "The range is too wide" arrives in more than one dialect:
+                    # an HTTP 413, or a JSON-RPC -32602 whose message names a
+                    # result cap ("query exceeds max results 20000, retry with
+                    # the range X-Y"). Both mean shrink, and treating the second
+                    # as a hard failure returned an empty tape on a chain that
+                    # was answering perfectly well.
+                    if (
+                        "413" in msg
+                        or "too large" in msg
+                        or "entity too large" in msg
+                        or "-32602" in msg
+                        or "exceeds max results" in msg
+                        or "query returned more than" in msg
+                        or "log response size exceeded" in msg
+                    ):
                         break  # shrink the range
                     log.warning("ArcSource: log fetch failed (%s); empty tape", exc)
                     return []
