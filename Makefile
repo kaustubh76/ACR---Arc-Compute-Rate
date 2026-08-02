@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -124,6 +124,13 @@ deploy-futures:
 
 verify-testnet:
 	uv run python scripts/verify_deploy.py
+
+# Prove the DEPLOYED product is live — every pillar, one exit code. Read-only
+# and safe against production: no writes, no faucet drips, no Circle users.
+# VERIFY_STRICT=1 also fails on cron age and funding runway (warnings by default,
+# because those depend on GitHub's scheduler rather than on our code).
+verify-live:
+	uv run python scripts/verify_live.py
 
 # --- futures venue lifecycle (a series expires; the venue must outlive it) ---
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 import uuid
@@ -34,10 +35,34 @@ log = logging.getLogger("index_api.desk")
 FAUCET_USDC = 0.5
 #: One drip per address, and a global cap so the custody wallet can't drain.
 FAUCET_GLOBAL_CAP = 25
-#: Never drip the funding wallet below this. An independent backstop on top of
-#: the ledger: durable by construction, needs no API, and states the real
-#: constraint ("don't drain the wallet") rather than a proxy for it.
-FAUCET_RESERVE_USDC = 2.0
+#: What the press costs to run, measured rather than guessed: three prints an
+#: hour at ~0.0057 USDC of Arc gas each = 0.0171 per cycle, 0.410 per day.
+PRESS_BURN_USDC_PER_DAY = float(os.environ.get("ACR_PRESS_BURN_PER_DAY", "0.41"))
+#: How many days of posting the faucet must never eat into.
+PRESS_RUNWAY_DAYS = float(os.environ.get("ACR_PRESS_RUNWAY_DAYS", "14"))
+
+
+def faucet_reserve_usdc(
+    burn_per_day: float = PRESS_BURN_USDC_PER_DAY, days: float = PRESS_RUNWAY_DAYS
+) -> float:
+    """The balance below which the faucet must stop dripping.
+
+    **On production the press and the faucet are the same wallet.** The custody
+    signer that posts every oracle print is also the one that funds desk stakes,
+    so a busy desk directly shortens the oracle's life — and if that wallet
+    empties, prints stop, marks go stale, nothing can settle, and every surface
+    downstream of the index dies. The desk running out of free stakes is a
+    disappointment; the press running out of gas is the end of the product.
+
+    So the floor is expressed as *days of press runway* instead of a flat
+    number. A constant like 2.0 USDC looks prudent and is really ~5 days of
+    posting stated in units that hide it; this way the number is arguable, moves
+    with the measured burn, and says what it is protecting.
+    """
+    return round(max(0.0, burn_per_day) * max(0.0, days), 2)
+
+
+FAUCET_RESERVE_USDC = faucet_reserve_usdc()
 #: Refuse new desk traders when the on-chain roster nears MAX_TRADERS (128).
 TRADER_HEADROOM = 120
 #: The taker's per-trade clamp (contracts). Small by design — the desk is a

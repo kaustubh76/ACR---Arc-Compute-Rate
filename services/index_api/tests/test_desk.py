@@ -105,6 +105,29 @@ def test_drip_refuses_when_the_funding_wallet_is_nearly_empty(monkeypatch, tmp_p
     assert e.value.status == 429
 
 
+def test_the_reserve_is_days_of_press_runway_not_a_round_number():
+    """On production the press and the faucet are the SAME wallet, so a busy
+    desk shortens the oracle's life. An empty desk is a disappointment; an empty
+    press is the end of the product — no prints, no marks, nothing settles. The
+    floor therefore has to be denominated in what it protects."""
+    assert desk.faucet_reserve_usdc(burn_per_day=0.41, days=14) == 5.74
+    # It must move with the measured burn, which is the whole point.
+    assert desk.faucet_reserve_usdc(burn_per_day=0.82, days=14) > desk.faucet_reserve_usdc(
+        burn_per_day=0.41, days=14
+    )
+    # And it must comfortably outlast the old flat 2.0, which was ~5 days of
+    # posting wearing a number that hid it.
+    assert desk.FAUCET_RESERVE_USDC > 2.0
+
+
+def test_the_reserve_never_goes_negative_or_nonsensical():
+    """Garbage config must fail safe (no reserve) rather than compute a negative
+    floor, which would read as "always allow" — a drain with extra steps."""
+    assert desk.faucet_reserve_usdc(burn_per_day=-1, days=14) == 0.0
+    assert desk.faucet_reserve_usdc(burn_per_day=0.41, days=-5) == 0.0
+    assert desk.faucet_reserve_usdc(burn_per_day=0, days=0) == 0.0
+
+
 def test_drip_returns_immediately_and_confirms_off_thread(monkeypatch, tmp_path):
     """The request thread must not wait on Circle's confirm poll — it outlives
     the browser's proxy timeout. The slot is reserved synchronously (the cap

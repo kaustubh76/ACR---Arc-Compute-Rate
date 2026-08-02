@@ -269,15 +269,30 @@ class OracleClient:
             address=w3.to_checksum_address(self.oracle_address), abi=ORACLE_ABI
         )
 
-    def recent_posts(self, lookback_blocks: int = 10000, limit: int = 60) -> list[dict]:  # pragma: no cover - live chain
+    def recent_posts(  # pragma: no cover - live chain
+        self, lookback_blocks: int | None = None, limit: int = 60, pages: int | None = None
+    ) -> list[dict]:
         """Recent ``PricePosted`` events, chronological — the settlement
         provenance (tx / block / signer + the block's wall clock) that survives
-        process restarts. One bounded ``eth_getLogs`` with EXPLICIT numeric
-        bounds (the Arc RPC answers 413 Payload Too Large when ``toBlock`` is
-        the string "latest" on a wide range); narrows if the node caps it.
-        10k blocks ≈ 85 min at Arc's ~0.5s cadence — covers the hourly poster."""
-        from .futures import _rpc_retry, bytes32_to_index_id  # lazy: futures imports client
+        process restarts.
 
+        PAGES backwards, for the same reason the trade tape does: Arc caps an
+        ``eth_getLogs`` range at ~15000 blocks (413) regardless of how few logs
+        match, so reach cannot be bought by widening the window. The old single
+        10000-block window was ~1.42h against an **hourly** poster — no margin
+        at all, so one late or dropped post put the provenance out of reach and
+        /health went to `poster_last_tx: null` while real posts sat on chain.
+        """
+        from .futures import (  # lazy: futures imports client
+            TAPE_PAGE_BLOCKS,
+            TAPE_PAGES,
+            _is_range_error,
+            _rpc_retry,
+            bytes32_to_index_id,
+        )
+
+        page_blocks = TAPE_PAGE_BLOCKS if lookback_blocks is None else lookback_blocks
+        page_budget = TAPE_PAGES if pages is None else pages
         w3 = self._connect()
         if w3 is None or not self.oracle_address:
             return []
@@ -288,20 +303,41 @@ class OracleClient:
                 text="PricePosted(bytes32,uint256,uint256,uint256,uint256,uint64,address)"
             ).hex()
             topic0 = sig if sig.startswith("0x") else "0x" + sig
-            logs: list = []
-            for span in (lookback_blocks, 5000, 2500):
-                start = max(0, latest - span)
-                try:
-                    raw = _rpc_retry(lambda s=start: w3.eth.get_logs({
+
+            def _fetch(start: int, end: int) -> list:
+                return _rpc_retry(
+                    lambda: w3.eth.get_logs({
                         "address": c.address,
-                        "fromBlock": s,
-                        "toBlock": latest,
+                        "fromBlock": start,
+                        "toBlock": end,
                         "topics": [topic0],
-                    }))
-                    logs = [c.events.PricePosted().process_log(log) for log in raw]
+                    }),
+                    tries=5 if end == latest else 2,
+                )
+
+            logs: list = []
+            end = latest
+            for _ in range(max(1, page_budget)):
+                if end <= 0:
                     break
-                except Exception:
-                    logs = []
+                page = None
+                start = max(0, end - page_blocks)
+                for span in (page_blocks, 5000, 2500):
+                    start = max(0, end - span)
+                    try:
+                        page = _fetch(start, end)
+                        break
+                    except Exception as exc:
+                        # Narrowing cures a range refusal, never a throttle.
+                        if not _is_range_error(exc):
+                            break
+                        page = None
+                if page is None:
+                    break  # keep what we have rather than crawl on a throttle
+                logs = [c.events.PricePosted().process_log(log) for log in page] + logs
+                if len(logs) >= limit or start <= 0:
+                    break
+                end = start - 1
             out: list[dict] = []
             block_ts: dict[int, float] = {}
             for ev in logs[-limit:]:
