@@ -412,6 +412,47 @@ and it proves its own tamper-resistance.
 - **`make deck` / marp** — renders the submission slides (`docs/presentation.md` →
   `.html`/`.pdf`) with the marp tool. *The "export to slides" button.*
 
+## Live deployment & operations
+
+- **LIVE on Arc testnet** — ACR is not just buildable, it's **running in production**
+  on Arc's test network (chain 5042002). *The shop is open, not just built.*
+- **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
+  landlord for the storefront website.*
+- **Render** — the host serving the seller API (`acr-api-1fto.onrender.com`), which
+  posts a Circle-signed oracle price every hour. *The landlord for the back office.*
+- **arcscan (`testnet.arcscan.app`)** — Arc's block explorer, where anyone can look
+  up a contract or transaction. *The public land registry for the chain.*
+- **the deployed contracts** — the live addresses on Arc: **ACROracle
+  `0x4f00…2609`**, **AttestationRegistry `0x23ae…dFb7`**, **ACRFutures
+  `0x29d9…42fe`** (series 0 seeded). *The three shops' street addresses.*
+- **Circle Gateway receipts / batch UUID** — every real x402 payment produces a
+  durable receipt carrying Circle's Gateway batch identifier, saved in-repo. *The
+  stamped, filed copy of each sale.*
+- **P-256 / ECDSA signature (webhooks)** — Circle signs its webhook callbacks with a
+  P-256 (an elliptic-curve, ECDSA) key; the API verifies that signature before
+  trusting the event. *Checking the wax seal on a letter before you act on it.*
+- **heartbeat cron / `futures-heartbeat.yml` / `futures-lifecycle.yml`** — scheduled
+  GitHub Actions that keep the futures book alive 24/7 — the heartbeat
+  self-provisions collateral and trades; the lifecycle rolls and settles series.
+  *An automatic caretaker who keeps the lights on and the shelves stocked.*
+- **keepalive (cron)** — a scheduled ping that stops the free-tier host from
+  sleeping. *Nudging the shop so it doesn't nap between customers.*
+- **"cron fires only from the default branch"** — a GitHub gotcha: scheduled
+  workflows run only from `main`, so automation is armed only once merged. *The
+  timer only counts down once the plan is filed at head office.*
+- **rate limiter / per-identity (`ratelimit.py`, `DESK_BUDGETS`)** — desk request
+  budgets keyed on the user's wallet/id, not the shared proxy IP (which collapses
+  every visitor into one bucket behind a server-side proxy). *Giving each customer
+  their own tab instead of one shared tab for the whole street.*
+- **attested-market decode (`ACR_ARC_ATTESTED_ONLY`)** — a live-tape mode where the
+  on-chain transfer *amount is the price signal* (one settlement = a published
+  quantity) and events from non-attested sellers are dropped — attestation earns
+  index inclusion (the registry flywheel, made literal). *Only listed vendors count,
+  and each sale's total tells you the unit price.*
+- **CI jobs (python · contracts · agent · terminal)** — the four independent
+  GitHub-CI checks that must pass on every push. *Four inspectors who each sign off
+  before anything ships.*
+
 ## Instrument (Pillar 4)
 
 - **Future (cash-settled)** — a contract to settle the *difference* vs the index

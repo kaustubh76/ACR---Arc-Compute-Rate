@@ -111,10 +111,21 @@ const RPC_GAP_MS = 350;
 /** Enumeration cap — the demo venue holds one series per index; 24 bounds a
  *  pathological roster without blowing the serverless budget. */
 const MAX_SERIES = 24;
-/** Log windows, widest first — mirror of python recent_trades' fallback.
- *  10k blocks ≈ 85 min at Arc's ~0.5s cadence, deep enough that the tape
- *  still shows the hourly heartbeat's last fill. */
-const LOG_SPANS = [10000n, 2500n, 1000n];
+/** Per-page log windows, widest first — mirror of python `recent_trades`.
+ *
+ *  Arc hard-caps an `eth_getLogs` range at ~15000 blocks: measured by binary
+ *  search, 14843 answers and 15000 returns 413, no matter how few logs match.
+ *  So the tape's reach cannot be bought by asking for a wider window — a
+ *  bigger number just fails every time. It has to be PAGED. */
+const LOG_SPANS = [14000n, 2500n, 1000n];
+/** How many pages back to walk when the tape hasn't filled up.
+ *
+ *  Arc's measured block time is 0.510s, so a page is ~1.98h and four is ~7.9h.
+ *  Sized from the heartbeat's REAL cadence, not its nominal one: GitHub
+ *  free-tier drops scheduled ticks, and the observed gaps were 59m, 63m, 150m
+ *  and 209m. Against one 10k window the public tape was empty 39% of the
+ *  time. */
+const TAPE_PAGES = 4;
 const TAPE_LIMIT = 25;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -158,44 +169,76 @@ const PARTIAL_MEMO_MS = 15_000;
  *  press's FuturesReader keeps; pruned to txs still inside the log window. */
 const seenAt = new Map<string, number>();
 
+/** A range the node refused for its SIZE, as opposed to refusing us.
+ *
+ *  413 (and JSON-RPC -32602) mean the window was too wide, and a narrower one
+ *  is the cure. 429 means there were too many requests, and narrowing cures
+ *  nothing — it just walks the cursor forward a few hundred blocks per attempt
+ *  and destroys the tape's reach. Mirrors python `_is_range_error`. */
+function isRangeError(e: unknown): boolean {
+  const msg = String((e as Error)?.message ?? e);
+  if (/429|Too Many Requests/i.test(msg)) return false;
+  return /413|Payload Too Large|-32602|exceeds max results|limit exceeded/i.test(msg);
+}
+
+/** One page of `Traded` logs. Explicit numeric toBlock: the Arc RPC 413s wide
+ *  ranges that end at the string "latest" but accepts the same range with a
+ *  number. */
+function tradedLogs(venue: `0x${string}`, fromBlock: bigint, toBlock: bigint) {
+  return client().getLogs({ address: venue, event: TRADED_EVENT, fromBlock, toBlock });
+}
+type TradedLog = Awaited<ReturnType<typeof tradedLogs>>[number];
+
 async function readTape(venue: `0x${string}`): Promise<FuturesTradeRow[]> {
   const latest = await client().getBlockNumber();
   await sleep(RPC_GAP_MS);
-  for (const span of LOG_SPANS) {
-    try {
-      // Explicit numeric toBlock: the Arc RPC 413s wide ranges that end at
-      // the string "latest" but accepts the same range with a number.
-      const logs = await client().getLogs({
-        address: venue,
-        event: TRADED_EVENT,
-        fromBlock: latest > span ? latest - span : 0n,
-        toBlock: latest,
-      });
-      const now = Math.floor(Date.now() / 1000);
-      const rows = logs
-        .slice(-TAPE_LIMIT)
-        .reverse() // newest first
-        .map((log) => {
-          const tx = log.transactionHash ?? "";
-          if (!seenAt.has(tx)) seenAt.set(tx, now);
-          return decodeTraded(
-            log.args.seriesId ?? 0n,
-            log.args.taker ?? "",
-            log.args.qty ?? 0n,
-            log.args.mark ?? 0n,
-            log.blockNumber ?? 0n,
-            tx,
-            seenAt.get(tx) ?? now,
-          );
-        });
-      const inWindow = new Set(rows.map((r) => r.tx));
-      for (const tx of seenAt.keys()) if (!inWindow.has(tx)) seenAt.delete(tx);
-      return rows;
-    } catch {
-      await sleep(RPC_GAP_MS * 2); // node capped the range or throttled — narrow
+
+  // Walk backwards a page at a time; stop as soon as the tape is full, so a
+  // busy book still costs one request and only a quiet one pays for reach.
+  const collected: TradedLog[] = [];
+  let end = latest;
+  for (let page = 0; page < TAPE_PAGES; page += 1) {
+    if (end <= 0n) break;
+    let got: TradedLog[] | null = null;
+    let start = end > LOG_SPANS[0] ? end - LOG_SPANS[0] : 0n;
+    for (const span of LOG_SPANS) {
+      start = end > span ? end - span : 0n;
+      try {
+        got = await tradedLogs(venue, start, end);
+        break;
+      } catch (e) {
+        if (!isRangeError(e)) break; // throttled — narrowing is no cure
+        got = null;
+        await sleep(RPC_GAP_MS * 2);
+      }
     }
+    if (!got) break; // keep what we have rather than spend the budget
+    collected.unshift(...got); // older page goes in front
+    if (collected.length >= TAPE_LIMIT || start <= 0n) break;
+    end = start - 1n;
+    await sleep(RPC_GAP_MS);
   }
-  return [];
+
+  const now = Math.floor(Date.now() / 1000);
+  const rows = collected
+    .slice(-TAPE_LIMIT)
+    .reverse() // newest first
+    .map((log) => {
+      const tx = log.transactionHash ?? "";
+      if (!seenAt.has(tx)) seenAt.set(tx, now);
+      return decodeTraded(
+        log.args.seriesId ?? 0n,
+        log.args.taker ?? "",
+        log.args.qty ?? 0n,
+        log.args.mark ?? 0n,
+        log.blockNumber ?? 0n,
+        tx,
+        seenAt.get(tx) ?? now,
+      );
+    });
+  const inWindow = new Set(rows.map((r) => r.tx));
+  for (const tx of seenAt.keys()) if (!inWindow.has(tx)) seenAt.delete(tx);
+  return rows;
 }
 
 /* Per-trader position reads for the Public Desk — small (2 calls), memoized
@@ -294,9 +337,26 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
   }
 
   const desks: FuturesRoster["desks"] = {};
-  const readDesk = async (id: string, gap: number): Promise<boolean> => {
+
+  /** The series this index should publish, or null if it should publish none.
+   *
+   *  `selectSeriesForIndex` falls back to a SETTLED series when it sees no live
+   *  one, which is right for a complete crawl — between an expiry and the next
+   *  roll a settled series genuinely is the venue's latest. It is wrong for a
+   *  PARTIAL one: if the throttle ate `getSeries(1)`, "no live series" only
+   *  means we never saw it, and publishing series 0 shows a dead market as the
+   *  live desk. Seen on production — the tier advertised settled series 0 while
+   *  series 1 had 155h to run. Publish nothing instead and let the ladder fall
+   *  to the bundle, which carries the real live series. */
+  const deskCandidate = (id: string): SeriesInfo | null => {
     const s = selectSeriesForIndex(series, id);
-    if (!s) return true; // genuinely no series for this index — not a miss
+    if (!s) return null;
+    return s.settled && partial ? null : s;
+  };
+
+  const readDesk = async (id: string, gap: number): Promise<boolean> => {
+    const s = deskCandidate(id);
+    if (!s) return true; // nothing publishable for this index — not a miss
     try {
       const sid = BigInt(s.series_id);
       const maker = s.maker as `0x${string}`;
@@ -317,9 +377,7 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
     await sleep(RPC_GAP_MS);
   }
   // Second pass at 2× gap for whatever the throttle ate (onchain.ts pattern).
-  const missed = INDICES.filter(
-    (id) => !(id in desks) && selectSeriesForIndex(series, id) !== null,
-  );
+  const missed = INDICES.filter((id) => !(id in desks) && deskCandidate(id) !== null);
   if (missed.length > 0 && missed.length < INDICES.length) {
     await sleep(RPC_GAP_MS * 2);
     for (const id of missed) {
@@ -327,9 +385,7 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
       await sleep(RPC_GAP_MS * 2);
     }
   }
-  partial ||= INDICES.some(
-    (id) => !(id in desks) && selectSeriesForIndex(series, id) !== null,
-  );
+  partial ||= INDICES.some((id) => !(id in desks) && deskCandidate(id) !== null);
 
   if (Object.keys(desks).length === 0) return null;
 
