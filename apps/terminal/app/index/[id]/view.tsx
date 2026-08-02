@@ -189,8 +189,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             <>
               Contracts settle against the on-chain record, not this page
               {p.onchain
-                ? " — the rate above is that record, read from ACROracle; the sim estimator (est.) is what the oracle posts each hour."
-                : " — deploy the oracle to publish this fixing on-chain."}
+                ? " — the rate above is that record; “est.” is what the oracle posts each hour."
+                : " — deploy the oracle to put this fixing on-chain."}
             </>
           }
           p={
@@ -199,12 +199,10 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
               {p.onchain ? (
                 <>
                   {" "}
-                  — the rate above is that public record, read from an{" "}
-                  <Term k="oracle">oracle</Term> contract; “our estimate” is the freshly computed
-                  figure that gets posted there each hour.
+                  — the rate above is that record, read from an <Term k="oracle">oracle</Term>.
                 </>
               ) : (
-                <> — the scoreboard contract is not deployed yet, so this rate is simulation-only.</>
+                <> — simulation-only until the scoreboard contract is deployed.</>
               )}
             </>
           }
@@ -232,7 +230,7 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                   x="Share of tape volume removed by funding-graph cleaning and Louvain sybil detection before estimation."
                   p={
                     <>
-                      Money flow we threw out as fake before averaging — self-deals and rings of{" "}
+                      Money we threw out as fake — self-deals and rings of{" "}
                       <Term k="sybil">sock-puppet accounts</Term>, caught by tracing who funds whom.
                     </>
                   }

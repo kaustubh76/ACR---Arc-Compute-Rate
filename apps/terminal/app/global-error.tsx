@@ -42,8 +42,8 @@ export default function GlobalError({
             The presses stopped mid-run.
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: "#acc6e9" }}>
-            The terminal shell itself hit a fault. Nothing on-chain is affected — the oracle keeps
-            printing on Arc regardless of this page.
+            The terminal shell hit a fault — nothing on-chain is affected; the oracle keeps
+            printing on Arc.
           </p>
           <button
             onClick={() => reset()}

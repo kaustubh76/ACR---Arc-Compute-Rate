@@ -1,4 +1,4 @@
-/* "This paper in one minute" — the plain edition's five-beat opener on the
+/* "This paper in one minute" — the plain edition's six-beat opener on the
    front page. Always in the DOM, CSS-hidden in the expert edition (the
    .plain-only rules in globals.css), so hydration never branches. Pure
    component: the beats live in lib/plainGlossary.ts. */

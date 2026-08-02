@@ -39,26 +39,12 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
       <Ed
         as="p"
         style={{ margin: 0 }}
-        x={
-          <>
-            Prints are hourly; each ships with its confidence interval and its attack-cost-per-bp.
-            Estimator: state-space deconvolution of the Gateway batching operator · funding-graph
-            cleaning with Louvain sybil detection · volume-time α-trimmed weighted median · hedonic
-            constant-quality adjustment · manipulation cost bound. Only computable on Arc —
-            deterministic, dollar-denominated USDC fees make the bound a number, not a
-            distribution.
-          </>
-        }
+        x="Prints are hourly, each with its confidence interval and its attack-cost-per-bp — a bound only Arc’s deterministic USDC fees make a number."
         p={
           <>
-            A fresh rate every hour; each ships with its honest give-or-take and the dollar bill
-            for bending it. How it is made: <Term k="deconvolution">un-blur</Term> the batched
-            payment timing · trace who funds whom and drop the{" "}
-            <Term k="wash-trade">fake trades</Term> · take the{" "}
-            <Term k="trimmed-median">trimmed, size-weighted middle</Term> · compare services{" "}
-            <Term k="hedonic">like-for-like</Term> · price the cheapest attack that still works.
-            Only possible on Arc — fees here are fixed and paid in dollars, so the bill for
-            cheating is a number, not a guess.
+            A fresh rate every hour, each with its honest give-or-take and{" "}
+            <Term k="attack-cost">the bill for bending it</Term> — only possible on Arc, where
+            fees are fixed dollars.
           </>
         }
       />
@@ -96,7 +82,7 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
         {c.futures && (
           <span
             className="chip"
-            title="readers trade the venue from Circle user-controlled smart accounts — the key is derived on their device behind a PIN, so this site can never sign for them"
+            title="readers trade from Circle user-controlled wallets — the key lives behind their PIN, never with us"
           >
             <Ed x="wallets custody · EOA · user-controlled" p="wallets: ours, yours, and the shop's" />
           </span>

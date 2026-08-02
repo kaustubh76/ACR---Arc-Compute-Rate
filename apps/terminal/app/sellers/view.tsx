@@ -36,8 +36,8 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Sellers who attest their metadata are priced fairly by the hedonic adjustment — attestation earns placement."
-          p="Sellers who file a signed public record of what they sell get compared like-for-like against rivals. Filing it earns a fairer price — and a place in this paper."
+          x="Sellers who attest their metadata are priced like-for-like — attestation earns placement."
+          p="Sellers who file a signed record of what they sell get compared fairly — filing earns a place in this paper."
         />
       </div>
 
@@ -101,16 +101,13 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 <>
                   The attestation summary reads live from the on-chain{" "}
                   <span className="mono">AttestationRegistry</span> — it fills in once the API
-                  warms. EIP-712 seller records (<span className="mono">attestWithSig</span>) prove
-                  metadata the hedonic stage constant-quality-adjusts against.
+                  warms.
                 </>
               }
               p={
                 <>
-                  This card reads live from a public register on the blockchain — it fills in once
-                  our server wakes. Each entry is a seller’s{" "}
-                  <Term k="eip712">verifiably signed</Term> statement of what they offer; ACR uses
-                  it to compare services <Term k="hedonic">like-for-like</Term>.
+                  This card fills in once our server wakes — each entry is a seller’s{" "}
+                  <Term k="eip712">verifiably signed</Term> statement of what they offer.
                 </>
               }
             />
@@ -127,8 +124,8 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 className="muted"
                 title={
                   plain
-                    ? "this feed is the calibrated simulator; its sellers and their records are simulated — the card above counts the REAL blockchain records"
-                    : "the tape is the calibrated simulator; its sellers and their attestations are simulated — the card above counts the REAL on-chain records"
+                    ? "this feed is the calibrated simulator — the card above counts the real blockchain records"
+                    : "the tape is the calibrated simulator — the card above counts the real on-chain records"
                 }
               >
                 {" "}
@@ -229,16 +226,14 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
           style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
           x={
             <>
-              Score = ½ · clean-volume share + ½ · attestation, over the cleaning stack’s verdicts
-              for the latest window. Attestations are EIP-712 records in{" "}
-              <span className="mono">AttestationRegistry</span>
+              Score = ½ · clean-volume share + ½ · attestation, over the latest window
               {fmtInt(sellers?.length ?? 0) !== "0" ? <> · top {sellers?.length} by score</> : null}.
             </>
           }
           p={
             <>
-              Score = half “how much of their volume survived our fake filter” plus half “did they
-              file a <Term k="attestation">sworn record</Term>” — judged over the latest window
+              Score = half “volume that survived the fake filter” plus half “filed a{" "}
+              <Term k="attestation">sworn record</Term>”, over the latest window
               {fmtInt(sellers?.length ?? 0) !== "0" ? <> · top {sellers?.length} by score</> : null}.
             </>
           }

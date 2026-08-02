@@ -35,8 +35,8 @@ function tierBanner(
         : `press waking · ~${wakeRemainingS ?? 0}s — quotes are last-known until it answers`;
     case "onchain-only":
       return plain
-        ? "the live rate reads straight off the blockchain · the quotes below are last-known (the dealer lives on our server)"
-        : "spot reads direct from ACROracle · the quotes below are last-known (the maker lives in the press)";
+        ? "the rate reads off the blockchain — these quotes are last-known (the dealer lives on our server)"
+        : "spot reads direct from ACROracle — these quotes are last-known (the maker lives in the press)";
     default:
       return plain
         ? "saved quotes — the corridor re-opens when the live server starts"
@@ -68,8 +68,8 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Machine commerce now has a forward curve — weekly tenors, quoted continuously, cash-settled against the oracle print."
-          p="You can now lock in next month’s price of machine work — weekly contracts, quoted around the clock, paid out in cash against the official rate."
+          x="Machine commerce has a forward curve — weekly tenors, quoted continuously, cash-settled against the oracle print."
+          p="You can lock in next month’s price of machine work — weekly contracts, paid out in cash against the official rate."
         />
       </div>
 
@@ -180,19 +180,15 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
           x={
             <>
-              Quotes by an Avellaneda–Stoikov market maker against the latest print — the
-              corridor’s width is set by realized vol, its mid pinned to spot at zero inventory.
-              The ACR-Weekly future cash-settles against <span className="mono">ACROracle</span> at
-              expiry, 1,000 USDC per unit.
+              An Avellaneda–Stoikov maker quotes both sides of the latest print; the weekly future
+              settles in cash on <span className="mono">ACROracle</span> at 1,000 USDC a unit.
             </>
           }
           p={
             <>
-              Prices come from an automated <Term k="market-maker">dealer</Term> that always quotes
-              a buy and a sell around the latest official rate — the{" "}
-              <Term k="vol">jumpier</Term> the market, the wider the gap. At expiry the weekly
-              contract is <Term k="cash-settled">paid out in cash</Term> against the rate on the
-              public scoreboard, $1,000 per unit.
+              An automated <Term k="market-maker">dealer</Term> quotes both sides of the official
+              rate; weekly contracts <Term k="cash-settled">pay out in cash</Term> against it,
+              $1,000 a unit.
             </>
           }
         />

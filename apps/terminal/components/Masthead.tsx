@@ -97,7 +97,7 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-teal nav-pulse"
           title={
             plain
-              ? "our server is down, but the public scoreboard answers directly — the numbers are the official record"
+              ? "our server is down — the public scoreboard answers directly; the numbers are the official record"
               : "the press is down but ACROracle answers direct reads — prints are settlement-grade"
           }
         >

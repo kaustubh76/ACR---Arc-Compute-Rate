@@ -63,17 +63,12 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}
-        x={
-          <>
-            A cash-settled weekly future on each index, <Term k="cash-settled">settling</Term>{" "}
-            against the same on-chain oracle the spot rate posts to — the real fills scroll above.
-          </>
-        }
+        x="A cash-settled weekly future on each index, settling against the same on-chain oracle as the spot rate — the fills above are real."
         p={
           <>
-            You can lock in next month’s price of machine work — each contract{" "}
-            <Term k="cash-settled">pays out</Term> against the official on-chain rate. The trades
-            above are real.
+            You can lock in a future price of machine work — each contract{" "}
+            <Term k="cash-settled">pays out</Term> against the official on-chain rate, and the
+            trades above are real.
           </>
         }
       />
@@ -86,9 +81,8 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
           x={
             <>
-              You can take a side yourself: the desk opens a Circle user-controlled wallet
-              (your PIN, our gas), stakes you $0.50 of testnet USDC, and puts your fill
-              on-chain. <Link href="/curve">Trade it →</Link>
+              Take a side yourself — a Circle wallet behind your PIN, a $0.50 testnet stake, and
+              your fill lands on-chain. <Link href="/curve">Trade it →</Link>
             </>
           }
           p={

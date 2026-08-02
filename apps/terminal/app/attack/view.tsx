@@ -60,8 +60,8 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Try to move my number — here’s the bill. Fund a wash-flow bot, point it at the tape, and watch what each statistic does with the poison."
-          p="Try to move my number — here’s the bill. Give a cheating bot a budget, let it flood the market with fake trades, and watch a plain average fall for it while ACR holds."
+          x="Try to move my number — here’s the bill. Fund a wash bot and watch each statistic eat the poison."
+          p="Try to move my number — here’s the bill. Give a cheating bot a budget and watch who bends."
         />
       </div>
 
@@ -159,15 +159,11 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           <Ed
             as="p"
             className="lab-note"
-            x="The bot spends its budget on wash prints between sybil identities: self-deals at an inflated target price, reciprocal funding legs to look organic, and a ring of fresh addresses to spread the flow. Naive VWAP averages whatever it is fed. ACR deconvolves the batching, traces the funding graph, and trims what remains."
+            x="The bot buys wash prints between sybil identities; VWAP swallows them — ACR deconvolves, traces funding, and trims."
             p={
               <>
-                The bot spends its budget on <Term k="wash-trade">fake trades</Term> between
-                accounts it secretly controls: selling to itself at inflated prices, passing the
-                same dollars back and forth to look organic, and fanning the flow across fresh
-                addresses. A plain average swallows whatever it is fed. ACR{" "}
-                <Term k="deconvolution">un-blurs the timing</Term>, maps who funds whom, and
-                ignores the extremes.
+                The bot floods the market with <Term k="wash-trade">fake trades</Term> between its
+                own accounts — a plain average swallows them; ACR traces who funds whom and trims.
               </>
             }
           />
@@ -222,21 +218,20 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 style={{ margin: 0 }}
                 x={
                   <>
-                    VWAP dragged <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>.
-                    ACR moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. The
-                    attacker burned <b>{money(run.usdc_burned, 0)}</b> across{" "}
-                    <b>{fmtInt(run.n_adversarial)}</b> wash prints —{" "}
+                    VWAP dragged <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>;
+                    ACR moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b> —{" "}
+                    <b>{money(run.usdc_burned, 0)}</b> across{" "}
+                    <b>{fmtInt(run.n_adversarial)}</b> wash prints,{" "}
                     <b>{fmtInt(run.verdict.resistance)}×</b> the resistance.
                   </>
                 }
                 p={
                   <>
-                    The plain average was dragged{" "}
-                    <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>. ACR moved
-                    just <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. The cheat
-                    burned <b>{money(run.usdc_burned, 0)}</b> on{" "}
-                    <b>{fmtInt(run.n_adversarial)}</b> fake trades — ACR held{" "}
-                    <b>{fmtInt(run.verdict.resistance)}×</b> firmer.
+                    The plain average bent{" "}
+                    <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>; ACR moved{" "}
+                    <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b> —{" "}
+                    <b>{money(run.usdc_burned, 0)}</b> on <b>{fmtInt(run.n_adversarial)}</b> fake
+                    trades, and ACR held <b>{fmtInt(run.verdict.resistance)}×</b> firmer.
                   </>
                 }
               />

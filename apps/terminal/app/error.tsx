@@ -34,8 +34,8 @@ export default function Error({
         as="p"
         className="muted"
         style={{ fontSize: 14 }}
-        x="The rest of the edition is unaffected — the masthead, the chain dateline, and every other page keep printing. Reset the page to re-run it against the live feed."
-        p="The rest of the site is fine — the header, the dateline, and every other page keep working. Reset this page to try again."
+        x="The rest of the edition keeps printing — reset the page to re-run it against the live feed."
+        p="The rest of the site is fine — reset this page to try again."
       />
       <div style={{ marginTop: 16 }}>
         <button className="btn" onClick={() => reset()}>

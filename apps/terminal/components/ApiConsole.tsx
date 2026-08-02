@@ -248,15 +248,13 @@ export function ApiConsole({
           x={
             <>
               The <span className="mono">resource</span> in the challenge below is the live API
-              endpoint a machine pays for — the seller&apos;s own API host, a different domain from
-              this dashboard by design, and the current API (not a stale link).
+              endpoint a machine pays for — a different domain from this dashboard by design.
             </>
           }
           p={
             <>
-              The <span className="mono">resource</span> in the paywall notice below is the live web
-              address a robot pays to use — our data server, a different address from this dashboard
-              on purpose, and the current one (not an old link).
+              The <span className="mono">resource</span> in the paywall notice below is the live
+              address a robot pays to use — a different domain from this dashboard on purpose.
             </>
           }
         />
@@ -421,18 +419,15 @@ export function ApiConsole({
                       <Ed
                         x={
                           <>
-                            The mock header fails closed on the real gate — click{" "}
-                            <b>Settle for real</b> to sign an EIP-3009 authorization and settle
-                            through Circle Gateway. Draws from the buyer&apos;s Gateway deposit;
-                            the receipt is a real gateway-ref.
+                            The mock header fails closed on the real gate —{" "}
+                            <b>Settle for real</b> signs an EIP-3009 authorization and settles
+                            through Circle Gateway.
                           </>
                         }
                         p={
                           <>
-                            Pretend money is refused on the real paywall — click{" "}
-                            <b>Settle for real</b> to sign a digital check and pay through Circle.
-                            It draws from the buyer&apos;s Circle deposit; the receipt is a real
-                            Circle reference.
+                            Pretend money is refused on the real paywall —{" "}
+                            <b>Settle for real</b> signs a digital check and pays through Circle.
                           </>
                         }
                       />
@@ -443,19 +438,16 @@ export function ApiConsole({
                     <Ed
                       x={
                         <>
-                          The Circle gate fails closed: real settlement needs a funded buyer. Set{" "}
-                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span> (a funded EOA with an
-                          open Gateway deposit) to enable one-click settlement here, or run the
-                          mock gate with <span className="mono">ACR_X402_MODE=dev make api</span>.
+                          Real settlement needs a funded buyer — set{" "}
+                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span>, or run the mock gate
+                          with <span className="mono">ACR_X402_MODE=dev make api</span>.
                         </>
                       }
                       p={
                         <>
-                          The real paywall refuses pretend money: real payment needs a funded
-                          buyer. Set <span className="mono">ACR_BUYER_PRIVATE_KEY</span> (a funded
-                          wallet with an open Circle deposit) to enable one-click payment here, or
-                          run the practice paywall with{" "}
-                          <span className="mono">ACR_X402_MODE=dev make api</span>.
+                          Real payment needs a funded buyer — set{" "}
+                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span>, or use the practice
+                          paywall with <span className="mono">ACR_X402_MODE=dev make api</span>.
                         </>
                       }
                     />

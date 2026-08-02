@@ -141,8 +141,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="The exchange floor of the index: machines discover the listings, pay a nanopayment a query, and every settlement prints on the tape. Discovery is free — the data costs."
-          p="The shop floor: software agents browse what’s for sale, pay a fraction of a cent per question, and every payment lands on the receipt roll below. Looking is free — answers cost."
+          x="Machines discover the listings, pay a nanopayment a query, and every settlement prints on the tape — discovery is free, the data costs."
+          p="Robot shoppers browse what’s for sale, pay a fraction of a cent a question, and every receipt prints below — looking is free, answers cost."
         />
       </div>
 
@@ -228,28 +228,22 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
               style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
               x={
                 <>
-                  Each listing carries the full x402 PaymentRequirements (scheme{" "}
-                  <span className="mono">exact</span>, GatewayWalletBatched) plus input/output
-                  schemas — an agent decides before it pays.
+                  Each listing carries its full x402 payment terms and schemas —{" "}
                   {attestation
-                    ? ` Provenance reads ${fmtInt(attestation.sellers_attested)} EIP-712 seller
-                       attestations straight from the on-chain registry.`
-                    : " With a deployed AttestationRegistry the listings carry on-chain seller provenance."}
+                    ? `backed by ${fmtInt(attestation.sellers_attested)} EIP-712 seller attestations read from the on-chain registry.`
+                    : "seller provenance lights up with a deployed AttestationRegistry."}
                 </>
               }
               p={
                 <>
-                  Every listing carries its full payment terms and the shape of the answer — a
-                  robot shopper reads the label and decides before it pays.
+                  Every listing shows its price terms and the shape of the answer —{" "}
                   {attestation ? (
                     <>
-                      {" "}
-                      The proof column reads {fmtInt(attestation.sellers_attested)}{" "}
-                      <Term k="attestation">sworn seller records</Term> straight off the public
-                      register.
+                      backed by {fmtInt(attestation.sellers_attested)}{" "}
+                      <Term k="attestation">sworn seller records</Term> on the public register.
                     </>
                   ) : (
-                    <> Once the register is deployed, each listing carries its seller’s sworn record.</>
+                    <>sworn seller records appear once the register is live.</>
                   )}
                 </>
               }
@@ -407,14 +401,14 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        offline demo — the agent discovers the catalog and pays the mock gate (run{" "}
+                        offline demo — the agent pays the mock gate (run{" "}
                         <span className="mono">ACR_X402_MODE=dev make api</span> first)
                       </>
                     }
                     p={
                       <>
-                        practice run — the robot browses the shop and pays the practice paywall
-                        (run <span className="mono">ACR_X402_MODE=dev make api</span> first)
+                        practice run — the robot pays the practice paywall (run{" "}
+                        <span className="mono">ACR_X402_MODE=dev make api</span> first)
                       </>
                     }
                   />
@@ -426,8 +420,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        Arc testnet — Circle Gateway settlement via{" "}
-                        <span className="mono">@circle-fin/x402-batching</span>; needs a funded{" "}
+                        Arc testnet — real Circle Gateway settlement; needs a funded{" "}
                         <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
                         <span className="mono">docs/agent-runbook.md</span>)
                       </>
@@ -451,18 +444,14 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
           x={
             <>
-              The buyer is the other half of the marketplace: wallet, discovery, payment, receipt —
-              the full agent-commerce loop against this exchange. The button above runs the same
-              two-act exchange in-process; <span className="mono">apps/agent</span> is its
-              out-of-process twin over real HTTP.
+              The button runs the buyer’s whole loop — discover, pay, receipt — in-process;{" "}
+              <span className="mono">apps/agent</span> is its twin over real HTTP.
             </>
           }
           p={
             <>
-              The buyer is the other half of the shop: wallet, browsing, payment, receipt — the
-              full robot-shopping loop against this page. The button above runs it inside the
-              site; <span className="mono">apps/agent</span> is its stand-alone twin over real
-              HTTP.
+              The button runs a whole robot shopping trip — browse, pay, receipt — inside this
+              site; <span className="mono">apps/agent</span> is its stand-alone twin.
             </>
           }
         />
