@@ -79,13 +79,13 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Lint | `ruff check packages services scripts redteam` | ✅ All checks passed |
 | Desk preflight | `make desk-preflight` | ✅ CLEAR TO RUN — series life, margin capacity both directions, custody funding, faucet slots |
 | Desk round trip on Arc | `make desk-e2e` → `make desk-evidence` | ✅ stake → collateral → trade → **withdraw**, confirmed by four independent witnesses (venue balance, contract state, wallet balance, `CollateralWithdrawn` + paymaster) |
-| Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~11.9k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
-| Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 332/332 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **230 passed** (incl. anvil-gated on-chain integration) |
+| Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~18.5k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
+| Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 386/386 diagram terms defined |
+| Python suite | `pytest packages services tests` | ✅ **248 passed** — including 8 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
 | Contracts | `forge test -vvv` | ✅ **50 passed** (17 oracle + 10 registry + 16 futures + 7 invariants, `fail_on_revert=true`) |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |
-| Terminal | `npm test && next build` | ✅ **50/50 node tests** (7 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage) + clean build (8 pages + 15 API proxies) |
+| Terminal | `npm test && next build` | ✅ **55/55 node tests** (8 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase) + clean build (8 pages + 15 API proxies) |
 | Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient` — re-run 2026-07-31 against the **deployed** gate) |
 | On-chain read | `make verify-testnet` | ✅ chain id + contracts' bytecode + 3 live prints read from Arc (+ `cast code` shows bytecode at ACRFutures) |
 | GitHub CI | push to `main` | ✅ 4/4 jobs green |

@@ -1,0 +1,210 @@
+#!/usr/bin/env python
+"""Check that the numbers in the judge-facing docs are still true.
+
+This project's whole argument is that its claims are true, and its front door is
+a table of them. But numbers written into prose rot silently: every figure this
+script found stale was correct the day it was typed, and nothing in the repo
+noticed when the suites grew past it. `verify_live.py` proves the deployed
+product; this proves the documentation.
+
+The claims are **parsed out of the docs** and re-measured, rather than compared
+against a second hardcoded list — a checker that carries its own copy of the
+answer is a mirror, and drifts in step with whatever it was meant to catch.
+
+Measuring costs real time (it collects the test suites), so the expensive checks
+are skippable for a quick pass:
+
+    uv run python scripts/verify_claims.py          # == make verify-claims
+    CLAIMS_FAST=1 …                                 # skip suite collection
+
+Exit codes: 0 = every claim still holds; 1 = a document is lying.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
+STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
+FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
+
+_failures: list[str] = []
+
+
+def check(ok: bool, label: str) -> bool:
+    print(f"  {'✓' if ok else '✗'} {label}")
+    if not ok:
+        _failures.append(label)
+    return ok
+
+
+def run(cmd: list[str], cwd: Path | None = None, timeout: int = 900) -> str:
+    """Capture a command's output; '' when it cannot run (never raises, so one
+    missing toolchain reports itself instead of hiding every other claim)."""
+    try:
+        p = subprocess.run(
+            cmd, cwd=cwd or ROOT, capture_output=True, text=True, timeout=timeout
+        )
+        return (p.stdout or "") + (p.stderr or "")
+    except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+        return f"__ERROR__ {exc}"
+
+
+def claim(text: str, pattern: str) -> int | None:
+    """The first integer a documented claim asserts, or None if the doc no
+    longer phrases it that way — which is itself worth reporting, because a
+    check silently matching nothing is a check that always passes."""
+    m = re.search(pattern, text)
+    return int(m.group(1).replace(",", "")) if m else None
+
+
+# --- the measurements -------------------------------------------------------
+
+
+def measured_pytest() -> int | None:
+    """Collected, not executed — cheap, and it counts the anvil-gated tests that
+    SKIP on a machine without a node. Deliberately not `-q`: that suppresses the
+    very summary line this needs."""
+    out = run(["uv", "run", "pytest", "packages", "services", "tests",
+               "-p", "no:cacheprovider", "--collect-only"])
+    m = re.search(r"(\d+)\s+tests? collected", out)
+    return int(m.group(1)) if m else None
+
+
+def measured_forge() -> int | None:
+    """Plain `forge test` — `--summary` prints a table and moves the one-line
+    total out of reach."""
+    out = run(["forge", "test"], cwd=ROOT / "contracts")
+    m = re.search(r"(\d+) tests? passed", out)
+    return int(m.group(1)) if m else None
+
+
+def measured_terminal() -> int | None:
+    out = run(["npm", "test"], cwd=ROOT / "apps" / "terminal")
+    m = re.search(r"^# pass (\d+)$", out, re.M)
+    return int(m.group(1)) if m else None
+
+
+def measured_glossary() -> int | None:
+    out = run(["uv", "run", "python", "scripts/check_glossary_coverage.py"])
+    m = re.search(r"all (\d+) uncommon diagram terms", out)
+    return int(m.group(1)) if m else None
+
+
+def measured_ci_jobs() -> int:
+    """Jobs in ci.yml — top-level keys under `jobs:`, counted from the file so a
+    new job shows up here without anyone remembering to say so."""
+    text = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    body = text.split("\njobs:", 1)[-1]
+    return len(re.findall(r"^  ([a-z][\w-]*):", body, re.M))
+
+
+def measured_workflows() -> int:
+    return len(list((ROOT / ".github" / "workflows").glob("*.yml")))
+
+
+# --- the checks -------------------------------------------------------------
+
+
+def main() -> None:
+    sys.stdout.reconfigure(line_buffering=True)
+    sub = SUBMISSION.read_text()
+    status = STATUS.read_text()
+
+    print("ACR claim audit — do the docs still tell the truth?")
+    if FAST:
+        print("  (CLAIMS_FAST — suite collection skipped)")
+
+    print("\ntest counts")
+    # Suites only ever grow here, and a doc that UNDERSTATES the suite is still
+    # a doc that is wrong — this is the drift that actually happened, five
+    # times over, and every instance was an undercount.
+    for label, pattern, measure, texts in (
+        ("python suite", r"\*\*(\d+) passed\*\*", measured_pytest, (sub, status)),
+        ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge, (sub,)),
+        ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal, (sub,)),
+    ):
+        stated = next((c for c in (claim(t, pattern) for t in texts) if c), None)
+        if stated is None:
+            check(False, f"{label}: no claim found in the docs — has it been reworded?")
+            continue
+        if FAST:
+            print(f"  · {label}: claims {stated} (not measured)")
+            continue
+        actual = measure()
+        if actual is None:
+            check(False, f"{label}: could not measure (toolchain missing?)")
+            continue
+        check(actual == stated, f"{label}: docs say {stated}, measured {actual}")
+
+    print("\nglossary")
+    stated = claim(sub, r"(\d+)/\d+ diagram terms")
+    if stated is None:
+        check(False, "glossary: no claim found in SUBMISSION.md")
+    else:
+        actual = measured_glossary()
+        if actual is None:
+            check(False, "glossary: could not measure")
+        else:
+            check(actual == stated, f"glossary: docs say {stated}, measured {actual}")
+
+    print("\nCI shape")
+    stated_jobs = claim(sub, r"(\d+)/\d+ jobs green")
+    jobs = measured_ci_jobs()
+    if stated_jobs is None:
+        check(False, "CI: no '<n>/<n> jobs green' claim found in SUBMISSION.md")
+    else:
+        check(jobs == stated_jobs, f"CI jobs: docs say {stated_jobs}, ci.yml defines {jobs}")
+    # The scheduled workflows are load-bearing (the heartbeat and the lifecycle
+    # roll keep the venue alive), so a doc describing only a keepalive is
+    # describing a different, smaller product.
+    check(
+        "futures-heartbeat" in status or "futures-lifecycle" in status,
+        f"STATUS mentions the scheduled venue workflows ({measured_workflows()} workflow files exist)",
+    )
+
+    print("\naddresses named in the docs match the live deploy")
+    from acr_core import get_settings
+
+    s = get_settings()
+    for label, addr in (
+        ("oracle", s.oracle_address),
+        ("registry", s.registry_address),
+        ("futures venue", s.futures_address),
+    ):
+        if not addr:
+            continue
+        # Case-insensitive: the docs checksum some and lowercase others.
+        named = addr.lower() in sub.lower() or addr.lower() in status.lower()
+        check(named, f"{label} {addr[:12]}… appears in the docs")
+
+    print("\nstale-statement guards")
+    # These are prose, not numbers, and both were true once. A claim that has
+    # become false is worse than one that was never made: it is read as current.
+    check(
+        "do not trust the current `.env`" not in status,
+        "STATUS no longer says the repo .env holds broken placeholders "
+        "(it is what drives every real transaction now)",
+    )
+    check(
+        "never folded in" not in status,
+        "STATUS no longer says the real Gateway receipts were never folded into the bundle",
+    )
+
+    print()
+    if _failures:
+        print(f"claims: {len(_failures)} STALE — the docs are ahead of, or behind, reality")
+        for f in _failures:
+            print(f"    ✗ {f}")
+        sys.exit(1)
+    print("claims: EVERY DOCUMENTED NUMBER STILL HOLDS")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

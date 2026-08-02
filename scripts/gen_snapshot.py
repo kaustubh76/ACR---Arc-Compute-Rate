@@ -92,14 +92,76 @@ def capture_futures_trades() -> list[dict]:
         return []
 
 
+#: Real Circle Gateway settlements, captured by the live buyer loop.
+LIVE_RECEIPTS = Path("data/x402_receipts_live.jsonl")
+
+
+def _merge_live_receipts(ledger: dict) -> dict:
+    """Put the REAL Gateway settlements at the head of the archived ledger.
+
+    The bundle used to be entirely ``sim-N`` rows while two genuine Circle
+    Gateway settlements sat unused on disk — so the tier a visitor sees when
+    everything else is down carried no evidence that x402 had ever settled for
+    real, which it demonstrably had. Two real settlements are better evidence
+    than twenty-four invented ones, and we already own them.
+
+    They stay distinguishable rather than blended: a real row keeps its
+    ``scheme: "exact"`` and its Gateway UUID, which is exactly how the Terminal
+    decides to deep-link a ref instead of rendering it plain. ``settled_at`` is
+    dropped on purpose — a committed wall-clock is what makes an archived
+    bundle look stale, and ``tests/test_snapshot_bundle.py`` guards against it.
+
+    A missing file is normal (a fresh clone has never run the buyer), so the
+    snapshot still builds fully-simulated rather than failing.
+    """
+    if not LIVE_RECEIPTS.exists():
+        return ledger
+    real: list[dict] = []
+    for line in LIVE_RECEIPTS.read_text().splitlines():
+        try:
+            r = json.loads(line)
+        except Exception:
+            continue
+        if not r.get("tx_ref"):
+            continue
+        real.append({
+            "payer": r["payer"],
+            "amount_usdc": r["amount_usdc"],
+            "tx_ref": r["tx_ref"],
+            "network": r.get("network", ""),
+            "scheme": r.get("scheme", "exact"),
+        })
+    if not real:
+        return ledger
+    real.reverse()  # newest first, like the live ledger
+    rows = real + list(ledger["receipts"])
+    # Renumber so `seq` stays a monotone ordinal over the whole ledger.
+    n = len(rows)
+    for i, row in enumerate(rows):
+        row["seq"] = n - i
+    price = ledger["price_usdc"]
+    return {
+        **ledger,
+        "receipts": rows,
+        "paid_queries": n,
+        # Sum the rows rather than multiply by price: the real settlements were
+        # paid at whatever the price was THEN, and inventing agreement with
+        # today's price would be the same class of lie this is fixing.
+        "revenue_usdc": round(sum(r["amount_usdc"] for r in rows), 6),
+        "price_usdc": price,
+        "real_settlements": len(real),
+    }
+
+
 def embed_bundle_sections(payload: dict) -> dict:
     """Embed the crypto-rich offline sections alongside the terminal payload.
 
     Every section reuses its live endpoint's builder (``build_catalog``,
-    ``revenue``, ``x402_info``); the ledger rows are ``build_sim_receipts`` —
-    honestly labeled sim by scheme + tx_ref prefix.
+    ``revenue``, ``x402_info``); the ledger rows are ``build_sim_receipts``
+    (honestly labeled sim by scheme + tx_ref prefix), with any REAL Gateway
+    settlements from the live buyer loop merged in at the head.
     """
-    sim_ledger = build_sim_receipts()
+    sim_ledger = _merge_live_receipts(build_sim_receipts())
     payload["marketplace"] = {
         "catalog": build_catalog(""),  # resource base "" — host-less offline bundle
         "receipts": sim_ledger,
