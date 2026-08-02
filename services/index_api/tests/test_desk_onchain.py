@@ -141,16 +141,25 @@ def venue():
 
 def _desk_against(monkeypatch, venue, settled_override=None):
     """Point index_api.desk at the anvil venue, so withdrawable() runs its real
-    orchestration over a real contract."""
+    orchestration over a real contract.
+
+    A REAL ``FuturesReader``, not a hand-rolled stand-in. This used to inject a
+    two-attribute shim exposing ``_client``, and when ``withdrawable()`` grew a
+    call to the reader's memoized ``all_series()`` the shim no longer had the
+    method — so every test here failed with ``'_Fut' object has no attribute
+    'all_series'``. CI could not see it: these tests skip without anvil, so a
+    break in them is silent by construction, and faking one of our OWN objects
+    is precisely the trap this suite's docstring warns about. Using the real
+    reader means it cannot drift from production again.
+
+    Built fresh per test on purpose: the reader memoizes the series list for 90
+    seconds, and the settlement test changes that list mid-module.
+    """
     from index_api import desk
+    from index_api.onchain import FuturesReader
 
-    client = venue["owner_fc"]
-
-    class _Fut:
-        _client = client
-        configured = True
-
-    monkeypatch.setattr("index_api.onchain.get_futures", lambda: _Fut())
+    reader = FuturesReader(rpc_url=RPC, futures_address=venue["futures"])
+    monkeypatch.setattr("index_api.onchain.get_futures", lambda: reader)
     monkeypatch.setattr(desk, "_live_mark", lambda iid: MARK)
     monkeypatch.setattr(desk, "_margin_bps", lambda: MARGIN_BPS)
     desk._withdrawable_memo.drop(venue["taker"].address.lower())

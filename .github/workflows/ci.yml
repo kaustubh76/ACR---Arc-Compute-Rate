@@ -16,10 +16,63 @@ jobs:
         run: uv sync --all-packages
       - name: Lint
         run: uv run ruff check packages services scripts redteam
+
+      # The chain-facing tests need a real node, and without one they SKIP —
+      # which made them silent. A change to `withdrawable()` broke every test
+      # in test_desk_onchain.py and CI stayed green for a day, because a test
+      # that skips looks exactly like a test that passes. These suites exist
+      # precisely to catch what a mock cannot; running them is the whole point.
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build contracts (the on-chain tests need the artifacts)
+        run: cd contracts && forge install --no-git foundry-rs/forge-std || true && forge build
+      - name: Start anvil
+        run: |
+          anvil --silent &
+          for _ in $(seq 1 30); do
+            curl -sf -X POST -H 'Content-Type: application/json' \
+              --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+              http://127.0.0.1:8545 >/dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::anvil never came up" && exit 1
+
       - name: Tests
         run: uv run pytest packages services tests -q -p no:cacheprovider --import-mode=importlib
+
+      # Skips are legitimate (a missing optional dep), but the on-chain suites
+      # must NOT be among them here — that would put us back to green-by-silence.
+      - name: The on-chain tests actually ran
+        run: |
+          set -o pipefail
+          # Pass/fail is pytest's EXIT CODE, not a line of its output. The first
+          # version of this step grepped for "N passed" and went red over eight
+          # green tests, because -q suppresses that very summary. Parsing a
+          # tool's prose for something it already returns is how a checker ends
+          # up failing on the truth.
+          uv run pytest services/index_api/tests/test_desk_onchain.py \
+            services/index_api/tests/test_futures_roll_onchain.py \
+            packages/acr_oracle_client/tests/test_onchain.py \
+            -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
+          # A skip is the failure mode that matters here: these suites skip
+          # silently without a node, which is exactly how a broken one stayed
+          # green for a day.
+          if grep -qE "skipped" /tmp/onchain.txt; then
+            echo "::error::an on-chain test SKIPPED — anvil or the contract artifacts are missing"
+            exit 1
+          fi
       - name: Eval gate (headline claims)
         run: uv run python scripts/eval.py --hours 12 --check
+
+      # The docs quote numbers — suite sizes, glossary coverage, deployed
+      # addresses — and every one of them was true the day it was typed. Five
+      # had silently rotted before anything noticed, in a project whose whole
+      # argument is that its claims are true. CLAIMS_FAST skips re-collecting
+      # the suites the job has already run above; the cheap checks (glossary,
+      # CI shape, addresses, stale-statement guards) still run.
+      - name: Claim audit (the docs must still be true)
+        env:
+          CLAIMS_FAST: "1"
+        run: uv run python scripts/verify_claims.py
 
   contracts:
     runs-on: ubuntu-latest

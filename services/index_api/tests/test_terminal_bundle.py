@@ -220,7 +220,14 @@ def test_snapshot_builder_embeds_bundle_sections():
     cat = payload["marketplace"]["catalog"]
     assert cat["x402Version"] == 1 and len(cat["items"]) == 13
     assert all(i["resource"].startswith("/") for i in cat["items"])  # host-less
-    assert payload["marketplace"]["receipts"]["receipts"][0]["scheme"] == "sim"
+    # EVERY row must be honestly labelled — which is a stronger guarantee than
+    # the old "row 0 is sim". The ledger now leads with the real Circle Gateway
+    # settlements from data/x402_receipts_live.jsonl, so a positional assertion
+    # would have to be relaxed; instead pin the invariant that actually
+    # protects a reader: a row claims `sim` if and only if its ref is a sim ref.
+    # Nothing may look real that isn't, and nothing real may be buried as sim.
+    for r in payload["marketplace"]["receipts"]["receipts"]:
+        assert (r["scheme"] == "sim") == r["tx_ref"].startswith("sim-"), r
 
     # Revenue: the /revenue shape with counters that AGREE with the embedded
     # sim ledger (the offline /developers page shows both — they must never

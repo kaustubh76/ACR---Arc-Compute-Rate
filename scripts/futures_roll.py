@@ -40,7 +40,14 @@ MIN_LIFE_H = float(os.environ.get("ROLL_MIN_LIFE_H", "24"))
 #: maker's ability to pay for its next transaction. Never spend below this.
 GAS_FLOOR = float(os.environ.get("ROLL_GAS_FLOOR", "0.75"))
 
-USDC_PREDEPLOY = "0x3600000000000000000000000000000000000000"
+#: The collateral token. On Arc this is the native USDC predeploy — the default
+#: — but it is the venue's *configured* token, not a law of the universe, so it
+#: is overridable. That is what lets this script be exercised against a real
+#: deployment on anvil (see tests/test_futures_roll_onchain.py) instead of only
+#: ever being run in production for the first time, which is what it was doing.
+USDC_PREDEPLOY = os.environ.get(
+    "ROLL_USDC_ADDRESS", "0x3600000000000000000000000000000000000000"
+)
 _ERC20_ABI = [
     {"type": "function", "name": "approve", "stateMutability": "nonpayable",
      "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],

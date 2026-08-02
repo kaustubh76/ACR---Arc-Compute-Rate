@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live verify-claims desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -131,6 +131,13 @@ verify-testnet:
 # because those depend on GitHub's scheduler rather than on our code).
 verify-live:
 	uv run python scripts/verify_live.py
+
+# Re-measure every number the judge-facing docs claim and fail on drift. The
+# claims are PARSED from the docs, not mirrored in the script, so a figure that
+# moves is caught rather than quietly agreed with. CLAIMS_FAST=1 skips suite
+# collection for a quick pass.
+verify-claims:
+	uv run python scripts/verify_claims.py
 
 # --- futures venue lifecycle (a series expires; the venue must outlive it) ---
 
