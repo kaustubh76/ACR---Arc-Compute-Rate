@@ -361,3 +361,51 @@ Tx `0x09264fc62a69be7394f8a962dce84a5f393115bc7c4dca64e38ed5718bce1875`.
 
 The dry run also earned its keep: unfiltered it would have pulled 1.904305 USDC
 of *working* collateral out of the live series as well.
+
+### The live tape was blank 39% of the time, and the archive showed a dead series
+
+Once the automation was up, the public surfaces were checked rather than
+assumed. Two things were wrong, and the fix for the first is not the obvious one.
+
+**The heartbeat is not hourly.** Both the Python tape client and its TypeScript
+mirror sized their log window on the belief that it is — each comment said 10k
+blocks was "deep enough that the tape still shows the hourly heartbeat's last
+fill". GitHub free-tier *drops* scheduled ticks: the observed gaps were 59m,
+63m, **150m and 209m**. Arc's block time measures **0.510s**, so 10k blocks is
+1.42h of tape. Replaying the real tick times against that window puts the public
+tape at **empty 39.2% of the time** — a "living market" blank two hours in five.
+
+**The window cannot simply be widened.** Arc hard-caps an `eth_getLogs` range,
+and it is a *range* limit rather than a response-size limit — 20000, 40000 and
+100000 blocks are all refused with HTTP 413 no matter how few logs match. Binary
+search against the live RPC puts the cap between **14843 and 15000 blocks**
+(~2.10h). Raising the constant would therefore fail on every call and silently
+degrade to the fallback rung: identical coverage, plus a wasted round trip. The
+tape has to be **paged** — four pages of 14000 blocks, ~7.9h of reach.
+
+**And paging exposed a bug that had been hiding in the fallback ladder.** The
+first attempt still returned one fill, in 16.6s. The ladder narrows the range on
+*any* exception — but Arc answers throttling with **429**, where a narrower
+range is no cure at all: the request was never too big, there were merely too
+many of them. So a throttled page fell through every rung, each one failing for
+a reason narrowing could not fix, and advanced the cursor by 300 blocks instead
+of 14000. A four-page 7.9h walk collapsed to 1264 blocks while paying full retry
+backoff to go nowhere. `_is_range_error` now separates "the node refused the
+size of the range" from "the node refused *us*"; only the former shrinks, and a
+throttle stops paging and keeps what it has. Measured after: **1 fill → 3 fills,
+reaching 6.20h back**.
+
+The first page is also allowed more retries than the rest, because the first
+page *is* the tape and the others are only depth — a shorter tape now beats a
+complete one a minute from now.
+
+Because the tape walk is the most expensive read the desk serves and sits on
+`/futures`, the endpoint the venue's liveness is judged by, it joined the
+background warm and its cache TTL went 30s → 90s to outlive the warm interval.
+
+**The bundle was stale.** `fallback.json` still described series 0 as
+`settled: false` with `open_interest: 3.0` — a series that had settled ten hours
+earlier — on the tier served when everything else is down, which is the one a
+judge on a cold free-tier box is likeliest to hit. Regenerated: series 1,
+unsettled, +155.6h, and 3 real fills instead of 1 (the paging fix flows into the
+snapshot, which uses the same client).

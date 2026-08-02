@@ -258,9 +258,11 @@ only honest verification drives a browser.
 > workflow, confirm it by finding its **runs**
 > (`gh run list --workflow <file>`), never by reading its cron line.
 >
-> Free-tier `cron` is also **late** — the first real heartbeat tick ran the
-> `21:00` slot at `21:51`. Tens of minutes of delay is normal; don't read a
-> missing run in the first half hour as a broken schedule.
+> Free-tier `cron` is also **late**, and it **drops ticks**. The first real
+> heartbeat ran the `21:00` slot at `21:51`, and the observed gaps between
+> ticks were 59m, 63m, 150m and 209m. Tens of minutes of delay is normal;
+> don't read a missing run in the first half hour as a broken schedule — and
+> don't size anything (like the trade tape's window) on the nominal cadence.
 
 A series expires. Two idempotent commands own that, and
 `.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset
@@ -352,6 +354,36 @@ make snapshot
 Regenerates `apps/terminal/lib/fallback.json` through the same code path that
 serves `/terminal/data`, so the offline Terminal edition now ships real
 on-chain provenance instead of the chain-agnostic placeholder.
+
+**Re-run this after every roll or settle.** The bundle is the tier served when
+everything else is down — the one a judge on a cold free-tier box is likeliest
+to hit — so a stale one misrepresents the venue to exactly the wrong audience.
+It sat for a day describing series 0 as `settled: false` with `open_interest:
+3.0` after that series had settled. Check the output names the *live* series:
+
+```sh
+python3 -c "import json,time; d=json.load(open('apps/terminal/lib/fallback.json'));\
+ [print(k, v['series_id'], v['settled'], round((v['expiry_ts']-time.time())/3600,1),'h')\
+  for k,v in (d.get('futures') or {}).items()]"
+```
+
+### Arc's `eth_getLogs` limits — three separate walls
+
+The trade tape reads one event over a block range, and Arc constrains that in
+three ways that look alike and are not:
+
+1. **A string `toBlock`.** `"latest"` over a wide range returns 413; the *same*
+   range with a numeric `toBlock` is accepted. Both readers pass numbers.
+2. **A hard range cap of ~15000 blocks.** Measured by binary search: 14843
+   answers, 15000 returns 413, regardless of how few logs match. This is a range
+   limit, not a response-size limit, so it cannot be dodged by asking for a
+   sparser filter. **The tape's reach can only be extended by paging** — asking
+   for a wider window just fails every time and silently falls back.
+3. **429 throttling.** Looks like the others and is nothing like them: a
+   narrower range is no cure, because the request was never too big. Code that
+   narrows on a 429 walks its cursor a few hundred blocks per attempt and
+   destroys its own reach while paying full retry backoff — see
+   `_is_range_error`, which exists to keep these apart.
 
 ---
 
