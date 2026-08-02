@@ -113,6 +113,28 @@ def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, 
 CHAIN_WARM_SECONDS = float(os.environ.get("ACR_CHAIN_WARM_SECONDS", "60"))
 
 
+async def _rehydrate_provenance(poster) -> None:
+    """Seed the poster's per-index provenance from the on-chain PricePosted log.
+
+    A no-op once populated (``OraclePoster.rehydrate`` refuses to overwrite live
+    state), which is what makes it safe to call on a timer — and it must be on a
+    timer. This used to run exactly once, at startup: the least reliable moment
+    in the process's life, when the RPC is busiest and a cold box is racing
+    everything else it has to warm. One throttled call there and /health reports
+    `poster_last_tx: null` — the product telling visitors "awaiting first live
+    post" while three real posts sit on chain — until the next hourly post
+    repopulates it by accident. That state was live in production.
+    """
+    if poster.last_posts:
+        return
+    try:
+        n = poster.rehydrate(await asyncio.to_thread(poster.client.recent_posts))
+        if n:
+            log.info("re-hydrated poster provenance from %d on-chain posts", n)
+    except Exception:  # pragma: no cover - defensive; the next tick retries
+        log.exception("poster provenance re-hydrate failed")
+
+
 async def _warm_chain(stop: asyncio.Event) -> None:
     """Keep the on-chain read caches warm so no reader ever pays for a cold one.
 
@@ -133,6 +155,13 @@ async def _warm_chain(stop: asyncio.Event) -> None:
         try:
             if reader.configured:
                 await asyncio.to_thread(reader.read_all, use_cache=False)
+                # Cheap while it matters, free once it doesn't: this returns
+                # immediately as soon as provenance is populated. Guard on the
+                # global rather than get_poster(), which would lazily build a
+                # THROWAWAY poster if this tick beat _background's set_poster()
+                # — we'd hydrate an instance nothing else can see.
+                if _poster is not None:
+                    await _rehydrate_provenance(_poster)
             if futures.configured:
                 await asyncio.to_thread(futures.read_all, use_cache=False)
                 # The tape pages back several hours over a throttled RPC, so it
@@ -181,16 +210,8 @@ async def _background(stop: asyncio.Event) -> None:
                 log.info("posted overdue print on wake")
             except Exception:  # pragma: no cover - defensive
                 log.exception("post-on-wake failed (timer loop continues)")
-    # Re-hydrate poster provenance from the PricePosted log after a cold start
-    # (last_posts is in-memory; a slept-through Render box would otherwise show
-    # "awaiting first live post" until the next hourly slot).
-    if reader.configured and not poster.last_posts:
-        try:
-            n = poster.rehydrate(await asyncio.to_thread(poster.client.recent_posts))
-            if n:
-                log.info("re-hydrated poster provenance from %d on-chain posts", n)
-        except Exception:  # pragma: no cover - defensive
-            log.exception("poster provenance re-hydrate failed")
+    if reader.configured:
+        await _rehydrate_provenance(poster)
     # Warm the on-chain attestation summary too (catalog reads it) off-request.
     try:
         from .marketplace import warm_attestation_summary

@@ -175,6 +175,42 @@ def test_poster_rehydrates_provenance_from_onchain_events(small_store):
     assert OraclePoster(small_store).rehydrate([]) == 0
 
 
+def test_provenance_rehydrate_survives_a_failed_first_attempt(small_store):
+    """The retry is the fix, not the rehydrate itself.
+
+    This ran exactly once, at startup — the least reliable moment in the
+    process's life, when the RPC is busiest and a cold box is warming
+    everything at once. One throttled call there left /health reporting
+    `poster_last_tx: null` while real posts sat on chain, until the next hourly
+    post repopulated it by accident. That state was live in production.
+    """
+    import asyncio
+
+    from index_api.app import _rehydrate_provenance
+
+    poster = OraclePoster(small_store)
+    calls = {"n": 0}
+
+    def flaky_recent_posts():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("429 Too Many Requests")
+        return [{"index_id": "ACR-INF", "tx": "0xok", "block": 3, "at_wall": 30.0}]
+
+    poster.client.recent_posts = flaky_recent_posts  # type: ignore[method-assign]
+
+    asyncio.run(_rehydrate_provenance(poster))  # throttled — must not raise
+    assert poster.last_posts == {}, "a failed attempt must leave nothing behind"
+
+    asyncio.run(_rehydrate_provenance(poster))  # the next tick repairs it
+    assert poster.last_posts["ACR-INF"]["tx"] == "0xok"
+
+    # And once populated it costs nothing, which is what makes it safe on a timer.
+    before = calls["n"]
+    asyncio.run(_rehydrate_provenance(poster))
+    assert calls["n"] == before
+
+
 def test_snapshot_builder_embeds_bundle_sections():
     payload: dict = {}
     gen_snapshot.embed_bundle_sections(payload)

@@ -36,7 +36,15 @@ jobs:
       ACR_FUTURES_ADDRESS: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
       ROLL_INDEX: ACR-INF
       ROLL_EXPIRY_DAYS: "7"
-      ROLL_MIN_LIFE_H: "24"
+      # Roll three days out, not one. GitHub drops most scheduled ticks on this
+      # repo — measured over 24h, keepalive ran 17 of its 144 slots and this
+      # workflow 6 of 24, with gaps up to 3.4h. A 24h window therefore offered
+      # only a handful of chances to open the successor, and if they were all
+      # dropped the series would expire with nothing to replace it: the desk
+      # 409s "no open series" and the entire trading surface dies. Rolling early
+      # costs nothing — futures_roll.py no-ops on a healthy venue — so buy the
+      # margin.
+      ROLL_MIN_LIFE_H: "72"
       ROLL_COLLATERAL: "1.5"
     steps:
       - uses: actions/checkout@v4
