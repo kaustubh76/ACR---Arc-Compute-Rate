@@ -25,6 +25,10 @@ import time
 from acr_oracle_client import FuturesClient, OracleClient, select_series_for_index
 from acr_oracle_client.futures import _rpc_retry
 
+# The desk's own margin arithmetic, reused rather than re-derived: it clamps
+# against BOTH the taker's and the auto-mirrored maker's margin checks.
+from index_api.desk import feasible_qty
+
 RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.testnet.arc.network")
 FUTURES = os.environ.get("ACR_FUTURES_ADDRESS", "")
 ORACLE = os.environ.get("ACR_ORACLE_ADDRESS", "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609")
@@ -126,6 +130,9 @@ def main() -> None:
         print(f"no LIVE series for {INDEX} — it may have expired; run `make futures-roll`")
         sys.exit(1)
     sid, mult = series["series_id"], series["multiplier"]
+    # The counterparty every fill mirrors onto — its collateral bounds this
+    # loop just as much as the taker's.
+    maker_addr = w3.to_checksum_address(series["maker"])
 
     def native_bal() -> float:
         return _rpc_retry(w3.eth.get_balance, taker.address) / 1e18
@@ -194,17 +201,34 @@ def main() -> None:
                 break
             pos = fc.position_of(sid, taker.address)
             coll = fc.collateral_of(sid, taker.address)
-            if pos is None or coll is None:  # bad read — don't trade on assumed-zero
+            maker_pos = fc.position_of(sid, maker_addr)
+            maker_coll = fc.collateral_of(sid, maker_addr)
+            if None in (pos, coll, maker_pos, maker_coll):
+                # bad read — don't trade on assumed-zero (either side)
                 raise RuntimeError("position/collateral read failed")
             inv = pos["contracts"]
             mark = (oracle.read_latest(INDEX) or {}).get("value") or (series["settlement_price"] or 0.5)
 
-            # Clamp the band to the collateral's margin headroom (never breach).
-            per_contract_margin = max(mark * mult * margin_bps / 1e4, 1e-9)
-            headroom = int((coll * MARGIN_SAFETY) / per_contract_margin)
-            band = max(1, min(BAND, headroom))
+            # Clamp against BOTH sides. Every taker fill auto-mirrors onto the
+            # maker, so the maker's collateral caps this loop as surely as the
+            # taker's — and it is usually the tighter of the two. Sizing from
+            # the taker alone let the loop propose trades the contract would
+            # reject with `maker margin`: a wall it could not see. feasible_qty
+            # is the desk's own already-tested arithmetic for exactly this; a
+            # second copy of margin maths is a second thing to get wrong.
+            max_buy, max_sell = feasible_qty(
+                mark, mult, margin_bps, coll, inv, maker_coll, maker_pos["contracts"]
+            )
+            band = max(1, min(BAND, int(min(max_buy + inv, max_sell - inv))))
 
             qty = choose_qty(inv, band)
+            # Never propose more than the venue will take right now.
+            qty = int(max(-int(max_sell), min(int(max_buy), qty)))
+            if qty == 0:
+                print(f"  · no feasible size (buy {max_buy:.2f} / sell {max_sell:.2f}) — "
+                      "the book is at its margin limit; skipping")
+                time.sleep(INTERVAL)
+                continue
             fc.trade(sid, float(qty))
             done += 1
             fails = 0
@@ -234,10 +258,12 @@ def main() -> None:
         time.sleep(INTERVAL + random.uniform(0, min(20.0, INTERVAL * 0.15)))
 
     print(f"  done — {done} trades over {(time.monotonic() - start) / 60:.1f} min")
-    # A heartbeat that beat zero times must not report success. `--once` can
-    # exhaust its attempts without landing a fill, so without this the workflow
-    # goes green while the book has stopped moving — the worst kind of green.
-    if once and done == 0:
+    # A heartbeat that beat zero times must not report success — in ANY mode.
+    # This used to be gated on `once`, which was fine while the workflow passed
+    # --once and wrong the moment it stopped: a multi-fill run that landed
+    # nothing would have gone green while the book sat still. That is the exact
+    # "green that isn't" the guard exists to prevent.
+    if done == 0:
         print("  ✗ heartbeat traded nothing — failing so the run is visibly red")
         sys.exit(1)
 
