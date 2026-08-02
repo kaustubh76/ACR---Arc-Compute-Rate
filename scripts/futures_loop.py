@@ -75,6 +75,22 @@ def choose_qty(inv: float, band: int) -> int:
     return int(qty)
 
 
+def _read_collateral(fc, sid: int, address: str, tries: int = 4) -> float | None:
+    """This wallet's collateral on ``sid``, or **None if the chain would not
+    say**. The distinction is the whole point: a read that failed and a balance
+    that is genuinely zero call for opposite actions — wait, versus spend."""
+    for attempt in range(1, tries + 1):
+        try:
+            v = fc.collateral_of(sid, address)
+        except Exception:
+            v = None
+        if v is not None:
+            return float(v)
+        if attempt < tries:
+            time.sleep(3.0 * attempt)
+    return None
+
+
 def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)  # observable: flush each line to the log
     once = "--once" in sys.argv
@@ -119,7 +135,19 @@ def main() -> None:
     # normal state right after a roll — the stake sits on the retired series.
     # Self-provision rather than requiring a human after every roll, which would
     # make the lifecycle automation a lie; refuse only when it truly can't.
-    taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
+    # A THROTTLED READ IS NOT ZERO. `collateral_of` returns None when the RPC
+    # refuses, and `None or 0.0` used to flatten that into "no collateral" —
+    # so a 429 made this decide to spend LOOP_COLLATERAL that was already
+    # posted. It happened: the taker held 3.00 USDC on series 1 and the
+    # heartbeat announced "no collateral (new series?)" and tried to post 3.00
+    # more. The post 429'd too, which is the only reason no money moved. The
+    # tick loop below has always drawn this distinction ("don't trade on
+    # assumed-zero"); the provisioning path must draw it before spending.
+    taker_collateral = _read_collateral(fc, sid, taker.address)
+    if taker_collateral is None:
+        print(f"  ⏹ could not read collateral on series {sid} after retries — refusing to "
+              "post a stake that may already be there")
+        sys.exit(1)
     if taker_collateral <= 0:
         free = native_bal()
         want = min(LOOP_COLLATERAL, free - GAS_FLOOR)
@@ -129,15 +157,27 @@ def main() -> None:
                   f"fund it, or check TAKER_PRIVATE_KEY matches the funded taker")
             sys.exit(1)
         print(f"  · no collateral on series {sid} (new series?) — posting {want:.2f} USDC")
-        try:
-            fc.post_collateral(sid, want)
-        except Exception as exc:
-            print(f"  ✗ could not post collateral: {str(exc)[:120]}")
+        # Retry the write for the same reason the tick loop retries: Arc 429s
+        # routinely, and a heartbeat that goes red on the first flake is red
+        # most hours, which teaches everyone to ignore it.
+        posted = False
+        for attempt in range(1, ONCE_ATTEMPTS + 1):
+            try:
+                fc.post_collateral(sid, want)
+                posted = True
+                break
+            except Exception as exc:
+                print(f"  · post attempt {attempt}/{ONCE_ATTEMPTS} failed — {str(exc)[:90]}")
+                if attempt < ONCE_ATTEMPTS:
+                    time.sleep(5.0 * attempt)
+        if not posted:
+            print("  ✗ could not post collateral after retries")
             sys.exit(1)
-        taker_collateral = fc.collateral_of(sid, taker.address) or 0.0
-        if taker_collateral <= 0:
+        landed = _read_collateral(fc, sid, taker.address)
+        if not landed:
             print("  ✗ collateral did not land — refusing to trade into a margin revert")
             sys.exit(1)
+        taker_collateral = landed
     print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
           f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
 
