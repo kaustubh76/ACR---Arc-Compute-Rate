@@ -187,40 +187,29 @@ export function FuturesDesk({
         </div>
       )}
 
-      <Ed
-        as="p"
-        className="muted"
-        style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
-        x={
+      <p className="muted" style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}>
+        <Ed
+          x={
+            <>
+              Every fill is mirrored by the maker; at expiry positions cash-settle against{" "}
+              <span className="mono">ACROracle.latestPrint</span> on-chain — no delivery needed.
+            </>
+          }
+          p={
+            <>
+              Every trade is matched by the dealer; at the deadline each contract{" "}
+              <Term k="cash-settled">pays out in cash</Term> against the official on-chain rate.
+            </>
+          }
+        />
+        {venue ? (
           <>
-            Every taker fill is mirrored by the maker, so the book nets to zero; at expiry each
-            position <Term k="cash-settled">cash-settles</Term> against{" "}
-            <span className="mono">ACROracle.latestPrint</span> on-chain — no delivery, no seller
-            cooperation. The tape above is live on-chain fills; the term structure skews around this
-            exact inventory.
-            {venue ? (
-              <>
-                {" "}
-                Venue <AddressChip address={venue} explorer={explorer} copy={false} />.
-              </>
-            ) : null}
+            {" "}
+            <Ed x="Venue" p="Contract" />{" "}
+            <AddressChip address={venue} explorer={explorer} copy={false} />.
           </>
-        }
-        p={
-          <>
-            Every buy is matched by the dealer, so the book always balances; at the deadline each
-            contract pays out in cash against the official on-chain rate — no delivery, no seller
-            needed. The tape above is real trades; the price corridor leans with whatever the dealer
-            is holding.
-            {venue ? (
-              <>
-                {" "}
-                Contract <AddressChip address={venue} explorer={explorer} copy={false} />.
-              </>
-            ) : null}
-          </>
-        }
-      />
+        ) : null}
+      </p>
     </section>
   );
 }

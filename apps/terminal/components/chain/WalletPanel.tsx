@@ -99,14 +99,14 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
         <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
           {error ? (
             <Ed
-              x="Balances are unreachable right now — the terminal keeps retrying; standings resume automatically."
-              p="Balances are unreachable right now — this page keeps retrying; they resume automatically."
+              x="Balances are unreachable right now — the terminal keeps retrying automatically."
+              p="Balances are unreachable right now — this page keeps retrying automatically."
             />
           ) : (
             data?.note ?? (
               <Ed
-                x="Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) against the Circle gate to watch the Gateway deposit draw down in real time."
-                p="Connect a funded buyer key (ACR_BUYER_PRIVATE_KEY) against the real Circle paywall to watch its deposit draw down in real time."
+                x="Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) to watch the Gateway deposit draw down live."
+                p="Add a funded buyer key (ACR_BUYER_PRIVATE_KEY) to watch its Circle deposit draw down live."
               />
             )
           )}

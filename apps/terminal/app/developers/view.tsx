@@ -69,7 +69,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           className="standfirst"
           style={{ margin: 0 }}
           x="The index about machine commerce is bought by machines — every query is a Nanopayment."
-          p="This data is sold the way it is made: machine to machine. Software pays a fraction of a cent per question, automatically — no account, no API key."
+          p="Sold the way it is made, machine to machine — software pays a fraction of a cent a question, no account, no API key."
         />
       </div>
 
@@ -107,21 +107,15 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         x={
           <>
             On the dev gate the console pays a mock header; on the{" "}
-            <span className="mono">circle</span> gate, with a funded buyer configured,{" "}
-            <b>Settle for real</b> signs an EIP-3009 authorization and settles through Circle
-            Gateway right here. The same buyer runs as a batch from the{" "}
-            <a href="/exchange">Exchange</a>, and <span className="mono">apps/agent</span> (
-            <span className="mono">make agent-live</span>) is its out-of-process twin.
+            <span className="mono">circle</span> gate, <b>Settle for real</b> signs EIP-3009 and
+            settles through Circle Gateway.
           </>
         }
         p={
           <>
-            In practice mode the console pays with a stand-in token. Against the real Circle
-            paywall, with a funded buyer configured, <b>Settle for real</b>{" "}
-            <Term k="eip3009">signs a digital check</Term> and actual money moves, right here. The
-            same buyer runs as a batch from the <a href="/exchange">shop floor</a>, and{" "}
-            <span className="mono">apps/agent</span> (<span className="mono">make agent-live</span>)
-            is its stand-alone twin.
+            In practice mode the console pays a stand-in token; on the real paywall,{" "}
+            <b>Settle for real</b> <Term k="eip3009">signs a digital check</Term> and real money
+            moves.
           </>
         }
       />

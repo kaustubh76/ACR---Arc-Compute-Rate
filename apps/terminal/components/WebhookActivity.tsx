@@ -154,8 +154,8 @@ export function WebhookActivity() {
             <Ed x="press unreachable" p="server unreachable" />
           </span>
           <Ed
-            x="The webhook feed can’t be read right now — the index API isn’t answering. Retrying automatically; events resume the moment the press wakes."
-            p="The feed can’t be read right now — our server isn’t answering. Retrying automatically; events resume the moment it wakes."
+            x="The webhook feed can’t be read right now — retrying automatically; events resume when the press wakes."
+            p="The feed can’t be read right now — retrying automatically; pings resume when our server wakes."
           />
         </p>
       ) : (
@@ -163,20 +163,18 @@ export function WebhookActivity() {
           <Ed
             x={
               <>
-                No webhook events yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
-                <span className="mono">POST /webhooks/circle</span> (expose it with{" "}
-                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>) —
-                deliveries print here with their P-256 signature verified against Circle&rsquo;s
-                pinned public key.
+                No events yet — point a Circle <b>Programmable Wallets</b> webhook at{" "}
+                <span className="mono">POST /webhooks/circle</span> (expose it:{" "}
+                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>);
+                deliveries print here, signature-verified.
               </>
             }
             p={
               <>
-                No pings yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
-                <span className="mono">POST /webhooks/circle</span> (expose it with{" "}
-                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>) —
-                each delivery prints here after its signature is checked against Circle&rsquo;s
-                published key.
+                No pings yet — point a Circle webhook at{" "}
+                <span className="mono">POST /webhooks/circle</span> (expose it:{" "}
+                <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>);
+                each one prints here after its signature check.
               </>
             }
           />

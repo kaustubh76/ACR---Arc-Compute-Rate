@@ -140,7 +140,7 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
     parts.push(
       <span key="tape" className={simTape ? "chip chip-sim" : undefined} title={
         simTape
-          ? "the estimator, the signature and the on-chain print are real; the settlement flow they run over is a calibrated simulation"
+          ? "estimator, signature and on-chain print are real — the settlement flow underneath is simulated"
           : `index computed from the ${c.tapeSource} tape`
       }>
         <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>

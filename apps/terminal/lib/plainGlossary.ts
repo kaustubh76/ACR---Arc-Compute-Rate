@@ -193,7 +193,7 @@ export const GLOSSARY_THEMES: GlossaryTheme[] = [
   "blockchain",
 ];
 
-/* The front page's plain-only rail: the whole story in five beats, no term
+/* The front page's plain-only rail: the whole story in six beats, no term
    of art anywhere. Rendered by components/PlainPrimer.tsx. */
 export interface PrimerBeat {
   head: string;
@@ -203,26 +203,26 @@ export interface PrimerBeat {
 export const PRIMER_BEATS: PrimerBeat[] = [
   {
     head: "The problem",
-    body: "Machines now buy AI work from other machines and pay in digital dollars. There is no trustworthy going rate — and a fake one is cheap to stage with bogus trades.",
+    body: "Machines now buy AI work from machines, but there is no trustworthy going rate — and a fake one is cheap to stage.",
   },
   {
     head: "The estimate",
-    body: "ACR reads every payment on the Arc network — delayed, noisy, salted with fakes — and works out the honest market rate for each service. That is the big number above.",
+    body: "ACR reads every payment on the Arc network — noisy, salted with fakes — and works out the honest rate; that is the big number above.",
   },
   {
     head: "The print",
-    body: "Once an hour the rate is signed and posted to a public scoreboard on the blockchain. Contracts read it there and settle real money against it.",
+    body: "Once an hour the rate is signed and posted to a public scoreboard on the blockchain, where contracts settle real money against it.",
   },
   {
     head: "The money",
-    body: "The index earns its keep the way it is made: software pays a fraction of a cent per question, automatically. No accounts, no keys — payment rides in the web request.",
+    body: "Software pays a fraction of a cent per question, automatically — no accounts, no keys, the payment rides in the web request.",
   },
   {
     head: "The bill for cheating",
-    body: "Fakes get filtered, extremes get ignored, and every rate ships with the literal dollar cost of bending it 0.01%. Cheating is not impossible — it is just priced.",
+    body: "Fakes get filtered, extremes get ignored — and every rate ships with the literal dollar cost of bending it 0.01%: cheating is priced.",
   },
   {
     head: "The desk",
-    body: "You can trade on the rate yourself: make a small wallet protected by a PIN, take 50 cents of test money, place a real trade, and take your money back whenever you like. Only your PIN can move it. The test money is ours, and so is the trader on the other side.",
+    body: "Make a PIN-protected wallet, take 50 cents of our test money, place a real trade against our own bot, and take it back any time.",
   },
 ];

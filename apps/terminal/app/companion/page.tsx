@@ -19,13 +19,13 @@ export default function CompanionPage() {
       <div className="standfirst-block" style={{ marginTop: 40 }}>
         <p className="standfirst" style={{ margin: 0 }}>
           Every term this paper uses, in one line each — with the everyday analogy that makes it
-          stick. No prior knowledge assumed.
+          stick, no prior knowledge assumed.
         </p>
       </div>
 
       <section className="section">
         <div className="section-head">
-          <span className="label">The whole thing in five beats</span>
+          <span className="label">The whole thing in six beats</span>
         </div>
         <div className="primer-rail">
           {PRIMER_BEATS.map((b) => (
@@ -57,10 +57,8 @@ export default function CompanionPage() {
 
       <section className="section">
         <p className="muted" style={{ fontSize: 13, maxWidth: 68 * 9 }}>
-          This page is the live rendering of the project’s canonical plain-English glossary
-          (<span className="mono">docs/GLOSSARY.md</span>, coverage-checked in CI). For the same
-          treatment applied to the whole paper, flip the masthead to{" "}
-          <b>plain</b> — every page re-sets its type, every number stays identical.
+          The paper’s canonical glossary (<span className="mono">docs/GLOSSARY.md</span>) — flip
+          the masthead to <b>plain</b> and every page gets this treatment, numbers identical.
         </p>
         <p style={{ marginTop: 16 }}>
           <Link href="/" className="section-link">
