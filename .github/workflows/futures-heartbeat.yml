@@ -1,24 +1,36 @@
 name: futures-heartbeat
 
-# Keeps the on-chain futures book alive: one mean-reverting trade per tick against
+# Keeps the on-chain futures book alive: mean-reverting trades against
 # the deployed ACRFutures venue, so the /curve desk (inventory / OI / mark-to-oracle
 # PnL) stays live 24/7 without a local process. Reuses the crash-proof, RPC-429-
-# hardened, margin-bounded scripts/futures_loop.py --once.
+# hardened, margin-bounded scripts/futures_loop.py.
 #
-# COST — GitHub bills each run rounded UP to the minute. Hourly ≈ 24 runs/day ×
-# ~1–2 min ≈ up to ~1,440 min/month worst-case (less in practice: uv caching +
-# GitHub throttles free-tier schedules). To change it, edit the one cron line:
+# COST — GitHub bills each run rounded UP to the minute. A scheduled run is
+# ~2.5 min (six fills at 15s), and in practice GitHub fires this 4-8 times a
+# day rather than 24, so the real spend is far below the nominal ceiling.
+# To change the cadence, edit the one cron line:
 #   "0 * * * *"    hourly        (~≤1,440 min/mo)   ← current
 #   "0 */2 * * *"  every 2 hours (~half)
 #   "*/30 * * * *" every 30 min  (~double — watch the free 2,000-min tier)
-# NOTE: this only trades once an hour, so the *tape* (recent fills) shows a fill
-# for its ~17-min window after each tick; the *desk* stays live continuously. Run
-# the local loop (scripts/futures_loop.py) for a continuously-scrolling tape.
+# NOTE: GitHub drops most scheduled ticks on this repo (measured: 4-8 runs a day,
+# not 24), so each run lands SIX fills rather than one — that is what keeps the
+# public tape's 24 rows populated across its ~7.9h window instead of showing
+# three or four. Dispatch it by hand with a larger `trades` input to refill the
+# tape immediately.
 
 on:
   schedule:
     - cron: "0 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      trades:
+        description: "Fills to land this run (a burst to fill the public tape)"
+        type: string
+        default: "12"
+      interval:
+        description: "Seconds between fills"
+        type: string
+        default: "12"
 
 permissions:
   contents: read
@@ -33,12 +45,23 @@ jobs:
     # Base repo only — forks never carry the secret and must not run this.
     if: github.repository == 'kaustubh76/ACR---Arc-Compute-Rate'
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    # Generous enough for a hand-dispatched burst; a scheduled run finishes in
+    # about two and a half minutes.
+    timeout-minutes: 14
     env:
       ACR_ARC_RPC_URL: https://rpc.testnet.arc.network
       ACR_ORACLE_ADDRESS: "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609"
       ACR_FUTURES_ADDRESS: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
       LOOP_BAND: "4"
+      # SIX fills a run, not one. The public tape renders 24 rows over a ~7.9h
+      # window, and GitHub fires this 4-8 times a day — so one fill per run left
+      # a market surface showing three or four trades. `inputs.*` is empty on a
+      # scheduled run, so the fallbacks are the steady-state cadence.
+      LOOP_MAX_TRADES: ${{ inputs.trades || '6' }}
+      LOOP_INTERVAL: ${{ inputs.interval || '15' }}
+      # Hard stop well inside the job timeout: the loop must never be the thing
+      # that hangs the runner.
+      LOOP_DURATION: "600"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -47,7 +70,7 @@ jobs:
           enable-cache: true
       - name: Sync workspace
         run: uv sync --all-packages
-      - name: One mean-reverting fill
+      - name: Mean-reverting fills
         env:
           TAKER_PRIVATE_KEY: ${{ secrets.ACR_FUTURES_TAKER_KEY }}
           # Trade the index that actually has a series. This used to rotate over
@@ -55,4 +78,4 @@ jobs:
           # with no series at all and the workflow failed — noise that would
           # have masked a real outage. Add indices here as they are seeded.
           SEED_INDEX: ACR-INF
-        run: uv run python scripts/futures_loop.py --once
+        run: uv run python scripts/futures_loop.py
