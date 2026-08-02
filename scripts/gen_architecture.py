@@ -153,6 +153,8 @@ def build() -> None:
     text(80, 40, "ACR — THE ARC COMPUTE RATE", 32, INK, w=1100, bold=True)
     text(80, 92, "A manipulation-resistant benchmark family for machine commerce · "
                  "one estimand · four pillars · settlement-grade on-chain rate", 15, GRAY, w=1600)
+    text(80, 116, "◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · "
+                  "Seller API on Render · hourly Circle-signed oracle posts", 13, GREEN, w=1600, bold=True)
 
     zone(2860, 40, 620, 250, "LEGEND", GRAY)
     legend = [
@@ -182,7 +184,7 @@ def build() -> None:
           "a first-class contaminated input"], RED)
     card("a_tape", 80, 856, 560, 120, "TapeSource (ABC)",
          ["SimSource — calibrated simulator", "ArcSource — Arc 5042002 live decode",
-          "offline-tolerant · same estimator both"], TEAL)
+          "attested-market: amount = price · non-attested dropped"], TEAL, body_size=12)
 
     # ---------- B · ESTIMATOR CORE ----------
     zone(720, 300, 1480, 900, "B · ESTIMATOR CORE — one estimand: the latent price of machine services", BLUE)
@@ -241,13 +243,13 @@ def build() -> None:
           "maker mirrors every taker → net OI = 0 · 20% margin",
           "USDC collateral · Traded tape · socialized-loss settle"], GREEN, body_size=12)
     card("d_mm", 2260, 1258, 510, 96, "MARKET MAKER (Avellaneda–Stoikov)",
-         ["r = s − q·γ·σ²·(T−t) · seeds the on-chain book",
-          "futures_loop.py / futures_seed.py",
-          "maker inventory skews the term-structure curve"], GREEN, body_size=12)
+         ["r = s − q·γ·σ²·(T−t) · inventory skews the curve",
+          "24/7 heartbeat cron seeds + keeps the book live",
+          "futures_loop.py · futures-heartbeat/lifecycle.yml"], GREEN, body_size=12)
     card("d_desk", 2260, 1360, 510, 96, "PUBLIC DESK",
          ["readers trade ACRFutures via Circle user-controlled wallet",
-          "PIN ceremony · SCA · Gas-Station gas",
-          "desk.py · /desk/* · the server never holds the key"], GREEN, body_size=12)
+          "PIN ceremony · SCA · Gas-Station gas · no server key",
+          "desk.py · /desk/* · per-identity rate-limited"], GREEN, body_size=12)
 
     # ---------- E · DISTRIBUTION ----------
     zone(720, 1250, 1480, 360, "E · DISTRIBUTION (self-referential · x402-monetized)", PURPLE)
@@ -270,8 +272,8 @@ def build() -> None:
          ["apps/agent — TS · viem · GatewayClient", "DevPayer | GatewayPayer · USDC spend cap",
           "discovers catalog → pays per query → receipts", "interop.ts (12-check conformance)"], PURPLE)
     card("k_webhooks", 1660, 1682, 510, 168, "CIRCLE WEBHOOKS",
-         ["/webhooks/circle — settlement events", "→ SettlementTape on the Terminal",
-          "in-app floor buyer: /demo/buyer/*", "webhooks.py · buyer_demo.py"], PURPLE)
+         ["/webhooks/circle — settlement events", "P-256 (ECDSA) signature verified",
+          "→ SettlementTape · in-app floor buyer /demo/buyer/*", "webhooks.py · buyer_demo.py"], PURPLE)
 
     # ---------- G · RED TEAM / LIVE DEMO ----------
     zone(60, 1150, 620, 300, "G · RED TEAM / LIVE DEMO", RED)
@@ -284,21 +286,26 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1500, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1552, 510, 180, "TESTS · 230 py + 50 forge",
-         ["+ agent TS + terminal + interop conformance", "eval gate: VWAP 107–123% · ACR <3% → 50–560×",
-          "glossary gate · ruff · GitHub CI · make deck", "hermetic conftest (Circle mocked)"], GRAY)
+    card("h_tests", 2260, 1552, 510, 180, "TESTS · 230 py + 50 forge + 50 node",
+         ["4 CI jobs: python · contracts · agent · terminal", "anvil-gated on-chain integration · eval gate",
+          "glossary gate · ruff · make deck · keepalive cron", "hermetic conftest (Circle mocked)"], GRAY, body_size=12)
 
     # ---------- Judge Fit + Demo Metrics (far right) ----------
     card("j_judge", 2860, 320, 620, 240, "JUDGE FIT (surgical)",
          ["ICE administers LIBOR via IBA — on Arc roster", "Apollo · BNY · Mastercard: benchmark-native",
           "SOFR was methodology-first, liquidity-second", "the rate's administrator ≠ the rail's operator",
           "(the LIBOR neutrality lesson = the moat)"], GOLD)
-    card("j_metrics", 2860, 590, 620, 470, "DEMO-DAY METRICS",
-         ["methodology paper published (OSS)", "N hourly prints live on-chain",
-          "attack-cost-per-bp on EVERY print", "X wash attacks absorbed (red-team)",
-          "naive-VWAP err  vs  ACR err  (chart)", "live future quotes + Y settled trades",
-          "5+ sellers attested on-chain", "100% Foundry invariants passing",
-          "230 python + 50 forge tests green"], INK)
+    card("j_metrics", 2860, 590, 620, 470, "DEMO-DAY METRICS · LIVE ON ARC",
+         ["Terminal (Vercel) · Seller API (Render) · chain 5042002",
+          "ACROracle            0x4f00…2609",
+          "AttestationRegistry  0x23ae…dFb7",
+          "ACRFutures           0x29d9…42fe · series 0 seeded",
+          "hourly Circle-custody-signed oracle posts",
+          "real x402 settled via Circle Gateway (live receipts)",
+          "attack-cost-per-bp on EVERY print",
+          "naive-VWAP err vs ACR err → 50–560×",
+          "100% Foundry invariants passing",
+          "230 python · 50 forge · 50 node tests green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
