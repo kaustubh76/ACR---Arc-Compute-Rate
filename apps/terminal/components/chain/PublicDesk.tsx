@@ -347,7 +347,14 @@ export function PublicDesk({
       for (let i = 0; i < 12; i++) {
         const live = await refreshLimits(address, indexId);
         if (live && Math.abs(live.contracts - before) > 1e-9) {
-          void refreshExit(address);
+          // AWAIT the exit refresh: opening a position pins most of the stake
+          // as margin, so the withdraw button's number is wrong the instant
+          // the fill lands. Fire-and-forget left it showing the pre-trade
+          // figure — a real run offered "WITHDRAW 0.50 USDC" two seconds
+          // after a trade that had left only 0.05 free. The server re-reads
+          // and withdraws the correct amount, so the money was never at risk;
+          // the button was just making a promise the venue would not keep.
+          await refreshExit(address);
           return;
         }
         await new Promise((r) => setTimeout(r, 2500));

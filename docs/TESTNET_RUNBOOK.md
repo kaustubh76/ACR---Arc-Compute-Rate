@@ -406,3 +406,36 @@ three ways that look alike and are not:
   authoritative tx list.
 - **Faucet rate limits**: the Circle faucet caps requests per address per day;
   fund both the poster and the buyer early.
+
+### The full ceremony, proven on production — 2026-08-02
+
+Wallet `0xdd2112121d004c780d714d59736db13b663b31e0` (Circle user
+`acr-desk-96edcb21…`), driven end to end through the browser under a PIN:
+
+| Step | Result |
+|---|---|
+| PIN ceremony | SCA created — Create PIN → Re-enter → Recovery method → questions → Summary → typing **"I agree"** |
+| faucet | 0.5 USDC from custody |
+| `approve` + `postCollateral` | wallet 0.5 → 0.0, venue holds 0.5 on series 1 |
+| `trade` | **long 0.45 @ 0.49533** on chain |
+| `withdrawCollateral` | free 0.0515 → 0.0026; wallet 0.051489 |
+
+The withdrawal takes only the **free** margin, not the whole stake: 0.45
+contracts pin 0.448511 USDC as initial margin, exactly as the contract
+requires. That is the desk working correctly, not a partial failure.
+
+**Two bugs this run found, both invisible to endpoint checks:**
+
+1. `refreshWallet` decided the phase from **spendable** balance, so a reader
+   who posted their whole stake (0.00 left — the ordinary happy path) was
+   demoted to "unfunded" on the next poll and shown no trade button, while
+   `/desk/limits` was offering `max_buy: 0.45`. Fixed in
+   `apps/terminal/lib/deskPhase.ts`, now a pure tested function.
+2. The withdraw button showed the **pre-trade** free amount for a moment after
+   a fill — offering "WITHDRAW 0.50 USDC" when 0.05 was free. The server
+   re-reads and withdraws the right amount, so no money was at risk, but the
+   button was promising what the venue would refuse.
+
+Both survived earlier runs because the first live trade happened in the same
+page session as the deposit. **Re-run `make desk-e2e` after any change to the
+desk's phase machine** — endpoint checks cannot see either of these.
