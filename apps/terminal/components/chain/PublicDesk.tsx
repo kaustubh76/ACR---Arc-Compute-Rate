@@ -5,6 +5,7 @@ import { AddressChip } from "./AddressChip";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
 import type { FuturesDeskRow } from "@/lib/types";
+import { deskPhase, type DeskPhase } from "@/lib/deskPhase";
 
 /* The Public Desk — the reader takes a REAL position on ACRFutures with a
    Circle user-controlled wallet (SCA on Arc, PIN-secured in Circle's hosted
@@ -16,7 +17,9 @@ import type { FuturesDeskRow } from "@/lib/types";
    Demo-grade session persistence: the desk user id + step flags live in
    localStorage so a revisit resumes; tokens are re-minted per session. */
 
-type Phase = "closed" | "opening" | "pin" | "unfunded" | "collateral" | "trading";
+// The phase machine lives in lib/deskPhase so the decision a returning
+// reader depends on can be unit-tested; see deskPhase.test.ts.
+type Phase = DeskPhase;
 
 interface Session {
   app_id: string;
@@ -197,10 +200,10 @@ export function PublicDesk({
       setSession({ ...s, wallet: w.wallet });
       setUsdc(w.usdc);
       const collateralized = localStorage.getItem(COLLAT_KEY) === address;
-      setPhase(w.usdc && w.usdc > 0 ? (collateralized ? "trading" : "collateral") : "unfunded");
-      // A wallet with a spent balance looks "unfunded", but if that balance
-      // went into MARGIN it is already trading — ask the venue rather than
-      // stranding a returning reader whose localStorage was cleared.
+      setPhase(deskPhase({ usdc: w.usdc, collateralized }));
+      // If localStorage was cleared (or this is a different browser), ask the
+      // venue rather than stranding a reader whose money is demonstrably
+      // posted.
       if (!(w.usdc && w.usdc > 0) && !collateralized) {
         const live = await api<Limits>("/api/desk/limits", {
           address,
