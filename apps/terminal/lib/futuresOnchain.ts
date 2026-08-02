@@ -337,9 +337,26 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
   }
 
   const desks: FuturesRoster["desks"] = {};
-  const readDesk = async (id: string, gap: number): Promise<boolean> => {
+
+  /** The series this index should publish, or null if it should publish none.
+   *
+   *  `selectSeriesForIndex` falls back to a SETTLED series when it sees no live
+   *  one, which is right for a complete crawl — between an expiry and the next
+   *  roll a settled series genuinely is the venue's latest. It is wrong for a
+   *  PARTIAL one: if the throttle ate `getSeries(1)`, "no live series" only
+   *  means we never saw it, and publishing series 0 shows a dead market as the
+   *  live desk. Seen on production — the tier advertised settled series 0 while
+   *  series 1 had 155h to run. Publish nothing instead and let the ladder fall
+   *  to the bundle, which carries the real live series. */
+  const deskCandidate = (id: string): SeriesInfo | null => {
     const s = selectSeriesForIndex(series, id);
-    if (!s) return true; // genuinely no series for this index — not a miss
+    if (!s) return null;
+    return s.settled && partial ? null : s;
+  };
+
+  const readDesk = async (id: string, gap: number): Promise<boolean> => {
+    const s = deskCandidate(id);
+    if (!s) return true; // nothing publishable for this index — not a miss
     try {
       const sid = BigInt(s.series_id);
       const maker = s.maker as `0x${string}`;
@@ -360,9 +377,7 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
     await sleep(RPC_GAP_MS);
   }
   // Second pass at 2× gap for whatever the throttle ate (onchain.ts pattern).
-  const missed = INDICES.filter(
-    (id) => !(id in desks) && selectSeriesForIndex(series, id) !== null,
-  );
+  const missed = INDICES.filter((id) => !(id in desks) && deskCandidate(id) !== null);
   if (missed.length > 0 && missed.length < INDICES.length) {
     await sleep(RPC_GAP_MS * 2);
     for (const id of missed) {
@@ -370,9 +385,7 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
       await sleep(RPC_GAP_MS * 2);
     }
   }
-  partial ||= INDICES.some(
-    (id) => !(id in desks) && selectSeriesForIndex(series, id) !== null,
-  );
+  partial ||= INDICES.some((id) => !(id in desks) && deskCandidate(id) !== null);
 
   if (Object.keys(desks).length === 0) return null;
 
