@@ -409,3 +409,90 @@ earlier — on the tier served when everything else is down, which is the one a
 judge on a cold free-tier box is likeliest to hit. Regenerated: series 1,
 unsettled, +155.6h, and 3 real fills instead of 1 (the paging fix flows into the
 snapshot, which uses the same client).
+
+---
+
+## 11. Session — proving it, and the four quiet deaths (2026-08-02)
+
+Asked to make sure the product is actually live and functional, not assumed to
+be. Every deployed surface was checked. Most were healthy — prints fresh on all
+three indices, five x402 gates returning proper 402s, live series 1, terminal on
+all routes, custody funded. Four were not, and each fails *silently*.
+
+### Provenance was already broken in production
+
+`/health` reported `poster_last_tx: null` while three real posts from 59 minutes
+earlier sat on chain: the product telling visitors "awaiting first live post"
+while it was posting. The repair ran **once, at startup** — the least reliable
+moment in a process's life, when the RPC is busiest and a cold box is warming
+everything at once. One throttled call and provenance stayed blank until the
+next hourly post repaired it by accident. It now retries on the 60-second
+chain-warm loop and no-ops the instant it succeeds.
+
+### The oracle's log reader had the bug the tape had
+
+Same shrink-on-any-exception ladder that cannot tell Arc's 429 from its 413, and
+no paging, over a 1.42h window against an **hourly** poster — no margin at all,
+so one late post put the provenance out of reach. Almost certainly the mechanism
+above. Now pages like the tape: **6 posts → 12, reaching 5.82h**.
+
+### The roll had too few chances to fire
+
+GitHub drops most scheduled ticks here. Measured over 24h: keepalive ran **17 of
+its 144 slots**, the lifecycle 6 of 24, gaps to 3.4h. Rolling only under 24h of
+remaining life meant a handful of chances; if all were dropped, the series
+expires with no successor and the desk 409s "no open series" — the whole trading
+surface. `ROLL_MIN_LIFE_H` is 72 now. Rolling early costs nothing.
+
+### The press and the faucet are the same wallet
+
+Custody `0x8366968f…` posts every print (**measured 0.4102 USDC/day**) *and*
+funds every 0.5 USDC desk stake, so desk traffic shortens the **oracle's**
+runway. An empty desk is a disappointment; an empty press is the end of the
+product — no prints, no marks, nothing settles. The flat `FAUCET_RESERVE_USDC =
+2.0` was about five days of posting wearing a number that hid it. The floor is
+now days-of-runway at the measured burn (5.74 USDC = 14 days), so it states what
+it protects and moves when the burn does.
+
+### `make verify-live` — the durable part
+
+One command, one exit code, every pillar of the **deployed** product: prints
+fresh, a live unexpired series with a collateralized maker, the tape, the
+seller, five x402 gates, the desk quoting the series *the chain* says is live,
+the terminal showing it unsettled, funding runway, cron recency.
+
+Proven **both ways**, which is the only thing that makes it worth running: green
+against production, and red — 11 checks, exit 1 — against a dead host. A checker
+that cannot fail is decoration.
+
+Three things it learned by being wrong, all now encoded:
+- it JSON-parsed the HTML page routes and reported them down;
+- it crashed on a 429 and printed a traceback instead of a verdict, which is the
+  worst outcome for a gate because a stack trace reads as "the checker is
+  broken" and gets muted;
+- its direct chain probes compete with the product for the same throttled RPC,
+  so those are **warnings** while the product's own answers are the verdict.
+
+It runs inside the *existing* keepalive rather than a new workflow, because
+Actions minutes are the scarce resource that also pays for the heartbeat keeping
+the book alive. It reads custody's balance from a public address, never Circle
+credentials — CI must not gain the ability to move funds to buy a warn-only
+balance read.
+
+### The E2E was reporting success it had not earned
+
+The one check meant to prove the headline feature was lying. `milestone()`
+matches **page text**, and the PIN ceremony's completion predicate was a copy
+regex (`/take your $0.50 stake|…|BUY /`). Phrases like that live in the desk's
+own explanatory copy, so it matched instantly: `driveCircle` returned without
+ever entering a PIN, and every later milestone — "wallet ready", "already
+funded", "collateral posted — trading enabled" — reported progress the run had
+never made. The screenshot saved at "collateral posted" shows Circle's "Create
+your PIN" dialog still open, and `address` was `null` throughout.
+
+This is the same defect the previous session fixed in the *withdraw* path
+("reported success by matching page copy already on screen") re-appearing in the
+*entry* path — which is the argument for the rule rather than the patch: **a
+milestone must assert on ground truth, never on words.** The predicate is now
+the existence of a smart-account address, which no static copy can satisfy, and
+a run with no wallet fails loudly instead of cascading.

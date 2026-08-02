@@ -243,6 +243,39 @@ async function milestone(page, re, timeoutMs, what) {
  *  The chip renders a SHORTENED address, so read the full one off the link's
  *  title/href, and scope to the desk's own section (the oracle's address chip
  *  is on the same page). */
+/** The wallet's collateral ON THE VENUE, straight from the desk's own quote —
+ *  the number the contract will margin against, not a word on the page. Returns
+ *  0 when the desk cannot answer, so callers can treat "unknown" as "not yet". */
+async function deskCollateral(page) {
+  if (!state.address) return 0;
+  return page.evaluate(async (addr) => {
+    try {
+      const r = await fetch("/api/desk/limits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: addr, index_id: "ACR-INF" }),
+      });
+      if (!r.ok) return 0;
+      const j = await r.json();
+      return typeof j.collateral_usdc === "number" ? j.collateral_usdc : 0;
+    } catch {
+      return 0;
+    }
+  }, state.address);
+}
+
+/** Poll a truth predicate to a deadline; returns the truthy value or null.
+ *  Exists so milestones stop being regexes over rendered copy. */
+async function waitFor(fn, timeoutMs) {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const v = await fn().catch(() => null);
+    if (v) return v;
+    await sleep(2500);
+  }
+  return null;
+}
+
 async function readIdentity(page) {
   return page.evaluate(() => {
     const sec = [...document.querySelectorAll("section")].find((s) =>
@@ -366,17 +399,34 @@ async function main() {
   if (await visible(pinBtn, 60_000)) {
     await pinBtn.click();
     log("clicked: set your PIN");
-    const funded = /take your \$0\.50 stake|get my 50 cents|post collateral|put up my stake|BUY /i;
+    // The ceremony is DONE when a smart account exists, not when the page says
+    // words that look like success. The predicate here used to be a copy regex
+    // (/take your $0.50 stake|…|BUY /), and phrases like that live in the
+    // desk's own explanatory text — so it matched instantly, driveCircle
+    // returned without ever entering a PIN, and every later milestone reported
+    // progress the run had not made. The screenshot at "collateral posted"
+    // showed Circle's "Create your PIN" dialog still open.
     const ok = await driveCircle(
       page,
-      async () => funded.test(await page.locator("body").innerText().catch(() => "")),
+      async () => Boolean((await readIdentity(page).catch(() => ({}))).address),
       360_000,
       "pin-setup",
     );
     if (!ok) log("  pin-setup: budget spent — falling through to the page's own state");
   }
-  await milestone(page, /take your \$0\.50 stake|get my 50 cents|post collateral|put up my stake|BUY |withdraw /i, 180_000, "wallet ready");
-  Object.assign(state, await readIdentity(page));
+  // Same rule: an address on chain, never a phrase on a page.
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    Object.assign(state, await readIdentity(page).catch(() => ({})));
+    if (state.address) break;
+    await sleep(2000);
+  }
+  if (!state.address) {
+    await shot(page, "x-no-wallet");
+    throw new Error("no smart account after the PIN ceremony — the desk never provisioned a wallet");
+  }
+  state.milestones.push({ what: "wallet ready", at: new Date().toISOString() });
+  log("✓ wallet ready");
   log("  SCA:", state.address, "· user:", state.userId);
   save();
   await shot(page, "1-wallet");
@@ -405,14 +455,22 @@ async function main() {
   if (await visible(collatBtn, 30_000)) {
     await collatBtn.click();
     log("clicked: post collateral (approve + postCollateral)");
-    await driveCircle(
-      page,
-      async () => /BUY |SELL /i.test(await page.locator("body").innerText().catch(() => "")),
-      360_000,
-      "collateral",
-    );
+    // Ground truth again, for the same reason as the PIN step: the predicate
+    // used to be /BUY |SELL / against page text, which the desk's own copy
+    // satisfies — so this returned in the SAME SECOND as the click, without
+    // driving either PIN challenge. On chain the wallet held its 0.5 USDC
+    // stake and the venue held nothing, and the desk was right to offer no
+    // BUY button. The run reported "trading enabled" over an empty account.
+    await driveCircle(page, async () => (await deskCollateral(page)) > 0, 360_000, "collateral");
   }
-  await milestone(page, /BUY |SELL /i, 120_000, "collateral posted — trading enabled");
+  const posted = await waitFor(async () => (await deskCollateral(page)) > 0, 120_000);
+  if (!posted) {
+    await shot(page, "x-no-collateral");
+    throw new Error("collateral never landed on the venue — the desk has nothing to trade with");
+  }
+  state.milestones.push({ what: "collateral posted — trading enabled", at: new Date().toISOString() });
+  log(`✓ collateral posted — trading enabled (${posted} USDC on the venue)`);
+  save();
   await shot(page, "3-collateral");
 
   // --- the trade: at the size the server computed from live margin.
