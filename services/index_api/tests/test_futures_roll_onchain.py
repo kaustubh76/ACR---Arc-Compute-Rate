@@ -196,3 +196,23 @@ def test_it_refuses_rather_than_opening_a_series_it_cannot_fund(venue):
     assert len(venue["fc"].read_all_series()) == before, (
         f"it opened a series it could not fund\n{p.stdout}"
     )
+
+
+def test_a_throttled_read_does_not_trigger_a_roll(venue, monkeypatch):
+    """The bug that cost a redundant series in production.
+
+    The roll asked "is the maker funded?" as ``collateral_of(...) or 0``, which
+    turns a REFUSED READ into "unfunded" — and the response to an unfunded maker
+    is to open a whole new series and post collateral to it. On 2026-08-02 that
+    fired against a series with **147.9 hours** of life left and a funded maker:
+    a 429 cost 1.50 USDC and left the venue carrying two live series.
+
+    Simulated here by pointing the roll at an RPC that refuses, which is what a
+    throttled node looks like from the script's side. It must decline to act on
+    a reading it does not have, and exit 0 — the next run will see the truth.
+    """
+    before = len(venue["fc"].read_all_series())
+    p = _roll(venue, ACR_ARC_RPC_URL="http://127.0.0.1:1")  # nothing listening
+    assert len(venue["fc"].read_all_series()) == before, (
+        f"it rolled without being able to read the maker's collateral\n{p.stdout}"
+    )

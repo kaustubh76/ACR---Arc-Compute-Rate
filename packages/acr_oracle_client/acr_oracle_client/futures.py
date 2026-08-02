@@ -101,6 +101,35 @@ def _rpc_gather(calls: list) -> list:
         return list(pool.map(lambda fn: fn(), calls))
 
 
+def collateral_or_none(client, series_id: int, trader: str, tries: int = 4) -> float | None:
+    """A trader's collateral, or **None if the chain would not say**.
+
+    Exists because ``collateral_of(...) or 0`` — the obvious spelling — flattens
+    a *failed read* into *an empty account*, and those call for opposite
+    actions: wait, versus spend. Arc's public RPC 429s routinely, so this is not
+    hypothetical. Both callers have been bitten:
+
+    * the heartbeat announced "no collateral on series 1 — posting 3.00 USDC"
+      over an account holding exactly 3.00; only the write also failing kept the
+      money still;
+    * the roll read "maker collateral NONE" on a series with **147.9 hours** of
+      life left and opened a redundant successor, committing 1.50 USDC to it.
+      That write succeeded.
+
+    Retries with backoff, then reports the uncertainty instead of guessing.
+    """
+    for attempt in range(1, tries + 1):
+        try:
+            v = client.collateral_of(series_id, trader)
+        except Exception:  # noqa: BLE001 — a throttle is not an answer
+            v = None
+        if v is not None:
+            return float(v)
+        if attempt < tries:
+            time.sleep(3.0 * attempt)
+    return None
+
+
 def _is_range_error(exc: Exception) -> bool:
     """True when the node refused the *size of the range*, as opposed to
     refusing *us*.
