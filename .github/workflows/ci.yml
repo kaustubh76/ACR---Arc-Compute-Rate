@@ -43,13 +43,23 @@ jobs:
       # must NOT be among them here — that would put us back to green-by-silence.
       - name: The on-chain tests actually ran
         run: |
+          set -o pipefail
+          # Pass/fail is pytest's EXIT CODE, not a line of its output. The first
+          # version of this step grepped for "N passed" and went red over eight
+          # green tests, because -q suppresses that very summary. Parsing a
+          # tool's prose for something it already returns is how a checker ends
+          # up failing on the truth.
           uv run pytest services/index_api/tests/test_desk_onchain.py \
             services/index_api/tests/test_futures_roll_onchain.py \
             packages/acr_oracle_client/tests/test_onchain.py \
-            -q -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
-          grep -qE "[0-9]+ passed" /tmp/onchain.txt || { echo "::error::no on-chain tests passed"; exit 1; }
-          grep -qE "skipped" /tmp/onchain.txt && { echo "::error::an on-chain test SKIPPED — anvil or artifacts missing"; exit 1; }
-          exit 0
+            -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
+          # A skip is the failure mode that matters here: these suites skip
+          # silently without a node, which is exactly how a broken one stayed
+          # green for a day.
+          if grep -qE "skipped" /tmp/onchain.txt; then
+            echo "::error::an on-chain test SKIPPED — anvil or the contract artifacts are missing"
+            exit 1
+          fi
       - name: Eval gate (headline claims)
         run: uv run python scripts/eval.py --hours 12 --check
 
