@@ -23,7 +23,7 @@ import sys
 import time
 
 from acr_oracle_client import FuturesClient, OracleClient, select_series_for_index
-from acr_oracle_client.futures import _rpc_retry
+from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
 # The desk's own margin arithmetic, reused rather than re-derived: it clamps
 # against BOTH the taker's and the auto-mirrored maker's margin checks.
@@ -77,22 +77,6 @@ def choose_qty(inv: float, band: int) -> int:
         else:
             qty = random.choice([-1, 1])
     return int(qty)
-
-
-def _read_collateral(fc, sid: int, address: str, tries: int = 4) -> float | None:
-    """This wallet's collateral on ``sid``, or **None if the chain would not
-    say**. The distinction is the whole point: a read that failed and a balance
-    that is genuinely zero call for opposite actions — wait, versus spend."""
-    for attempt in range(1, tries + 1):
-        try:
-            v = fc.collateral_of(sid, address)
-        except Exception:
-            v = None
-        if v is not None:
-            return float(v)
-        if attempt < tries:
-            time.sleep(3.0 * attempt)
-    return None
 
 
 def main() -> None:
@@ -150,7 +134,7 @@ def main() -> None:
     # more. The post 429'd too, which is the only reason no money moved. The
     # tick loop below has always drawn this distinction ("don't trade on
     # assumed-zero"); the provisioning path must draw it before spending.
-    taker_collateral = _read_collateral(fc, sid, taker.address)
+    taker_collateral = collateral_or_none(fc, sid, taker.address)
     if taker_collateral is None:
         print(f"  ⏹ could not read collateral on series {sid} after retries — refusing to "
               "post a stake that may already be there")
@@ -180,7 +164,7 @@ def main() -> None:
         if not posted:
             print("  ✗ could not post collateral after retries")
             sys.exit(1)
-        landed = _read_collateral(fc, sid, taker.address)
+        landed = collateral_or_none(fc, sid, taker.address)
         if not landed:
             print("  ✗ collateral did not land — refusing to trade into a margin revert")
             sys.exit(1)

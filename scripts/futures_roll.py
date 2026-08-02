@@ -29,7 +29,7 @@ import time
 
 from acr_core import get_settings
 from acr_oracle_client import FuturesClient
-from acr_oracle_client.futures import _rpc_retry
+from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
 INDEX = os.environ.get("ROLL_INDEX", "ACR-INF")
 MULT = int(os.environ.get("ROLL_MULT", "10"))
@@ -89,7 +89,18 @@ def main() -> None:
         if existing["index_id"] != INDEX or existing["settled"]:
             continue
         hours_left = (existing["expiry_ts"] - now) / 3600
-        funded = (fc.collateral_of(existing["series_id"], maker.address) or 0) > 0
+        # A THROTTLED READ IS NOT AN UNFUNDED MAKER. `or 0` used to flatten a
+        # failed read into "NONE", and the response is to open a whole new
+        # series and post collateral to it. That fired for real: series 1 had
+        # 147.9 HOURS of life left and a funded maker, and a 429 made this
+        # roll anyway — spending 1.50 USDC on a successor nothing needed.
+        funded_read = collateral_or_none(fc, existing["series_id"], maker.address)
+        if funded_read is None:
+            print(f"  ⏹ could not read the maker's collateral on series "
+                  f"{existing['series_id']} after retries — refusing to roll on a "
+                  "guess; the next run will see it")
+            sys.exit(0)
+        funded = funded_read > 0
         if hours_left > MIN_LIFE_H and funded:
             print(f"  ↩ series {existing['series_id']} has {hours_left:.1f}h left and is "
                   f"collateralized — nothing to roll")
