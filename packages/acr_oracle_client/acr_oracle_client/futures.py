@@ -60,6 +60,29 @@ def _rpc_retry(fn, *args, tries: int = 5, base: float = 1.5, **kwargs):
 #: a private RPC that does not throttle, where concurrency is a clean win.
 RPC_FANOUT = int(os.environ.get("ACR_RPC_FANOUT", "1"))
 
+#: Blocks per ``eth_getLogs`` page for the trade tape.
+#:
+#: **Arc hard-caps the range at ~15000 blocks.** Measured against the live RPC
+#: by binary search: 14843 blocks answers, 15000 returns HTTP 413 Payload Too
+#: Large, and it does so regardless of how few logs actually match — this is a
+#: range limit, not a response-size limit. 20000 / 40000 / 100000 are all
+#: refused identically. So the tape's reach CANNOT be extended by raising a
+#: window: a bigger number just fails on every call and silently degrades to
+#: whatever the fallback rung is. It has to be paged. 14000 leaves headroom
+#: under the cap.
+TAPE_PAGE_BLOCKS = int(os.environ.get("ACR_TAPE_PAGE_BLOCKS", "14000"))
+
+#: How many pages back the tape will walk when it hasn't filled its limit.
+#:
+#: Arc's measured block time is 0.510s, so one page is ~1.98h and four is
+#: ~7.9h. That number is chosen from the heartbeat's REAL cadence, not its
+#: nominal one: GitHub free-tier drops scheduled ticks, and the observed gaps
+#: were 59m, 63m, 150m and 209m. Against a single 10000-block window (1.42h)
+#: those gaps left the public tape empty 39% of the time — a "live market" that
+#: is blank two hours in five. Four pages covers the worst observed gap twice
+#: over.
+TAPE_PAGES = int(os.environ.get("ACR_TAPE_PAGES", "4"))
+
 
 def _rpc_gather(calls: list) -> list:
     """Run independent read-only RPC thunks in order, or concurrently when
@@ -76,6 +99,32 @@ def _rpc_gather(calls: list) -> list:
 
     with ThreadPoolExecutor(max_workers=min(RPC_FANOUT, len(calls))) as pool:
         return list(pool.map(lambda fn: fn(), calls))
+
+
+def _is_range_error(exc: Exception) -> bool:
+    """True when the node refused the *size of the range*, as opposed to
+    refusing *us*.
+
+    The distinction is load-bearing and was worth real debugging. Arc answers a
+    too-wide ``eth_getLogs`` with HTTP 413, and other nodes with JSON-RPC
+    -32602 naming a result cap; the cure for both is a narrower range. It
+    answers *throttling* with 429, where a narrower range is no cure at all —
+    the request was never too big, there were merely too many of them. Treating
+    the two alike makes a throttled tape silently shrink its own reach: every
+    rung fails for a reason narrowing cannot fix, the cursor crawls, and the
+    caller pays a full retry backoff per rung to go nowhere. Measured, that
+    turned a four-page 7.9h walk into 1264 blocks in 16.6s.
+    """
+    msg = str(exc)
+    if "429" in msg or "Too Many Requests" in msg:
+        return False
+    return (
+        "413" in msg
+        or "Payload Too Large" in msg
+        or "-32602" in msg
+        or "exceeds max results" in msg
+        or "limit exceeded" in msg.lower()
+    )
 
 
 def _get_traded_logs(w3, contract, from_block: int, to_block: int):  # pragma: no cover - live chain
@@ -350,25 +399,57 @@ class FuturesClient:
         except Exception:
             return None
 
-    def recent_trades(self, lookback_blocks: int = 10000, limit: int = 25) -> list[dict]:  # pragma: no cover - live chain
+    def recent_trades(  # pragma: no cover - live chain
+        self, lookback_blocks: int = TAPE_PAGE_BLOCKS, limit: int = 25, pages: int = TAPE_PAGES
+    ) -> list[dict]:
         """Recent on-chain fills from the ``Traded`` event, newest-first — the
-        live trade tape. One bounded ``eth_getLogs`` (cheap even on the throttled
-        Arc RPC); falls back to a narrower window if the node caps the range.
-        10k blocks ≈ 85 min at Arc's ~0.5s cadence — deep enough that the tape
-        still shows the hourly heartbeat's last fill."""
+        live trade tape.
+
+        Walks BACKWARDS a page at a time rather than asking for one wide range,
+        because Arc refuses a wide one outright (see ``TAPE_PAGE_BLOCKS``).
+        Stops as soon as it has ``limit`` fills, so a busy book still costs a
+        single request; only a quiet one pays for the full reach.
+        """
         if self._connect() is None or not self.configured:
             return []
         try:
             w3 = self._connect()
             c = self._contract()
             latest = int(_rpc_retry(lambda: w3.eth.block_number))
-            for span in (lookback_blocks, 2500, 1000, 300):
-                start = max(0, latest - span)
-                try:
-                    logs = _rpc_retry(lambda s=start: _get_traded_logs(w3, c, s, latest))
+            logs: list = []
+            end = latest
+            for page_no in range(max(1, pages)):
+                if end <= 0:
                     break
-                except Exception:
-                    logs = []
+                # The shrink ladder is per PAGE and solves a different problem
+                # from paging: paging extends reach, shrinking survives a node
+                # stricter than the one this was measured against. The old code
+                # had only the ladder, which is why a short tape never got
+                # longer — it could narrow, never reach.
+                #
+                # The first page is the tape; the rest are depth. So the first
+                # is worth waiting out a throttle for, and the others are not —
+                # better a shorter tape now than a complete one in a minute.
+                page = None
+                start = max(0, end - lookback_blocks)
+                for span in (lookback_blocks, 2500, 1000, 300):
+                    start = max(0, end - span)
+                    try:
+                        page = _rpc_retry(
+                            lambda s=start, e=end: _get_traded_logs(w3, c, s, e),
+                            tries=5 if page_no == 0 else 2,
+                        )
+                        break
+                    except Exception as exc:
+                        if not _is_range_error(exc):
+                            break  # throttled or down — a narrower range is no cure
+                        page = None
+                if page is None:
+                    break  # keep what we have rather than spend the budget going nowhere
+                logs = list(page) + logs  # older page goes in front
+                if len(logs) >= limit or start <= 0:
+                    break
+                end = start - 1
             out: list[dict] = []
             for ev in list(logs)[-limit:][::-1]:  # newest first
                 a = ev["args"]

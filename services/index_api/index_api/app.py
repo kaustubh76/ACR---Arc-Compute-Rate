@@ -135,6 +135,10 @@ async def _warm_chain(stop: asyncio.Event) -> None:
                 await asyncio.to_thread(reader.read_all, use_cache=False)
             if futures.configured:
                 await asyncio.to_thread(futures.read_all, use_cache=False)
+                # The tape pages back several hours over a throttled RPC, so it
+                # is the most expensive read the desk serves — and it sits on
+                # /futures, the endpoint the venue's liveness is judged by.
+                await asyncio.to_thread(futures.recent_trades, use_cache=False)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
 

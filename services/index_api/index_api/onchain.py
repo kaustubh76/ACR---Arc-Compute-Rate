@@ -186,7 +186,14 @@ class FuturesReader:
     #: a too-eager TTL makes /futures intermittently slow enough for the
     #: terminal to fall back a tier and hide the desk. The heartbeat trades
     #: hourly; half a minute of tape staleness is invisible next to that.
-    _TRADES_TTL_S = 30.0
+    #: Raised from 30s once the tape started PAGING back several hours: that walk
+    #: costs a few seconds when it misses, and /futures is the endpoint the
+    #: desk's liveness is judged by. The background warm refreshes this every
+    #: ACR_CHAIN_WARM_SECONDS (60), so the TTL only has to outlive that gap —
+    #: and the fills themselves are at most hourly, so a 90s-old tape is not
+    #: meaningfully staler than a fresh one. Ages shown in the UI come from a
+    #: server-side first-seen stamp, not from this read.
+    _TRADES_TTL_S = 90.0
 
     def recent_trades(self, *, use_cache: bool = True) -> list[dict]:
         """Recent on-chain fills (newest-first), each stamped with the wall-clock

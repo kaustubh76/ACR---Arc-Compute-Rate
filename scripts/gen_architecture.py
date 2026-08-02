@@ -119,28 +119,87 @@ def _edge(b, tx, ty):
     return cx + dx * s, cy + dy * s
 
 
-def wire(a, b, color, *, dashed=False, waypoints=(), sw=2):
+# Edge-midpoint of a box on a given side (L/R/T/B). Attaching here with a
+# perpendicular stub makes the excalidraw `focus:0` binding resolve to exactly
+# this point — which is why straight orthogonal arrows meet boxes square-on
+# while diagonals looked detached.
+_SIDE_PT = {
+    "L": lambda x, y, w, h: (x, y + h / 2),
+    "R": lambda x, y, w, h: (x + w, y + h / 2),
+    "T": lambda x, y, w, h: (x + w / 2, y),
+    "B": lambda x, y, w, h: (x + w / 2, y + h),
+}
+
+
+def _side(box, s):
+    return _SIDE_PT[s](*box)
+
+
+def _orthogonalize(pts):
+    """Insert right-angle elbows so every segment is axis-aligned, then dedupe."""
+    out = [pts[0]]
+    for x, y in pts[1:]:
+        px, py = out[-1]
+        if abs(x - px) > 0.5 and abs(y - py) > 0.5:
+            out.append((x, py))  # horizontal-first elbow
+        out.append((x, y))
+    dd = [out[0]]
+    for p in out[1:]:
+        if abs(p[0] - dd[-1][0]) > 0.5 or abs(p[1] - dd[-1][1]) > 0.5:
+            dd.append(p)
+    return dd
+
+
+def wire(a, b, color, *, dashed=False, side_a=None, side_b=None, lane=None,
+         first="auto", via=None, sw=2):
+    """Orthogonal (Manhattan) connector: leaves/enters box-edge midpoints on the
+    facing sides, routed as axis-aligned legs. `side_a`/`side_b` force the exit
+    /entry side; `lane` sets the mid-corridor coordinate; `via` gives explicit
+    corridor points (auto-elbowed). Every arrow stays bound both ends."""
     ba, bb = _boxes[a], _boxes[b]
-    ca, cb = _center(ba), _center(bb)
-    aim_a = waypoints[0] if waypoints else cb
-    aim_b = waypoints[-1] if waypoints else ca
-    sx, sy = _edge(ba, *aim_a)
-    ex, ey = _edge(bb, *aim_b)
-    pts = [[0.0, 0.0]]
-    for wx, wy in waypoints:
-        pts.append([round(wx - sx, 2), round(wy - sy, 2)])
-    pts.append([round(ex - sx, 2), round(ey - sy, 2)])
-    xs = [sx] + [w[0] for w in waypoints] + [ex]
-    ys = [sy] + [w[1] for w in waypoints] + [ey]
+    ax, ay, aw, ah = ba
+    bx, by, bw, bh = bb
+    dx = (bx + bw / 2) - (ax + aw / 2)
+    dy = (by + bh / 2) - (ay + ah / 2)
+    if side_a is None:
+        horiz = first == "H" or (first == "auto" and abs(dx) >= abs(dy))
+        side_a = ("R" if dx >= 0 else "L") if horiz else ("B" if dy >= 0 else "T")
+    if side_b is None:
+        side_b = ("L" if dx >= 0 else "R") if side_a in ("L", "R") else ("T" if dy >= 0 else "B")
+
+    sp = _side(ba, side_a)
+    ep = _side(bb, side_b)
+    sx, sy = sp
+    ex, ey = ep
+    if via is not None:
+        chain = [sp, *via, ep]
+    else:
+        eh, nh = side_a in ("L", "R"), side_b in ("L", "R")
+        if eh and nh:
+            lx = lane if lane is not None else (sx + ex) / 2
+            chain = [sp, (lx, sy), (lx, ey), ep]
+        elif not eh and not nh:
+            ly = lane if lane is not None else (sy + ey) / 2
+            chain = [sp, (sx, ly), (ex, ly), ep]
+        elif eh and not nh:
+            chain = [sp, (ex, sy), ep]
+        else:
+            chain = [sp, (sx, ey), ep]
+
+    chain = _orthogonalize(chain)
+    ox, oy = chain[0]
+    pts = [[round(px - ox, 2), round(py - oy, 2)] for px, py in chain]
+    xs = [p[0] for p in chain]
+    ys = [p[1] for p in chain]
     aid = _nid("arr")
     _base({
-        "id": aid, "type": "arrow", "x": round(sx, 2), "y": round(sy, 2),
+        "id": aid, "type": "arrow", "x": round(ox, 2), "y": round(oy, 2),
         "width": round(max(xs) - min(xs), 2), "height": round(max(ys) - min(ys), 2),
         "strokeColor": color, "strokeStyle": "dashed" if dashed else "solid",
         "strokeWidth": sw, "points": pts, "lastCommittedPoint": None,
         "startArrowhead": None, "endArrowhead": "arrow",
-        "startBinding": {"elementId": a, "focus": 0.0, "gap": 6.0},
-        "endBinding": {"elementId": b, "focus": 0.0, "gap": 6.0},
+        "startBinding": {"elementId": a, "focus": 0.0, "gap": 4.0},
+        "endBinding": {"elementId": b, "focus": 0.0, "gap": 4.0},
     })
     for box_id in (a, b):
         el = _by_id[box_id]
@@ -398,43 +457,51 @@ def build() -> None:
     for i, (t, lines) in enumerate(weeks):
         card(f"w{i}", 80 + i * 486, 2270, 450, 240, t, lines, GRAY if i != 3 else ORANGE)
 
-    # ---------- WIRING (all bound) ----------
-    wire("a_x402", "b_indexer", TEAL)              # ①
-    wire("a_gateway", "b_indexer", TEAL)           # ②
-    wire("a_adv", "b_indexer", RED)                # contaminated flow
-    wire("a_tape", "b_indexer", TEAL, dashed=True)  # TapeSource feeds ingestion
-    wire("b_indexer", "b_obs", BLUE)               # ③ deconvolve
-    wire("b_indexer", "b_clean", BLUE)             # ④ clean
-    wire("b_obs", "b_robust", BLUE)                # ⑤
-    wire("b_clean", "b_robust", BLUE)              # ⑤
-    wire("b_robust", "b_hedonic", BLUE)            # ⑥
-    wire("a_attest", "b_hedonic", ORANGE, dashed=True)  # quality features (via registry)
-    wire("b_robust", "b_robdiag", BLUE, dashed=True)
-    wire("b_hedonic", "b_prints", BLUE)
-    wire("b_prints", "b_bound", RED)               # ⑦ per-print bound
-    wire("a_attest", "c_registry", ORANGE, dashed=True,
-         waypoints=[(1930, 660), (1930, 755)])     # attest → registry (corridor)
-    wire("c_signer", "c_oracle", ORANGE)           # signer signs the print
-    wire("b_prints", "c_oracle", ORANGE)           # ⑧ signed print posted
-    wire("c_oracle", "d_future", GREEN)            # ⑨ cash-settlement reference
-    wire("d_mm", "d_future", GREEN)                # maker seeds the on-chain book
-    wire("d_desk", "d_future", GREEN)              # readers take a position (PIN-signed)
-    wire("d_future", "e_api", GREEN, dashed=True,
-         waypoints=[(2210, 1240), (1180, 1290)])   # FuturesReader: desk/inventory → curve skew
-    wire("c_oracle", "e_api", ORANGE, dashed=True,
-         waypoints=[(2210, 900), (1180, 1290)])    # /onchain read
-    wire("b_bound", "e_api", PURPLE)               # ⑩ prints sold via x402
-    wire("e_facil", "e_api", PURPLE)               # x402 verify/settle
-    wire("e_api", "e_term", PURPLE)                # serves the terminal
-    wire("e_api", "f2", PURPLE, dashed=True)        # $ loop → Nanopayments
-    wire("f0", "b_indexer", TEAL, dashed=True,
-         waypoints=[(700, 1960), (700, 470)])      # Arc L1 → canonical tape
-    wire("a_adv", "g_demo", RED, dashed=True)       # same bots power the demo
-    # Zone K — the demand side / the loop closes
-    wire("k_agent", "e_facil", PURPLE)              # buyer pays per query via x402 (the $ loop, made real)
-    wire("k_agent", "k_market", PURPLE, dashed=True)   # discovers the index via catalog
-    wire("e_api", "k_market", PURPLE, dashed=True)     # API lists the index in the marketplace
-    wire("e_facil", "k_webhooks", PURPLE, dashed=True)  # settlement → Circle webhook
+    # ---------- WIRING (all bound · orthogonal routing) ----------
+    # Zone A → indexer: fan up the A|B corridor (x≈690–706) into the indexer's left.
+    wire("a_x402", "b_indexer", TEAL, side_a="R", side_b="L", lane=706)      # ①
+    wire("a_gateway", "b_indexer", TEAL, side_a="R", side_b="L", lane=700)   # ②
+    wire("a_adv", "b_indexer", RED, side_a="R", side_b="L", lane=694)        # contaminated
+    wire("a_tape", "b_indexer", TEAL, dashed=True, side_a="R", side_b="L", lane=688)
+    # Estimator internals (orthogonal L/Z within zone-B whitespace).
+    wire("b_indexer", "b_obs", BLUE, side_a="R", side_b="L")                 # ③
+    wire("b_indexer", "b_clean", BLUE, side_a="B", side_b="T")               # ④
+    wire("b_obs", "b_robust", BLUE, side_a="B", side_b="T")                  # ⑤
+    wire("b_clean", "b_robust", BLUE, side_a="R", side_b="L")                # ⑤
+    wire("b_robust", "b_hedonic", BLUE, side_a="L", side_b="R", lane=1162)   # ⑥
+    wire("a_attest", "b_hedonic", ORANGE, dashed=True, side_a="R", side_b="L", lane=708)
+    wire("b_robust", "b_robdiag", BLUE, dashed=True, side_a="B", side_b="T")
+    wire("b_hedonic", "b_prints", BLUE, side_a="R", side_b="L", lane=1162)
+    wire("b_prints", "b_bound", RED, side_a="L", side_b="R", lane=1162)      # ⑦
+    # Attestations → registry: routed over the top of zone B (y≈285), clear of all cards.
+    wire("a_attest", "c_registry", ORANGE, dashed=True, side_a="R", side_b="L",
+         via=[(700, 660), (700, 285), (2215, 285), (2215, 755)])
+    wire("c_signer", "c_oracle", ORANGE, side_a="B", side_b="T")            # signer signs
+    wire("b_prints", "c_oracle", ORANGE, side_a="R", side_b="L", lane=1905)  # ⑧ post
+    # Oracle → futures venue: down the B|C lane (x≈2220), clear of the C stack.
+    wire("c_oracle", "d_future", GREEN, side_a="L", side_b="L", lane=2220)   # ⑨
+    wire("d_mm", "d_future", GREEN, side_a="T", side_b="B")                  # maker seeds book
+    wire("d_desk", "d_future", GREEN, side_a="L", side_b="L", lane=2210)     # reader trades (PIN)
+    # Long reads → API: down the B|C lane, across the B/E band (y≈1230), into e_api's top.
+    wire("d_future", "e_api", GREEN, dashed=True, side_a="L", side_b="T",
+         via=[(2230, 1204), (2230, 1228), (975, 1228)])   # desk/inventory → curve skew
+    wire("c_oracle", "e_api", ORANGE, dashed=True, side_a="L", side_b="T",
+         via=[(2225, 582), (2225, 1236), (960, 1236)])    # /onchain read
+    wire("b_bound", "e_api", PURPLE, side_a="B", side_b="T")                 # ⑩
+    wire("e_facil", "e_api", PURPLE, side_a="L", side_b="R")                 # x402 verify/settle
+    wire("e_api", "e_term", PURPLE, side_a="T", side_b="T", lane=1272)       # over the E band (clears facil)
+    # $-loop → Nanopayments: down the left margin (x≈700), clear of zone K.
+    wire("e_api", "f2", PURPLE, dashed=True, side_a="L", side_b="T",
+         via=[(700, 1397), (700, 1955), (1472, 1955)])
+    # Arc L1 canonical-tape riser: up the f0|f1 gap (x≈623), then the A|B corridor (x≈700).
+    wire("f0", "b_indexer", TEAL, dashed=True, side_a="R", side_b="L",
+         via=[(623, 2050), (623, 1890), (700, 1890), (700, 412)])
+    wire("a_adv", "g_demo", RED, dashed=True, side_a="R", side_b="R", lane=704)  # clears a_tape
+    # Zone K — the demand side / the loop closes.
+    wire("k_agent", "e_facil", PURPLE, side_a="T", side_b="B")              # buyer pays via x402
+    wire("k_agent", "k_market", PURPLE, dashed=True, side_a="L", side_b="R")  # discovers catalog
+    wire("e_api", "k_market", PURPLE, dashed=True, side_a="B", side_b="T")    # lists the index
+    wire("e_facil", "k_webhooks", PURPLE, dashed=True, side_a="B", side_b="T", lane=1587)
 
 
 def validate() -> dict:

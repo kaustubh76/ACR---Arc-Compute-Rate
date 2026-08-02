@@ -6291,21 +6291,29 @@
   {
    "id": "arr-0316",
    "type": "arrow",
-   "x": 640.0,
-   "y": 410.0,
-   "width": 105.0,
-   "height": 0.75,
+   "x": 640,
+   "y": 408.0,
+   "width": 105,
+   "height": 4.0,
    "strokeColor": "#0c8599",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     105.0,
-     0.75
+     66,
+     0.0
+    ],
+    [
+     66,
+     4.0
+    ],
+    [
+     105,
+     4.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6314,12 +6322,12 @@
    "startBinding": {
     "elementId": "a_x402",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6341,21 +6349,29 @@
   {
    "id": "arr-0318",
    "type": "arrow",
-   "x": 635.41,
-   "y": 474.0,
-   "width": 109.59,
-   "height": 23.88,
+   "x": 640,
+   "y": 534.0,
+   "width": 105,
+   "height": 122.0,
    "strokeColor": "#0c8599",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     109.59,
-     -23.88
+     60,
+     0.0
+    ],
+    [
+     60,
+     -122.0
+    ],
+    [
+     105,
+     -122.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6364,12 +6380,12 @@
    "startBinding": {
     "elementId": "a_gateway",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6391,21 +6407,29 @@
   {
    "id": "arr-0320",
    "type": "arrow",
-   "x": 449.84,
-   "y": 726.0,
-   "width": 380.32,
-   "height": 254.0,
+   "x": 640,
+   "y": 786.0,
+   "width": 105,
+   "height": 374.0,
    "strokeColor": "#e03131",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     380.32,
-     -254.0
+     54,
+     0.0
+    ],
+    [
+     54,
+     -374.0
+    ],
+    [
+     105,
+     -374.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6414,12 +6438,12 @@
    "startBinding": {
     "elementId": "a_adv",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6441,21 +6465,29 @@
   {
    "id": "arr-0322",
    "type": "arrow",
-   "x": 426.67,
-   "y": 856.0,
-   "width": 426.67,
-   "height": 384.0,
+   "x": 640,
+   "y": 916.0,
+   "width": 105,
+   "height": 504.0,
    "strokeColor": "#0c8599",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     426.67,
-     -384.0
+     48,
+     0.0
+    ],
+    [
+     48,
+     -504.0
+    ],
+    [
+     105,
+     -504.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6464,12 +6496,12 @@
    "startBinding": {
     "elementId": "a_tape",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6491,21 +6523,29 @@
   {
    "id": "arr-0324",
    "type": "arrow",
-   "x": 1095.0,
-   "y": 423.6,
-   "width": 25.0,
-   "height": 1.66,
+   "x": 1095,
+   "y": 412.0,
+   "width": 25,
+   "height": 27.5,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     25.0,
-     1.66
+     12.5,
+     0.0
+    ],
+    [
+     12.5,
+     27.5
+    ],
+    [
+     25,
+     27.5
     ]
    ],
    "lastCommittedPoint": null,
@@ -6514,12 +6554,12 @@
    "startBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_obs",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6541,21 +6581,29 @@
   {
    "id": "arr-0326",
    "type": "arrow",
-   "x": 921.53,
-   "y": 472.0,
-   "width": 0.72,
-   "height": 28.0,
+   "x": 920.0,
+   "y": 472,
+   "width": 5.0,
+   "height": 28,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
-     0.72,
-     28.0
+     0.0,
+     14.0
+    ],
+    [
+     5.0,
+     14.0
+    ],
+    [
+     5.0,
+     28
     ]
    ],
    "lastCommittedPoint": null,
@@ -6564,12 +6612,12 @@
    "startBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_clean",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6591,21 +6639,29 @@
   {
    "id": "arr-0328",
    "type": "arrow",
-   "x": 1347.47,
-   "y": 527.0,
-   "width": 4.7,
-   "height": 33.0,
+   "x": 1335.0,
+   "y": 527,
+   "width": 30.0,
+   "height": 33,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
-     4.7,
-     33.0
+     0.0,
+     16.5
+    ],
+    [
+     30.0,
+     16.5
+    ],
+    [
+     30.0,
+     33
     ]
    ],
    "lastCommittedPoint": null,
@@ -6614,12 +6670,12 @@
    "startBinding": {
     "elementId": "b_obs",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_robust",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6641,21 +6697,29 @@
   {
    "id": "arr-0330",
    "type": "arrow",
-   "x": 1105.0,
-   "y": 624.89,
-   "width": 75.0,
-   "height": 7.24,
+   "x": 1105,
+   "y": 607.5,
+   "width": 75,
+   "height": 42.5,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     75.0,
-     7.24
+     37.5,
+     0.0
+    ],
+    [
+     37.5,
+     42.5
+    ],
+    [
+     75,
+     42.5
     ]
    ],
    "lastCommittedPoint": null,
@@ -6664,12 +6728,12 @@
    "startBinding": {
     "elementId": "b_clean",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_robust",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6691,21 +6755,29 @@
   {
    "id": "arr-0332",
    "type": "arrow",
-   "x": 1180.0,
-   "y": 733.69,
-   "width": 36.05,
-   "height": 16.31,
+   "x": 1180,
+   "y": 650.0,
+   "width": 35,
+   "height": 190.0,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -36.05,
-     16.31
+     -18,
+     0.0
+    ],
+    [
+     -18,
+     190.0
+    ],
+    [
+     -35,
+     190.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6714,12 +6786,12 @@
    "startBinding": {
     "elementId": "b_robust",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_hedonic",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6741,21 +6813,29 @@
   {
    "id": "arr-0334",
    "type": "arrow",
-   "x": 542.0,
-   "y": 716.0,
-   "width": 203.0,
-   "height": 62.46,
+   "x": 640,
+   "y": 660.0,
+   "width": 105,
+   "height": 180.0,
    "strokeColor": "#e8590c",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     203.0,
-     62.46
+     68,
+     0.0
+    ],
+    [
+     68,
+     180.0
+    ],
+    [
+     105,
+     180.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6764,12 +6844,12 @@
    "startBinding": {
     "elementId": "a_attest",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_hedonic",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6792,20 +6872,24 @@
    "id": "arr-0336",
    "type": "arrow",
    "x": 1365.0,
-   "y": 740.0,
+   "y": 740,
    "width": 0.0,
-   "height": 22.0,
+   "height": 22,
    "strokeColor": "#1971c2",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
      0.0,
-     22.0
+     11.0
+    ],
+    [
+     0.0,
+     22
     ]
    ],
    "lastCommittedPoint": null,
@@ -6814,12 +6898,12 @@
    "startBinding": {
     "elementId": "b_robust",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_robdiag",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6841,21 +6925,29 @@
   {
    "id": "arr-0338",
    "type": "arrow",
-   "x": 1145.0,
-   "y": 898.57,
-   "width": 35.0,
-   "height": 10.25,
+   "x": 1145,
+   "y": 840.0,
+   "width": 35,
+   "height": 123.0,
    "strokeColor": "#1971c2",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     35.0,
-     10.25
+     17,
+     0.0
+    ],
+    [
+     17,
+     123.0
+    ],
+    [
+     35,
+     123.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6864,12 +6956,12 @@
    "startBinding": {
     "elementId": "b_hedonic",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_prints",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6891,21 +6983,29 @@
   {
    "id": "arr-0340",
    "type": "arrow",
-   "x": 1180.0,
-   "y": 1006.61,
-   "width": 35.0,
-   "height": 8.25,
+   "x": 1180,
+   "y": 963.0,
+   "width": 35,
+   "height": 99.0,
    "strokeColor": "#e03131",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -35.0,
-     8.25
+     -18,
+     0.0
+    ],
+    [
+     -18,
+     99.0
+    ],
+    [
+     -35,
+     99.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -6914,12 +7014,12 @@
    "startBinding": {
     "elementId": "b_prints",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_bound",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -6941,28 +7041,36 @@
   {
    "id": "arr-0342",
    "type": "arrow",
-   "x": 640.0,
+   "x": 640,
    "y": 660.0,
-   "width": 1620.0,
-   "height": 95.0,
+   "width": 1620,
+   "height": 470,
    "strokeColor": "#e8590c",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     1290.0,
+     60,
      0.0
     ],
     [
-     1290.0,
+     60,
+     -375.0
+    ],
+    [
+     1575,
+     -375.0
+    ],
+    [
+     1575,
      95.0
     ],
     [
-     1620.0,
+     1620,
      95.0
     ]
    ],
@@ -6972,12 +7080,12 @@
    "startBinding": {
     "elementId": "a_attest",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "c_registry",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7000,20 +7108,24 @@
    "id": "arr-0344",
    "type": "arrow",
    "x": 2515.0,
-   "y": 468.0,
+   "y": 468,
    "width": 0.0,
-   "height": 12.0,
+   "height": 12,
    "strokeColor": "#e8590c",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
      0.0,
-     12.0
+     6.0
+    ],
+    [
+     0.0,
+     12
     ]
    ],
    "lastCommittedPoint": null,
@@ -7022,12 +7134,12 @@
    "startBinding": {
     "elementId": "c_signer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "c_oracle",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7049,21 +7161,29 @@
   {
    "id": "arr-0346",
    "type": "arrow",
-   "x": 1550.0,
-   "y": 901.79,
-   "width": 710.0,
-   "height": 234.92,
+   "x": 1550,
+   "y": 963.0,
+   "width": 710,
+   "height": 380.5,
    "strokeColor": "#e8590c",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     710.0,
-     -234.92
+     355,
+     0.0
+    ],
+    [
+     355,
+     -380.5
+    ],
+    [
+     710,
+     -380.5
     ]
    ],
    "lastCommittedPoint": null,
@@ -7072,12 +7192,12 @@
    "startBinding": {
     "elementId": "b_prints",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "c_oracle",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7099,21 +7219,29 @@
   {
    "id": "arr-0348",
    "type": "arrow",
-   "x": 2515.0,
-   "y": 685.0,
-   "width": 0.0,
-   "height": 471.0,
+   "x": 2260,
+   "y": 582.5,
+   "width": 40,
+   "height": 621.5,
    "strokeColor": "#2f9e44",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     0.0,
-     471.0
+     -40,
+     0.0
+    ],
+    [
+     -40,
+     621.5
+    ],
+    [
+     0,
+     621.5
     ]
    ],
    "lastCommittedPoint": null,
@@ -7122,12 +7250,12 @@
    "startBinding": {
     "elementId": "c_oracle",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "d_future",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7150,20 +7278,24 @@
    "id": "arr-0350",
    "type": "arrow",
    "x": 2515.0,
-   "y": 1258.0,
+   "y": 1258,
    "width": 0.0,
-   "height": 6.0,
+   "height": 6,
    "strokeColor": "#2f9e44",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
      0.0,
-     -6.0
+     -3.0
+    ],
+    [
+     0.0,
+     -6
     ]
    ],
    "lastCommittedPoint": null,
@@ -7172,12 +7304,12 @@
    "startBinding": {
     "elementId": "d_mm",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "d_future",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7199,21 +7331,29 @@
   {
    "id": "arr-0352",
    "type": "arrow",
-   "x": 2515.0,
-   "y": 1360.0,
-   "width": 0.0,
-   "height": 108.0,
+   "x": 2260,
+   "y": 1408.0,
+   "width": 50,
+   "height": 204.0,
    "strokeColor": "#2f9e44",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     0.0,
-     -108.0
+     -50,
+     0.0
+    ],
+    [
+     -50,
+     -204.0
+    ],
+    [
+     0,
+     -204.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7222,12 +7362,12 @@
    "startBinding": {
     "elementId": "d_desk",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "d_future",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7249,29 +7389,37 @@
   {
    "id": "arr-0354",
    "type": "arrow",
-   "x": 2260.0,
-   "y": 1234.1,
-   "width": 1104.67,
-   "height": 67.9,
+   "x": 2260,
+   "y": 1204.0,
+   "width": 1300.0,
+   "height": 98.0,
    "strokeColor": "#2f9e44",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -50.0,
-     5.9
+     -30,
+     0.0
     ],
     [
-     -1080.0,
-     55.9
+     -30,
+     24.0
     ],
     [
-     -1104.67,
-     67.9
+     -1285,
+     24.0
+    ],
+    [
+     -1300.0,
+     24.0
+    ],
+    [
+     -1300.0,
+     98.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7280,12 +7428,12 @@
    "startBinding": {
     "elementId": "d_future",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7307,29 +7455,33 @@
   {
    "id": "arr-0356",
    "type": "arrow",
-   "x": 2416.54,
-   "y": 685.0,
-   "width": 1261.21,
-   "height": 617.0,
+   "x": 2260,
+   "y": 582.5,
+   "width": 1300,
+   "height": 720,
    "strokeColor": "#e8590c",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -206.54,
-     215.0
+     -35,
+     -0.5
     ],
     [
-     -1236.54,
-     605.0
+     -35,
+     653.5
     ],
     [
-     -1261.21,
-     617.0
+     -1300,
+     653.5
+    ],
+    [
+     -1300.0,
+     719.5
     ]
    ],
    "lastCommittedPoint": null,
@@ -7338,12 +7490,12 @@
    "startBinding": {
     "elementId": "c_oracle",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7365,21 +7517,29 @@
   {
    "id": "arr-0358",
    "type": "arrow",
-   "x": 949.48,
-   "y": 1162.0,
-   "width": 6.27,
-   "height": 140.0,
+   "x": 945.0,
+   "y": 1162,
+   "width": 15.0,
+   "height": 140,
    "strokeColor": "#9c36b5",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
-     6.27,
-     140.0
+     0.0,
+     70.0
+    ],
+    [
+     15.0,
+     70.0
+    ],
+    [
+     15.0,
+     140
     ]
    ],
    "lastCommittedPoint": null,
@@ -7388,12 +7548,12 @@
    "startBinding": {
     "elementId": "b_bound",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7415,20 +7575,24 @@
   {
    "id": "arr-0360",
    "type": "arrow",
-   "x": 1195.0,
+   "x": 1195,
    "y": 1397.0,
-   "width": 20.0,
+   "width": 20,
    "height": 0.0,
    "strokeColor": "#9c36b5",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -20.0,
+     -10.0,
+     0.0
+    ],
+    [
+     -20,
      0.0
     ]
    ],
@@ -7438,12 +7602,12 @@
    "startBinding": {
     "elementId": "e_facil",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7465,21 +7629,29 @@
   {
    "id": "arr-0362",
    "type": "arrow",
-   "x": 1175.0,
-   "y": 1397.0,
-   "width": 485.0,
-   "height": 0.0,
+   "x": 960.0,
+   "y": 1302,
+   "width": 955.0,
+   "height": 30,
    "strokeColor": "#9c36b5",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
-     485.0,
-     0.0
+     0.0,
+     -30
+    ],
+    [
+     955.0,
+     -30
+    ],
+    [
+     955.0,
+     0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7488,12 +7660,12 @@
    "startBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_term",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7515,21 +7687,33 @@
   {
    "id": "arr-0364",
    "type": "arrow",
-   "x": 1034.49,
-   "y": 1492.0,
-   "width": 378.71,
-   "height": 483.0,
+   "x": 745,
+   "y": 1397.0,
+   "width": 772,
+   "height": 578.0,
    "strokeColor": "#9c36b5",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     378.71,
-     483.0
+     -45,
+     0.0
+    ],
+    [
+     -45,
+     558.0
+    ],
+    [
+     727,
+     558.0
+    ],
+    [
+     727.0,
+     578.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7538,12 +7722,12 @@
    "startBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "f2",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7565,29 +7749,37 @@
   {
    "id": "arr-0366",
    "type": "arrow",
-   "x": 600.0,
-   "y": 1985.0,
-   "width": 145.0,
-   "height": 1526.86,
+   "x": 600,
+   "y": 2050.0,
+   "width": 145,
+   "height": 1638.0,
    "strokeColor": "#0c8599",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     100.0,
-     -25.0
+     23,
+     0.0
     ],
     [
-     100.0,
-     -1515.0
+     23,
+     -160.0
     ],
     [
-     145.0,
-     -1526.86
+     100,
+     -160.0
+    ],
+    [
+     100,
+     -1638.0
+    ],
+    [
+     145,
+     -1638.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7596,12 +7788,12 @@
    "startBinding": {
     "elementId": "f0",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "b_indexer",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7623,21 +7815,29 @@
   {
    "id": "arr-0368",
    "type": "arrow",
-   "x": 360.0,
-   "y": 846.0,
-   "width": 0.0,
-   "height": 356.0,
+   "x": 640,
+   "y": 786.0,
+   "width": 64,
+   "height": 491.0,
    "strokeColor": "#e03131",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     0.0,
-     356.0
+     64,
+     0.0
+    ],
+    [
+     64,
+     491.0
+    ],
+    [
+     0,
+     491.0
     ]
    ],
    "lastCommittedPoint": null,
@@ -7646,12 +7846,12 @@
    "startBinding": {
     "elementId": "a_adv",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "g_demo",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7674,20 +7874,24 @@
    "id": "arr-0370",
    "type": "arrow",
    "x": 1410.0,
-   "y": 1682.0,
+   "y": 1682,
    "width": 0.0,
-   "height": 190.0,
+   "height": 190,
    "strokeColor": "#9c36b5",
    "strokeStyle": "solid",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
      0.0,
-     -190.0
+     -95.0
+    ],
+    [
+     0.0,
+     -190
     ]
    ],
    "lastCommittedPoint": null,
@@ -7696,12 +7900,12 @@
    "startBinding": {
     "elementId": "k_agent",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "e_facil",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7723,20 +7927,24 @@
   {
    "id": "arr-0372",
    "type": "arrow",
-   "x": 1195.0,
+   "x": 1195,
    "y": 1766.0,
-   "width": 20.0,
+   "width": 20,
    "height": 0.0,
    "strokeColor": "#9c36b5",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
-     0.0,
+     0,
      0.0
     ],
     [
-     -20.0,
+     -10.0,
+     0.0
+    ],
+    [
+     -20,
      0.0
     ]
    ],
@@ -7746,12 +7954,12 @@
    "startBinding": {
     "elementId": "k_agent",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "k_market",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7774,20 +7982,24 @@
    "id": "arr-0374",
    "type": "arrow",
    "x": 960.0,
-   "y": 1492.0,
+   "y": 1492,
    "width": 0.0,
-   "height": 190.0,
+   "height": 190,
    "strokeColor": "#9c36b5",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
      0.0,
-     190.0
+     95.0
+    ],
+    [
+     0.0,
+     190
     ]
    ],
    "lastCommittedPoint": null,
@@ -7796,12 +8008,12 @@
    "startBinding": {
     "elementId": "e_api",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "k_market",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
@@ -7823,21 +8035,29 @@
   {
    "id": "arr-0376",
    "type": "arrow",
-   "x": 1540.01,
-   "y": 1492.0,
-   "width": 260.03,
-   "height": 190.0,
+   "x": 1410.0,
+   "y": 1492,
+   "width": 505.0,
+   "height": 190,
    "strokeColor": "#9c36b5",
    "strokeStyle": "dashed",
    "strokeWidth": 2,
    "points": [
     [
      0.0,
-     0.0
+     0
     ],
     [
-     260.03,
-     190.0
+     0.0,
+     95
+    ],
+    [
+     505.0,
+     95
+    ],
+    [
+     505.0,
+     190
     ]
    ],
    "lastCommittedPoint": null,
@@ -7846,12 +8066,12 @@
    "startBinding": {
     "elementId": "e_facil",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "endBinding": {
     "elementId": "k_webhooks",
     "focus": 0.0,
-    "gap": 6.0
+    "gap": 4.0
    },
    "angle": 0,
    "roughness": 0,
