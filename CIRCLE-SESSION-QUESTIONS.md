@@ -45,21 +45,38 @@
 - **If yes, we ship:** an "auto-hedger" mode on the Desk using whatever
   primitive they name. Even their fallback answer demos within the week.
 
-### Q3. x402 discovery — can a stranger's agent find and pay us?
+### Q3. Arc is not in your own Discovery API — what is the path?
 
-> "We serve a Bazaar-shaped `/marketplace/catalog` — 13 priced resources with
-> input/output schemas and an on-chain ERC-8004-style attestation anchor in
-> the metadata, so a cautious buyer can require attested sellers before
-> paying. Is there a **Circle-indexed registry that agents actually crawl**,
-> and can ACR get listed — so a third-party agent we've never met discovers
-> the catalog, agrees the price, and settles, organically? Does our catalog
-> shape match what your discovery tooling expects?"
+> "Your Discovery API serves **958 listings**, and every network in a 200-item
+> sample is a mainnet chain — Base, Ethereum, Polygon, Avalanche, Arbitrum,
+> Optimism, Unichain, Sonic, World Chain, Sei, Hyperliquid.
+> `network=eip155:5042002` returns **zero**, and no Arc network appears
+> anywhere. We meet every listing prerequisite — 402 when unpaid, we serve on
+> payment, we publish an OpenAPI spec, and our payout wallet is a Circle
+> developer-controlled wallet — so the only thing disqualifying us is the
+> chain. **What is the path for an Arc service to become discoverable, and does
+> it change when Arc mainnet lands?**"
 
-- **Why it wins:** one payment from a buyer we didn't write is worth more
-  than a hundred from our own agent. Organic revenue is the strongest proof
-  a marketplace can show.
-- **If yes, we ship:** the listing/registration step, same day — then watch
-  the ledger for the first organic buyer.
+**Why it wins:** it is a question only someone who ran the query can ask, and it
+lands on a real gap in their own stack — the chain they built for agents is the
+one their agent marketplace cannot index. Everyone else in the room will ask
+"how do I get listed"; this asks "why can nothing on Arc be listed".
+
+**Follow-ups worth having ready:**
+- Your seller-integration-tools page points at Proceeds "on Arc and other
+  blockchains" — is that the sanctioned route for Arc services today, and does
+  it cover testnet?
+- Is `x402Version: 2` a hard requirement for indexing? (Ours advertised 1 until
+  we diffed against a live listing; nothing documented the version.)
+- `FINANCIAL_ANALYSIS` carries 447 of the 958. Is the six-category taxonomy
+  fixed, and how does a genuinely new category get added?
+
+**What we ship either way:** our catalog now matches your item shape exactly —
+`x402Version: 2`, `lastUpdated`, and a `metadata.provider` carrying the
+`category`/`tags`/`website`/`docsUrl` your API filters on — verified by diffing
+a built item against a live `FINANCIAL_ANALYSIS` listing. Plus the field no
+other listing has: an on-chain attestation anchor, so a cautious agent can
+require an attested seller before it pays.
 
 ### Q4. Pay-from-anywhere via Gateway's unified balance
 
@@ -162,7 +179,7 @@ time; handing over a measured list is a credibility move:
 |---|---|
 | Q1 — platform policies exist | Custody-held agent keys with enforced budgets; raw keys deleted from secrets |
 | Q2 — any delegation path | Auto-hedger mode on the Desk (the deck's lead use case, autonomous) |
-| Q3 — a crawled registry exists | Register the catalog; watch for the first organic buyer |
+| Q3 — an Arc path exists | Register wherever they name; watch the ledger for a THIRD payer — the only real proof of discovery |
 | Q4 — unified balance spans chains | "Pay from any chain" for buyer + Desk funding |
 | Q5 — event push exists | Tape via events; retire the getLogs pager |
 

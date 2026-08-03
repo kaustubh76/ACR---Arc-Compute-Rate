@@ -166,3 +166,16 @@ Worth trying in this order — **Proceeds is the only one whose docs mention Arc
 | **x402scan** | <https://www.x402scan.com/> | "a registry for x402 and agent-native APIs" |
 | Blockrun | <https://blockrun.ai> | "helps API sellers list their services in a directory" |
 | Sponge | <https://paysponge.com> | x402 + MPP, but **not** nanopayments — worst fit |
+
+**These need a browser — I could not evaluate them from here.** All three are
+client-rendered single-page apps: fetching them returns a shell, and
+`myproceeds.xyz/docs` returns literally "Loading API reference…". I probed the
+obvious API and docs paths on x402scan (`/api/resources`, `/api/services`,
+`/docs`, `/about`) and every one 404s, so there is no unauthenticated endpoint
+I can read.
+
+So I do not know whether any of them accepts an Arc testnet service, and I am
+not going to guess from a marketing line. **Ten minutes in a browser on
+Proceeds first** (the only one whose docs mention Arc) would settle it. If any
+offers self-serve registration, the details you need are the same three the
+Circle form wanted — endpoint URL, payout wallet, description — all above.
