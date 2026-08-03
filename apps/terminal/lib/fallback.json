@@ -18,34 +18,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.4888720381339856,
-          "bid": 0.4876402141953168,
-          "ask": 0.49010386207265444,
-          "spread_bp": 50.394534462256274
+          "mid": 0.4889720381339856,
+          "bid": 0.48774021419531677,
+          "ask": 0.49020386207265443,
+          "spread_bp": 50.3842282421594
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.4888720381339856,
-          "bid": 0.4876402141953168,
-          "ask": 0.49010386207265444,
-          "spread_bp": 50.394534462256274
+          "mid": 0.4889720381339856,
+          "bid": 0.48774021419531677,
+          "ask": 0.49020386207265443,
+          "spread_bp": 50.3842282421594
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.4888720381339856,
-          "bid": 0.4876402141953168,
-          "ask": 0.49010386207265444,
-          "spread_bp": 50.394534462256274
+          "mid": 0.4889720381339856,
+          "bid": 0.48774021419531677,
+          "ask": 0.49020386207265443,
+          "spread_bp": 50.3842282421594
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.4888720381339856,
-          "bid": 0.4876402141953168,
-          "ask": 0.49010386207265444,
-          "spread_bp": 50.394534462256274
+          "mid": 0.4889720381339856,
+          "bid": 0.48774021419531677,
+          "ask": 0.49020386207265443,
+          "spread_bp": 50.3842282421594
         }
       ],
       "robustness": {
@@ -57,12 +57,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.49112046961935424,
-        "ci_lo": 0.4884496644258893,
-        "ci_hi": 0.49475541139948975,
-        "attack_cost_per_bp": 0.005494,
-        "timestamp": 4032000,
-        "posted_at": 1785771135
+        "value": 0.4923551190903513,
+        "ci_lo": 0.48981011921009515,
+        "ci_hi": 0.4933476790459626,
+        "attack_cost_per_bp": 0.009397,
+        "timestamp": 4039200,
+        "posted_at": 1785777212
       }
     },
     "ACR-GPU": {
@@ -122,12 +122,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.010831107596982992,
-        "ci_lo": 0.010774606173239344,
-        "ci_hi": 0.010912241681289176,
-        "attack_cost_per_bp": 0.006295,
-        "timestamp": 4032000,
-        "posted_at": 1785771138
+        "value": 0.011100978452646001,
+        "ci_lo": 0.01094206414922481,
+        "ci_hi": 0.011119543300974892,
+        "attack_cost_per_bp": 0.008533,
+        "timestamp": 4039200,
+        "posted_at": 1785777217
       }
     },
     "ACR-DATA": {
@@ -187,12 +187,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.002028640876594722,
-        "ci_lo": 0.002008334168303839,
-        "ci_hi": 0.00204239180371302,
-        "attack_cost_per_bp": 0.008887,
-        "timestamp": 4032000,
-        "posted_at": 1785771141
+        "value": 0.002087878893650796,
+        "ci_lo": 0.002084184784945665,
+        "ci_hi": 0.002098916391787599,
+        "attack_cost_per_bp": 0.013424,
+        "timestamp": 4039200,
+        "posted_at": 1785777222
       }
     }
   },
@@ -1506,11 +1506,11 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": 0.19,
-      "maker_avg_price": 0.4923551190903513,
-      "maker_realized_usdc": 0.06757013815435789,
-      "maker_unrealized_usdc": 0.065224,
-      "open_interest": 0.19,
+      "maker_inventory": -2.31,
+      "maker_avg_price": 0.49157642790640177,
+      "maker_realized_usdc": 0.06522430415946348,
+      "maker_unrealized_usdc": 0.047236,
+      "open_interest": 2.31,
       "trader_count": 4
     }
   },
@@ -1676,32 +1676,45 @@
     "tape_source": "sim",
     "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
     "poster": {
-      "posts": 23,
+      "posts": 20,
       "last": {
         "ACR-INF": {
-          "tx": "0xc10058c8a71f417e92f711ecd91468867c3dda252f81403a8698938b0db200fa",
-          "block": 55122759,
-          "at_wall": 1785771135.0
+          "tx": "0x9fb2157ef90c660efb39e5b2d9544b1edfc1cf28fcd1be260623a367b12899c1",
+          "block": 55134621,
+          "at_wall": 1785777212.0
         },
         "ACR-GPU": {
-          "tx": "0x3d2b62014f0040b6eb2bf43463aff76c34bf6ca6fd869ee44f3a77b4442c5282",
-          "block": 55122766,
-          "at_wall": 1785771138.0
+          "tx": "0x3b1ff697b9ca2eb28a7ad329da5d9aae447eb196e4a542260f40c437648eb409",
+          "block": 55134630,
+          "at_wall": 1785777217.0
         },
         "ACR-DATA": {
-          "tx": "0x064cb8336c3573036c15d5264ca0288a781d4fd7e2ea74611365ebea83323a87",
-          "block": 55122772,
-          "at_wall": 1785771141.0
+          "tx": "0xb34699c58d895fccbba2d1a52f3d410ee7c5f103e32823552cbf479b6e72d736",
+          "block": 55134640,
+          "at_wall": 1785777222.0
         }
       }
     }
   },
   "marketplace": {
     "catalog": {
-      "x402Version": 1,
+      "x402Version": 2,
       "provider": {
         "name": "ACR \u2014 The Arc Compute Rate",
         "tagline": "the constant-quality price of machine services, sold to machines",
+        "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+        "website": "https://arc-compute-rate.vercel.app",
+        "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+        "category": "FINANCIAL_ANALYSIS",
+        "tags": [
+          "x402",
+          "arc",
+          "usdc",
+          "compute",
+          "index",
+          "oracle",
+          "futures"
+        ],
         "attestation": {
           "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
           "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -1721,7 +1734,8 @@
         {
           "resource": "/prints",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1792,6 +1806,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -1817,7 +1844,8 @@
         {
           "resource": "/prints/ACR-INF",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1893,6 +1921,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -1918,7 +1959,8 @@
         {
           "resource": "/prints/ACR-GPU",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1994,6 +2036,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2019,7 +2074,8 @@
         {
           "resource": "/prints/ACR-DATA",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2095,6 +2151,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2120,7 +2189,8 @@
         {
           "resource": "/curve/ACR-INF",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2197,6 +2267,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2222,7 +2305,8 @@
         {
           "resource": "/curve/ACR-GPU",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2299,6 +2383,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2324,7 +2421,8 @@
         {
           "resource": "/curve/ACR-DATA",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2401,6 +2499,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2426,7 +2537,8 @@
         {
           "resource": "/vol/ACR-INF",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2480,6 +2592,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2505,7 +2630,8 @@
         {
           "resource": "/vol/ACR-GPU",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2559,6 +2685,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2584,7 +2723,8 @@
         {
           "resource": "/vol/ACR-DATA",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2638,6 +2778,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2663,7 +2816,8 @@
         {
           "resource": "/seller-scores/ACR-INF",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2737,6 +2891,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2762,7 +2929,8 @@
         {
           "resource": "/seller-scores/ACR-GPU",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2836,6 +3004,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -2861,7 +3042,8 @@
         {
           "resource": "/seller-scores/ACR-DATA",
           "type": "http",
-          "x402Version": 1,
+          "x402Version": 2,
+          "lastUpdated": "2026-08-03T17:46:46.103Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2935,6 +3117,19 @@
             "provider": {
               "name": "ACR \u2014 The Arc Compute Rate",
               "tagline": "the constant-quality price of machine services, sold to machines",
+              "description": "A manipulation-resistant reference rate for machine services on Arc: inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress ($/MB). Every print ships a confidence interval and the USDC an attacker must burn to move it one basis point, and settles on-chain against a cash-settled futures venue.",
+              "website": "https://arc-compute-rate.vercel.app",
+              "docsUrl": "https://arc-compute-rate.vercel.app/developers",
+              "category": "FINANCIAL_ANALYSIS",
+              "tags": [
+                "x402",
+                "arc",
+                "usdc",
+                "compute",
+                "index",
+                "oracle",
+                "futures"
+              ],
               "attestation": {
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
@@ -3318,13 +3513,93 @@
   "futures_trades": [
     {
       "series_id": 3,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.4953335241916736,
+      "block": 55134566,
+      "tx": "0xd4f6ea41899a490372e327421ef086e943862b71a893cb073974f8d0530852f1",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": 1.0,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 55128593,
+      "tx": "0x9217c7092d16b137ac888ecce323f6fcb0ea52d32897a3402e95954d600befc6",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": -1.0,
+      "side": "sell",
+      "mark": 0.49112046961935424,
+      "block": 55128550,
+      "tx": "0x9c7a0ba856d0575e88605b8d3198ca64598e3248411d30cc7d7e7218beabf381",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": 1.0,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 55128507,
+      "tx": "0xb48e6059c85af4590ad626f7e7851e73b07f51eae2d9622b3ca98f1b35237005",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": 1.0,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 55128456,
+      "tx": "0xe38174c8dd8d2ab702db68de95f6fe410db86409e3f8e13cdd12505d502bfc0a",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": -1.0,
+      "side": "sell",
+      "mark": 0.49112046961935424,
+      "block": 55128410,
+      "tx": "0xafba3f471f37fbba3ef22825961b31398dffc8f3abae2cd5a2571fb343a8d976",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
+      "qty": 1.0,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 55128368,
+      "tx": "0x4dd819368feb477274c74e9e6e690db48ddd79424213889a7d347aafc11a26d3",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 55127553,
+      "tx": "0x41fb32f25172d8c33eac0d9ff8288b6c50fef1e5107b962128edff5efba5a343",
+      "seen_at": 1785779305.308013
+    },
+    {
+      "series_id": 3,
       "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
       "qty": 0.81,
       "side": "buy",
       "mark": 0.49773380357474806,
       "block": 55121353,
       "tx": "0xd864de5c09e8206a1fc56d391ce136737f26aea7bf8606409014e7e7eefd7a88",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3334,7 +3609,7 @@
       "mark": 0.49773380357474806,
       "block": 55120893,
       "tx": "0xde561196f1951fda338cfed31cda541f8bd347600fa60abf2af042772e225d5a",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3344,7 +3619,7 @@
       "mark": 0.4923551190903513,
       "block": 55109723,
       "tx": "0x242da4f5f4d9ad7287a988cf95be3f51876af15257f3a6cf984d06993b9046b7",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3354,7 +3629,7 @@
       "mark": 0.4923551190903513,
       "block": 55109687,
       "tx": "0xaaa0f2d5edca2ee7e95d1cc3e52dfa73aa505cedf73be13de143f8406f4d28ab",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3364,7 +3639,7 @@
       "mark": 0.4923551190903513,
       "block": 55109624,
       "tx": "0xc478a087c882d1e53d84d711b74965a81cbeb9ba56b605911cf4dc8e765dde4c",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3374,7 +3649,7 @@
       "mark": 0.4923551190903513,
       "block": 55109577,
       "tx": "0x0de9e7aefa368d381be4f86dd6615918055cfef213096149db9dfe8b3123042a",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3384,7 +3659,7 @@
       "mark": 0.4923551190903513,
       "block": 55109533,
       "tx": "0xc2aaeb0bdfc35f455e85df98ab202e642809d03437b4ede54ceb4b5307b09505",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3394,7 +3669,7 @@
       "mark": 0.4923551190903513,
       "block": 55109474,
       "tx": "0x34779de205db0b60f2ec162ed4c584ac4c1ce8028aeac23387c7af4d22f1f78c",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 3,
@@ -3404,7 +3679,7 @@
       "mark": 0.4953335241916736,
       "block": 55107516,
       "tx": "0xfb8b87066d13511403ea01d60aeda22a0a291e06782b82b39baa68ce282b6b9e",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3414,7 +3689,7 @@
       "mark": 0.49773380357474806,
       "block": 55088808,
       "tx": "0xa687ffe6f9f704c08b8d9e5de2ab68829dc94cfb8b1f4c72a0b7c6147752a466",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3424,7 +3699,7 @@
       "mark": 0.49773380357474806,
       "block": 55088768,
       "tx": "0xad107cb17f89020233b43f1e2f00a123abceaa87dffa08d76a111897fcf3dcd2",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3434,7 +3709,7 @@
       "mark": 0.49773380357474806,
       "block": 55088731,
       "tx": "0x323113c640c175ef43938d73d8158d1330cf73e82bea1016ccea7500cf602d94",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3444,7 +3719,7 @@
       "mark": 0.49773380357474806,
       "block": 55088689,
       "tx": "0x1b690e4533b886821a4e63d6fb2fc304159b2203fcdc7d699fe7b1f2d4bb7b2f",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3454,7 +3729,7 @@
       "mark": 0.49773380357474806,
       "block": 55088631,
       "tx": "0xa833e7469d0b6a9b9ccd1384938ed5c63fa4b9f59cc52942e2f9b9c57133328d",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     },
     {
       "series_id": 2,
@@ -3464,7 +3739,7 @@
       "mark": 0.49773380357474806,
       "block": 55088590,
       "tx": "0xfdd5a398f841bb20246217607e87e0571d250f3ef31f7b76513c5d6eace94812",
-      "seen_at": 1785771336.599162
+      "seen_at": 1785779305.308013
     }
   ],
   "hedger": {
@@ -3487,7 +3762,7 @@
         "mark": 0.49773380357474806,
         "block": 55121353,
         "tx": "0xd864de5c09e8206a1fc56d391ce136737f26aea7bf8606409014e7e7eefd7a88",
-        "seen_at": 1785771336.599162
+        "seen_at": 1785779305.308013
       },
       {
         "series_id": 3,
@@ -3497,7 +3772,7 @@
         "mark": 0.49773380357474806,
         "block": 55120893,
         "tx": "0xde561196f1951fda338cfed31cda541f8bd347600fa60abf2af042772e225d5a",
-        "seen_at": 1785771336.599162
+        "seen_at": 1785779305.308013
       }
     ],
     "paid_queries": 0,
