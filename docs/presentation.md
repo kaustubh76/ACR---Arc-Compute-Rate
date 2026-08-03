@@ -108,7 +108,7 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 - **Portia**, an autonomous paralegal fleet, resells LLM work at fixed prices but pays for inference per call — ~**100M tokens/mo × 0.49236 $/1k tokens** (the ACR-INF print) ≈ **$49,236/mo**, all floating. One +10% month is **+$4,924** of unbudgeted burn.
 - The fix: go **long ACR-INF futures**. Cash-settled — at expiry the venue **freezes the freshest oracle print** (≤ 2 h old, enforced on-chain) and pays the difference in USDC. **No delivery, no GPU repossession, no seller cooperation.**
 - A hedge is only as good as its settlement print: every ACR print ships its **CI** and its **attack-cost-per-bp**, so both sides can read — on-chain — what bending the settle would cost.
-- **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — series 0 (ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing) with a **seeded long/short book**, settling against the same ACROracle. Watch it on `/curve`.
+- **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing, settling against the same ACROracle. The maker standing behind the book is a **Circle developer-controlled wallet**, and an **autonomous agent buys the print over x402 and trades on it**. Watch both on `/curve`.
 
 <!-- Every compute future before this died one of two deaths: physical delivery you can't enforce, or cash settlement against an index you can bend. We amputated delivery — "capacity forwards with the hardest organ amputated" — and made bending priced. Portia's math is a worked example at the ship-week print; the venue is testnet-scale by design (10× multiplier). The mechanism, not the notional, is the product. -->
 
@@ -206,10 +206,10 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 |---|---|
 | **ACROracle** `0x4f00e3BD…9092609` | Hourly EIP-712 prints, Circle custody signer |
 | **AttestationRegistry** `0x23ae3E1A…2f63dFb7` | 4 seller attestations on-chain |
-| **ACRFutures** `0x29d97c62…82642fe` | Series 0 seeded long/short book, cash-settles on the print |
+| **ACRFutures** `0x29d97c62…82642fe` | Live series, **maker is a Circle custody wallet**, cash-settles on the print |
 | **Terminal + Seller API** | API x402-gated at **$0.0001/query**, fail-closed |
 
-`make ci` green 2026-07-31: **230 py** · **50 forge** (incl. futures + invariants) · **50 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **332/332** · GitHub CI **4/4**.
+`make ci` green 2026-08-03: **273 py** · **50 forge** (incl. futures + invariants) · **55 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **386/386** · GitHub CI **4/4**.
 
 Real settlement through **Circle Gateway** — batch-UUID receipts in-repo and on the public `/exchange` tape; Circle's own CLI paid the gate (`payable`).
 

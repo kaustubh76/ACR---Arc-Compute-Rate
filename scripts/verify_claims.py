@@ -31,6 +31,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
 STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
+#: The deck is the artefact a judge actually reads, and it was the most
+#: drifted: it claimed 230 py / 332 glossary / 50 terminal against a suite of
+#: 273 / 386 / 55, and narrated a series that had already been rolled twice.
+#: It went unchecked for the dullest reason — nothing parsed it.
+DECK = ROOT / "docs" / "presentation.md"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -115,6 +120,7 @@ def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)
     sub = SUBMISSION.read_text()
     status = STATUS.read_text()
+    deck = DECK.read_text() if DECK.exists() else ""
 
     print("ACR claim audit — do the docs still tell the truth?")
     if FAST:
@@ -148,6 +154,39 @@ def main() -> None:
             check(False, f"{label}: could not measure (toolchain missing?)")
             continue
         check(actual == stated, f"{label}: docs say {stated}, measured {actual}")
+
+    # The deck states the same suite sizes in its own phrasing ("**273 py** ·
+    # **50 forge** · **55 terminal** … glossary **386/386**). It is a separate
+    # sentence from SUBMISSION's table, so it drifts separately — and it is the
+    # one a judge reads. Same measurements, parsed from the deck's own wording.
+    print("\nthe deck (docs/presentation.md — what a judge actually reads)")
+    if not deck:
+        check(False, "presentation.md is missing")
+    else:
+        for label, pattern, measure, costly in (
+            ("deck python count", r"\*\*(\d+) py\*\*", measured_pytest, False),
+            ("deck forge count", r"\*\*(\d+) forge\*\*", measured_forge, True),
+            ("deck terminal count", r"\*\*(\d+) terminal\*\*", measured_terminal, True),
+            ("deck glossary count", r"glossary \*\*(\d+)/\d+\*\*", measured_glossary, False),
+        ):
+            stated = claim(deck, pattern)
+            if stated is None:
+                check(False, f"{label}: no claim found — has the deck been reworded?")
+                continue
+            if FAST and costly:
+                print(f"  · {label}: claims {stated} (not measured)")
+                continue
+            actual = measure()
+            if actual is None:
+                check(False, f"{label}: could not measure (toolchain missing?)")
+                continue
+            check(actual == stated, f"{label}: deck says {stated}, measured {actual}")
+        # A deck that narrates a series the venue has already rolled past sends a
+        # judge to /curve expecting one thing and showing another.
+        check(
+            "series 0" not in deck.lower(),
+            "the deck no longer narrates series 0 (the venue is on series 3)",
+        )
 
     print("\nglossary")
     stated = claim(sub, r"(\d+)/\d+ diagram terms")
