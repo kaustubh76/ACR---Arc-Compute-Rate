@@ -1,0 +1,84 @@
+name: x402-buy
+
+# Buy the index the way an agent would — real x402 nanopayments settled through
+# Circle Gateway against the LIVE seller.
+#
+# Why this exists as a workflow rather than a local command: the funded buyer's
+# key is a repository secret, not something on anyone's laptop. The wallet that
+# made this project's earlier real settlements
+# (0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d) opened a Gateway deposit, and its
+# key is ACR_FUTURES_TAKER_KEY. The `.env` entry of the same name is a
+# DIFFERENT, unfunded address — which is exactly why the buyer looked
+# unavailable until someone checked who the historical payer actually was.
+#
+# DISPATCH-ONLY, and deliberately so: a paid loop on a schedule would quietly
+# drain a deposit nobody is watching. Every run is a decision.
+#
+# The spend is bounded twice over — `count` caps the queries and `--limit` is a
+# hard USDC ceiling the agent stops before crossing. At $0.0001 a query the
+# default run costs $0.0005.
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "How many paid queries to make"
+        type: string
+        default: "5"
+      api:
+        description: "Seller to buy from"
+        type: string
+        default: "https://acr-api-1fto.onrender.com"
+      limit:
+        description: "Hard spend cap in USDC — the loop stops before crossing it"
+        type: string
+        default: "0.01"
+
+permissions:
+  contents: read
+
+# Never let two buyers run at once: they would race the same Gateway balance.
+concurrency:
+  group: x402-buy
+  cancel-in-progress: false
+
+jobs:
+  buy:
+    # Base repo only — a fork carries no secret and must not spend.
+    if: github.repository == 'kaustubh76/ACR---Arc-Compute-Rate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install the buyer agent
+        run: cd apps/agent && npm install --no-audit --no-fund
+
+      # The seller is on a free tier that sleeps. A cold start can outlast the
+      # agent's own timeout, and a buyer failing because the shop was still
+      # unlocking is not a payments failure — wake it first.
+      - name: Wake the seller
+        run: |
+          curl -sS -m 120 -o /dev/null -w "seller /health %{http_code} in %{time_total}s\n" \
+            "${{ inputs.api }}/health" || true
+
+      - name: Buy (real Gateway settlement)
+        env:
+          AGENT_PRIVATE_KEY: ${{ secrets.ACR_FUTURES_TAKER_KEY }}
+        run: |
+          cd apps/agent && npm run start -- --live \
+            --api "${{ inputs.api }}" \
+            --count "${{ inputs.count }}" \
+            --limit "${{ inputs.limit }}" \
+            --discover
+
+      # The agent saying "paid" is its own account of itself. The settlement is
+      # real when the SELLER — the side that ran verify + settle against Circle
+      # — reports it, so read the ledger back and show it in the log.
+      - name: What the seller says it settled
+        if: always()
+        run: |
+          curl -sS -m 120 "${{ inputs.api }}/marketplace/receipts" \
+            | python3 -m json.tool | head -40
