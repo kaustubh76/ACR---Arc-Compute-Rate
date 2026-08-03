@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from index_api.x402 import (
     CircleFacilitator,
     DevFacilitator,
+    Facilitator,
     facilitator_endpoint,
     get_facilitator,
     reset_facilitator,
@@ -397,3 +398,81 @@ def test_integration_paid_query_via_testclient():
         assert client.get("/revenue").json()["paid_queries"] >= 1
     finally:
         reset_facilitator()
+
+
+# --- the durable archive: the only ledger that survives a diskless restart ---
+
+
+class _Ledger(Facilitator):
+    """A concrete Facilitator with nothing but the base class's ledger, so these
+    tests exercise the rehydration itself rather than a gate's payment logic."""
+
+    def __init__(self, log: str = "", archive: str = "") -> None:
+        super().__init__(receipt_log_path=log, receipt_archive_path=archive)
+
+    def challenge(self, request):  # pragma: no cover - unused here
+        raise NotImplementedError
+
+    async def process(self, request, header, response):  # pragma: no cover
+        raise NotImplementedError
+
+
+def _archive(tmp_path, rows, name="live.jsonl"):
+    p = tmp_path / name
+    p.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return str(p)
+
+
+def _real(ref, amount=0.0001, scheme="exact"):
+    return {"payer": "0x" + "a" * 40, "amount_usdc": amount, "tx_ref": ref,
+            "network": "eip155:5042002", "scheme": scheme,
+            "settled_at": 1785133731.0, "resource": "/prints/ACR-INF"}
+
+
+def test_real_settlements_survive_a_restart_via_the_archive(tmp_path):
+    """Production has NO persistent disk, so the runtime log is empty on every
+    boot — and the live product reported `paid_queries: 0` over a gate that had
+    genuinely been paid twice. The archive ships inside the image, so it is the
+    one ledger a restart cannot erase."""
+    f = _Ledger(archive=_archive(tmp_path, [_real("uuid-1")]))
+    assert f.paid_queries == 1
+    assert f.revenue_usdc == pytest.approx(0.0001)
+    assert list(f.recent)[0].tx_ref == "uuid-1"
+
+
+def test_the_same_settlement_in_both_ledgers_is_counted_once(tmp_path):
+    """Once the runtime log HAS a disk, a settlement legitimately appears in
+    both files. A counter that silently doubles its own revenue is worse than
+    one that reads zero — the specific way this change could make things worse,
+    so it is pinned."""
+    both = _archive(tmp_path, [_real("uuid-dup")])
+    f = _Ledger(log=both, archive=both)
+    assert f.paid_queries == 1, "the same tx_ref was counted twice"
+    assert f.revenue_usdc == pytest.approx(0.0001)
+
+
+def test_distinct_settlements_across_the_two_ledgers_both_count(tmp_path):
+    """Dedupe must not become dropping: a settlement in only one file is real."""
+    log = _archive(tmp_path, [_real("uuid-runtime")], name="run.jsonl")
+    arc = _archive(tmp_path, [_real("uuid-archived")], name="arc.jsonl")
+    f = _Ledger(log=log, archive=arc)
+    assert f.paid_queries == 2
+    assert {r.tx_ref for r in f.recent} == {"uuid-runtime", "uuid-archived"}
+
+
+def test_a_sim_row_can_never_reach_the_public_counter(tmp_path):
+    """The archive is the record of REAL payments. A dev or sim row landing in
+    it would put invented revenue on a counter a judge reads."""
+    path = _archive(tmp_path, [_real("sim-1", scheme="sim"), _real("dev-1", scheme="dev"),
+                               _real("uuid-real")])
+    f = _Ledger(archive=path)
+    assert f.paid_queries == 1
+    assert [r.tx_ref for r in f.recent] == ["uuid-real"]
+
+
+def test_the_mock_gate_never_shows_real_revenue():
+    """DevFacilitator is the offline demo gate. If it inherited the archive it
+    would display real settlements it never processed."""
+    from index_api.x402 import DevFacilitator
+
+    assert DevFacilitator().paid_queries == 0

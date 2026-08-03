@@ -340,8 +340,15 @@ def build_sim_receipts(n: int = 24, settings=None) -> dict:
 
 def build_receipts(fac: Facilitator) -> dict:
     """The public settlement ledger — the facilitator's recent-receipt ring,
-    newest first, with a monotone ``seq`` ordinal (no wall-clock: the ring
-    holds the last 256 of ``paid_queries`` total)."""
+    newest first, with a monotone ``seq`` ordinal.
+
+    Carries ``settled_at`` when the receipt has one. The ledger now rehydrates
+    real Gateway settlements from a committed archive, so some rows are
+    genuinely old — and a ledger that shows *what* was paid while hiding *when*
+    invites a reader to assume it was recent. The row is true either way; the
+    timestamp is what makes it unambiguous. (Omitted when zero, so a receipt
+    from before the field existed does not claim to have settled at the epoch.)
+    """
     receipts = list(fac.recent)
     # Clamped: a paid query landing between the two reads above can skew the
     # count by one for a single poll — never let an ordinal go below 1.
@@ -354,6 +361,7 @@ def build_receipts(fac: Facilitator) -> dict:
             "tx_ref": r.tx_ref,
             "network": r.network,
             "scheme": r.scheme,
+            **({"settled_at": r.settled_at} if r.settled_at else {}),
         }
         for i, r in enumerate(receipts)
     ]

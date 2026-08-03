@@ -29,6 +29,7 @@ import base64
 import json
 import logging
 import math
+import os
 import time
 from abc import ABC, abstractmethod
 from collections import deque
@@ -190,7 +191,9 @@ class Facilitator(ABC):
     calls. Counters are a running total + a small ring of recent receipts, so a
     long-lived process serving sustained agent traffic does not leak memory."""
 
-    def __init__(self, receipt_log_path: str | None = None) -> None:
+    def __init__(
+        self, receipt_log_path: str | None = None, receipt_archive_path: str | None = None
+    ) -> None:
         self.paid_queries = 0
         self._revenue = 0.0
         self.recent: deque[PaymentReceipt] = deque(maxlen=256)
@@ -198,6 +201,25 @@ class Facilitator(ABC):
         # the file (in-memory only — the default, so tests + the dev gate never
         # touch disk). Only REAL settlements (`_REAL_SCHEMES`) are persisted.
         self._log_path = get_settings().receipt_log_path if receipt_log_path is None else receipt_log_path
+        # The committed record of real settlements — the only ledger that
+        # survives a restart on a diskless host, because it ships in the image.
+        #
+        # OFF unless ACR_RECEIPT_ARCHIVE_PATH says otherwise, and that default
+        # is deliberate. Pointing it at the repo's real archive by default made
+        # every CircleFacilitator in the test suite start with two real
+        # settlements already counted, which broke four tests and would have
+        # meant a developer's local counters quietly showing production
+        # revenue. A default that reaches into the repo for real financial data
+        # is too magical to be safe; production opts in via render.yaml.
+        #
+        # Separate from the runtime-log parameter on purpose: CircleFacilitator
+        # passes an explicit log path, so keying the archive off "log path is
+        # None" would disable it on precisely the facilitator that needs it.
+        self._archive_path = (
+            os.environ.get("ACR_RECEIPT_ARCHIVE_PATH", "")
+            if receipt_archive_path is None
+            else receipt_archive_path
+        )
         self._rehydrate()
 
     @property
@@ -206,16 +228,44 @@ class Facilitator(ABC):
 
     def _rehydrate(self) -> None:
         """Reload the durable settlement ledger so /revenue + /marketplace/receipts
-        survive a restart. Malformed/legacy lines are skipped."""
-        if not self._log_path:
-            return
-        p = Path(self._log_path)
+        survive a restart. Malformed/legacy lines are skipped.
+
+        Reads TWO files, because on this deployment only one of them survives:
+
+        * the runtime log (``ACR_RECEIPT_LOG_PATH``) — settlements from this
+          container's own life, and empty on a host with no persistent disk,
+          which the production free tier is;
+        * the committed archive (``ACR_RECEIPT_ARCHIVE_PATH``) — real Gateway
+          settlements that ship *inside the image*, so they outlive every
+          restart.
+
+        Without the second, the live product reported `paid_queries: 0` over a
+        gate that had genuinely been paid — the pillar's only evidence existed
+        in the repo and in the offline bundle, everywhere except the running
+        API. Same shape as the faucet ledger, which rehydrates from Circle's own
+        record rather than trusting a disk that is not there.
+        """
+        seen: set[str] = set()
+        for path, label in (
+            (self._log_path, "runtime log"),
+            (self._archive_path, "committed archive"),
+        ):
+            if path:
+                self._load_receipts(Path(path), label, seen)
+
+    def _load_receipts(self, p: Path, label: str, seen: set[str]) -> None:
+        """Merge one ledger file, skipping settlements already counted.
+
+        ``seen`` is deduped on ``tx_ref`` ACROSS files: once the runtime log has
+        a disk, a settlement can legitimately appear in both, and a counter that
+        silently doubles its own revenue is worse than one that reads zero.
+        """
         if not p.exists():
             return
         try:
             lines = p.read_text().splitlines()
         except Exception as exc:  # pragma: no cover - unreadable file
-            log.warning("could not read receipt log %s: %s", p, exc)
+            log.warning("could not read receipt ledger %s: %s", p, exc)
             return
         loaded = 0
         for line in lines[-self.recent.maxlen :]:
@@ -223,14 +273,24 @@ class Facilitator(ABC):
             if not line:
                 continue
             try:
-                self.recent.append(PaymentReceipt(**json.loads(line)))
+                row = json.loads(line)
+                ref = str(row.get("tx_ref") or "")
+                if not ref or ref in seen:
+                    continue
+                # The archive is the record of REAL payments. A dev or sim row
+                # reaching it would put invented revenue on a public counter.
+                if row.get("scheme") not in _REAL_SCHEMES:
+                    continue
+                seen.add(ref)
+                self.recent.append(PaymentReceipt(**row))
                 self.paid_queries += 1
-                self._revenue += float(json.loads(line).get("amount_usdc", 0.0))
+                self._revenue += float(row.get("amount_usdc", 0.0))
                 loaded += 1
             except Exception:
                 continue  # skip a corrupt/legacy line
         if loaded:
-            log.info("receipt log: rehydrated %d settlement(s) from %s", loaded, p)
+            log.info("receipts: rehydrated %d real settlement(s) from the %s (%s)",
+                     loaded, label, p)
 
     def _persist(self, receipt: PaymentReceipt) -> None:
         # Durable ledger holds only real settlements (dev/sim receipts are demo).
@@ -272,7 +332,8 @@ class DevFacilitator(Facilitator):
     def __init__(self) -> None:
         # The mock gate is never a real settlement — keep it purely in-memory so
         # it never reads from or writes to the durable settlement ledger.
-        super().__init__(receipt_log_path="")
+        # No archive: a mock gate must never display real revenue.
+        super().__init__(receipt_log_path="", receipt_archive_path="")
 
     def challenge(self, request: Request) -> PaymentRequired:
         s = get_settings()
