@@ -282,8 +282,32 @@ async def _warm_chain(stop: asyncio.Event) -> None:
                 # is the most expensive read the desk serves — and it sits on
                 # /futures, the endpoint the venue's liveness is judged by.
                 await asyncio.to_thread(futures.recent_trades, use_cache=False)
+                await _run_keeper(futures)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
+
+
+async def _run_keeper(futures) -> None:
+    """The venue's chores, on the host that already holds the credentials.
+
+    Isolated in its own try/except INSIDE the warm loop's, deliberately: the
+    caller's handler would also catch this, but then a keeper failure would skip
+    the rest of that tick. A venue that stops trading is a degraded demo; a
+    press that stops printing is a dead product, because the contract will not
+    settle against a stale print. The chores are never allowed to cost the press
+    a beat.
+    """
+    from . import keeper
+
+    if not keeper.enabled():
+        return
+    for name, fn in (("heartbeat", keeper.heartbeat_once), ("roll", keeper.roll_if_needed)):
+        try:
+            verdict = await asyncio.to_thread(fn, futures)
+            if verdict:
+                log.info("keeper %s: %s", name, verdict)
+        except Exception:  # pragma: no cover - a chore must never cost a beat
+            log.warning("keeper %s failed", name, exc_info=True)
 
 
 async def _background(stop: asyncio.Event) -> None:
@@ -677,6 +701,22 @@ def onchain_print(index_id: str) -> dict:
     if r is None:
         raise HTTPException(status_code=404, detail=f"no on-chain print for {index_id}")
     return {"source": "onchain", "oracle": reader.oracle_address, **r}
+
+
+@app.get("/hedger")
+def hedger_state(fac: Facilitator = Depends(get_facilitator)) -> dict:
+    """The autonomous hedger's standing — mandate, position, fills, and spend.
+
+    Ungated, and derived only from public data: the agent's position on the
+    venue, the ``Traded`` events whose taker is the agent, and the settlement
+    ledger rows whose payer is it. Nothing here depends on a log file from
+    wherever the agent happened to run, so every number is one a reader can
+    reproduce from the chain.
+    """
+    from . import hedger
+    from .marketplace import build_receipts
+
+    return hedger.build_hedger_state(get_futures(), build_receipts(fac))
 
 
 @app.get("/futures")

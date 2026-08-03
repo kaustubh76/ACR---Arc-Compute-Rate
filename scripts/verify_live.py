@@ -317,6 +317,48 @@ def verify_desk(live_series: dict | None) -> None:
         )
 
 
+def verify_hedger() -> None:
+    """The autonomous agent — did it actually pay and trade, or is it a panel?
+
+    This lives here rather than in a dispatch workflow ON PURPOSE. Running the
+    hedger from CI would mean shipping the Circle agent wallet's session into
+    GitHub secrets — an email-authenticated credential that expires in weeks,
+    which is exactly the "wrong tool for unattended automation" argument
+    docs/WALLETS.md makes about agent wallets. This check needs no credential at
+    all: it reads public state and asserts the evidence is there, so the public
+    run record comes from the 10-minute keepalive for free.
+
+    Warn-only: the agent is operator-run, so "has not traded recently" is a fact
+    about the demo schedule, not an outage.
+    """
+    print("\nautonomous hedger — the agent that pays for what it trades on")
+    status, body = get(f"{API}/hedger")
+    if not check(status == 200 and isinstance(body, dict), f"/hedger -> {status}"):
+        return
+    if not body.get("configured"):
+        check(False, "no hedger agent configured on this deployment", warn_only=True)
+        return
+    check(bool(body.get("agent")), f"agent wallet {str(body.get('agent'))[:12]}…")
+    # Two identities, one agent — the pair is the point, so check both are named.
+    check(
+        bool(body.get("payer")),
+        f"pays as {str(body.get('payer'))[:12]}… (the smart account's backing EOA)",
+        warn_only=True,
+    )
+    fills = body.get("fills") or []
+    check(len(fills) > 0, f"{len(fills)} on-chain fill(s) by the agent", warn_only=True)
+    paid = body.get("paid_queries")
+    check(
+        bool(paid),
+        f"{paid} x402 settlement(s) from the agent — it paid for the data it traded on",
+        warn_only=True,
+    )
+    pos, gap = body.get("position_contracts"), body.get("gap_contracts")
+    if pos is not None:
+        check(True, f"position {pos:+.2f} against a mandate of "
+                    f"{body.get('target_contracts')} (gap {gap:+.2f})")
+
+
 def verify_terminal(live_series: dict | None) -> None:
     print("\nterminal — the public surface")
     for path in ROUTES:
@@ -416,13 +458,54 @@ def verify_funding(w3, settings) -> None:
         )
 
 
-def verify_crons() -> None:
-    """Warn-only by default: GitHub drops most scheduled ticks on a private
-    repo, so a strict check here would be red more often than the product is
-    broken — and an alarm that cries wolf gets ignored."""
+def _settings_for_crons():
+    from acr_core import get_settings
+
+    return get_settings()
+
+
+def verify_crons(w3) -> None:
+    """The venue's chores now run on the TRUSTED HOST, not in Actions.
+
+    So the question changed. It used to be "did GitHub fire the cron?" — which
+    was always warn-only, because GitHub drops most scheduled ticks on a private
+    repo and an alarm that cries wolf gets ignored. Now the honest question is
+    "has the venue actually traded lately?", and the answer is on the chain
+    rather than in a workflow run list. The workflows survive as dispatch-only
+    fallbacks; their run age no longer says anything about liveness.
+    """
     import subprocess
 
-    print("\nautomation — the jobs that keep the book alive")
+    print("\nautomation — the keeper on the trusted host, and the manual fallback")
+    from acr_oracle_client import FuturesClient
+
+    s = _settings_for_crons()
+    try:
+        fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address)
+        trades = fc.recent_trades(limit=5)
+    except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+        check(False, f"could not read the tape ({str(exc)[:50]})", warn_only=True)
+        trades = []
+    if trades:
+        # The BLOCK's timestamp, not `seen_at`: that field is stamped by the
+        # service's FuturesReader when it first observes a tx, and a raw client
+        # never sets it — so reading it here reported "999h ago" for a venue
+        # that had traded twenty minutes earlier. A check that cries wolf gets
+        # muted, which costs more than not having it.
+        newest_block = max(int(x.get("block") or 0) for x in trades)
+        try:
+            newest = float(_rpc_retry(lambda: w3.eth.get_block(newest_block).timestamp))
+        except Exception:  # noqa: BLE001
+            newest = 0.0
+        age_h = (time.time() - newest) / 3600 if newest else 999
+        # The keeper trades hourly; two missed hours is a real signal, and it is
+        # OUR code now rather than somebody else's scheduler — so it is worth
+        # warning about where the cron age never was.
+        check(age_h < 3, f"the venue traded {age_h:.1f}h ago (keeper cadence is hourly)",
+              warn_only=True)
+    else:
+        check(False, "no fills on the tape at all", warn_only=True)
+
     for wf in ("futures-heartbeat.yml", "futures-lifecycle.yml"):
         try:
             out = subprocess.run(
@@ -433,11 +516,9 @@ def verify_crons() -> None:
             ).stdout.strip()
             concl, _, when = out.partition(" ")
             age = time.time() - time.mktime(time.strptime(when, "%Y-%m-%dT%H:%M:%SZ"))
-            check(
-                concl == "success" and age < CRON_MAX_AGE_S,
-                f"{wf}: {concl}, {age / 3600:.1f}h ago",
-                warn_only=True,
-            )
+            # Dispatch-only fallbacks: a stale run age means nobody needed
+            # them, which is the point. Report it, never warn on it.
+            print(f"  · {wf} (manual fallback): last run {concl}, {age / 3600:.1f}h ago")
         except Exception as exc:
             check(False, f"{wf}: could not read runs ({str(exc)[:40]})", warn_only=True)
 
@@ -462,9 +543,10 @@ def main() -> None:
     section(verify_seller)
     section(verify_x402)
     section(verify_desk, live)
+    section(verify_hedger)
     section(verify_terminal, live)
     section(verify_funding, w3, s)
-    section(verify_crons)
+    section(verify_crons, w3)
 
     print()
     if _warnings:

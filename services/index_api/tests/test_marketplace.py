@@ -53,7 +53,9 @@ def test_catalog_expands_all_resources():
 def test_catalog_items_are_bazaar_shaped():
     reset_settings()
     cat = build_catalog("http://test:8000/", registry=NullRegistry())
-    assert cat["x402Version"] == 1
+    # 2, not 1: Circle's Discovery API serves x402Version 2 on every one of its
+    # listings, and a crawler resolves a version mismatch by skipping you.
+    assert cat["x402Version"] == 2
     assert len(cat["items"]) == 13
     item = next(i for i in cat["items"] if i["resource"].endswith("/prints"))
     assert item["type"] == "http"
@@ -68,6 +70,14 @@ def test_catalog_items_are_bazaar_shaped():
     assert meta["description"] and meta["input"]["type"] == "object"
     assert "properties" in meta["output"]
     assert meta["provider"]["attestation"] is None  # offline → honest null
+    # The fields Circle's Discovery API FILTERS on. Without them a listing is
+    # present but unfindable — an agent narrowing by category or price never
+    # sees it. FINANCIAL_ANALYSIS carries 447 of their 958 listings.
+    prov = meta["provider"]
+    assert prov["category"] == "FINANCIAL_ANALYSIS"
+    assert prov["website"].startswith("http") and prov["docsUrl"].startswith("http")
+    assert "x402" in prov["tags"] and "arc" in prov["tags"]
+    assert prov["description"]
 
 
 def test_catalog_honors_resource_base(monkeypatch):

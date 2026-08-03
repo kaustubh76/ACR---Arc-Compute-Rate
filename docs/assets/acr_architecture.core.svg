@@ -16,17 +16,17 @@
 <rect x="1580" y="437" width="510" height="116" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="565" width="510" height="92" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="669" width="510" height="132" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
-<polyline points="415.0,163.6 440.0,165.3" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="241.5,212.0 242.2,240.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="667.5,267.0 672.2,300.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="425.0,364.9 500.0,372.1" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="500.0,473.7 464.0,490.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="685.0,480.0 685.0,502.0" fill="none" stroke="#1971c2" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
-<polyline points="465.0,638.6 500.0,648.8" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="500.0,746.6 465.0,754.9" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="1835.0,208.0 1835.0,220.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="870.0,641.8 1580.0,406.9" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="1835.0,425.0 1835.0,896.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="415,152.0 427.5,152.0 427.5,179.5 440,179.5" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="240.0,212 240.0,226.0 245.0,226.0 245.0,240" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="655.0,267 655.0,283.5 685.0,283.5 685.0,300" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="425,347.5 462.5,347.5 462.5,390.0 500,390.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="500,390.0 482,390.0 482,580.0 465,580.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="685.0,480 685.0,491.0 685.0,502" fill="none" stroke="#1971c2" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="465,580.0 482,580.0 482,703.0 500,703.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="500,703.0 482,703.0 482,802.0 465,802.0" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1835.0,208 1835.0,214.0 1835.0,220" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="870,703.0 1225,703.0 1225,322.5 1580,322.5" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1580,322.5 1540,322.5 1540,944.0 1580,944.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
 <text x="58" y="65.5" font-size="15" fill="#1971c2">B · ESTIMATOR CORE — one estimand: the latent price of machine services</text>
 <text x="78" y="115.5" font-size="15" fill="#1971c2">TAPE INDEXER</text>
 <text x="78" y="138.2" font-size="13" fill="#1e1e1e">raw event ingestion</text>

@@ -182,7 +182,32 @@ def embed_bundle_sections(payload: dict) -> dict:
     payload["x402_exchange_sample"] = record_x402_exchange()
     # The archived futures tape — real fills; [] when no venue is configured.
     payload["futures_trades"] = capture_futures_trades()
+    # The hedger's standing, so the archived edition shows the autonomous agent
+    # rather than an empty panel. Real on-chain state when a venue and an agent
+    # address are configured; an honest `configured: false` otherwise, which is
+    # exactly what the panel renders as "no robot trader is switched on here".
+    payload["hedger"] = capture_hedger_state()
     return payload
+
+
+def capture_hedger_state() -> dict:
+    """The autonomous hedger's live standing for the offline bundle."""
+    from index_api.hedger import build_hedger_state
+    from index_api.marketplace import build_receipts
+    from index_api.onchain import get_futures
+    from index_api.x402 import DevFacilitator
+
+    try:
+        # The sim ledger stands in for spend here: the bundle must never carry
+        # the live facilitator's real counters under an "archived" label.
+        return build_hedger_state(get_futures(), build_receipts(DevFacilitator()))
+    except Exception:  # pragma: no cover - a dead RPC must not fail the snapshot
+        return {"configured": False, "agent": None, "payer": None,
+                "index_id": "ACR-INF", "target_contracts": 0.0, "venue": None,
+                "wallet_kind": "circle-agent-wallet", "series_id": None,
+                "position_contracts": None, "gap_contracts": None,
+                "collateral_usdc": None, "paid_queries": None,
+                "spent_usdc": None, "fills": []}
 
 
 def capture_poster_provenance(reader) -> tuple[dict | None, str | None]:

@@ -89,7 +89,7 @@ Bottom of the zone carries two annotations: **"methodology paper = the product (
 ### Zone H — THE JUDGE COLUMN (far right, three stacked panels)
 1. **Live Demo — Attack the Index** (red): the five-step script. Baseline prints → unleash a 50k-tx wash-flow bot → naive VWAP swings wildly → ACR barely moves → a live counter burns the attacker's USDC. Closing line on the box: *"try to move my number — here's the bill."* The side-by-side chart is the money shot.
 2. **Judge Fit** (gold): ICE administers LIBOR through ICE Benchmark Administration and is on Arc's testnet roster — benchmark construction pitched to the benchmark administrator. Apollo, BNY, Mastercard are rate-native institutions. SOFR itself was methodology-first, liquidity-second — the exact defense for building on thin testnet data.
-3. **Demo-Day Metrics** (black frame): the final-slide numbers — methodology paper shipped (Week 2, OSS); N hourly prints live on-chain; attack-cost-per-bp on every print; X wash attacks absorbed in red-teaming; naive-VWAP error vs ACR error chart; live quotes and Y settled trades on the future; 5+ sellers attested; 100% Foundry invariants passing.
+3. **Demo-Day Metrics** (black frame): the final-slide numbers, and they are measured rather than aspirational — run `make verify-live` for the live set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; a live futures series whose maker is a Circle custody wallet; **10** real Gateway x402 settlements from **2 distinct payers**; 100% Foundry invariants passing. (The earlier version of this line carried literal `X`/`Y` placeholders and a "5+ sellers" target that was never met — a slide nobody had re-read.)
 
 ### Zone G — WHY ARC rail (bottom, teal)
 Six boxes, each a **mathematical** dependency — the container title says it outright: *load-bearing for the MATH, not the deployment*:
@@ -209,7 +209,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | Path | What it is |
 |---|---|
 | `packages/` | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
-| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` (Foundry, 50 tests incl. 5 invariants) — deployed on Arc testnet |
+| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` + `ACRFutures.sol` (Foundry, 50 tests incl. 7 invariants) — all three deployed on Arc testnet |
 | `services/index_api/` | The x402-gated seller API (FastAPI) — deployed at acr-api-1fto.onrender.com |
 | `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |

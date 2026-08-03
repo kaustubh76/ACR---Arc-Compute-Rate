@@ -21,7 +21,9 @@ never needs chain, Circle, or credentials.
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
+import os
 import threading
 import time
 
@@ -37,6 +39,32 @@ log = logging.getLogger("index_api.marketplace")
 #: attests, so a TTL above the refresh interval (warmed by the background loop)
 #: keeps the request path from ever blocking. Mirrors onchain.READ_ALL_TTL_S.
 ATTESTATION_TTL_S = 90.0
+
+#: The x402 version the wire actually speaks. Circle's Discovery API serves
+#: `x402Version: 2` on every one of its 958 listings; this catalog advertised 1,
+#: which is the sort of mismatch a crawler resolves by skipping you.
+X402_CATALOG_VERSION = 2
+
+#: Discovery metadata. Overridable because a fork should describe itself, not us.
+PROVIDER_WEBSITE = os.environ.get(
+    "ACR_PROVIDER_WEBSITE", "https://arc-compute-rate.vercel.app"
+)
+PROVIDER_DOCS_URL = os.environ.get(
+    "ACR_PROVIDER_DOCS_URL", "https://arc-compute-rate.vercel.app/developers"
+)
+#: One of Circle's six discovery categories.
+PROVIDER_CATEGORY = os.environ.get("ACR_PROVIDER_CATEGORY", "FINANCIAL_ANALYSIS")
+PROVIDER_TAGS = ("x402", "arc", "usdc", "compute", "index", "oracle", "futures")
+
+#: ISO-8601 `lastUpdated`, which every Discovery API item carries and a crawler
+#: uses to decide whether to re-read a listing. Stamped ONCE at import rather
+#: than per request: it means "when this catalog was last rebuilt", and a value
+#: that advanced on every call would tell a crawler the listing changed
+#: constantly when nothing had — busywork for them and a lie from us. A deploy
+#: restarts the process, which is exactly when the catalog can actually change.
+_BUILT_AT = _dt.datetime.now(_dt.UTC).isoformat(timespec="milliseconds").replace(
+    "+00:00", "Z"
+)
 _att_lock = threading.Lock()
 _att_cache: dict | None = None
 _att_at = 0.0
@@ -278,9 +306,28 @@ def build_catalog(base_url: str, settings=None, registry=None) -> dict:
         else cached_attestation_summary(s)
     )
     base = (s.x402_resource_base or base_url).rstrip("/")
+    # Shaped to match what Circle's Discovery API actually serves — measured
+    # against `GET https://api.circle.com/v2/x402/discovery/resources`, not
+    # guessed. `category` and `tags` are the fields that endpoint FILTERS on, so
+    # a catalog without them is one no agent can narrow down to; FINANCIAL_
+    # ANALYSIS carries 447 of its 958 listings and is the right bucket for a
+    # price index. The `attestation` anchor stays because it is the one thing in
+    # our listing no other listing has: an on-chain reputation signal a cautious
+    # buyer can require before paying.
     provider = {
         "name": "ACR — The Arc Compute Rate",
         "tagline": "the constant-quality price of machine services, sold to machines",
+        "description": (
+            "A manipulation-resistant reference rate for machine services on Arc: "
+            "inference ($/1k tokens), GPU compute ($/GPU-sec) and data egress "
+            "($/MB). Every print ships a confidence interval and the USDC an "
+            "attacker must burn to move it one basis point, and settles on-chain "
+            "against a cash-settled futures venue."
+        ),
+        "website": PROVIDER_WEBSITE,
+        "docsUrl": PROVIDER_DOCS_URL,
+        "category": PROVIDER_CATEGORY,
+        "tags": list(PROVIDER_TAGS),
         "attestation": attestation,
     }
     items = []
@@ -290,7 +337,8 @@ def build_catalog(base_url: str, settings=None, registry=None) -> dict:
             {
                 "resource": resource,
                 "type": "http",
-                "x402Version": 1,
+                "x402Version": X402_CATALOG_VERSION,
+                "lastUpdated": _BUILT_AT,
                 "accepts": [build_payment_requirements(resource, s)],
                 "metadata": {
                     "family": fam["family"],
@@ -302,7 +350,7 @@ def build_catalog(base_url: str, settings=None, registry=None) -> dict:
                 },
             }
         )
-    return {"x402Version": 1, "provider": provider, "items": items}
+    return {"x402Version": X402_CATALOG_VERSION, "provider": provider, "items": items}
 
 
 def build_sim_receipts(n: int = 24, settings=None) -> dict:

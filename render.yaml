@@ -66,8 +66,14 @@ services:
         value: circle
       - key: ACR_X402_FACILITATOR_URL
         value: https://gateway-api-testnet.circle.com
+      # Revenue lands in the Circle treasury wallet, not the retiring EOA it used
+      # to. Worth being precise about why this one is safe to co-locate: payTo is
+      # a RECEIVING address and needs no key at all, so it carries none of the
+      # authority that made one credential doing four jobs a problem. Revenue
+      # arriving where the press and faucet already draw from is a coherent
+      # flow rather than role confusion. See docs/WALLETS.md.
       - key: ACR_X402_PAY_TO
-        value: "0x33189c643774ED2713EbFf5A6923e5fa42b96eE8"
+        value: "0x8366968f84a343CF70941EBe858428643d825cb0"
 
       # --- The published tape is the SIMULATOR, deliberately ---------------
       # Real Arc USDC transfers carry no compute-price signal — measured, not

@@ -225,7 +225,7 @@ def test_snapshot_builder_embeds_bundle_sections():
 
     # Marketplace: the live catalog builder at resource base "" + sim ledger.
     cat = payload["marketplace"]["catalog"]
-    assert cat["x402Version"] == 1 and len(cat["items"]) == 13
+    assert cat["x402Version"] == 2 and len(cat["items"]) == 13
     assert all(i["resource"].startswith("/") for i in cat["items"])  # host-less
     # EVERY row must be honestly labelled — which is a stronger guarantee than
     # the old "row 0 is sim". The ledger now leads with the real Circle Gateway
