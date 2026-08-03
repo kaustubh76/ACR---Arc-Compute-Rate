@@ -88,6 +88,7 @@ class ACRSettings(BaseSettings):
     #: the series maker, so a single wallet cannot both quote and trade the book.
     #: Empty → the caller falls back to whatever ``build_signer`` selects, which
     #: keeps every offline/anvil path working unchanged. See docs/WALLETS.md.
+    circle_owner_wallet_id: str = ""  # governance: may open a series
     circle_maker_wallet_id: str = ""  # the book's counterparty
     circle_taker_wallet_id: str = ""  # the hourly heartbeat
     circle_base_url: str = "https://api.circle.com"

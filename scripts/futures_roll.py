@@ -76,20 +76,43 @@ def main() -> None:
               "(+ ACR_CIRCLE_API_KEY) or MAKER_PRIVATE_KEY")
         sys.exit(1)
 
+    # `openSeries` is onlyOwner, and OWNERSHIP IS A DIFFERENT JOB FROM MARKET
+    # MAKING. The owner is governance — it decides a series may exist — and it
+    # acts rarely, on a human's initiative. The maker is operations: it stands
+    # behind the book and posts collateral every roll. Collapsing them is how
+    # one credential ended up being four jobs. So this script signs `openSeries`
+    # as the OWNER and everything else as the MAKER; when they are the same
+    # address (the pre-migration state) nothing changes.
+    owner_key = (
+        os.environ.get("VENUE_OWNER_PRIVATE_KEY", "")
+        or os.environ.get("MAKER_PRIVATE_KEY", "")
+        or (s.poster_private_key or "")
+    )
+    owner_signer = build_role_signer("owner", s, private_key=owner_key or None)
+    if owner_signer is None:
+        print("no owner signer — set VENUE_OWNER_PRIVATE_KEY or ACR_CIRCLE_OWNER_WALLET_ID")
+        sys.exit(1)
+
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
     fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address,
                        signer=signer)
+    owner_fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address,
+                             signer=owner_signer)
     # Resolving a Circle wallet's address is a network call, so do it once.
     maker_address = signer.address
 
     chain_id = _rpc_retry(lambda: w3.eth.chain_id)
     if not _check(chain_id == s.arc_chain_id, f"chain id {chain_id} == {s.arc_chain_id}"):
         sys.exit(1)
-    custody = type(signer).__name__ == "CircleWalletSigner"
-    print(f"  · venue {s.futures_address}, maker {maker_address} "
-          f"({'Circle custody' if custody else 'local key'})")
+
+    def _how(sg) -> str:
+        return "Circle custody" if type(sg).__name__ == "CircleWalletSigner" else "local key"
+
+    print(f"  · venue {s.futures_address}")
+    print(f"  · maker {maker_address} ({_how(signer)})")
+    print(f"  · owner {owner_signer.address} ({_how(owner_signer)})")
 
     # 1) Idempotence — a healthy series with life left needs no roll.
     now = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
@@ -129,7 +152,7 @@ def main() -> None:
     # 3) Open. onlyOwner, and the contract itself requires a live oracle value,
     #    so a dead feed fails here rather than halfway through.
     expiry = now + int(EXPIRY_DAYS * 86400)
-    fc.open_series(INDEX, expiry, MULT, maker_address)
+    owner_fc.open_series(INDEX, expiry, MULT, maker_address)
     sid = len(fc.read_all_series()) - 1  # re-read; don't trust a receipt return
     print(f"  ① opened series {sid} ({INDEX}, mult {MULT}, expiry +{EXPIRY_DAYS:g}d)")
 

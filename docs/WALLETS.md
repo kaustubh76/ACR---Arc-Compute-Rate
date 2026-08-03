@@ -135,6 +135,38 @@ Two things do **not** come for free, and both are handled:
 
 ---
 
+## Why CI is the one place a raw key is still the *safer* choice
+
+The obvious next step after moving the venue into custody is "put the Circle
+credentials in GitHub Actions too, and delete every private key." That would
+make things **worse**, and it is worth being explicit about why.
+
+Compare what an attacker gets from a compromised runner:
+
+| Credential in CI | What it controls |
+|---|---|
+| A raw EOA key | that one wallet's balance — a couple of USDC on a liveness bot |
+| `ACR_CIRCLE_API_KEY` + `ACR_CIRCLE_ENTITY_SECRET` | **every** developer-controlled wallet: the treasury, the venue maker, *and* the wallet that signs oracle prints |
+
+The entity secret is not a smaller blast radius than a private key — it is a
+much larger one, and it includes the index's signing authority, which is the
+integrity of the product rather than merely its money. `keepalive.yml` already
+records this decision: it takes the custody *address* so it can check a balance,
+never the credentials that could move it.
+
+So the rule is **narrowest credential for the job**, not "custody everywhere":
+
+- work that needs custody authority (posting prints, funding, opening or
+  collateralising a series) runs from a **trusted host** — the deployed service,
+  or an operator's machine — where the entity secret already lives;
+- work that runs in **CI** gets either no credential at all (read-only checks) or
+  a key scoped to a single low-value wallet it is allowed to drain.
+
+That is why migrating the venue's *capital* to Circle wallets is the win, and
+migrating CI's *liveness bot* would not be. A future improvement is to move the
+heartbeat and the roll onto the trusted host entirely, at which point CI needs
+no signing credential of any kind.
+
 ## Operational rules
 
 - **One wallet, one job.** The failure this design replaces had a single raw EOA

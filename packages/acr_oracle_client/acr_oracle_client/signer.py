@@ -249,6 +249,10 @@ _ROLE_WALLET_FIELDS = {
     "maker": "circle_maker_wallet_id",
     "taker": "circle_taker_wallet_id",
     "poster": "circle_wallet_id",
+    # Governance, not operations: the owner decides a series may exist and acts
+    # rarely, on a human's initiative. Falls back to the poster wallet, then to
+    # build_signer, so a venue whose owner has not been migrated still rolls.
+    "owner": "circle_owner_wallet_id",
 }
 
 

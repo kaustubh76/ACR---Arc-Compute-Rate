@@ -48,6 +48,16 @@ services:
         value: 52251d34-9575-5bab-8631-52afae6ac3cd
       - key: ACR_CIRCLE_WALLET_SET_ID
         value: 69c39de5-9d31-5ef0-bccb-731028f68c6b
+      # The venue's own custody wallets, so one credential stops being four jobs.
+      # Kept apart from the poster above AND from each other: ACRFutures.trade
+      # refuses a maker taking its own quote, so the book's counterparty and the
+      # heartbeat cannot share a wallet. Ids are not secrets — the API key and
+      # entity secret are what authorize them, and those stay `sync: false`.
+      # See docs/WALLETS.md for why each role gets the wallet type it does.
+      - key: ACR_CIRCLE_MAKER_WALLET_ID
+        value: 33b9249c-1f97-5d76-b550-39ff8825e546
+      - key: ACR_CIRCLE_TAKER_WALLET_ID
+        value: f1238074-2ba2-50c8-ab3d-b6f9c630d775
       - key: ACR_CIRCLE_BASE_URL
         value: https://api.circle.com
 
