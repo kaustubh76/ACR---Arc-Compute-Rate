@@ -242,6 +242,60 @@ class _RealCircleClient:  # pragma: no cover - requires the Circle SDK + live cr
         raise TimeoutError(f"Circle tx {tx_id} not confirmed in time")
 
 
+#: Which settings field holds each venue role's Circle wallet id. Roles exist so
+#: one credential stops being four jobs: before this, a single raw EOA was the
+#: venue maker AND the keeper AND the contract owner AND the x402 payTo address.
+_ROLE_WALLET_FIELDS = {
+    "maker": "circle_maker_wallet_id",
+    "taker": "circle_taker_wallet_id",
+    "poster": "circle_wallet_id",
+    # Governance, not operations: the owner decides a series may exist and acts
+    # rarely, on a human's initiative. Falls back to the poster wallet, then to
+    # build_signer, so a venue whose owner has not been migrated still rolls.
+    "owner": "circle_owner_wallet_id",
+}
+
+
+def build_role_signer(
+    role: str, settings=None, private_key: str | None = None
+) -> Signer | None:
+    """The signer for one venue ROLE, preferring its own Circle wallet.
+
+    Precedence is deliberately the inverse of :func:`build_signer` for the key:
+    an explicitly passed ``private_key`` still wins (anvil tests and
+    ``futures_demo`` hand one over and must keep working), but the *ambient*
+    ``ACR_POSTER_PRIVATE_KEY`` does NOT. That ambient key is why every venue
+    script signed as a raw EOA even on a host with full Circle credentials —
+    ``build_signer`` prefers any key it can find, and one is always in ``.env``.
+    A role with its own wallet configured should use it.
+
+    Falls back to :func:`build_signer` when the role has no wallet id, so every
+    offline, anvil and pre-migration path behaves exactly as before.
+    """
+    from acr_core import get_settings
+
+    settings = settings or get_settings()
+    if private_key and not private_key.lstrip().startswith("#"):
+        return LocalKeySigner(private_key)
+
+    field = _ROLE_WALLET_FIELDS.get(role)
+    wallet_id = (getattr(settings, field, "") or "").strip() if field else ""
+    api_key = (settings.circle_api_key or "").strip()
+    if (
+        wallet_id
+        and api_key
+        and not wallet_id.startswith("#")
+        and not api_key.startswith("#")
+    ):
+        return CircleWalletSigner(
+            wallet_id=wallet_id,
+            api_key=api_key,
+            entity_secret=settings.circle_entity_secret,
+            base_url=settings.circle_base_url,
+        )
+    return build_signer(settings, private_key=private_key)
+
+
 def build_signer(settings=None, private_key: str | None = None) -> Signer | None:
     """Pick a signer from config: an explicit/settings raw key (dev) wins; else a
     Circle wallet (prod) if creds are present; else ``None`` (offline)."""

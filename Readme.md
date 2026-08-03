@@ -215,6 +215,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |
 | `.github/workflows/` | CI (4 jobs) + the keep-alive ping for the free-tier press |
 | `docs/SUBMISSION.md` | The judge-facing status page |
+| `docs/WALLETS.md` | Which Circle wallet product does which job — and the constraint that forces each choice |
 
 **Suggested exports:** select the Estimator Core + On-chain + Instrument zones only → export PNG for the pitch deck's architecture slide. The Demo Theater box exports standalone as the demo-script slide. The Why-Arc rail exports as the "only on Arc" slide.
 

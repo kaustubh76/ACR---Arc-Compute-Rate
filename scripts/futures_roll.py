@@ -14,7 +14,15 @@ the collateral landed and exits non-zero otherwise.
 
 Safe to run from cron: it no-ops when a healthy series already has life left.
 
-    MAKER_PRIVATE_KEY=0x… uv run python scripts/futures_roll.py   # == make futures-roll
+Signs as the **maker role**. With ``ACR_CIRCLE_MAKER_WALLET_ID`` configured that
+is a Circle developer-controlled wallet and no private key is involved at all;
+``MAKER_PRIVATE_KEY`` still overrides for anvil and offline runs. Cron is
+exactly why this role is developer-controlled rather than a Circle *agent*
+wallet — an agent wallet's session is an email OTP that expires, which cannot
+roll a series at 02:17 UTC. See docs/WALLETS.md.
+
+    uv run python scripts/futures_roll.py                          # == make futures-roll
+    MAKER_PRIVATE_KEY=0x… uv run python scripts/futures_roll.py    # anvil / offline
 
     ROLL_INDEX=ACR-INF ROLL_MULT=10 ROLL_COLLATERAL=1.5 ROLL_EXPIRY_DAYS=7
     ROLL_MIN_LIFE_H=24     # below this much life left, roll
@@ -28,7 +36,7 @@ import sys
 import time
 
 from acr_core import get_settings
-from acr_oracle_client import FuturesClient
+from acr_oracle_client import FuturesClient, build_role_signer
 from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
 INDEX = os.environ.get("ROLL_INDEX", "ACR-INF")
@@ -48,14 +56,6 @@ GAS_FLOOR = float(os.environ.get("ROLL_GAS_FLOOR", "0.75"))
 USDC_PREDEPLOY = os.environ.get(
     "ROLL_USDC_ADDRESS", "0x3600000000000000000000000000000000000000"
 )
-_ERC20_ABI = [
-    {"type": "function", "name": "approve", "stateMutability": "nonpayable",
-     "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
-     "outputs": [{"name": "", "type": "bool"}]},
-    {"type": "function", "name": "allowance", "stateMutability": "view",
-     "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
-     "outputs": [{"name": "", "type": "uint256"}]},
-]
 
 
 def _check(ok: bool, label: str) -> bool:
@@ -65,23 +65,54 @@ def _check(ok: bool, label: str) -> bool:
 
 def main() -> None:
     s = get_settings()
-    maker_key = os.environ.get("MAKER_PRIVATE_KEY", "") or s.poster_private_key
-    if not (s.futures_address and maker_key):
-        print("set ACR_FUTURES_ADDRESS and MAKER_PRIVATE_KEY")
+    # An explicit key still wins (anvil, offline); otherwise the maker ROLE's
+    # Circle wallet. Deliberately NOT `or s.poster_private_key`: that ambient
+    # fallback is why every venue script signed as a raw EOA even on a host with
+    # full Circle credentials — there is always a key in .env.
+    maker_key = os.environ.get("MAKER_PRIVATE_KEY", "")
+    signer = build_role_signer("maker", s, private_key=maker_key or None)
+    if not (s.futures_address and signer):
+        print("set ACR_FUTURES_ADDRESS, and either ACR_CIRCLE_MAKER_WALLET_ID "
+              "(+ ACR_CIRCLE_API_KEY) or MAKER_PRIVATE_KEY")
         sys.exit(1)
 
-    from eth_account import Account
+    # `openSeries` is onlyOwner, and OWNERSHIP IS A DIFFERENT JOB FROM MARKET
+    # MAKING. The owner is governance — it decides a series may exist — and it
+    # acts rarely, on a human's initiative. The maker is operations: it stands
+    # behind the book and posts collateral every roll. Collapsing them is how
+    # one credential ended up being four jobs. So this script signs `openSeries`
+    # as the OWNER and everything else as the MAKER; when they are the same
+    # address (the pre-migration state) nothing changes.
+    owner_key = (
+        os.environ.get("VENUE_OWNER_PRIVATE_KEY", "")
+        or os.environ.get("MAKER_PRIVATE_KEY", "")
+        or (s.poster_private_key or "")
+    )
+    owner_signer = build_role_signer("owner", s, private_key=owner_key or None)
+    if owner_signer is None:
+        print("no owner signer — set VENUE_OWNER_PRIVATE_KEY or ACR_CIRCLE_OWNER_WALLET_ID")
+        sys.exit(1)
+
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
-    maker = Account.from_key(maker_key)
     fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address,
-                       private_key=maker_key)
+                       signer=signer)
+    owner_fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address,
+                             signer=owner_signer)
+    # Resolving a Circle wallet's address is a network call, so do it once.
+    maker_address = signer.address
 
     chain_id = _rpc_retry(lambda: w3.eth.chain_id)
     if not _check(chain_id == s.arc_chain_id, f"chain id {chain_id} == {s.arc_chain_id}"):
         sys.exit(1)
-    print(f"  · venue {s.futures_address}, maker {maker.address}")
+
+    def _how(sg) -> str:
+        return "Circle custody" if type(sg).__name__ == "CircleWalletSigner" else "local key"
+
+    print(f"  · venue {s.futures_address}")
+    print(f"  · maker {maker_address} ({_how(signer)})")
+    print(f"  · owner {owner_signer.address} ({_how(owner_signer)})")
 
     # 1) Idempotence — a healthy series with life left needs no roll.
     now = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
@@ -94,7 +125,7 @@ def main() -> None:
         # series and post collateral to it. That fired for real: series 1 had
         # 147.9 HOURS of life left and a funded maker, and a 429 made this
         # roll anyway — spending 1.50 USDC on a successor nothing needed.
-        funded_read = collateral_or_none(fc, existing["series_id"], maker.address)
+        funded_read = collateral_or_none(fc, existing["series_id"], maker_address)
         if funded_read is None:
             print(f"  ⏹ could not read the maker's collateral on series "
                   f"{existing['series_id']} after retries — refusing to roll on a "
@@ -109,7 +140,7 @@ def main() -> None:
               f"maker collateral {'yes' if funded else 'NONE'} → rolling")
 
     # 2) Budget guard BEFORE any write — collateral and gas come from one balance.
-    native = _rpc_retry(w3.eth.get_balance, Web3.to_checksum_address(maker.address)) / 1e18
+    native = _rpc_retry(w3.eth.get_balance, Web3.to_checksum_address(maker_address)) / 1e18
     if not _check(
         native - COLLATERAL >= GAS_FLOOR,
         f"maker holds {native:.3f} USDC; posting {COLLATERAL:.2f} leaves "
@@ -121,34 +152,28 @@ def main() -> None:
     # 3) Open. onlyOwner, and the contract itself requires a live oracle value,
     #    so a dead feed fails here rather than halfway through.
     expiry = now + int(EXPIRY_DAYS * 86400)
-    fc.open_series(INDEX, expiry, MULT, maker.address)
+    owner_fc.open_series(INDEX, expiry, MULT, maker_address)
     sid = len(fc.read_all_series()) - 1  # re-read; don't trust a receipt return
     print(f"  ① opened series {sid} ({INDEX}, mult {MULT}, expiry +{EXPIRY_DAYS:g}d)")
 
-    # 4) Allowance, then collateral.
-    usdc = w3.eth.contract(address=Web3.to_checksum_address(USDC_PREDEPLOY), abi=_ERC20_ABI)
-    allowance = int(_rpc_retry(
-        usdc.functions.allowance(maker.address, Web3.to_checksum_address(s.futures_address)).call
-    ))
+    # 4) Allowance, then collateral. The approve goes through the SIGNER like
+    #    every other write — it used to be hand-built and signed with
+    #    eth_account, which is why the whole venue was pinned to a raw key even
+    #    on a host with full Circle credentials: collateral cannot be posted
+    #    without an allowance, so that one omission decided everything.
+    allowance = fc.allowance_units(USDC_PREDEPLOY, maker_address)
+    if allowance is None:
+        print("  ⏹ could not read the venue's allowance — refusing to roll on a guess")
+        sys.exit(0)
     if allowance < int(COLLATERAL * 1_000_000):
-        tx = usdc.functions.approve(
-            Web3.to_checksum_address(s.futures_address), 2**256 - 1
-        ).build_transaction({
-            "from": maker.address,
-            "nonce": _rpc_retry(w3.eth.get_transaction_count, maker.address),
-            "chainId": chain_id,
-        })
-        signed = maker.sign_transaction(tx)
-        raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction
-        h = w3.eth.send_raw_transaction(raw)
-        w3.eth.wait_for_transaction_receipt(h, timeout=90, poll_latency=2.0)
+        fc.approve_venue(USDC_PREDEPLOY)
         print("  ② re-approved the venue on the USDC predeploy")
         time.sleep(2)  # pace the throttled Arc RPC between writes
 
     fc.post_collateral(sid, COLLATERAL)
 
     # 5) The assertion that makes this script worth having.
-    posted = fc.collateral_of(sid, maker.address) or 0.0
+    posted = fc.collateral_of(sid, maker_address) or 0.0
     if not _check(posted > 0, f"maker collateral on series {sid}: {posted:.2f} USDC"):
         print("    the series is OPEN but UNCOLLATERALIZED — the desk would revert on "
               "first contact. Fix the collateral step before advertising this venue.")

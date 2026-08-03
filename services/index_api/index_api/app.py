@@ -90,15 +90,42 @@ _terminal_payload_cache: dict | None = None
 _terminal_payload_lock = threading.Lock()
 
 
+def _stale_indices(
+    onchain: dict[str, dict], refresh_seconds: float, now: float
+) -> list[str]:
+    """The indices whose on-chain print is missing or older than one refresh cycle.
+
+    Per-index, because ``OraclePoster.post_latest`` isolates each index's failure
+    so one revert cannot abort the rest — which means a single index can fail on
+    its own and be the only thing stale.
+    """
+    return [
+        iid
+        for iid, v in onchain.items()
+        if (now - (v.get("posted_at", 0) or 0)) > refresh_seconds
+    ]
+
+
 def _overdue_for_startup_post(onchain: dict[str, dict], refresh_seconds: float, now: float) -> bool:
-    """True when the freshest on-chain print is missing or older than one refresh
-    cycle. A free-tier host sleeps through its hourly slot and every wake restarts
-    the timer from zero, so without this a sleeping press NEVER posts — a fresh
-    boot with an overdue record posts immediately instead of waiting out a cycle."""
+    """True when ANY on-chain print is missing or older than one refresh cycle.
+
+    The STALEST index governs, not the freshest. It used to be the freshest, on
+    the reasoning that "the timer cycle posts all indices, so a lagging one is at
+    most a refresh away" — and that reasoning is wrong by a margin the contract
+    cares about. Post at T, fail for one index at T+60, succeed at T+120: the gap
+    is already the whole 120-minute ``MAX_SETTLE_AGE`` before any jitter, and the
+    press does not run to the second.
+
+    Measured, not theorised: on 2026-08-03 the 13:31 run posted ACR-GPU and
+    ACR-INF but not ACR-DATA, and ACR-DATA went **121.0 minutes** between prints
+    — past the window, so its series could not have been settled. Two healthy
+    indices hid the third, which is this codebase's recurring shape: the absent
+    thing looks exactly like the fine thing. `make print-gaps` reports per-index
+    gaps for precisely this reason.
+    """
     if not onchain:
         return True
-    newest = max((v.get("posted_at", 0) or 0 for v in onchain.values()), default=0)
-    return (now - newest) > refresh_seconds
+    return bool(_stale_indices(onchain, refresh_seconds, now))
 
 
 #: How often to re-read the chain into the request-path caches. This is a
@@ -201,12 +228,17 @@ async def _post_if_overdue(store, poster, reader, settings) -> None:
     if now - _last_overdue_attempt < OVERDUE_POST_COOLDOWN_S:
         return
     onchain = await asyncio.to_thread(reader.read_all)  # cached; cheap per tick
-    if not _overdue_for_startup_post(onchain, settings.refresh_seconds, now):
+    stale = _stale_indices(onchain, settings.refresh_seconds, now) if onchain else None
+    if onchain and not stale:
         return
     _last_overdue_attempt = now
-    log.info("on-chain print is overdue — posting off-cycle")
+    # Re-post ONLY what is stale. Posting all three costs gas for two indices
+    # that are already fine, and this path can fire every cooldown while one
+    # index keeps failing — `stale=None` (no on-chain record at all) still means
+    # post everything, because then nothing is known to be fresh.
+    log.info("on-chain print is overdue for %s — posting off-cycle", stale or "every index")
     await asyncio.to_thread(store.refresh)
-    await asyncio.to_thread(poster.post_latest)
+    await asyncio.to_thread(poster.post_latest, set(stale) if stale else None)
     await asyncio.to_thread(reader.read_all, use_cache=False)
 
 

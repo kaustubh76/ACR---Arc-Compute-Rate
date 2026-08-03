@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 
-from index_api.app import _overdue_for_startup_post
+from index_api.app import _overdue_for_startup_post, _stale_indices
 
 HOUR = 3600.0
 NOW = 1_785_000_000.0
@@ -37,11 +37,62 @@ def test_boundary_is_not_overdue():
     assert not _overdue_for_startup_post({"ACR-INF": _print(NOW - HOUR)}, HOUR, NOW)
 
 
-def test_newest_print_governs():
-    # One fresh index keeps the press on-schedule even if another lags — the
-    # timer cycle (which posts all indices) is at most one refresh away.
+def test_a_fresh_index_must_not_hide_a_stale_one():
+    """This test used to assert the opposite, and the reasoning was wrong.
+
+    It said one fresh index keeps the press on-schedule because "the timer cycle
+    posts all indices, so a lagging one is at most a refresh away". Do the
+    arithmetic against the contract: post at T, fail for one index at T+60,
+    succeed at T+120 — the gap is already the entire 120-minute MAX_SETTLE_AGE
+    before any jitter, and the press does not run to the second.
+
+    It happened. On 2026-08-03 the 13:31 run posted ACR-GPU and ACR-INF but not
+    ACR-DATA, and ACR-DATA went 121.0 minutes between prints — past the window,
+    so its series could not have been settled. The two healthy indices made the
+    freshest-print check report a healthy press.
+    """
     onchain = {"ACR-INF": _print(NOW - 3 * HOUR), "ACR-GPU": _print(NOW - 60)}
+    assert _overdue_for_startup_post(onchain, HOUR, NOW)
+    assert _stale_indices(onchain, HOUR, NOW) == ["ACR-INF"]
+
+
+def test_all_fresh_is_still_not_overdue():
+    """The recovery path must stay quiet when nothing is actually stale —
+    otherwise it re-posts every cooldown and spends gas to fix nothing."""
+    onchain = {"ACR-INF": _print(NOW - 60), "ACR-GPU": _print(NOW - 120)}
     assert not _overdue_for_startup_post(onchain, HOUR, NOW)
+    assert _stale_indices(onchain, HOUR, NOW) == []
+
+
+def test_only_the_stale_index_is_reposted():
+    """Every print costs gas, and this path can fire each cooldown while one
+    index keeps failing — so it must not re-post the ones already fresh."""
+    from index_api.poster import OraclePoster
+
+    class _Store:
+        latest = {"ACR-INF": object(), "ACR-GPU": object(), "ACR-DATA": object()}
+
+        def refresh(self, ts=None):
+            return None
+
+    class _Client:
+        last_receipt = None
+
+        def __init__(self):
+            self.posted = []
+
+        def can_post(self):
+            return True
+
+        def post(self, p):
+            self.posted.append(p)
+            return "0xtx"
+
+    client = _Client()
+    poster = OraclePoster(store=_Store(), client=client)
+    poster.post_latest(only={"ACR-DATA"})
+    assert len(client.posted) == 1, "posted an index that was not stale"
+    assert list(poster.last_posts) == ["ACR-DATA"]
 
 
 def test_missing_posted_at_counts_as_never():
@@ -59,8 +110,8 @@ def _fake_poster(can_post=True, posts=None):
     class _P:
         client = _Client()
 
-        def post_latest(self):
-            (posts if posts is not None else []).append(1)
+        def post_latest(self, only=None):
+            (posts if posts is not None else []).append(only)
             return ["0xdeadbeef"]
 
     return _P()

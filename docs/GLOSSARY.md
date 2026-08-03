@@ -394,9 +394,15 @@ and it proves its own tamper-resistance.
   ACRFutures position from the Terminal. *A "place your bet" button for the public.*
 - **user-controlled wallet / SCA** — a smart-contract account whose keys the *user*
   holds (PIN/passkey), not the server; contrast the developer-controlled (custody)
-  wallet and the Gateway EOA. **Three wallet types** now: user-controlled (the
-  desk taker) · developer-controlled (the poster/custody) · Gateway EOA (the buyer
-  agent). *Your own safe vs the bank's vault vs a prepaid travel card.*
+  wallet and the Circle agent wallet. **Four wallet types**: user-controlled (the
+  desk reader) · developer-controlled (the press, the treasury, and every
+  unattended venue job) · Circle agent wallet (the autonomous hedger, which pays
+  x402 through the CLI and so needs no exported key) · a one-time offline deploy
+  key. Which one a role gets is forced by a constraint, never chosen for taste —
+  `ecrecover` demands an EOA account type, a cron job cannot hold an expiring
+  email-OTP session, and a reader's key must never reach our server. The full map
+  and its reasoning: [`docs/WALLETS.md`](WALLETS.md). *Your own safe vs the bank's
+  vault vs the shop's float.*
 - **PIN ceremony / passkey / `@circle-fin/w3s-pw-web-sdk`** — the browser flow where
   the user's PIN authorizes each on-chain action; the server never sees the key.
   *Tapping your own PIN at the terminal — the shop never learns it.*

@@ -29,7 +29,7 @@ import os
 import sys
 
 from acr_core import get_settings
-from acr_oracle_client import FuturesClient, OracleClient
+from acr_oracle_client import FuturesClient, OracleClient, build_role_signer
 from acr_oracle_client.futures import _rpc_retry
 from index_api.desk import free_collateral_units
 
@@ -43,18 +43,22 @@ _MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "vi
 def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)
     s = get_settings()
+    # WITHDRAW_ROLE picks which custody wallet to reclaim for ("maker" or
+    # "taker"); an explicit key still overrides for anvil and offline runs.
     key = os.environ.get("WITHDRAW_PRIVATE_KEY", "") or os.environ.get("TAKER_PRIVATE_KEY", "")
-    if not (s.futures_address and key):
-        print("set ACR_FUTURES_ADDRESS and WITHDRAW_PRIVATE_KEY")
+    role = os.environ.get("WITHDRAW_ROLE", "taker")
+    signer = build_role_signer(role, s, private_key=key or None)
+    if not (s.futures_address and signer):
+        print("set ACR_FUTURES_ADDRESS, and either ACR_CIRCLE_{MAKER,TAKER}_WALLET_ID "
+              "(+ ACR_CIRCLE_API_KEY, with WITHDRAW_ROLE) or WITHDRAW_PRIVATE_KEY")
         sys.exit(1)
 
-    from eth_account import Account
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
-    me = Account.from_key(key).address
+    me = signer.address
     venue = Web3.to_checksum_address(s.futures_address)
-    fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, private_key=key)
+    fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=signer)
     oracle = OracleClient(rpc_url=s.arc_rpc_url, oracle_address=s.oracle_address or None)
 
     try:

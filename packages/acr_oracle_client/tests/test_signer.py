@@ -10,6 +10,7 @@ from acr_oracle_client import (
     LocalKeySigner,
     OracleClient,
     PostPayload,
+    build_role_signer,
     build_signer,
     full_eip712_json,
 )
@@ -152,6 +153,69 @@ def test_build_signer_selection(monkeypatch):
         assert isinstance(build_signer(get_settings()), CircleWalletSigner)
     finally:
         reset_settings()
+
+
+def test_role_signer_ignores_the_ambient_poster_key():
+    """The whole reason the venue ran on a raw EOA.
+
+    `build_signer` prefers ANY key it can find, and `ACR_POSTER_PRIVATE_KEY` is
+    always in `.env` — so every venue script signed as that EOA even on a host
+    with full Circle credentials configured. A role that has its own wallet must
+    use it; the ambient key must not silently win.
+    """
+    from acr_core.config import ACRSettings
+
+    s = ACRSettings(
+        _env_file=None,
+        poster_private_key=KEY,  # ambient, and must NOT be chosen
+        circle_api_key="TEST:1:secret",
+        circle_maker_wallet_id="maker-wallet",
+    )
+    signer = build_role_signer("maker", s)
+    assert isinstance(signer, CircleWalletSigner)
+    assert signer.wallet_id == "maker-wallet"
+    # ...while the plain factory still picks the raw key, which is the behaviour
+    # every offline and anvil path depends on.
+    assert isinstance(build_signer(s), LocalKeySigner)
+
+
+def test_role_signer_keeps_an_explicit_key_winning():
+    """anvil and `futures_demo` hand over a key on purpose; that must still win,
+    or the on-chain suites would start trying to reach Circle."""
+    from acr_core.config import ACRSettings
+
+    s = ACRSettings(
+        _env_file=None, circle_api_key="TEST:1:secret", circle_maker_wallet_id="maker-wallet"
+    )
+    assert isinstance(build_role_signer("maker", s, private_key=KEY), LocalKeySigner)
+
+
+def test_role_signer_falls_back_when_the_role_has_no_wallet():
+    """A half-migrated deployment must keep working: a role with no wallet of its
+    own behaves exactly as it did before roles existed."""
+    from acr_core.config import ACRSettings
+
+    s = ACRSettings(
+        _env_file=None, circle_api_key="TEST:1:secret", circle_wallet_id="poster-wallet"
+    )
+    signer = build_role_signer("taker", s)  # no taker wallet configured
+    assert isinstance(signer, CircleWalletSigner)
+    assert signer.wallet_id == "poster-wallet"
+
+
+def test_maker_and_taker_roles_resolve_to_different_wallets():
+    """ACRFutures.trade reverts "maker cannot take" when the caller is the series
+    maker, so these two roles must never collapse onto one wallet."""
+    from acr_core.config import ACRSettings
+
+    s = ACRSettings(
+        _env_file=None,
+        circle_api_key="TEST:1:secret",
+        circle_maker_wallet_id="maker-wallet",
+        circle_taker_wallet_id="taker-wallet",
+    )
+    assert build_role_signer("maker", s).wallet_id == "maker-wallet"
+    assert build_role_signer("taker", s).wallet_id == "taker-wallet"
 
 
 def test_build_signer_ignores_malformed_creds():

@@ -46,11 +46,19 @@ class OraclePoster:
         self.posts = max(self.posts, len(posts))
         return len(posts)
 
-    def post_latest(self) -> list[str]:
+    def post_latest(self, only: set[str] | None = None) -> list[str]:
         """Post the store's current prints. Per-index try/except so one index's
-        revert doesn't abort the rest. Returns tx refs / offline / error markers."""
+        revert doesn't abort the rest. Returns tx refs / offline / error markers.
+
+        ``only`` restricts the post to named indices — the off-cycle recovery
+        path uses it to re-post just the stale one. Every print costs real gas,
+        and that path can fire repeatedly while a single index keeps failing, so
+        re-posting the two that are already fresh is money for nothing.
+        """
         refs: list[str] = []
         for iid, p in list(self.store.latest.items()):
+            if only is not None and iid not in only:
+                continue
             try:
                 tx = self.client.post(p)
                 refs.append(tx or f"offline:{iid}")
