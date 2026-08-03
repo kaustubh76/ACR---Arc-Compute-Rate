@@ -118,22 +118,29 @@ def main() -> None:
 
     print("ACR claim audit — do the docs still tell the truth?")
     if FAST:
-        print("  (CLAIMS_FAST — suite collection skipped)")
+        print("  (CLAIMS_FAST — forge/terminal re-runs skipped; python count still measured)")
 
     print("\ntest counts")
     # Suites only ever grow here, and a doc that UNDERSTATES the suite is still
     # a doc that is wrong — this is the drift that actually happened, five
     # times over, and every instance was an undercount.
-    for label, pattern, measure, texts in (
-        ("python suite", r"\*\*(\d+) passed\*\*", measured_pytest, (sub, status)),
-        ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge, (sub,)),
-        ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal, (sub,)),
+    # `costly` decides what CLAIMS_FAST is allowed to skip. The python count is
+    # NOT costly — `--collect-only` executes nothing — so skipping it bought a
+    # second and cost the audit its sharpest check: CI ran green for days over
+    # docs that said 248 against a suite of 260, because the one measurement
+    # that would have caught it was the one FAST turned off. Only `forge test`
+    # and `npm test`, which genuinely re-run suites other CI jobs already ran,
+    # are worth skipping.
+    for label, pattern, measure, texts, costly in (
+        ("python suite", r"\*\*(\d+) passed\*\*", measured_pytest, (sub, status), False),
+        ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge, (sub,), True),
+        ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal, (sub,), True),
     ):
         stated = next((c for c in (claim(t, pattern) for t in texts) if c), None)
         if stated is None:
             check(False, f"{label}: no claim found in the docs — has it been reworded?")
             continue
-        if FAST:
+        if FAST and costly:
             print(f"  · {label}: claims {stated} (not measured)")
             continue
         actual = measure()
