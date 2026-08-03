@@ -470,6 +470,21 @@ def test_a_sim_row_can_never_reach_the_public_counter(tmp_path):
     assert [r.tx_ref for r in f.recent] == ["uuid-real"]
 
 
+def test_the_public_counter_never_prints_float_noise(tmp_path):
+    """The live /revenue endpoint published `0.0007000000000000001`.
+
+    USDC carries six decimals, so those seventeen digits were never precision —
+    they are what adding 0.0001 to itself seven times does in binary floating
+    point, rendered onto the single number a judge reads as this project's
+    revenue. Pinned as a string because the defect is in what gets SERIALIZED,
+    not in the arithmetic: `== 0.0007` passes under approx-style comparison
+    while the endpoint still prints the noise.
+    """
+    f = _Ledger(archive=_archive(tmp_path, [_real(f"uuid-{i}") for i in range(7)]))
+    assert f.paid_queries == 7
+    assert str(f.revenue_usdc) == "0.0007"
+
+
 def test_the_mock_gate_never_shows_real_revenue():
     """DevFacilitator is the offline demo gate. If it inherited the archive it
     would display real settlements it never processed."""

@@ -7,10 +7,15 @@ visible until the next restart and then gone, and `/revenue` drops back to
 zero over a gate that has genuinely been paid. That is the state this project
 was in for a week.
 
-`data/x402_receipts_live.jsonl` is committed, so it ships inside the image and
-survives every restart (`ACR_RECEIPT_ARCHIVE_PATH`). This reads the seller's own
-ledger — the authoritative record, since the seller is the side that ran verify
-and settle against Circle — and merges anything new into that file.
+The archive at `ACR_RECEIPT_ARCHIVE_PATH` is committed AND inside the image, so
+it survives every restart. It lives under `services/` rather than `data/`
+because that directory is excluded from both git and the Docker build — a file
+there would never reach production, which is the trap this landed in first
+time round.
+
+This reads the seller's own ledger — the authoritative record, since the seller
+is the side that ran verify and settle against Circle — and merges anything new
+into that file.
 
 Run it right after a live buy, then commit the file:
 
@@ -33,7 +38,18 @@ import urllib.request
 from pathlib import Path
 
 API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
-ARCHIVE = Path(os.environ.get("ACR_RECEIPT_ARCHIVE_PATH", "data/x402_receipts_live.jsonl"))
+ARCHIVE = Path(
+    os.environ.get(
+        "ACR_RECEIPT_ARCHIVE_PATH",
+        # NOT under data/ — that directory is in .gitignore AND .dockerignore
+        # ("secret-bearing … even by accident"), so a file there is neither
+        # committed nor copied into the image. An archive that cannot reach
+        # production cannot make anything durable, which is exactly the trap
+        # this landed in first time round. It lives with the code that reads
+        # it, like apps/terminal/lib/fallback.json.
+        "services/index_api/index_api/receipts_live.jsonl",
+    )
+)
 DRY_RUN = os.environ.get("X402_CAPTURE_DRY_RUN", "") not in ("", "0", "false")
 TIMEOUT_S = float(os.environ.get("X402_CAPTURE_TIMEOUT_S", "120"))
 

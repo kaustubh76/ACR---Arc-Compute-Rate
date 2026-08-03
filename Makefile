@@ -141,9 +141,20 @@ verify-claims:
 
 # Fold the seller's real x402 settlements into the committed archive, so they
 # survive the next restart (production has no persistent disk). Run it right
-# after a live buy, then commit data/x402_receipts_live.jsonl.
+# after a live buy, then commit the archive — it lives under services/ because
+# data/ is in BOTH .gitignore and .dockerignore, so a file there would reach
+# neither the repo nor the image.
 x402-capture:
 	uv run python scripts/x402_capture.py
+
+# Measure the gaps between on-chain prints — the empirical proof that the press
+# is not sleeping, which app.SELF_URL explicitly defers to rather than asserts.
+# The tail is the number that matters: ACRFutures will not settle against a
+# print older than 120 minutes. Pass GAP_SINCE (or --since) as the moment a fix
+# went live so earlier holes are not counted against it. A window containing
+# redeploys proves nothing — a deploy wakes the box just as well.
+print-gaps:
+	uv run python scripts/print_gaps.py
 
 # --- futures venue lifecycle (a series expires; the venue must outlive it) ---
 

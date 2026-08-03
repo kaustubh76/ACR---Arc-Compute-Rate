@@ -94,16 +94,16 @@ services:
       # see FaucetLedger in services/index_api/index_api/desk.py.
       - key: ACR_RECEIPT_LOG_PATH
         value: data/x402_receipts.jsonl
-      # The durable record of REAL Gateway settlements. Committed to the repo,
-      # so it ships inside the image and is the one ledger a restart cannot
-      # erase — unlike ACR_RECEIPT_LOG_PATH above, which sits on a filesystem
-      # this plan does not persist. Without it the live product reported
-      # `paid_queries: 0` over a gate that had genuinely been paid twice: the
-      # pillar's only evidence existed in the repo and the offline bundle,
-      # everywhere except the running API. Opt-in by design — defaulting it on
-      # would put real revenue into every developer's local counters.
+      # The durable record of REAL Gateway settlements. Lives under services/
+      # rather than data/ ON PURPOSE: data/ is in BOTH .gitignore and
+      # .dockerignore ("secret-bearing … even by accident"), so a file there
+      # is neither committed nor copied into the image — it would never reach
+      # production at all. This path IS copied, by `COPY services/ services/`.
+      # Without it the live product reported `paid_queries: 0` over a gate that
+      # had genuinely been paid. Opt-in by design: defaulting it on would put
+      # real revenue into every developer's local counters.
       - key: ACR_RECEIPT_ARCHIVE_PATH
-        value: data/x402_receipts_live.jsonl
+        value: services/index_api/index_api/receipts_live.jsonl
       - key: ACR_WEBHOOK_LOG_PATH
         value: data/webhook_events.jsonl
       # Open by design (agents call this from anywhere). The desk endpoints are

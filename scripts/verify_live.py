@@ -29,7 +29,7 @@ import time
 import urllib.error
 import urllib.request
 
-from acr_oracle_client.futures import _rpc_retry
+from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
 API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
 TERMINAL = os.environ.get(
@@ -175,8 +175,53 @@ def verify_venue(w3, settings) -> dict | None:
     left_h = (s["expiry_ts"] - now) / 3600
     check(left_h > 24, f"series {s['series_id']} ({s['index_id']}) has {left_h:.0f}h left")
 
-    maker = fc.collateral_of(s["series_id"], w3.to_checksum_address(s["maker"])) or 0.0
-    check(maker > 0, f"maker is collateralized ({maker:.2f} USDC) — it is the counterparty")
+    # `collateral_of(...) or 0.0` is the spelling this project has a helper to
+    # avoid: it turns a THROTTLED READ into an empty account, and here that made
+    # the verifier announce an uncollateralized venue whenever Arc was busy —
+    # crying outage over RPC weather.
+    maker_addr = w3.to_checksum_address(s["maker"])
+    maker = collateral_or_none(fc, s["series_id"], maker_addr)
+    if maker is None:
+        check(False, "maker collateral: the chain would not say", warn_only=True)
+    else:
+        check(maker > 0, f"maker is collateralized ({maker:.2f} USDC) — it is the counterparty")
+
+    # Collateral is PER SERIES, and a roll posts a fresh stake without reclaiming
+    # the old one — so every roll silently leaves the maker's money on a series
+    # nobody trades. Measured on 08-03: 4.50 USDC sat on series 1 while the desk
+    # quoted series 2 off 1.50, and since `feasible_qty` clamps a reader's size
+    # by the maker's stake, the public book was a quarter of the depth the
+    # project had already paid for. Nothing was broken, so nothing complained.
+    stranded = 0.0
+    unreadable = 0
+    for other in fc.read_all_series():
+        if other["series_id"] == s["series_id"]:
+            continue
+        c = collateral_or_none(fc, other["series_id"], maker_addr, tries=2)
+        if c is None:
+            unreadable += 1
+        elif c > 0:
+            stranded += c
+    if unreadable:
+        check(False, f"{unreadable} series' maker balance unreadable", warn_only=True)
+    # Deliberately does NOT promise the money back: part of a balance on an old
+    # series is initial margin for a position still open there, which the
+    # contract will not release. `futures_withdraw.py` sizes that properly (via
+    # the same `free_collateral_units` the desk quotes readers); this check only
+    # says where to look. A verifier that names a command which then recovers
+    # nothing has told you something false in the course of being helpful.
+    check(
+        stranded == 0.0,
+        "no maker collateral sitting off the traded series"
+        + (
+            f" (found {stranded:.2f} USDC on other series — run "
+            "`make futures-withdraw` with WITHDRAW_DRY_RUN=1 to see how much "
+            "of it is actually free)"
+            if stranded
+            else ""
+        ),
+        warn_only=True,
+    )
 
     # A venue with a live series but no taker stake is a book nobody can trade
     # into: every desk fill mirrors onto the maker, but the heartbeat's own

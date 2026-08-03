@@ -224,7 +224,11 @@ class Facilitator(ABC):
 
     @property
     def revenue_usdc(self) -> float:
-        return self._revenue
+        # USDC carries six decimals, so 6dp is lossless — but a float sum of
+        # 6dp values is not: seven settlements of 0.0001 accumulate to
+        # 0.0007000000000000001, and that is what the public revenue counter
+        # printed. Round at the boundary, where the number becomes a claim.
+        return round(self._revenue, 6)
 
     def _rehydrate(self) -> None:
         """Reload the durable settlement ledger so /revenue + /marketplace/receipts
