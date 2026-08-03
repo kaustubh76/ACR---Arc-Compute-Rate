@@ -401,7 +401,7 @@ footer, section::after {
 <li><strong>Portia</strong>, an autonomous paralegal fleet, resells LLM work at fixed prices but pays for inference per call — ~<strong>100M tokens/mo × 0.49236 $/1k tokens</strong> (the ACR-INF print) ≈ <strong>$49,236/mo</strong>, all floating. One +10% month is <strong>+$4,924</strong> of unbudgeted burn.</li>
 <li>The fix: go <strong>long ACR-INF futures</strong>. Cash-settled — at expiry the venue <strong>freezes the freshest oracle print</strong> (≤ 2 h old, enforced on-chain) and pays the difference in USDC. <strong>No delivery, no GPU repossession, no seller cooperation.</strong></li>
 <li>A hedge is only as good as its settlement print: every ACR print ships its <strong>CI</strong> and its <strong>attack-cost-per-bp</strong>, so both sides can read — on-chain — what bending the settle would cost.</li>
-<li><strong>This loop is live on Arc testnet:</strong> <code>ACRFutures 0x29d97c62…82642fe</code> — series 0 (ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing) with a <strong>seeded long/short book</strong>, settling against the same ACROracle. Watch it on <code>/curve</code>.</li>
+<li><strong>This loop is live on Arc testnet:</strong> <code>ACRFutures 0x29d97c62…82642fe</code> — ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing, settling against the same ACROracle. The maker standing behind the book is a <strong>Circle developer-controlled wallet</strong>, and an <strong>autonomous agent buys the print over x402 and trades on it</strong>. Watch both on <code>/curve</code>.</li>
 </ul>
 <footer>ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-31</footer>
 </section>
@@ -1304,7 +1304,7 @@ footer, section::after {
 </tr>
 <tr>
 <td><strong>ACRFutures</strong> <code>0x29d97c62…82642fe</code></td>
-<td>Series 0 seeded long/short book, cash-settles on the print</td>
+<td>Live series, <strong>maker is a Circle custody wallet</strong>, cash-settles on the print</td>
 </tr>
 <tr>
 <td><strong>Terminal + Seller API</strong></td>
@@ -1312,7 +1312,7 @@ footer, section::after {
 </tr>
 </tbody>
 </table>
-<p><code>make ci</code> green 2026-07-31: <strong>230 py</strong> · <strong>50 forge</strong> (incl. futures + invariants) · <strong>50 terminal</strong> · <strong>10/10 agent</strong> · resistance <strong>4/4</strong> · interop <strong>12/12</strong> · glossary <strong>332/332</strong> · GitHub CI <strong>4/4</strong>.</p>
+<p><code>make ci</code> green 2026-08-03: <strong>279 py</strong> · <strong>50 forge</strong> (incl. futures + invariants) · <strong>55 terminal</strong> · <strong>10/10 agent</strong> · resistance <strong>4/4</strong> · interop <strong>12/12</strong> · glossary <strong>386/386</strong> · GitHub CI <strong>4/4</strong>.</p>
 <p>Real settlement through <strong>Circle Gateway</strong> — batch-UUID receipts in-repo and on the public <code>/exchange</code> tape; Circle's own CLI paid the gate (<code>payable</code>).</p>
 <p>Provenance labeled on every value — <code>sim</code> / <code>gateway-ref</code> / <code>tx</code>. Reproduce: <code>make setup &amp;&amp; make ci &amp;&amp; make demo</code>.</p>
 <footer>ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-31</footer>
