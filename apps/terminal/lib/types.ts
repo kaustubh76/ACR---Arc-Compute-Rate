@@ -161,6 +161,30 @@ export interface FuturesRoster {
   source?: "press" | "chain" | "bundle";
 }
 
+/** The autonomous hedger's standing (GET /hedger).
+ *  TWO addresses, one agent — see docs/WALLETS.md. `agent` is the Circle agent
+ *  wallet's smart account, which `ACRFutures.trade` records as the taker;
+ *  `payer` is its backing EOA, which the x402 settlement records because
+ *  EIP-3009 needs a signature `ecrecover` can verify. Nulls mean "not read",
+ *  never "zero" — an unread balance and an empty one call for opposite
+ *  conclusions. */
+export interface HedgerState {
+  configured: boolean;
+  agent: string | null;
+  payer: string | null;
+  index_id: string;
+  target_contracts: number;
+  venue: string | null;
+  wallet_kind: string;
+  series_id: number | null;
+  position_contracts: number | null;
+  gap_contracts: number | null;
+  collateral_usdc: number | null;
+  paid_queries: number | null;
+  spent_usdc: number | null;
+  fills: FuturesTradeRow[];
+}
+
 export interface TerminalData {
   prints: Record<string, PrintRow>;
   history?: Record<string, HistoryPoint[]>;
@@ -178,6 +202,8 @@ export interface TerminalData {
   /* bundle-only sections (snapshot enrichment — absent from live /terminal/data) */
   /** Real on-chain fills captured at snapshot time — the archived tape. */
   futures_trades?: FuturesTradeRow[];
+  /** The autonomous hedger's standing at snapshot time. */
+  hedger?: HedgerState | null;
   marketplace?: { catalog: CatalogData | null; receipts: MarketReceiptsData | null } | null;
   revenue?: RevenueData | null;
   x402?: X402Info | null;

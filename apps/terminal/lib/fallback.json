@@ -18,34 +18,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.4887996381339856,
-          "bid": 0.48756781419531675,
-          "ask": 0.4900314620726544,
-          "spread_bp": 50.4019987973548
+          "mid": 0.4888720381339856,
+          "bid": 0.4876402141953168,
+          "ask": 0.49010386207265444,
+          "spread_bp": 50.394534462256274
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.4887996381339856,
-          "bid": 0.48756781419531675,
-          "ask": 0.4900314620726544,
-          "spread_bp": 50.4019987973548
+          "mid": 0.4888720381339856,
+          "bid": 0.4876402141953168,
+          "ask": 0.49010386207265444,
+          "spread_bp": 50.394534462256274
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.4887996381339856,
-          "bid": 0.48756781419531675,
-          "ask": 0.4900314620726544,
-          "spread_bp": 50.4019987973548
+          "mid": 0.4888720381339856,
+          "bid": 0.4876402141953168,
+          "ask": 0.49010386207265444,
+          "spread_bp": 50.394534462256274
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.4887996381339856,
-          "bid": 0.48756781419531675,
-          "ask": 0.4900314620726544,
-          "spread_bp": 50.4019987973548
+          "mid": 0.4888720381339856,
+          "bid": 0.4876402141953168,
+          "ask": 0.49010386207265444,
+          "spread_bp": 50.394534462256274
         }
       ],
       "robustness": {
@@ -57,12 +57,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.49773380357474806,
-        "ci_lo": 0.494493045254866,
-        "ci_hi": 0.49780229920817265,
-        "attack_cost_per_bp": 0.015539,
-        "timestamp": 4028400,
-        "posted_at": 1785767507
+        "value": 0.49112046961935424,
+        "ci_lo": 0.4884496644258893,
+        "ci_hi": 0.49475541139948975,
+        "attack_cost_per_bp": 0.005494,
+        "timestamp": 4032000,
+        "posted_at": 1785771135
       }
     },
     "ACR-GPU": {
@@ -122,12 +122,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.011061675358186168,
-        "ci_lo": 0.010993844837743542,
-        "ci_hi": 0.011133057827074782,
-        "attack_cost_per_bp": 0.022275,
-        "timestamp": 4028400,
-        "posted_at": 1785767510
+        "value": 0.010831107596982992,
+        "ci_lo": 0.010774606173239344,
+        "ci_hi": 0.010912241681289176,
+        "attack_cost_per_bp": 0.006295,
+        "timestamp": 4032000,
+        "posted_at": 1785771138
       }
     },
     "ACR-DATA": {
@@ -187,12 +187,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.002062461256157907,
-        "ci_lo": 0.002062115999981669,
-        "ci_hi": 0.002088750678616696,
-        "attack_cost_per_bp": 0.014546,
-        "timestamp": 4028400,
-        "posted_at": 1785767516
+        "value": 0.002028640876594722,
+        "ci_lo": 0.002008334168303839,
+        "ci_hi": 0.00204239180371302,
+        "attack_cost_per_bp": 0.008887,
+        "timestamp": 4032000,
+        "posted_at": 1785771141
       }
     }
   },
@@ -1506,12 +1506,12 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": 2.0,
+      "maker_inventory": 0.19,
       "maker_avg_price": 0.4923551190903513,
-      "maker_realized_usdc": -0.02978405101322304,
-      "maker_unrealized_usdc": 0.077789,
-      "open_interest": 2.0,
-      "trader_count": 3
+      "maker_realized_usdc": 0.06757013815435789,
+      "maker_unrealized_usdc": 0.065224,
+      "open_interest": 0.19,
+      "trader_count": 4
     }
   },
   "attack": {
@@ -1676,22 +1676,22 @@
     "tape_source": "sim",
     "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
     "poster": {
-      "posts": 26,
+      "posts": 23,
       "last": {
         "ACR-INF": {
-          "tx": "0xae6adc228ed33330dd39b6d371729eafbd3c7a987e2b1da94c22e74df07264d4",
-          "block": 55115704,
-          "at_wall": 1785767507.0
+          "tx": "0xc10058c8a71f417e92f711ecd91468867c3dda252f81403a8698938b0db200fa",
+          "block": 55122759,
+          "at_wall": 1785771135.0
         },
         "ACR-GPU": {
-          "tx": "0x07ae01b6b4c94480d26bd21dc21df6cef8e6690c81df962a5827b3eebc5a2043",
-          "block": 55115710,
-          "at_wall": 1785767510.0
+          "tx": "0x3d2b62014f0040b6eb2bf43463aff76c34bf6ca6fd869ee44f3a77b4442c5282",
+          "block": 55122766,
+          "at_wall": 1785771138.0
         },
         "ACR-DATA": {
-          "tx": "0xb4a5eae001d699a884d7c0616444af334e9cc8d4870f3a1e2f9c0ddc7d75d22c",
-          "block": 55115722,
-          "at_wall": 1785767516.0
+          "tx": "0x064cb8336c3573036c15d5264ca0288a781d4fd7e2ea74611365ebea83323a87",
+          "block": 55122772,
+          "at_wall": 1785771141.0
         }
       }
     }
@@ -3318,13 +3318,33 @@
   "futures_trades": [
     {
       "series_id": 3,
+      "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
+      "qty": 0.81,
+      "side": "buy",
+      "mark": 0.49773380357474806,
+      "block": 55121353,
+      "tx": "0xd864de5c09e8206a1fc56d391ce136737f26aea7bf8606409014e7e7eefd7a88",
+      "seen_at": 1785771336.599162
+    },
+    {
+      "series_id": 3,
+      "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
+      "qty": 1.0,
+      "side": "buy",
+      "mark": 0.49773380357474806,
+      "block": 55120893,
+      "tx": "0xde561196f1951fda338cfed31cda541f8bd347600fa60abf2af042772e225d5a",
+      "seen_at": 1785771336.599162
+    },
+    {
+      "series_id": 3,
       "taker": "0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d",
       "qty": -1.0,
       "side": "sell",
       "mark": 0.4923551190903513,
       "block": 55109723,
       "tx": "0x242da4f5f4d9ad7287a988cf95be3f51876af15257f3a6cf984d06993b9046b7",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3334,7 +3354,7 @@
       "mark": 0.4923551190903513,
       "block": 55109687,
       "tx": "0xaaa0f2d5edca2ee7e95d1cc3e52dfa73aa505cedf73be13de143f8406f4d28ab",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3344,7 +3364,7 @@
       "mark": 0.4923551190903513,
       "block": 55109624,
       "tx": "0xc478a087c882d1e53d84d711b74965a81cbeb9ba56b605911cf4dc8e765dde4c",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3354,7 +3374,7 @@
       "mark": 0.4923551190903513,
       "block": 55109577,
       "tx": "0x0de9e7aefa368d381be4f86dd6615918055cfef213096149db9dfe8b3123042a",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3364,7 +3384,7 @@
       "mark": 0.4923551190903513,
       "block": 55109533,
       "tx": "0xc2aaeb0bdfc35f455e85df98ab202e642809d03437b4ede54ceb4b5307b09505",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3374,7 +3394,7 @@
       "mark": 0.4923551190903513,
       "block": 55109474,
       "tx": "0x34779de205db0b60f2ec162ed4c584ac4c1ce8028aeac23387c7af4d22f1f78c",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 3,
@@ -3384,7 +3404,7 @@
       "mark": 0.4953335241916736,
       "block": 55107516,
       "tx": "0xfb8b87066d13511403ea01d60aeda22a0a291e06782b82b39baa68ce282b6b9e",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3394,7 +3414,7 @@
       "mark": 0.49773380357474806,
       "block": 55088808,
       "tx": "0xa687ffe6f9f704c08b8d9e5de2ab68829dc94cfb8b1f4c72a0b7c6147752a466",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3404,7 +3424,7 @@
       "mark": 0.49773380357474806,
       "block": 55088768,
       "tx": "0xad107cb17f89020233b43f1e2f00a123abceaa87dffa08d76a111897fcf3dcd2",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3414,7 +3434,7 @@
       "mark": 0.49773380357474806,
       "block": 55088731,
       "tx": "0x323113c640c175ef43938d73d8158d1330cf73e82bea1016ccea7500cf602d94",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3424,7 +3444,7 @@
       "mark": 0.49773380357474806,
       "block": 55088689,
       "tx": "0x1b690e4533b886821a4e63d6fb2fc304159b2203fcdc7d699fe7b1f2d4bb7b2f",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3434,7 +3454,7 @@
       "mark": 0.49773380357474806,
       "block": 55088631,
       "tx": "0xa833e7469d0b6a9b9ccd1384938ed5c63fa4b9f59cc52942e2f9b9c57133328d",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     },
     {
       "series_id": 2,
@@ -3444,7 +3464,44 @@
       "mark": 0.49773380357474806,
       "block": 55088590,
       "tx": "0xfdd5a398f841bb20246217607e87e0571d250f3ef31f7b76513c5d6eace94812",
-      "seen_at": 1785769663.627744
+      "seen_at": 1785771336.599162
     }
-  ]
+  ],
+  "hedger": {
+    "configured": true,
+    "agent": "0x1dc707e330d7b1cd9b2d0a0c0346ce2d19d35bc9",
+    "payer": "0x71e140d9540d3163ead1591f81b454c6d5bd26c0",
+    "index_id": "ACR-INF",
+    "target_contracts": 2.0,
+    "venue": "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe",
+    "wallet_kind": "circle-agent-wallet",
+    "position_contracts": 1.81,
+    "collateral_usdc": 2.0,
+    "series_id": 3,
+    "fills": [
+      {
+        "series_id": 3,
+        "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
+        "qty": 0.81,
+        "side": "buy",
+        "mark": 0.49773380357474806,
+        "block": 55121353,
+        "tx": "0xd864de5c09e8206a1fc56d391ce136737f26aea7bf8606409014e7e7eefd7a88",
+        "seen_at": 1785771336.599162
+      },
+      {
+        "series_id": 3,
+        "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
+        "qty": 1.0,
+        "side": "buy",
+        "mark": 0.49773380357474806,
+        "block": 55120893,
+        "tx": "0xde561196f1951fda338cfed31cda541f8bd347600fa60abf2af042772e225d5a",
+        "seen_at": 1785771336.599162
+      }
+    ],
+    "paid_queries": 0,
+    "spent_usdc": 0,
+    "gap_contracts": 0.19
+  }
 }

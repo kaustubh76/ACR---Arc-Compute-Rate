@@ -679,6 +679,22 @@ def onchain_print(index_id: str) -> dict:
     return {"source": "onchain", "oracle": reader.oracle_address, **r}
 
 
+@app.get("/hedger")
+def hedger_state(fac: Facilitator = Depends(get_facilitator)) -> dict:
+    """The autonomous hedger's standing — mandate, position, fills, and spend.
+
+    Ungated, and derived only from public data: the agent's position on the
+    venue, the ``Traded`` events whose taker is the agent, and the settlement
+    ledger rows whose payer is it. Nothing here depends on a log file from
+    wherever the agent happened to run, so every number is one a reader can
+    reproduce from the chain.
+    """
+    from . import hedger
+    from .marketplace import build_receipts
+
+    return hedger.build_hedger_state(get_futures(), build_receipts(fac))
+
+
 @app.get("/futures")
 def futures_roster() -> dict:
     """The whole on-chain futures venue for the Terminal's live desk + trade tape:

@@ -3,13 +3,14 @@
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
 import { FuturesTape } from "@/components/chain/FuturesTape";
+import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { PublicDesk } from "@/components/chain/PublicDesk";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
-import { useFutures } from "@/lib/useLive";
+import { useFutures, useHedger } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { fmt, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -54,6 +55,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
   // The futures desk + tape ride a dedicated fast endpoint (real on-chain fills),
   // so they stay lively independent of the heavier /terminal/data feed.
   const fut = useFutures();
+  const hedge = useHedger();
   const roster = fut.roster?.data ?? null;
   const futLive = Boolean(fut.roster?.live);
   const explorer = chainFacts(env.data.chain).explorer;
@@ -132,6 +134,15 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
       <PublicDesk
         desks={roster?.desks ?? env.data.futures}
         live={futLive && roster?.source !== "bundle"}
+        explorer={explorer}
+      />
+
+      {/* The reader trades from their own wallet above; this is the machine
+          doing the same thing unattended, one section down, so the comparison
+          is the page rather than a paragraph about it. */}
+      <HedgerPanel
+        state={hedge.hedger?.data ?? null}
+        live={Boolean(hedge.hedger?.live)}
         explorer={explorer}
       />
 

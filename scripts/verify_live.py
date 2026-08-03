@@ -317,6 +317,48 @@ def verify_desk(live_series: dict | None) -> None:
         )
 
 
+def verify_hedger() -> None:
+    """The autonomous agent — did it actually pay and trade, or is it a panel?
+
+    This lives here rather than in a dispatch workflow ON PURPOSE. Running the
+    hedger from CI would mean shipping the Circle agent wallet's session into
+    GitHub secrets — an email-authenticated credential that expires in weeks,
+    which is exactly the "wrong tool for unattended automation" argument
+    docs/WALLETS.md makes about agent wallets. This check needs no credential at
+    all: it reads public state and asserts the evidence is there, so the public
+    run record comes from the 10-minute keepalive for free.
+
+    Warn-only: the agent is operator-run, so "has not traded recently" is a fact
+    about the demo schedule, not an outage.
+    """
+    print("\nautonomous hedger — the agent that pays for what it trades on")
+    status, body = get(f"{API}/hedger")
+    if not check(status == 200 and isinstance(body, dict), f"/hedger -> {status}"):
+        return
+    if not body.get("configured"):
+        check(False, "no hedger agent configured on this deployment", warn_only=True)
+        return
+    check(bool(body.get("agent")), f"agent wallet {str(body.get('agent'))[:12]}…")
+    # Two identities, one agent — the pair is the point, so check both are named.
+    check(
+        bool(body.get("payer")),
+        f"pays as {str(body.get('payer'))[:12]}… (the smart account's backing EOA)",
+        warn_only=True,
+    )
+    fills = body.get("fills") or []
+    check(len(fills) > 0, f"{len(fills)} on-chain fill(s) by the agent", warn_only=True)
+    paid = body.get("paid_queries")
+    check(
+        bool(paid),
+        f"{paid} x402 settlement(s) from the agent — it paid for the data it traded on",
+        warn_only=True,
+    )
+    pos, gap = body.get("position_contracts"), body.get("gap_contracts")
+    if pos is not None:
+        check(True, f"position {pos:+.2f} against a mandate of "
+                    f"{body.get('target_contracts')} (gap {gap:+.2f})")
+
+
 def verify_terminal(live_series: dict | None) -> None:
     print("\nterminal — the public surface")
     for path in ROUTES:
@@ -462,6 +504,7 @@ def main() -> None:
     section(verify_seller)
     section(verify_x402)
     section(verify_desk, live)
+    section(verify_hedger)
     section(verify_terminal, live)
     section(verify_funding, w3, s)
     section(verify_crons)

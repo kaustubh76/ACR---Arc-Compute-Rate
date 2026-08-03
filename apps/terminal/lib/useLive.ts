@@ -17,6 +17,7 @@ import type {
   Envelope,
   FuturesRoster,
   HealthData,
+  HedgerState,
   LiveBuyResponse,
   MarketReceiptsData,
   OnchainDirectRead,
@@ -124,6 +125,17 @@ export function useMarketReceipts() {
  *  30s on the direct-chain tier (each refresh is a paced RPC crawl behind a
  *  60s server memo) and 15s on the archived bundle. Decoupled from
  *  /terminal/data so the desk stays lively without waiting on the heavy feed. */
+/** The autonomous hedger's standing. Polls slower than the desk: this agent
+ *  acts on a mandate, not on every tick, so a 4s refresh would spend requests
+ *  watching a number that changes a few times an hour. */
+export function useHedger() {
+  const { data, error } = useSWR<Envelope<HedgerState>>("/api/hedger", fetcher, {
+    refreshInterval: (latest) => (latest?.live ? 15_000 : 60_000),
+    ...RETRY,
+  });
+  return { hedger: data, error: error as Error | undefined };
+}
+
 export function useFutures() {
   const { data, error } = useSWR<Envelope<FuturesRoster>>("/api/futures", fetcher, {
     refreshInterval: (latest) =>
