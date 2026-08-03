@@ -167,7 +167,7 @@ The machine side of the marketplace: `src/payer.ts` (`DevPayer` mock-header buye
 
 ## Tests & verification
 
-- **Python: 264 tests** (incl. 9 anvil-gated on-chain tests — CI starts a node so they run; they skip only on a machine without anvil) (incl. anvil-gated on-chain integration (skipped without anvil) — the anvil round-trip in `test_onchain.py`), spanning core, estimator, instrument, oracle_client, sim, tape, services (incl. x402-circle + marketplace + webhooks + terminal-bundle), and `tests/`.
+- **Python: 266 tests** (incl. 9 anvil-gated on-chain tests — CI starts a node so they run; they skip only on a machine without anvil) (incl. anvil-gated on-chain integration (skipped without anvil) — the anvil round-trip in `test_onchain.py`), spanning core, estimator, instrument, oracle_client, sim, tape, services (incl. x402-circle + marketplace + webhooks + terminal-bundle), and `tests/`.
 - **Foundry: 50 tests** (`ACROracle` 17, `AttestationRegistry` 10, `ACRFutures` 16, invariants 5 + 2 with `fail_on_revert=true`).
 - **Node: 55 terminal tests** (`apps/terminal`, node:test — a dedicated CI job) + the `apps/agent` suite (node:test with stubbed fetch — DevPayer two-act flow, rejection, price parsing, catalog filters, spend-cap stop + price-over-cap refusal) + `tsc` type-checks for agent and terminal.
 - **Commands:** `make test` (py + forge + agent), `make lint` (ruff), `make ci` (lint + test + eval gate), `make eval-gate` (headline-claim gate), `make demo` / `make pipeline` / `make eval`, `make interop` (402-descriptor vs buyer-SDK check, needs `make api`). On-chain: `make anvil` then `make onchain` (deploy → EIP-712 signed posts → byte-identical read-back → settle).
