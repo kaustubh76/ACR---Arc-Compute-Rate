@@ -7,25 +7,32 @@ Copy each block below straight into the matching field.
 
 ---
 
-## Read this before you submit
+## Status — submitted 2026-08-04
 
-**The catalog is mainnet-only, measured.** Circle's public Discovery API
-(`https://api.circle.com/v2/x402/discovery/resources`) serves **958 listings**,
-and every network in a 200-item sample is a mainnet chain — Base, Ethereum,
-Polygon, Avalanche, Arbitrum, Optimism, Unichain, Sonic, World Chain, Sei,
-Hyperliquid. Querying `network=eip155:5042002` (Arc testnet) returns **zero**,
-and no Arc network appears anywhere in the catalog.
+The Google Form is in. Circle also said, in their Agent Stack session Q&A:
 
-So this submission is likely to be declined, and that is fine — **submit it
-anyway, and say plainly that it is Arc testnet.** Either they accept it, or we
-get a written answer about the path for an Arc service, which is worth more
-than my inference from 958 rows. What we must not do is describe a pending
-submission as if it were a likely listing.
+> "Yes, you can absolutely list as a seller on the testnet Agent Marketplace
+> right now by connecting your wallet to Arc Testnet and registering your agent."
 
-Every technical prerequisite is already met: 402-when-unpaid, serves on
-payment, and a published OpenAPI spec.
+**Taking them at their word, and saying so attributively.** That phrasing does
+not match any surface I can reach, and I want the record to be precise about
+which parts are Circle's claim and which are measurement:
 
----
+| | |
+|---|---|
+| Circle says | testnet listing is supported today |
+| The public Discovery API says | **958 listings, every one on a mainnet chain.** `network=eip155:5042002` → 0. `testnet=true` is silently ignored and returns the same 958. `api-sandbox.circle.com` 404s. |
+| agents.circle.com says | no wallet-connect, no `/register`, no `/sell` — it links the same Google Form |
+
+Both can be true: their answer may describe an internal or unreleased surface,
+or it may have conflated *agent wallet* creation (which genuinely is Arc Testnet,
+via `circle wallet login`) with *seller* listing. The form response settles it.
+
+**What the docs say until then:** that we have submitted, and that Circle states
+testnet listing is supported — attributed to them. Not that ACR *is* listed. A
+judge can query that Discovery API in ten seconds, and a claim they can disprove
+costs far more than the listing would have gained. The moment a listing is
+confirmed, every doc gets updated to say so.
 
 ## Endpoint URL
 

@@ -119,12 +119,38 @@ instead of a 402 round trip per request) on the roadmap? A metered channel
 would make our index feed *subscribable* by an agent rather than re-bought
 per query.
 
-### Q7. Receipts as on-chain rights
-Can a smart contract **verify** a Gateway settlement — an attestation or
-signature checkable on-chain? Use case: our futures venue rebates trading
-fees to wallets that paid for the index feed, turning x402 revenue into
-on-chain privilege. Off-chain settlement becoming an on-chain right is a
-bridge nobody has demoed.
+### Q7. Receipts as on-chain rights — ASKED, ANSWERED, SHIPPED ✅
+
+**Asked at the session:** can a smart contract verify a Gateway settlement — an
+attestation or signature checkable on-chain?
+
+**Circle's answer:** *"For Gateway settlements, you'd need an EIP-712 signed
+attestation or oracle receipt to cryptographically verify the off-chain x402
+payment on-chain for the rebate."*
+
+**So we built it, the same day.** `FeedAccessAttestor`
+[`0xe671a8E7…`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47)
+on Arc: the seller signs a `FeedAccess` struct with the **same Circle custody
+wallet that signs oracle prints**, anyone may relay it, and the contract
+recovers the signer with `ecrecover` — exactly the pattern `ACROracle` already
+uses, so the trust anchor is one a judge has already verified.
+
+Proven live: the hedger's 3 settlements were attested to its smart account and
+`hasFeedAccess(0x1Dc707E3…)` returns **true**. Off-chain revenue is now an
+on-chain right.
+
+The design decision worth defending: the seller **signs**, it does not
+**decide**. Every attestation is derived from rows already public at
+`/marketplace/receipts`, so it cannot mint access nobody paid for — that is what
+makes the receipt worth believing rather than merely worth verifying. And
+`payer` and `beneficiary` are separate fields because an x402 `exact` settlement
+is signed by an EOA, so a Circle agent wallet pays from its backing EOA while
+its smart account is what trades.
+
+**Worth going back with:** is a first-party settlement attestation on Circle's
+roadmap, so sellers do not each have to be their own oracle? Right now the
+buyer has to trust the seller's signature about the seller's own revenue, which
+is the one weak joint in this design.
 
 ### Q8. Agent identity + compliance mid-loop
 We anchor seller reputation on-chain (ERC-8004-style attestations, surfaced
