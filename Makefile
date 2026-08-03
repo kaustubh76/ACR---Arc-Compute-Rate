@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live verify-claims desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -138,6 +138,12 @@ verify-live:
 # collection for a quick pass.
 verify-claims:
 	uv run python scripts/verify_claims.py
+
+# Fold the seller's real x402 settlements into the committed archive, so they
+# survive the next restart (production has no persistent disk). Run it right
+# after a live buy, then commit data/x402_receipts_live.jsonl.
+x402-capture:
+	uv run python scripts/x402_capture.py
 
 # --- futures venue lifecycle (a series expires; the venue must outlive it) ---
 

@@ -94,7 +94,14 @@ def test_sim_receipts_shape_matches_live_ledger():
     live = build_receipts(fac)
     sim = build_sim_receipts()
     assert set(sim) == set(live)  # same top-level keys
-    assert set(sim["receipts"][0]) == set(live["receipts"][0])  # same row keys
+    # A sim row must carry every field the UI reads off a real one, so the two
+    # render identically — that is the guarantee. It may legitimately lack
+    # `settled_at`: a simulated receipt never settled, and stamping it with a
+    # made-up time would be precisely the dishonesty the sim labelling exists to
+    # prevent. So: subset, not equality, and nothing real-only beyond the time.
+    sim_keys, live_keys = set(sim["receipts"][0]), set(live["receipts"][0])
+    assert sim_keys <= live_keys
+    assert live_keys - sim_keys <= {"settled_at"}
     # Deterministic, honestly labeled, realistically addressed.
     assert sim == build_sim_receipts()
     assert [r["seq"] for r in sim["receipts"]] == list(range(24, 0, -1))  # newest first
