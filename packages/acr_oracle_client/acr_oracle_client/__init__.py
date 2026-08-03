@@ -28,6 +28,7 @@ from .signer import (
     CircleWalletSigner,
     LocalKeySigner,
     Signer,
+    build_role_signer,
     build_signer,
     full_eip712_json,
     split_signature,
@@ -54,6 +55,7 @@ __all__ = [
     "LocalKeySigner",
     "CircleWalletSigner",
     "build_signer",
+    "build_role_signer",
     "split_signature",
     "full_eip712_json",
 ]

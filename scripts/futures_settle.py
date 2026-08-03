@@ -23,7 +23,7 @@ import sys
 import time
 
 from acr_core import get_settings
-from acr_oracle_client import FuturesClient, OracleClient
+from acr_oracle_client import FuturesClient, OracleClient, build_role_signer
 from acr_oracle_client.futures import _rpc_retry
 
 #: Mirrors ACRFutures.MAX_SETTLE_AGE. Read from the chain when possible.
@@ -36,15 +36,20 @@ _AGE_ABI = [{"type": "function", "name": "MAX_SETTLE_AGE", "stateMutability": "v
 
 def main() -> None:
     s = get_settings()
-    key = os.environ.get("MAKER_PRIVATE_KEY", "") or s.poster_private_key
-    if not (s.futures_address and key):
-        print("set ACR_FUTURES_ADDRESS and MAKER_PRIVATE_KEY (any funded key works)")
+    # settle() is permissionless — any funded signer can call it. Uses the maker
+    # role's Circle wallet by default so the keeper needs no private key; an
+    # explicit MAKER_PRIVATE_KEY still wins for anvil and offline runs.
+    key = os.environ.get("MAKER_PRIVATE_KEY", "")
+    signer = build_role_signer("maker", s, private_key=key or None)
+    if not (s.futures_address and signer):
+        print("set ACR_FUTURES_ADDRESS, and either ACR_CIRCLE_MAKER_WALLET_ID "
+              "(+ ACR_CIRCLE_API_KEY) or MAKER_PRIVATE_KEY (any funded signer works)")
         sys.exit(1)
 
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
-    fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, private_key=key)
+    fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=signer)
     oracle = OracleClient(rpc_url=s.arc_rpc_url, oracle_address=s.oracle_address or None)
 
     try:

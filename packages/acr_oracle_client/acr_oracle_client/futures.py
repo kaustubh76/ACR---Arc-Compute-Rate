@@ -240,6 +240,18 @@ _POSITION_TUPLE = {
         {"name": "realizedPnl", "type": "int256"},
     ],
 }
+#: Just enough ERC-20 to grant and read the venue's allowance. On Arc the token
+#: is the native USDC predeploy, which is a standard ERC-20 (measured, not
+#: assumed — balanceOf/decimals()==6/approve/transferFrom all work).
+_ERC20_ALLOWANCE_ABI = [
+    {"type": "function", "name": "approve", "stateMutability": "nonpayable",
+     "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
+     "outputs": [{"name": "", "type": "bool"}]},
+    {"type": "function", "name": "allowance", "stateMutability": "view",
+     "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
+     "outputs": [{"name": "", "type": "uint256"}]},
+]
+
 FUTURES_ABI = [
     {"type": "function", "name": "seriesCount", "stateMutability": "view", "inputs": [],
      "outputs": [{"name": "", "type": "uint256"}]},
@@ -524,6 +536,48 @@ class FuturesClient:
         if rcpt.status != 1:
             raise RuntimeError(f"tx reverted ({tx_hash})")
         return str(tx_hash)
+
+    def allowance_units(self, token: str, owner: str | None = None) -> int | None:  # pragma: no cover - live chain
+        """The venue's USDC allowance from ``owner``, in raw 1e6 units."""
+        w3 = self._connect()
+        if w3 is None or not self.configured:
+            return None
+        who = owner or (self.signer.address if self.signer else None)
+        if not who:
+            return None
+        try:
+            erc20 = w3.eth.contract(address=w3.to_checksum_address(token), abi=_ERC20_ALLOWANCE_ABI)
+            return int(
+                _rpc_retry(
+                    erc20.functions.allowance(
+                        w3.to_checksum_address(who), w3.to_checksum_address(self.futures_address)
+                    ).call
+                )
+            )
+        except Exception:
+            return None
+
+    def approve_venue(self, token: str, amount_units: int | None = None) -> str | None:  # pragma: no cover - live chain
+        """Approve the venue to pull ``token`` from this signer's wallet.
+
+        Exists because the approve step used to be the ONE write that bypassed
+        the ``Signer`` seam: every script hand-built it and signed with
+        ``eth_account``, which silently made a raw key mandatory even on a host
+        with full Circle credentials. Posting collateral is impossible without
+        an allowance, so that single omission pinned the whole venue to an EOA.
+
+        Goes through ``_send`` like every other write, so it signs with whatever
+        the client was given — a local key on anvil, a Circle custody wallet in
+        production.
+        """
+        if not self.can_write():
+            return None
+        w3 = self._connect()
+        erc20 = w3.eth.contract(address=w3.to_checksum_address(token), abi=_ERC20_ALLOWANCE_ABI)
+        amount = (2**256 - 1) if amount_units is None else int(amount_units)
+        return self._send(
+            erc20.functions.approve(w3.to_checksum_address(self.futures_address), amount)
+        )
 
     def open_series(self, index_id: str, expiry_ts: int, multiplier: int, maker: str) -> str | None:  # pragma: no cover - live chain
         if not self.can_write():

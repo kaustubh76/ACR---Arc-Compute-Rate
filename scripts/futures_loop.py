@@ -22,7 +22,12 @@ import random
 import sys
 import time
 
-from acr_oracle_client import FuturesClient, OracleClient, select_series_for_index
+from acr_oracle_client import (
+    FuturesClient,
+    OracleClient,
+    build_role_signer,
+    select_series_for_index,
+)
 from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
 # The desk's own margin arithmetic, reused rather than re-derived: it clamps
@@ -39,6 +44,11 @@ BAND = int(os.environ.get("LOOP_BAND", "4"))
 GAS_FLOOR = float(os.environ.get("GAS_FLOOR", "1.0"))  # native USDC; stop below this
 #: Posted when the taker has no stake on the selected series (i.e. after a roll).
 LOOP_COLLATERAL = float(os.environ.get("LOOP_COLLATERAL", "3.0"))
+#: The collateral token — Arc's native USDC predeploy, which is also a standard
+#: ERC-20. Overridable so the anvil deployment can be exercised the same way.
+USDC_ADDRESS = os.environ.get(
+    "ACR_USDC_ADDRESS", "0x3600000000000000000000000000000000000000"
+)
 #: How many times `--once` will try before reporting the tick as failed. Arc's
 #: public RPC 429s routinely, and with escalating backoff (5s, 10s, …) five
 #: attempts stay well inside the heartbeat job's timeout.
@@ -82,21 +92,26 @@ def choose_qty(inv: float, band: int) -> int:
 def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)  # observable: flush each line to the log
     once = "--once" in sys.argv
+    # An explicit key still wins (anvil, offline); otherwise the taker ROLE's
+    # Circle wallet. This role is developer-controlled rather than a Circle
+    # *agent* wallet because it runs hourly from cron, and an agent wallet's
+    # email-OTP session expires — see docs/WALLETS.md.
     taker_key = os.environ.get("TAKER_PRIVATE_KEY", "")
-    if not (FUTURES and taker_key):
-        print("set ACR_FUTURES_ADDRESS + TAKER_PRIVATE_KEY")
+    signer = build_role_signer("taker", private_key=taker_key or None)
+    if not (FUTURES and signer):
+        print("set ACR_FUTURES_ADDRESS, and either ACR_CIRCLE_TAKER_WALLET_ID "
+              "(+ ACR_CIRCLE_API_KEY) or TAKER_PRIVATE_KEY")
         sys.exit(1)
 
-    from eth_account import Account
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(RPC, request_kwargs={"timeout": 15}))
     if not w3.is_connected():
         print("Arc RPC unreachable")
         sys.exit(1)
-    taker = Account.from_key(taker_key)
 
-    fc = FuturesClient(rpc_url=RPC, futures_address=FUTURES, private_key=taker_key)
+    fc = FuturesClient(rpc_url=RPC, futures_address=FUTURES, signer=signer)
+    taker_address = signer.address  # a Circle wallet resolves this over the network
     oracle = OracleClient(rpc_url=RPC, oracle_address=ORACLE)
     margin_c = w3.eth.contract(address=w3.to_checksum_address(FUTURES), abi=_MARGIN_ABI)
     try:
@@ -119,7 +134,7 @@ def main() -> None:
     maker_addr = w3.to_checksum_address(series["maker"])
 
     def native_bal() -> float:
-        return _rpc_retry(w3.eth.get_balance, taker.address) / 1e18
+        return _rpc_retry(w3.eth.get_balance, taker_address) / 1e18
 
     # A taker with no collateral joins the roster (consuming a MAX_TRADERS slot)
     # and then reverts on every trade. Collateral is PER SERIES, so this is the
@@ -134,7 +149,7 @@ def main() -> None:
     # more. The post 429'd too, which is the only reason no money moved. The
     # tick loop below has always drawn this distinction ("don't trade on
     # assumed-zero"); the provisioning path must draw it before spending.
-    taker_collateral = collateral_or_none(fc, sid, taker.address)
+    taker_collateral = collateral_or_none(fc, sid, taker_address)
     if taker_collateral is None:
         print(f"  ⏹ could not read collateral on series {sid} after retries — refusing to "
               "post a stake that may already be there")
@@ -143,11 +158,20 @@ def main() -> None:
         free = native_bal()
         want = min(LOOP_COLLATERAL, free - GAS_FLOOR)
         if want < 0.5:
-            print(f"taker {taker.address} has no collateral on series {sid} and only "
+            print(f"taker {taker_address} has no collateral on series {sid} and only "
                   f"{free:.2f} USDC free (needs {LOOP_COLLATERAL} + {GAS_FLOOR} gas floor) — "
                   f"fund it, or check TAKER_PRIVATE_KEY matches the funded taker")
             sys.exit(1)
         print(f"  · no collateral on series {sid} (new series?) — posting {want:.2f} USDC")
+        # postCollateral pulls via transferFrom, so it reverts without an
+        # allowance. A brand-new wallet has none, and the failure surfaces as an
+        # opaque revert rather than "you never approved" — so grant it first.
+        # Goes through the signer, so custody and local keys behave the same.
+        allowance = fc.allowance_units(USDC_ADDRESS, taker_address)
+        if allowance is not None and allowance < int(want * 1_000_000):
+            print("    · approving the venue on USDC first")
+            fc.approve_venue(USDC_ADDRESS)
+            time.sleep(2)
         # Retry the write for the same reason the tick loop retries: Arc 429s
         # routinely, and a heartbeat that goes red on the first flake is red
         # most hours, which teaches everyone to ignore it.
@@ -164,12 +188,12 @@ def main() -> None:
         if not posted:
             print("  ✗ could not post collateral after retries")
             sys.exit(1)
-        landed = collateral_or_none(fc, sid, taker.address)
+        landed = collateral_or_none(fc, sid, taker_address)
         if not landed:
             print("  ✗ collateral did not land — refusing to trade into a margin revert")
             sys.exit(1)
         taker_collateral = landed
-    print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker.address[:10]}…, "
+    print(f"  loop → series {sid} ({INDEX}, mult {mult}), taker {taker_address[:10]}…, "
           f"band ±{BAND}, every {INTERVAL:.0f}s, margin {margin_bps}bps")
 
     start = time.monotonic()
@@ -183,8 +207,8 @@ def main() -> None:
             if gas < GAS_FLOOR:  # a SUCCESSFUL read below the floor → genuinely done
                 print(f"  ⏹ gas {gas:.3f} < floor {GAS_FLOOR} — stopping")
                 break
-            pos = fc.position_of(sid, taker.address)
-            coll = fc.collateral_of(sid, taker.address)
+            pos = fc.position_of(sid, taker_address)
+            coll = fc.collateral_of(sid, taker_address)
             maker_pos = fc.position_of(sid, maker_addr)
             maker_coll = fc.collateral_of(sid, maker_addr)
             if None in (pos, coll, maker_pos, maker_coll):
