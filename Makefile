@@ -147,6 +147,13 @@ verify-claims:
 x402-capture:
 	uv run python scripts/x402_capture.py
 
+# The autonomous hedger: one Circle AGENT wallet buys the index over x402, then
+# trades ACRFutures on what it just read. The only loop here that makes an
+# economic decision — every other agent either pays or trades, never both.
+# HEDGER_DRY_RUN=1 decides and logs without spending. Needs ACR_HEDGER_ADDRESS.
+hedger:
+	uv run python scripts/hedger.py --once
+
 # Measure the gaps between on-chain prints — the empirical proof that the press
 # is not sleeping, which app.SELF_URL explicitly defers to rather than asserts.
 # The tail is the number that matters: ACRFutures will not settle against a

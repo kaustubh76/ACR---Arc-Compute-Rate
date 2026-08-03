@@ -135,6 +135,45 @@ Two things do **not** come for free, and both are handled:
 
 ---
 
+## The agent wallet has two on-chain identities, and both are it
+
+This is the detail that resolves C4, and it is worth knowing before reading the
+ledger. Measured on 2026-08-03, the same agent doing one loop:
+
+| Rail | Identity recorded | Why |
+|---|---|---|
+| The x402 settlement | `0x71e140d9…` — the **backing EOA** | `exact`/EIP-3009 needs a signature `ecrecover` can verify, so Circle signs with the SCA's backing EOA |
+| The on-chain `Traded` event | `0x1Dc707E3…` — the **SCA** | `trade` reads `msg.sender`, and the userOp executes as the smart account |
+
+So `/marketplace/receipts` shows a payer that is not the address on the trade,
+and both are the same agent. The transaction's `from` is a third address again —
+the ERC-4337 bundler — which is normal for a smart account and not a party to
+anything.
+
+This is why an agent wallet **can** buy x402 despite the EOA-only rule: it does
+not sign with the SCA at all. The runbook's conclusion was right about the
+protocol and wrong about the consequence.
+
+## An integration bug worth reporting upstream
+
+`circle services pay` fails from a clean environment with:
+
+```
+Error: Could not sign payment authorization.
+  Hint: Failed during Gateway batched payment signature creation.
+  Technical details: ReferenceError: crypto is not defined
+```
+
+The message reads like a wallet or protocol problem — it is a **missing Node
+global**. The fix is `NODE_OPTIONS=--experimental-global-webcrypto`, which
+`scripts/hedger.py` sets for every CLI call. Measured on Node **v26**, where
+`crypto` is a global at the top level, so something in the CLI's signing path
+runs without it. `circle wallet execute` is unaffected; only the payment leg.
+
+Worth flagging because the symptom points away from the cause: it cost a live
+run that reported "payment failed" while the trade beside it succeeded, and
+nothing in the error suggests a runtime flag.
+
 ## Why CI is the one place a raw key is still the *safer* choice
 
 The obvious next step after moving the venue into custody is "put the Circle
