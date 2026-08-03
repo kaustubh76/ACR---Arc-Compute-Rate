@@ -172,8 +172,15 @@ async def _touch_self() -> None:
     try:
         import httpx
 
+        # Tagged so it is identifiable in the access log. That matters: Render's
+        # OWN health check hits /health every ~5s from 10.228.x.x and the
+        # service still sleeps, which proves the platform does not count all
+        # inbound traffic toward the idle timer. Whether a knock that egresses
+        # to the public hostname and returns through the edge is counted is the
+        # open question — an untagged ping would be indistinguishable from the
+        # platform's own probe, and I would have no way to tell.
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.get(f"{SELF_URL}/health")
+            await client.get(f"{SELF_URL}/health?src=self-heartbeat")
     except Exception:  # pragma: no cover - a failed knock is not an error
         log.debug("self-ping failed", exc_info=True)
 
