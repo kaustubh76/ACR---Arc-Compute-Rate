@@ -7,7 +7,6 @@ Circle credentials and no agent wallet.
 from __future__ import annotations
 
 import pytest
-
 from index_api import hedger
 
 AGENT = "0x1dc707e330d7b1cd9b2d0a0c0346ce2d19d35bc9"
