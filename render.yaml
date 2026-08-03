@@ -76,6 +76,17 @@ services:
       - key: ACR_REFRESH_SECONDS
         value: "3600"
 
+      # The instance's own URL, knocked on every ACR_CHAIN_WARM_SECONDS so it
+      # never looks idle. The press only posts while this process is AWAKE, and
+      # the free plan sleeps after ~15 idle minutes — measured gaps between
+      # on-chain prints ran 80 · 64 · 122 · 62 · 100 · 216 · 82 · 82 minutes
+      # against a contract that will not settle on a print older than 120. The
+      # posting logic was never wrong; nothing was waking it. The external cron
+      # in .github/workflows/keepalive.yml drops ~88% of its ticks, so it cannot
+      # be the thing this depends on.
+      - key: ACR_SELF_URL
+        value: https://acr-api-1fto.onrender.com
+
       # --- Paths + CORS ----------------------------------------------------
       # NOTE: the free plan has NO persistent disk, so these files (and the
       # faucet ledger beside them) are empty on every boot. That is why the
