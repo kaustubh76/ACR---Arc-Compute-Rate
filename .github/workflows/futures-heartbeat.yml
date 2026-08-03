@@ -18,9 +18,25 @@ name: futures-heartbeat
 # three or four. Dispatch it by hand with a larger `trades` input to refill the
 # tape immediately.
 
+#
+# ── RETIRED FROM THE SCHEDULE 2026-08-03 ─────────────────────────────────────
+# This job now runs on the TRUSTED HOST, not here. The venue signs through
+# Circle custody, so a scheduled run in Actions would need
+# ACR_CIRCLE_ENTITY_SECRET — a credential that controls every
+# developer-controlled wallet, INCLUDING the one that signs oracle prints. That
+# is a strictly larger blast radius than the scoped raw key it would replace,
+# so the job moved to the service that already holds those credentials
+# (services/index_api/index_api/keeper.py). Proven live: the Circle taker
+# wallet traded 0.25 from the host at block 55127553.
+#
+# Kept as DISPATCH-ONLY on purpose rather than deleted: it is the manual
+# fallback if the keeper is ever stood down (ACR_KEEPER=0) or the host is down,
+# and it still signs with a scoped key that can drain exactly one liveness bot.
+# The secret stays until the keeper has run unattended for longer than a
+# demo — removing the fallback before the replacement has proven itself is the
+# same mistake as trusting a fix nobody measured.
+
 on:
-  schedule:
-    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       trades:
