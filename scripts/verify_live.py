@@ -227,6 +227,33 @@ def verify_venue(w3, settings) -> dict | None:
         warn_only=True,
     )
 
+    # Who can open a series. The venue was handed from the deploy EOA to the
+    # maker's own Circle wallet on 2026-08-03, which is what lets the keeper
+    # roll unattended — so this is a capability check, not a vanity one. If
+    # ownership ever moves back to a raw key the keeper silently stops being
+    # able to roll, and the first symptom would be an expired series.
+    try:
+        owner = _rpc_retry(
+            w3.eth.contract(
+                address=w3.to_checksum_address(settings.futures_address),
+                abi=[{"type": "function", "name": "owner", "stateMutability": "view",
+                      "inputs": [], "outputs": [{"name": "", "type": "address"}]}],
+            ).functions.owner().call
+        )
+        from acr_oracle_client import build_role_signer
+
+        mk = build_role_signer("maker", settings)
+        custody = mk is not None and type(mk).__name__ == "CircleWalletSigner"
+        owned_by_keeper = custody and str(owner).lower() == str(mk.address).lower()
+        check(
+            owned_by_keeper,
+            f"venue owner {str(owner)[:12]}… is the keeper's Circle wallet "
+            "(so a roll needs no human)",
+            warn_only=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+        check(False, f"could not read the venue owner ({str(exc)[:40]})", warn_only=True)
+
     # A venue with a live series but no taker stake is a book nobody can trade
     # into: every desk fill mirrors onto the maker, but the heartbeat's own
     # trades need its stake to still be on THIS series after a roll.

@@ -110,3 +110,36 @@ def test_a_chore_failure_never_costs_the_press_a_beat():
     finally:
         if real is not None:
             sys.modules["index_api.keeper"] = real
+
+
+def test_the_roll_refuses_a_venue_it_does_not_own():
+    """`openSeries` is onlyOwner, so this is the difference between rolling and
+    a transaction that reverts on every cooldown forever.
+
+    Until 2026-08-03 the venue's owner was the retiring EOA and this was always
+    False — the keeper could only shout for a human. The handover to the maker's
+    own Circle wallet is what made an unattended roll possible, and the guard
+    has to survive that changing back: a fork, a redeploy pointed at another
+    venue, another ownership transfer.
+    """
+    maker = "0x9D44A7Dd4e7bF173B3F13ee41E1B60C8e92388d2"
+    assert keeper.may_open_series(maker, maker.lower()), "case must not decide this"
+    assert not keeper.may_open_series("0x33189c643774ED2713EbFf5A6923e5fa42b96eE8", maker)
+    # An unreadable owner is not permission. Empty must never mean "go ahead".
+    assert not keeper.may_open_series("", maker)
+    assert not keeper.may_open_series(maker, "")
+
+
+def test_a_roll_needs_collateral_AND_gas_from_one_balance():
+    """On Arc USDC is the gas token, so both come out of the same wallet.
+
+    Checking them separately is how you open a series you cannot then
+    collateralize — and an uncollateralized series is a desk that looks live and
+    reverts on first contact, which is worse than not rolling at all.
+    """
+    need = keeper.GAS_FLOOR_USDC + keeper.ROLL_COLLATERAL
+    assert keeper.roll_budget_ok(need)
+    assert keeper.roll_budget_ok(need + 1)
+    assert not keeper.roll_budget_ok(need - 0.01)
+    # Enough for the collateral alone is NOT enough — that is the whole point.
+    assert not keeper.roll_budget_ok(keeper.ROLL_COLLATERAL)

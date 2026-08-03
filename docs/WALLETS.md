@@ -87,8 +87,31 @@ maker and the heartbeat taker are therefore two separate developer-controlled
 wallets, not one.
 
 `openSeries` is `onlyOwner`, but it takes the maker as a **parameter**
-(`ACRFutures.sol:174`), so moving the maker to a Circle wallet needs no
+(`ACRFutures.sol:174`), so moving the maker to a Circle wallet needed no
 ownership transfer — only the next roll.
+
+### The venue is now owned by a Circle wallet too
+
+Done on 2026-08-03 via `scripts/migrate_venue_owner.py`, and verified on-chain
+rather than from the script's own report:
+
+```
+owner        0x9D44A7Dd4e7bF173B3F13ee41E1B60C8e92388d2   (Circle custody, the maker)
+pendingOwner 0x0000000000000000000000000000000000000000
+```
+
+The retiring EOA `0x33189c…` now holds **no authority over the venue at all** —
+not owner, not pending owner. It keeps a small balance and nothing else.
+
+Two-step ownership is what made this safe to attempt: `transferOwnership` only
+nominates, so a failed Circle leg would have left the old owner in full control
+with no window in which nobody owned the contract.
+
+It also unlocked a capability rather than just tidying a diagram. Because the
+maker is now the owner, `keeper.roll_if_needed` can open a successor series by
+itself — before this it could only detect that a roll was due and shout for a
+human, since the process does not hold the owner's key and should not. The
+venue's entire lifecycle now runs unattended under custody signing.
 
 ---
 

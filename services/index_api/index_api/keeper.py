@@ -50,6 +50,18 @@ GAS_FLOOR_USDC = float(os.environ.get("ACR_KEEPER_GAS_FLOOR", "1.0"))
 #: not a position.
 TRADE_QTY = float(os.environ.get("ACR_KEEPER_QTY", "0.25"))
 INDEX = os.environ.get("ACR_KEEPER_INDEX", os.environ.get("SEED_INDEX", "ACR-INF"))
+#: What a roll posts as maker collateral. Mirrors scripts/futures_roll.py so the
+#: two paths cannot disagree about what a healthy successor looks like.
+ROLL_COLLATERAL = float(os.environ.get("ROLL_COLLATERAL", "1.5"))
+#: The collateral token — Arc's native USDC predeploy, also a standard ERC-20.
+USDC_ADDRESS = os.environ.get(
+    "ACR_USDC_ADDRESS", "0x3600000000000000000000000000000000000000"
+)
+
+_OWNER_ABI = [
+    {"type": "function", "name": "owner", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+]
 
 _last_heartbeat = 0.0
 _last_roll_check = 0.0
@@ -57,6 +69,31 @@ _last_roll_check = 0.0
 
 def enabled() -> bool:
     return os.environ.get("ACR_KEEPER", "1") not in ("0", "false", "no")
+
+
+
+def may_open_series(owner: str, me: str) -> bool:
+    """Whether ``me`` is allowed to call ``openSeries``.
+
+    Trivial, and extracted anyway: it is the difference between a roll and a
+    transaction that reverts on every cooldown forever. Until 2026-08-03 the
+    venue's owner was the retiring EOA and this was always False, so the keeper
+    could only shout for a human; the handover to the maker's own Circle wallet
+    is what made an unattended roll possible. The guard has to survive that
+    changing back — a fork, a redeploy pointed elsewhere, another transfer.
+    """
+    return bool(owner) and bool(me) and str(owner).lower() == str(me).lower()
+
+
+def roll_budget_ok(gas_usdc: float) -> bool:
+    """Whether one wallet can afford BOTH the collateral and the gas.
+
+    On Arc they come out of the same balance, so checking them separately is
+    how you open a series you then cannot collateralize — and an
+    uncollateralized series is a desk that looks live and reverts on first
+    contact, which is worse than no roll at all.
+    """
+    return gas_usdc >= GAS_FLOOR_USDC + ROLL_COLLATERAL
 
 
 def _custody_signer(role: str):
@@ -178,10 +215,47 @@ def roll_if_needed(futures) -> str | None:
         if hours_left > min_life_h and funded > 0:
             return None  # healthy; nothing to do and nothing worth logging
 
-    # Something needs rolling. Opening a series is `onlyOwner`, and ownership
-    # may still sit with the retiring EOA — which this process does not hold and
-    # should not. Say so loudly rather than failing silently on a revert.
+    # Something needs rolling.
+    #
+    # `openSeries` is onlyOwner, and until 2026-08-03 the owner was the retiring
+    # EOA — a key this process does not hold and should not — so this could only
+    # shout for a human. Ownership now sits with the maker's own Circle wallet
+    # (verified on-chain: owner 0x9D44A7Dd…, pendingOwner zero), which is what
+    # makes an unattended roll possible at all.
     gas = _rpc_retry(w3.eth.get_balance, w3.to_checksum_address(signer.address)) / 1e18
-    if gas < GAS_FLOOR_USDC:
-        return f"maker holds {gas:.2f} USDC — below the {GAS_FLOOR_USDC} floor, standing down"
-    return "ROLL DUE — run `make futures-roll` (openSeries is onlyOwner)"
+    # Collateral AND gas come out of one balance on Arc, so check for both up
+    # front rather than opening a series we then cannot collateralize — an
+    # uncollateralized series is a desk that looks live and reverts on first
+    # contact, which is worse than no roll at all.
+    if not roll_budget_ok(gas):
+        return (f"maker holds {gas:.2f} USDC; a roll needs {ROLL_COLLATERAL:.2f} "
+                f"collateral + {GAS_FLOOR_USDC:.2f} gas floor — standing down")
+
+    owner = _rpc_retry(
+        w3.eth.contract(
+            address=w3.to_checksum_address(s.futures_address), abi=_OWNER_ABI
+        ).functions.owner().call
+    )
+    if not may_open_series(owner, signer.address):
+        # Not ours to open. Refuse loudly instead of sending a transaction that
+        # reverts and burns gas every cooldown.
+        return f"ROLL DUE but the venue is owned by {owner} — run `make futures-roll`"
+
+    expiry = now_chain + int(float(os.environ.get("ROLL_EXPIRY_DAYS", "14")) * 86400)
+    fc.open_series(INDEX, expiry, int(os.environ.get("ROLL_MULT", "10")), signer.address)
+    series = fc.read_all_series()
+    sid = len(series) - 1
+
+    # Post collateral, or the successor is a series nobody can trade into.
+    allowance = fc.allowance_units(USDC_ADDRESS, signer.address)
+    if allowance is not None and allowance < int(ROLL_COLLATERAL * 1_000_000):
+        fc.approve_venue(USDC_ADDRESS)
+        time.sleep(2)
+    fc.post_collateral(sid, ROLL_COLLATERAL)
+
+    # Assert it landed. `futures_seed` exits 0 on an uncollateralized series and
+    # that is exactly the failure worth refusing to repeat here.
+    posted = collateral_or_none(fc, sid, signer.address)
+    if not posted:
+        return f"opened series {sid} but collateral did NOT land — the desk needs a human"
+    return f"rolled to series {sid} (+{os.environ.get('ROLL_EXPIRY_DAYS', '14')}d), {posted:.2f} USDC posted"
