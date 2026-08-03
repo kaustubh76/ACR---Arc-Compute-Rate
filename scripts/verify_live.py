@@ -47,6 +47,10 @@ PRINT_MAX_AGE_S = float(os.environ.get("VERIFY_PRINT_MAX_AGE_S", "7200"))
 PRINT_WARN_AGE_S = float(os.environ.get("VERIFY_PRINT_WARN_AGE_S", "5400"))
 #: Below this many days of gas, a wallet is a scheduled outage.
 MIN_RUNWAY_DAYS = float(os.environ.get("VERIFY_MIN_RUNWAY_DAYS", "3"))
+#: The venue's custody wallets need enough to open AND collateralize a series
+#: (default roll: 1.5 collateral + gas). Below this a roll fails on its budget
+#: guard, which is a silent expiry rather than a loud error.
+VENUE_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_VENUE_FLOOR_USDC", "2.5"))
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
@@ -383,6 +387,31 @@ def verify_funding(w3, settings) -> None:
         check(
             drips > 0,
             f"{drips} faucet drip(s) left above the {FAUCET_RESERVE_USDC} USDC press floor",
+            warn_only=True,
+        )
+
+    # The venue's own custody wallets. This section watched the press wallet
+    # only, so the wallets that actually pay to roll a series and keep the tape
+    # moving could run dry with nothing saying so — and on Arc "out of USDC"
+    # means "cannot transact at all", not merely "cannot post collateral".
+    from acr_oracle_client import build_role_signer
+
+    for role, why in (
+        ("maker", "stands behind the book; pays to open + collateralize each series"),
+        ("taker", "the hourly heartbeat that keeps the tape moving"),
+    ):
+        try:
+            sg = build_role_signer(role, settings)
+            if sg is None or type(sg).__name__ != "CircleWalletSigner":
+                continue  # not migrated on this deployment; nothing to check
+            bal = _rpc_retry(w3.eth.get_balance, w3.to_checksum_address(sg.address)) / 1e18
+        except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+            check(False, f"{role} wallet unreadable ({str(exc)[:40]})", warn_only=True)
+            continue
+        check(
+            bal >= VENUE_WALLET_FLOOR_USDC,
+            f"{role} custody wallet {sg.address[:10]}…: {bal:.3f} USDC "
+            f"(floor {VENUE_WALLET_FLOOR_USDC}) — {why}",
             warn_only=True,
         )
 
