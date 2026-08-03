@@ -37,9 +37,14 @@ TERMINAL = os.environ.get(
 ).rstrip("/")
 #: Free-tier hosts sleep; a cold start is slow but not a fault.
 TIMEOUT_S = float(os.environ.get("VERIFY_TIMEOUT_S", "90"))
-#: The poster runs hourly, so two missed cycles is a real outage rather than a
-#: dropped tick.
+#: HARD failure: ACRFutures.MAX_SETTLE_AGE is 7200s, so a print older than this
+#: means the venue cannot be settled at all — not a slow press, a broken one.
 PRINT_MAX_AGE_S = float(os.environ.get("VERIFY_PRINT_MAX_AGE_S", "7200"))
+#: WARN: the press posts hourly, so 90 minutes means it has already missed a
+#: slot and is heading for the settle window. Catching it here is the whole
+#: point — a 216-minute gap went unnoticed because nothing looked until the
+#: damage was done.
+PRINT_WARN_AGE_S = float(os.environ.get("VERIFY_PRINT_WARN_AGE_S", "5400"))
 #: Below this many days of gas, a wallet is a scheduled outage.
 MIN_RUNWAY_DAYS = float(os.environ.get("VERIFY_MIN_RUNWAY_DAYS", "3"))
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
@@ -139,10 +144,16 @@ def verify_oracle(w3, settings) -> None:
             check(False, f"{iid}: no on-chain print")
             continue
         age = now - (p.get("posted_at") or 0)
+        # Two thresholds, because "late" and "unsettleable" are different
+        # failures and only one of them is an outage.
         check(
             age < PRINT_MAX_AGE_S,
-            f"{iid} = {p['value']:.5f}, posted {age / 60:.0f}m ago",
+            f"{iid} = {p['value']:.5f}, posted {age / 60:.0f}m ago"
+            + (" — PAST THE SETTLE WINDOW" if age >= PRINT_MAX_AGE_S else ""),
         )
+        if PRINT_WARN_AGE_S <= age < PRINT_MAX_AGE_S:
+            check(False, f"{iid} print is {age / 60:.0f}m old — the press has missed a slot",
+                  warn_only=True)
 
 
 def verify_venue(w3, settings) -> dict | None:

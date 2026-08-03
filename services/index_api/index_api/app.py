@@ -135,15 +135,94 @@ async def _rehydrate_provenance(poster) -> None:
         log.exception("poster provenance re-hydrate failed")
 
 
+#: The service's own public URL. When set, the warm loop calls it on every tick
+#: so the instance never looks idle.
+#:
+#: THE PRESS ONLY POSTS WHILE THE PROCESS IS AWAKE. The free instance sleeps
+#: after ~15 idle minutes, and the only thing waking it was a GitHub cron that
+#: drops ~88% of its ticks (17 of 144 slots in a measured day). Real gaps
+#: between on-chain prints came out 80 · 64 · 122 · 62 · 100 · **216** · 82 · 82
+#: minutes against a contract that refuses to settle on a print older than 120 —
+#: so for a couple of hours the venue could not be settled at all. The posting
+#: logic was never at fault: `_background` already posts on boot when the record
+#: is overdue. Nothing was waking it.
+#:
+#: Whether a self-request resets the platform's idle timer is an EMPIRICAL
+#: question, not a guarantee — the request leaves the instance, crosses the
+#: router and comes back as ordinary inbound traffic, which is the same thing
+#: the external pinger provides. The proof is the gap distribution measured
+#: afterwards, not this comment.
+SELF_URL = os.environ.get("ACR_SELF_URL", "").rstrip("/")
+
+#: Never retry an overdue post more often than this. Without a floor, a press
+#: that is failing (a 429, a dry wallet) would be retried every warm tick.
+OVERDUE_POST_COOLDOWN_S = float(os.environ.get("ACR_OVERDUE_POST_COOLDOWN_S", "600"))
+_last_overdue_attempt = 0.0
+
+
+async def _touch_self() -> None:
+    """Knock on our own front door so the instance does not go idle.
+
+    Fire-and-forget: this must never slow a tick or raise. If the ping fails the
+    worst case is the status quo — the box sleeps and the external cron is back
+    to being the only alarm clock.
+    """
+    if not SELF_URL:
+        return
+    try:
+        import httpx
+
+        # Tagged so it is identifiable in the access log. That matters: Render's
+        # OWN health check hits /health every ~5s from 10.228.x.x and the
+        # service still sleeps, which proves the platform does not count all
+        # inbound traffic toward the idle timer. Whether a knock that egresses
+        # to the public hostname and returns through the edge is counted is the
+        # open question — an untagged ping would be indistinguishable from the
+        # platform's own probe, and I would have no way to tell.
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.get(f"{SELF_URL}/health?src=self-heartbeat")
+    except Exception:  # pragma: no cover - a failed knock is not an error
+        log.debug("self-ping failed", exc_info=True)
+
+
+async def _post_if_overdue(store, poster, reader, settings) -> None:
+    """Post when the ON-CHAIN record is stale, wherever the refresh timer sits.
+
+    The hourly timer is the normal path; this is the recovery one. A single
+    failed post used to mean waiting a full hour for the next attempt — and an
+    hour is most of the contract's 120-minute settle window. Checking against
+    the chain rather than against our own timer also means a process that slept
+    through its slot fixes itself on the next tick instead of on the next boot.
+    """
+    global _last_overdue_attempt
+    if not poster.client.can_post():
+        return
+    now = time.time()
+    if now - _last_overdue_attempt < OVERDUE_POST_COOLDOWN_S:
+        return
+    onchain = await asyncio.to_thread(reader.read_all)  # cached; cheap per tick
+    if not _overdue_for_startup_post(onchain, settings.refresh_seconds, now):
+        return
+    _last_overdue_attempt = now
+    log.info("on-chain print is overdue — posting off-cycle")
+    await asyncio.to_thread(store.refresh)
+    await asyncio.to_thread(poster.post_latest)
+    await asyncio.to_thread(reader.read_all, use_cache=False)
+
+
 async def _warm_chain(stop: asyncio.Event) -> None:
-    """Keep the on-chain read caches warm so no reader ever pays for a cold one.
+    """Keep the on-chain read caches warm so no reader ever pays for a cold one,
+    keep the instance awake, and republish if the press has fallen behind.
 
     Deliberately does NOT use ``use_cache=False`` blindly on a dead chain: every
     call is already exception-tolerant and returns the last good value, so a
     throttled Arc simply leaves the previous warm entry in place.
     """
+    settings = get_settings()
     reader, futures = get_reader(), get_futures()
-    if not (reader.configured or futures.configured):
+    # The self-ping has to run even with no chain configured — keeping the box
+    # awake is not an on-chain concern.
+    if not (reader.configured or futures.configured or SELF_URL):
         return
     while not stop.is_set():
         try:
@@ -153,6 +232,8 @@ async def _warm_chain(stop: asyncio.Event) -> None:
         if stop.is_set():
             break
         try:
+            # First, because it is the one that keeps everything else running.
+            await _touch_self()
             if reader.configured:
                 await asyncio.to_thread(reader.read_all, use_cache=False)
                 # Cheap while it matters, free once it doesn't: this returns
@@ -162,6 +243,7 @@ async def _warm_chain(stop: asyncio.Event) -> None:
                 # — we'd hydrate an instance nothing else can see.
                 if _poster is not None:
                     await _rehydrate_provenance(_poster)
+                    await _post_if_overdue(store, _poster, reader, settings)
             if futures.configured:
                 await asyncio.to_thread(futures.read_all, use_cache=False)
                 # The tape pages back several hours over a throttled RPC, so it
