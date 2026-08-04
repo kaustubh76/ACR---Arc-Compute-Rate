@@ -143,3 +143,26 @@ def test_a_roll_needs_collateral_AND_gas_from_one_balance():
     assert not keeper.roll_budget_ok(need - 0.01)
     # Enough for the collateral alone is NOT enough — that is the whole point.
     assert not keeper.roll_budget_ok(keeper.ROLL_COLLATERAL)
+
+
+def test_a_missing_maker_inventory_is_never_read_as_flat():
+    """The bug that stopped the venue trading for eleven hours.
+
+    `descale_series` carries no `maker_inventory`, so sizing off
+    `read_all_series()` believed the maker was FLAT. `feasible_qty` clamps
+    against the auto-mirrored maker's margin as well as the taker's, so once the
+    maker had gone short 2.31 contracts every trade exceeded the maker-side cap
+    and reverted — while `.get("maker_inventory", 0.0)` made the wrong number
+    look like a read one.
+    """
+    # What read_all_series actually returns: no such field.
+    raw_series = {"series_id": 3, "multiplier": 10, "settled": False,
+                  "maker": "0x" + "c" * 40}
+    assert keeper.maker_inventory_or_none(raw_series) is None, (
+        "a series read must not masquerade as a flat maker"
+    )
+    assert keeper.maker_inventory_or_none(None) is None
+    # What read_desk returns, including a genuinely flat book — which must be
+    # distinguishable from not having looked.
+    assert keeper.maker_inventory_or_none({"maker_inventory": -2.31}) == -2.31
+    assert keeper.maker_inventory_or_none({"maker_inventory": 0.0}) == 0.0

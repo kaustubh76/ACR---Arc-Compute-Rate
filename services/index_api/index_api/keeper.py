@@ -96,6 +96,24 @@ def roll_budget_ok(gas_usdc: float) -> bool:
     return gas_usdc >= GAS_FLOOR_USDC + ROLL_COLLATERAL
 
 
+def maker_inventory_or_none(desk: dict | None) -> float | None:
+    """The maker's position from a DESK read, or None when the field is absent.
+
+    Exists because `.get("maker_inventory", 0.0)` cost the venue eleven hours of
+    trading. `descale_series` carries no such field, so sizing off
+    `read_all_series()` silently believed the maker was FLAT — and `feasible_qty`
+    clamps against the auto-mirrored maker's margin as well as the taker's. Once
+    the maker had gone short 2.31 contracts, every trade exceeded the maker-side
+    cap and reverted, while the default made the wrong number look like a read
+    one. "The maker is flat" and "we did not read the maker" size to very
+    different trades; only one of them is safe to guess.
+    """
+    if not desk:
+        return None
+    v = desk.get("maker_inventory")
+    return None if v is None else float(v)
+
+
 def _custody_signer(role: str):
     """The role's signer, but ONLY if it is Circle custody.
 
@@ -128,7 +146,7 @@ def heartbeat_once(futures) -> str | None:
         return None
     _last_heartbeat = now
 
-    from acr_oracle_client import FuturesClient, select_series_for_index
+    from acr_oracle_client import FuturesClient
     from acr_oracle_client.futures import collateral_or_none
 
     from .desk import feasible_qty
@@ -138,7 +156,14 @@ def heartbeat_once(futures) -> str | None:
         rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=signer
     )
     me = signer.address
-    series = select_series_for_index(fc.read_all_series(), INDEX)
+    # read_desk, NOT read_all_series. `descale_series` carries no
+    # `maker_inventory` field, so sizing off a raw series silently believes the
+    # maker is FLAT — and `feasible_qty` clamps against the auto-mirrored
+    # maker's margin too. This shipped: the keeper traded twice while both
+    # sides were near flat, then every trade reverted once the maker had gone
+    # short 2.31 contracts, because the cap it computed was for a maker holding
+    # nothing. A missing dict key defaulted to 0.0 and read as a fact.
+    series = futures.read_desk(INDEX)
     if not series or series.get("settled"):
         return "no live series"
 
@@ -158,9 +183,10 @@ def heartbeat_once(futures) -> str | None:
     if not mark:
         return "no mark"
     pos = (fc.position_of(sid, me) or {}).get("contracts", 0.0)
-    max_buy, max_sell = feasible_qty(
-        mark, mult, 2000, mine, pos, maker_coll, series.get("maker_inventory", 0.0)
-    )
+    maker_inv = maker_inventory_or_none(series)
+    if maker_inv is None:
+        return "maker inventory unreadable — skipped"
+    max_buy, max_sell = feasible_qty(mark, mult, 2000, mine, pos, maker_coll, maker_inv)
     # Mean-revert around flat: sell when long, buy when short. Keeps the tape
     # alive without accumulating a position nobody asked for.
     want = -TRADE_QTY if pos > 0 else TRADE_QTY
@@ -170,7 +196,10 @@ def heartbeat_once(futures) -> str | None:
     qty = round(min(abs(want), room) * (1 if want > 0 else -1), 2)
     if abs(qty) < 0.01:
         return "clamped below the minimum"
-    fc.trade(sid, qty)
+    try:
+        fc.trade(sid, qty)
+    except Exception as exc:  # noqa: BLE001 — the reason matters more than the trace
+        return f"trade {qty:+.2f} REVERTED on series {sid}: {str(exc)[:100]}"
     return f"traded {qty:+.2f} on series {sid}"
 
 
