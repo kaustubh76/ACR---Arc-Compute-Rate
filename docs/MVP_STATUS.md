@@ -44,7 +44,8 @@ packages/
   acr_core         Shared foundation: config.py (ACRSettings), types, indices, mathutils
   acr_sim          Calibrated simulator (default data source) — OU price, sellers, batching, adversary
   acr_tape         TapeSource abstraction: SimSource (default) · ArcSource (real Arc logs) · ReceiptSource (x402 ledger)
-  acr_estimator    THE PRODUCT — 4 pillars: cleaning/sybil · trimmed-median+CI · Kalman deconv · hedonic · bound
+  acr_estimator    THE PRODUCT — pillars 1-3 (Kalman deconv · hedonic · bound) + the
+                   unnumbered stages they rest on (cleaning/sybil · trimmed-median+CI)
   acr_oracle_client  Sign + publish on-chain (LocalKey / Circle custody signer), read Oracle + Registry
   acr_instrument   Pillar 4: ACRFuture (cash-settled) + Avellaneda–Stoikov MM  [168 LOC — smallest]
 services/
