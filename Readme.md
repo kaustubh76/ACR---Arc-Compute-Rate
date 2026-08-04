@@ -8,7 +8,7 @@
 **Live right now (Arc testnet, chain 5042002):**
 - **Terminal (dashboard):** https://arc-compute-rate.vercel.app
 - **Seller API (x402-gated):** https://acr-api-1fto.onrender.com
-- **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7)
+- **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) · **ACRFutures:** [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) (self-rolling) · **FeedAccessAttestor:** [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47)
 - **CI:** 4 jobs (python · contracts · agent · terminal) on every push — `.github/workflows/ci.yml`
 - **Status for judges:** [`docs/SUBMISSION.md`](docs/SUBMISSION.md)
 
@@ -209,7 +209,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | Path | What it is |
 |---|---|
 | `packages/` | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
-| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` + `ACRFutures.sol` (Foundry, 50 tests incl. 7 invariants) — all three deployed on Arc testnet |
+| `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` + `ACRFutures.sol` + `FeedAccessAttestor.sol` (Foundry, 60 tests incl. invariants) — all deployed on Arc testnet |
 | `services/index_api/` | The x402-gated seller API (FastAPI) — deployed at acr-api-1fto.onrender.com |
 | `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |
