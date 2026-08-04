@@ -33,11 +33,27 @@ from pathlib import Path
 from acr_core import get_settings
 from acr_oracle_client import FuturesClient, OracleClient, select_series_for_index
 from acr_oracle_client.futures import _rpc_retry
-from index_api.desk import FAUCET_GLOBAL_CAP, FAUCET_USDC
+from index_api.desk import (
+    FAUCET_GLOBAL_CAP,
+    FAUCET_USDC,
+    MARGIN_SAFETY,
+    MAX_QTY,
+    MIN_QTY,
+)
+from index_api.keeper import live_indices
 
-INDEX = os.environ.get("SEED_INDEX", "ACR-INF")
+#: An optional FILTER, not a selection. Which books exist is a fact about the
+#: chain (see index_api.keeper.live_indices), and certifying one while the desk
+#: offers three is how the index a reader actually lands on goes unchecked.
+ONLY = os.environ.get("SEED_INDEX", "").strip()
 MIN_EXPIRY_S = 2 * 3600
-MARGIN_SAFETY = 0.95  # quote 95% of the true max so a mark drift can't revert
+# MARGIN_SAFETY and MAX_QTY are IMPORTED from the desk this file gates. They
+# used to be restated here at 0.95 against the desk's 0.90 — a preflight more
+# optimistic than the thing it certifies — and taker_max was left unclamped, so
+# on a cheap index (ACR-GPU, mark 0.011) a 0.50 stake "supported" 21 contracts
+# against a desk that will never quote more than 2.0, and the maker-absorption
+# check then failed a perfectly healthy book. It reported BLOCKED on the very
+# index the UI defaults to.
 
 _MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "view",
                 "inputs": [], "outputs": [{"name": "", "type": "uint256"}]}]
@@ -66,38 +82,61 @@ def main() -> None:
     ok &= _check(len(code) > 2, f"bytecode at futures venue {s.futures_address}")
 
     fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address)
-    series = select_series_for_index(fc.read_all_series(), INDEX)
-    if series is None:
-        _check(False, f"no open series for {INDEX} — run scripts/futures_seed.py")
-        sys.exit(1)
-    sid, mult, maker = series["series_id"], series["multiplier"], series["maker"]
-    left = series["expiry_ts"] - time.time()
-    ok &= _check(left >= MIN_EXPIRY_S,
-                 f"series {sid} ({INDEX}, mult {mult}) expires in {left / 3600:.1f}h (≥ 2h)")
-
-    desk = fc.read_desk(INDEX) or {}
-    traders = desk.get("trader_count", 0)
-    ok &= _check(traders < 120, f"trader roster {traders}/128 (headroom below 120)")
-
+    all_series = fc.read_all_series()
     oracle = OracleClient(rpc_url=s.arc_rpc_url, oracle_address=s.oracle_address or None)
-    print_ = oracle.read_latest(INDEX)
-    if print_ is None:
-        _check(False, f"no oracle print for {INDEX}")
-        sys.exit(1)
-    mark = print_["value"]
-    age = time.time() - print_["posted_at"]
-    ok &= _check(mark > 0 and age < 3600, f"oracle mark {mark:.4f} posted {age / 60:.0f}m ago")
-
     margin_c = w3.eth.contract(address=Web3.to_checksum_address(s.futures_address), abi=_MARGIN_ABI)
     try:
         margin_bps = int(_rpc_retry(margin_c.functions.MARGIN_BPS().call))
     except Exception:
         margin_bps = 2000
+
+    now_chain = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
+    books = live_indices(all_series, now_chain, [ONLY] if ONLY else None)
+    if not books:
+        _check(False, f"no open series{f' for {ONLY}' if ONLY else ''} — run scripts/futures_roll.py")
+        sys.exit(1)
+    print(f"  · {len(books)} live book(s): {', '.join(books)}")
+
+    for INDEX in books:
+        ok &= _book(fc, oracle, INDEX, all_series, margin_bps)
+
+    print()
+    ok = _global(s, w3, ok)
+    print("preflight:", "CLEAR TO RUN" if ok else "BLOCKED")
+    sys.exit(0 if ok else 1)
+
+
+def _book(fc, oracle, INDEX, all_series, margin_bps) -> bool:
+    """Every gate, for ONE book. Called for each live index."""
+    ok = True
+    print(f"\n  ── {INDEX} ──")
+    series = select_series_for_index(all_series, INDEX)
+    if series is None:
+        return _check(False, f"no open series for {INDEX}")
+    sid, mult, maker = series["series_id"], series["multiplier"], series["maker"]
+    left = series["expiry_ts"] - time.time()
+    ok &= _check(left >= MIN_EXPIRY_S,
+                 f"series {sid} ({INDEX}, mult {mult}) expires in {left / 3600:.1f}h (≥ 2h)")
+
+    desk = fc.read_desk(INDEX, all_series=all_series) or {}
+    traders = desk.get("trader_count", 0)
+    ok &= _check(traders < 120, f"trader roster {traders}/128 (headroom below 120)")
+
+    print_ = oracle.read_latest(INDEX)
+    if print_ is None:
+        return _check(False, f"no oracle print for {INDEX}")
+    mark = print_["value"]
+    age = time.time() - print_["posted_at"]
+    ok &= _check(mark > 0 and age < 3600, f"oracle mark {mark:.4f} posted {age / 60:.0f}m ago")
+
     per_contract = mark * mult * margin_bps / 10_000
-    taker_max = MARGIN_SAFETY * FAUCET_USDC / per_contract
+    # CLAMPED at MAX_QTY: that is the largest trade the desk will ever quote, so
+    # a stake covering more of them is capacity nobody can use — and asserting
+    # the maker absorbs the unclamped figure fails a healthy cheap book.
+    taker_max = min(MARGIN_SAFETY * FAUCET_USDC / per_contract, MAX_QTY)
     print(f"  · margin {margin_bps}bps → {per_contract:.4f} USDC/contract; "
-          f"{FAUCET_USDC} stake supports ±{taker_max:.2f} contracts")
-    ok &= _check(taker_max >= 0.05, "faucet stake supports a tradable qty (≥ 0.05)")
+          f"{FAUCET_USDC} stake supports ±{taker_max:.2f} contracts (desk cap {MAX_QTY})")
+    ok &= _check(taker_max >= MIN_QTY, f"faucet stake supports a tradable qty (≥ {MIN_QTY})")
 
     maker_coll = fc.collateral_of(sid, maker) or 0.0
     maker_inv = desk.get("maker_inventory", 0.0)
@@ -109,6 +148,13 @@ def main() -> None:
           f"absorbs BUY ≤ {room_buy:.2f} / SELL ≤ {room_sell:.2f} contracts")
     ok &= _check(min(room_buy, room_sell) >= taker_max,
                  "maker margin absorbs a max-size desk trade in both directions")
+    return ok
+
+
+def _global(s, w3, ok: bool) -> bool:
+    """Gates that belong to the DESK, not to any one book — the faucet's source
+    of stakes and its ledger. Run once, after every book has been checked."""
+    from web3 import Web3
 
     # Custody wallet — the faucet's source of stakes (live Circle lookup).
     try:
@@ -131,9 +177,7 @@ def main() -> None:
         rows = [json.loads(r) for r in ledger_path.read_text().splitlines() if r.strip()]
         spent = len({r["address"] for r in rows})
     ok &= _check(spent < FAUCET_GLOBAL_CAP, f"faucet ledger {spent}/{FAUCET_GLOBAL_CAP} slots spent")
-
-    print("preflight:", "CLEAR TO RUN" if ok else "BLOCKED")
-    sys.exit(0 if ok else 1)
+    return ok
 
 
 if __name__ == "__main__":
