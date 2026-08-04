@@ -3,6 +3,7 @@
 import { HistoryChart } from "@/components/charts/HistoryChart";
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
+import { FuturesMarkChart } from "@/components/charts/FuturesMarkChart";
 import { OracleProvenance } from "@/components/chain/OracleProvenance";
 import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
@@ -319,12 +320,31 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
       </section>
 
       {futRow ? (
-        <FuturesDesk
-          desks={{ [p.index_id]: futRow }}
-          trades={futures.roster?.data?.trades}
-          chain={env.data.chain}
-          live={Boolean(futures.roster?.live)}
-        />
+        <>
+          <FuturesDesk
+            desks={{ [p.index_id]: futRow }}
+            trades={futures.roster?.data?.trades}
+            chain={env.data.chain}
+            live={Boolean(futures.roster?.live)}
+            mark={h.value}
+            source={futures.roster?.data?.source}
+          />
+          <section className="section">
+            <div className="section-head">
+              <span className="label">
+                <Ed
+                  x={<>Fills against the oracle — {p.index_id}</>}
+                  p={<>Trades against the official rate — {p.index_id}</>}
+                />
+              </span>
+            </div>
+            <FuturesMarkChart
+              trades={futures.roster?.data?.trades ?? []}
+              seriesId={futRow.series_id}
+              oracle={h.value}
+            />
+          </section>
+        </>
       ) : null}
     </>
   );

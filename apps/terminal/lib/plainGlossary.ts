@@ -61,6 +61,16 @@ export const PLAIN_GLOSSARY = {
     gloss: "no goods change hands at the end — the contract simply pays out the price difference in cash",
     theme: "money",
   },
+  basis: {
+    term: "the gap",
+    gloss: "how far a trade sits from the official rate — the market's opinion of where that rate is heading",
+    theme: "money",
+  },
+  mark: {
+    term: "the running price",
+    gloss: "the price everyone is settled up at right now — the score at half-time, not the final whistle",
+    theme: "money",
+  },
 
   /* ---- statistics ---- */
   vwap: {

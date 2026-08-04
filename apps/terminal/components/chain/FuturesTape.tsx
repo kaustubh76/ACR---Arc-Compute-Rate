@@ -4,6 +4,7 @@ import { AddressChip } from "./AddressChip";
 import { TxLink } from "./TxLink";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
+import { formatQty } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
 import type { FuturesTradeRow } from "@/lib/types";
 
@@ -22,12 +23,18 @@ export function FuturesTape({
   trades,
   explorer,
   live,
+  you,
 }: {
   trades: FuturesTradeRow[];
   explorer?: string;
   live: boolean;
+  /** The reader's own account, so their fills are marked as they scroll past.
+   *  Marked, never filtered: watching your own trade go by on the public tape
+   *  is the most convincing thing this page does. */
+  you?: string;
 }) {
   const nowS = useNow();
+  const mine = you?.toLowerCase();
 
   if (!trades.length) {
     return (
@@ -47,10 +54,17 @@ export function FuturesTape({
   const items = trades.slice(0, 24).map((t) => (
     <span className="tape-item" key={t.tx}>
       <span className={t.side === "buy" ? "green" : "vermilion"}>
-        {t.side === "buy" ? "BUY" : "SELL"} {Math.abs(t.qty).toFixed(0)}
+        {/* formatQty, not toFixed(0): the venue's real 0.25 and 0.81 contract
+            fills used to print as "BUY 0" and "BUY 1" on the public tape. */}
+        {t.side === "buy" ? "BUY" : "SELL"} {formatQty(t.qty)}
       </span>
       <span className="amt">@ {fmt(t.mark)}</span>
       <AddressChip address={t.taker} explorer={explorer} copy={false} />
+      {mine && t.taker.toLowerCase() === mine ? (
+        <span className="chip chip-teal">
+          <Ed x="you" p="you" />
+        </span>
+      ) : null}
       <TxLink txRef={t.tx} explorer={explorer} />
       {nowS > 0 ? <span className="muted">{ago(nowS, t.seen_at)} ago</span> : null}
     </span>

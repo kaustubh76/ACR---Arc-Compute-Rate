@@ -49,15 +49,17 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,
-  "components/chain/FuturesDesk.tsx": 8,
-  "components/chain/FuturesTape.tsx": 2,
+  "components/chain/FuturesDesk.tsx": 12, // incl. the per-series contract-size panel
+  "components/chain/FuturesTape.tsx": 3, // incl. the "you" chip on a reader's own fill
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
+  "components/chain/FillToast.tsx": 1,
   "components/chain/TxLink.tsx": 2,
   "components/chain/Badges.tsx": 2,
   "components/charts/AttackChart.tsx": 2,
   "components/charts/HistoryChart.tsx": 1,
   "components/charts/QuoteCorridor.tsx": 1,
+  "components/charts/FuturesMarkChart.tsx": 4, // legend, empty state, aria-label
 };
 
 /** Files that deliberately carry no edition markers — each with its reason. */

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { INDICES } from "@/lib/indices";
-import { readTraderPosition } from "@/lib/futuresOnchain";
+import { readTraderFills, readTraderPosition } from "@/lib/futuresOnchain";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -171,6 +171,22 @@ export async function GET(req: NextRequest, { params }: { params: { action: stri
       const position = await readTraderPosition(series, addr as `0x${string}`);
       return NextResponse.json(
         { position },
+        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
+      );
+    }
+    /* A reader's own fills. The trade flow confirms by watching a position
+       move, which yields no transaction — but `taker` is indexed on `Traded`,
+       so their receipts are one topic-filtered query away. Validated exactly
+       like `position`: same address shape, same series bounds. */
+    case "fills": {
+      const series = Number(q.get("series"));
+      const addr = q.get("addr") ?? "";
+      if (!Number.isInteger(series) || series < 0 || !ADDR_RE.test(addr)) {
+        return NextResponse.json({ detail: "bad fills query" }, { status: 400 });
+      }
+      const fills = await readTraderFills(series, addr as `0x${string}`);
+      return NextResponse.json(
+        { fills },
         { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
       );
     }

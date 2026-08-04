@@ -16,6 +16,7 @@
  * opposite conclusions, and this panel refuses to collapse them. */
 
 import type { HedgerState } from "@/lib/types";
+import { formatQty } from "@/lib/futuresBook";
 import { Ed } from "@/components/Ed";
 import { AddressChip } from "@/components/chain/AddressChip";
 import { TxLink } from "@/components/chain/TxLink";
@@ -150,7 +151,7 @@ export function HedgerPanel({
               {state.fills.slice(0, 5).map((f) => (
                 <tr key={f.tx}>
                   <td className={f.side === "buy" ? "teal" : "vermilion"}>{f.side}</td>
-                  <td className="mono">{Math.abs(f.qty).toFixed(2)}</td>
+                  <td className="mono">{formatQty(f.qty)}</td>
                   <td className="mono">{f.mark.toFixed(5)}</td>
                   <td>
                     <TxLink txRef={f.tx} explorer={explorer} />

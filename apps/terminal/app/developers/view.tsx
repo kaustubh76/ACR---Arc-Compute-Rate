@@ -23,6 +23,8 @@ const ENDPOINTS: Array<[string, string, string, string, string, string | null]> 
   ["GET", "/seller-scores/{index_id}", "x402", "Seller reliability", "Which sellers to trust", `/seller-scores/${INDICES[0]}`],
   ["GET", "/", "public", "Service card — indices, pricing, marketplace pointers", "The menu — what is sold here and for how much", null],
   ["GET", "/onchain/{index_id}", "public", "Settlement-grade print from ACROracle", "The official rate, read off the blockchain", null],
+  ["GET", "/futures", "public", "The whole venue — every desk and the on-chain fill tape", "The trading desk and every recent trade", null],
+  ["GET", "/futures/{index_id}", "public", "One index's live series, read from ACRFutures", "One market's trading desk, read off the blockchain", null],
   ["GET", "/marketplace/catalog", "public", "Machine-readable listings (Bazaar-shaped)", "The shop's listings, in a shape robots can read", null],
   ["GET", "/marketplace/receipts", "public", "The settlement tape — recent x402 receipts", "The receipt roll — who paid for what", null],
   ["GET", "/terminal/data", "public", "The human terminal feed (this site)", "Everything this website shows, as data", null],

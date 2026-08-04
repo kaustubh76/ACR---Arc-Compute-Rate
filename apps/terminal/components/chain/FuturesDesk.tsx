@@ -7,8 +7,14 @@ import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { serviceName } from "@/lib/format";
+import { contractNotional, deskTier, expiryLabel } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
-import type { ChainFactsData, FuturesDeskRow, FuturesTradeRow } from "@/lib/types";
+import type {
+  ChainFactsData,
+  FuturesDeskRow,
+  FuturesRoster,
+  FuturesTradeRow,
+} from "@/lib/types";
 
 /* The live on-chain futures desk: the maker's book (inventory + mark-to-oracle
    PnL) and settlement status, read from ACRFutures. This is the pillar-4
@@ -52,11 +58,22 @@ export function FuturesDesk({
   trades,
   chain,
   live,
+  mark,
+  source,
 }: {
   desks: Record<string, FuturesDeskRow> | undefined;
   trades?: FuturesTradeRow[];
   chain: ChainFactsData | null | undefined;
   live: boolean;
+  /** The primary index's live oracle mark, used only to price the contract
+   *  size. Optional: without it the panel states the multiplier and quotes no
+   *  dollar figure, which is the honest degradation — a made-up notional is
+   *  exactly the mistake this replaced. */
+  mark?: number;
+  /** Which tier of the connection ladder served this desk. Every other surface
+   *  on the site says where its numbers came from; this one read `source` as a
+   *  boolean and told the reader nothing. */
+  source?: FuturesRoster["source"];
 }) {
   const now = useNow();
   const nowS = now > 0 ? now : Date.now() / 1000;
@@ -66,6 +83,8 @@ export function FuturesDesk({
   const explorer = cf.explorer;
   const primary = rows[0];
   const spark = primary ? inventoryPath(primary.maker_inventory, trades ?? [], primary.series_id) : [];
+  const notional = primary ? contractNotional(mark ?? 0, primary.multiplier) : null;
+  const tier = deskTier(source, live);
 
   return (
     <section className="section">
@@ -74,10 +93,13 @@ export function FuturesDesk({
           <Ed x="The desk — on-chain futures (ACRFutures)" p="The trading desk — real futures on the blockchain" />
         </span>
         {venue ? (
-          rows.length && live ? (
-            <span className="chip chip-teal">
-              <span className="dot breathe" aria-hidden />
-              <Ed x="live · settles vs ACROracle" p="live · pays out against the official rate" />
+          rows.length ? (
+            /* Which tier served these numbers. A direct read of ACRFutures is
+               still live — more direct than the press, in fact — so it gets its
+               own chip instead of being lumped in with the archive. */
+            <span className={`chip ${tier.chip}`}>
+              {tier.chip === "chip-sim" ? null : <span className="dot breathe" aria-hidden />}
+              <Ed x={tier.x} p={tier.p} />
             </span>
           ) : (
             <span className="chip chip-gold">
@@ -105,13 +127,22 @@ export function FuturesDesk({
                     <Ed x="Open interest" p="Contracts open" />
                   </th>
                   <th>
+                    <Ed x="Avg price" p="Dealer’s average" />
+                  </th>
+                  <th>
                     <Ed x="Unrealized" p="Paper P&L" />
                   </th>
                   <th>
-                    <Ed x="Expiry" p="Settles in" />
+                    <Ed x="Realized" p="Banked P&L" />
+                  </th>
+                  <th>
+                    <Ed x="Expiry" p="Settles" />
                   </th>
                   <th>
                     <Ed x="Traders" p="Players" />
+                  </th>
+                  <th>
+                    <Ed x="Series" p="Round" />
                   </th>
                 </tr>
               </thead>
@@ -139,22 +170,48 @@ export function FuturesDesk({
                       <td className="mono">
                         <TickerNumber text={r.open_interest.toFixed(1)} />
                       </td>
+                      {/* The maker's basis — the average it is carrying the book
+                          at. Arrives on every row and was thrown away. */}
+                      <td className="mono">
+                        {flat ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          <TickerNumber text={r.maker_avg_price.toFixed(5)} />
+                        )}
+                      </td>
                       <td className="mono">
                         <TickerNumber
                           text={usd(r.maker_unrealized_usdc)}
                           className={r.maker_unrealized_usdc >= 0 ? "green" : "vermilion"}
                         />
                       </td>
+                      {/* Realized: money already banked by closed fills. Only
+                          the paper figure was ever on screen, so the book looked
+                          like it had never actually made anything. */}
+                      <td className="mono">
+                        <TickerNumber
+                          text={usd(r.maker_realized_usdc)}
+                          className={r.maker_realized_usdc >= 0 ? "green" : "vermilion"}
+                        />
+                      </td>
+                      {/* Both facts: WHEN it settles, and how long that is. The
+                          countdown alone never said which date it lands on —
+                          and expiry_ts is real epoch, unlike a print's ts. */}
                       <td className="mono">
                         {r.settled ? (
                           <span className="muted">settled @ {r.settlement_price.toFixed(5)}</span>
                         ) : (
-                          countdown(r.expiry_ts, nowS)
+                          <>
+                            {expiryLabel(r.expiry_ts)}
+                            <br />
+                            <span className="muted">{countdown(r.expiry_ts, nowS)}</span>
+                          </>
                         )}
                       </td>
                       <td className="mono">
                         <TickerNumber text={String(r.trader_count)} />
                       </td>
+                      <td className="mono muted">#{r.series_id}</td>
                     </tr>
                   );
                 })}
@@ -168,6 +225,68 @@ export function FuturesDesk({
                 <Ed x="maker book · recent fills" p="dealer’s position · recent trades" />
               </span>
               <Sparkline values={spark} height={30} />
+            </div>
+          ) : null}
+
+          {/* Per-series constants. A column each would repeat one value down
+              every row; a panel states them once. Contract size is DERIVED from
+              the series multiplier — the page used to assert the example from
+              the contract's own comment and overstate a position 200×. */}
+          {primary ? (
+            <div className="panel panel-pad" style={{ marginTop: 16 }}>
+              <div className="provenance-row">
+                <span className="label">
+                  <Ed x="Contract size" p="What one contract is worth" />
+                </span>
+                <span className="mono">
+                  {primary.multiplier}×
+                  {notional != null ? (
+                    <>
+                      {" "}
+                      <span className="muted">·</span> {usd(notional)}{" "}
+                      <span className="muted">
+                        <Ed x="at the current mark" p="at today’s price" />
+                      </span>
+                    </>
+                  ) : null}
+                </span>
+              </div>
+              <div className="provenance-row">
+                <span className="label">
+                  <Ed x="Maker" p="Who is on the other side" />
+                </span>
+                <span className="mono">
+                  <AddressChip address={primary.maker} explorer={explorer} copy={false} />{" "}
+                  <span className="muted">
+                    <Ed
+                      x="our Circle developer-controlled wallet — it takes the other side of every fill"
+                      p="our own wallet — it takes the other side of every trade"
+                    />
+                  </span>
+                </span>
+              </div>
+              <div className="provenance-row">
+                <span className="label">
+                  <Ed x="Settlement" p="How it pays out" />
+                </span>
+                <span className="mono">
+                  {primary.settled ? (
+                    <>
+                      {primary.settlement_price.toFixed(5)}{" "}
+                      <span className="muted">
+                        <Ed x="final" p="final" />
+                      </span>
+                    </>
+                  ) : (
+                    <span className="muted">
+                      <Ed
+                        x="cash, against the oracle print at expiry"
+                        p="in cash, against the official rate when it settles"
+                      />
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
           ) : null}
         </>

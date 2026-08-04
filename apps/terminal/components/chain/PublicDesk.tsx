@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AddressChip } from "./AddressChip";
+import { FillToast, type FillPayload } from "./FillToast";
+import { TxLink } from "./TxLink";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
-import type { FuturesDeskRow } from "@/lib/types";
+import { formatQty, headroomBar, newestFillSince } from "@/lib/futuresBook";
+import type { FuturesDeskRow, FuturesTradeRow } from "@/lib/types";
 import { deskPhase, type DeskPhase } from "@/lib/deskPhase";
+import { DESK_ADDRESS_KEY } from "@/lib/useDeskAddress";
 
 /* The Public Desk — the reader takes a REAL position on ACRFutures with a
    Circle user-controlled wallet (SCA on Arc, PIN-secured in Circle's hosted
@@ -33,6 +37,10 @@ interface Position {
   contracts: number;
   avg_price: number;
   upnl_usdc: number;
+  /** Banked PnL from closed fills. Computed on-chain all along and discarded
+   *  before it reached here, so a reader who had closed a position saw only
+   *  their paper figure and nothing they had actually made. */
+  realized_usdc: number;
 }
 
 /** One series this wallet holds collateral in. */
@@ -66,7 +74,9 @@ interface Limits {
 }
 
 const USER_KEY = "acr-desk-user";
-const COLLAT_KEY = "acr-desk-collateralized";
+/** Shared with lib/useDeskAddress so the tape and chart can mark this
+ *  reader's own fills — one key, one owner, no second literal to drift. */
+const COLLAT_KEY = DESK_ADDRESS_KEY;
 /** Below this the contract's margin check leaves nothing worth trading. */
 const MIN_TRADE = 0.05;
 /** Below this a withdrawal is not worth a PIN ceremony (mirrors the server). */
@@ -119,6 +129,9 @@ export function PublicDesk({
   const [position, setPosition] = useState<Position | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [exit, setExit] = useState<Withdrawable | null>(null);
+  const [fills, setFills] = useState<FuturesTradeRow[]>([]);
+  const [fillToast, setFillToast] = useState<FillPayload | null>(null);
+  const toastSeq = useRef(0);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sdkRef = useRef<{ setAuthentication: (a: object) => void; execute: (id: string, cb: (e: unknown) => void) => void } | null>(null);
@@ -295,6 +308,22 @@ export function PublicDesk({
     }
   }, []);
 
+  /** The reader's own fills, from their indexed `Traded` logs. Returns them as
+   *  well as storing them, because the trade flow needs the before/after pair
+   *  in the same tick to know which row is this trade's receipt. */
+  const refreshFills = useCallback(async (address: string, seriesId: number) => {
+    try {
+      const r = await api<{ fills: FuturesTradeRow[] }>(
+        `/api/desk/fills?series=${seriesId}&addr=${address}`,
+      );
+      const rows = r.fills ?? [];
+      setFills(rows);
+      return rows;
+    } catch {
+      return []; // an unreadable window is not an empty history — keep what we have
+    }
+  }, []);
+
   const collateralize = () =>
     step(async () => {
       if (!session?.wallet) return;
@@ -332,6 +361,10 @@ export function PublicDesk({
       if (!session?.wallet) return;
       const { address } = session.wallet;
       const before = (await refreshLimits(address, indexId))?.contracts ?? 0;
+      // The newest fill BEFORE this trade, so the receipt below can tell a new
+      // one from whatever was already sitting in the log window. Without it a
+      // quiet desk hands every reader the same stale hash.
+      const beforeTx = desk ? (await refreshFills(address, desk.series_id))[0]?.tx ?? null : null;
       const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
         user_token: session.user_token,
         wallet_id: session.wallet.wallet_id,
@@ -347,6 +380,21 @@ export function PublicDesk({
       for (let i = 0; i < 12; i++) {
         const live = await refreshLimits(address, indexId);
         if (live && Math.abs(live.contracts - before) > 1e-9) {
+          // The receipt. Strictly after the fill is already confirmed, so a
+          // failed log read costs the reader a toast and never a trade.
+          if (desk) {
+            const fresh = await refreshFills(address, desk.series_id);
+            const got = newestFillSince(beforeTx, fresh);
+            if (got) {
+              setFillToast({
+                side: got.side,
+                qty: got.qty,
+                mark: got.mark,
+                txRef: got.tx,
+                key: ++toastSeq.current,
+              });
+            }
+          }
           // AWAIT the exit refresh: opening a position pins most of the stake
           // as margin, so the withdraw button's number is wrong the instant
           // the fill lands. Fire-and-forget left it showing the pre-trade
@@ -418,6 +466,14 @@ export function PublicDesk({
     if (phase !== "trading" || !session?.wallet) return;
     void refreshLimits(session.wallet.address, indexId);
   }, [phase, session, indexId, refreshLimits]);
+
+  // The reader's own fills. Loaded once on entering the desk (a returning
+  // reader should see their history immediately, not only after trading
+  // again); the trade flow refreshes it itself, so this does not poll.
+  useEffect(() => {
+    if (phase !== "trading" || !session?.wallet || !desk) return;
+    void refreshFills(session.wallet.address, desk.series_id);
+  }, [phase, session, desk, refreshFills]);
 
   // The exit is read for ANY wallet at ANY phase — a reader whose series
   // settled while they were away should land straight on the withdraw button.
@@ -555,11 +611,23 @@ export function PublicDesk({
           )}
           {position && position.contracts !== 0 ? (
             <span className="mono">
-              {position.contracts > 0 ? "long" : "short"} {Math.abs(position.contracts).toFixed(2)} @ {fmt(position.avg_price)}{" "}
+              {position.contracts > 0 ? "long" : "short"} {formatQty(position.contracts)} @ {fmt(position.avg_price)}{" "}
               <span className={position.upnl_usdc >= 0 ? "green" : "vermilion"}>
                 {position.upnl_usdc >= 0 ? "+" : ""}
                 {position.upnl_usdc.toFixed(4)} USDC
               </span>
+              {/* Banked, beside paper. Both are read from the same on-chain
+                  position; only one used to reach this row. */}
+              {Math.abs(position.realized_usdc) > 1e-9 ? (
+                <span className="muted">
+                  {" · "}
+                  <Ed x="banked " p="already made " />
+                  <span className={position.realized_usdc >= 0 ? "green" : "vermilion"}>
+                    {position.realized_usdc >= 0 ? "+" : ""}
+                    {position.realized_usdc.toFixed(4)}
+                  </span>
+                </span>
+              ) : null}
             </span>
           ) : (
             <span className="muted">
@@ -568,6 +636,104 @@ export function PublicDesk({
           )}
         </div>
       )}
+
+      {/* What the book can actually fill, both ways. These caps are already
+          fetched to size the buttons; drawing them makes visible the failure
+          that once froze this venue for eleven hours — the maker drifted past
+          its margin cap, one side went to zero, and every trade reverted while
+          the page still showed a healthy-looking button. */}
+      {phase === "trading" && limits ? (
+        (() => {
+          const bar = headroomBar(limits.max_sell, limits.max_buy);
+          return (
+            <div style={{ marginTop: 14, maxWidth: 420 }}>
+              <div className="reading" style={{ justifyContent: "space-between" }}>
+                <span className="vermilion">
+                  <Ed x={`SELL ${limits.max_sell}`} p={`SELL ${limits.max_sell}`} />
+                </span>
+                <span className="muted">
+                  <Ed x="what the book can fill" p="how much the desk can take" />
+                </span>
+                <span className="green">
+                  <Ed x={`BUY ${limits.max_buy}`} p={`BUY ${limits.max_buy}`} />
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 3, height: 6, marginTop: 6 }}>
+                <div
+                  className="vermilion"
+                  style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}
+                >
+                  <span
+                    style={{
+                      width: `${bar.buyPct}%`,
+                      background: "currentColor",
+                      opacity: 0.55,
+                      borderRadius: 2,
+                    }}
+                  />
+                </div>
+                <div className="green" style={{ flex: 1 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      width: `${bar.sellPct}%`,
+                      height: "100%",
+                      background: "currentColor",
+                      opacity: 0.55,
+                      borderRadius: 2,
+                    }}
+                  />
+                </div>
+              </div>
+              {bar.frozen ? (
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  <Ed
+                    x="one side of the book is full — that direction cannot be filled until the maker's inventory comes back."
+                    p="the desk cannot take a trade that way right now — it will clear on its own shortly."
+                  />
+                </p>
+              ) : null}
+            </div>
+          );
+        })()
+      ) : null}
+
+      {/* The reader's own receipts. Their fills were previously findable only
+          by eye in the global marquee. */}
+      {phase === "trading" && fills.length ? (
+        <div className="table-scroll" style={{ marginTop: 16, maxWidth: 520 }}>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>
+                  <Ed x="Your fills" p="Your trades" />
+                </th>
+                <th>
+                  <Ed x="Size" p="How much" />
+                </th>
+                <th>
+                  <Ed x="Mark" p="Price" />
+                </th>
+                <th>
+                  <Ed x="Tx" p="Receipt" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {fills.map((f) => (
+                <tr key={f.tx}>
+                  <td className={f.side === "buy" ? "green" : "vermilion"}>{f.side}</td>
+                  <td className="mono">{formatQty(f.qty)}</td>
+                  <td className="mono">{fmt(f.mark)}</td>
+                  <td>
+                    <TxLink txRef={f.tx} explorer={explorer} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {/* The exit — one row per series. Rendered independently of `phase`:
           collateral outlives the market it was posted to, and after a roll a
@@ -615,6 +781,7 @@ export function PublicDesk({
       )}
 
       {note && <p className="muted vermilion">{note}</p>}
+      <FillToast payload={fillToast} explorer={explorer} />
     </section>
   );
 }

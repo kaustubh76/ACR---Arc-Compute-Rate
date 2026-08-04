@@ -97,6 +97,25 @@ test("buildDeskRow matches python read_desk scaling", () => {
   assert.ok(!("exists" in row));
 });
 
+test("realized PnL scales by the SERIES multiplier, not a placeholder 1", () => {
+  // The trap under the Public Desk's realized-PnL figure. `readTraderPosition`
+  // built its synthetic series with `multiplier: 1`, so a reader's banked PnL
+  // came back a tenth of the truth on the live 10x series — while unrealized,
+  // which arrives already scaled from `unrealizedPnl`, looked perfectly fine.
+  // That asymmetry is why nobody noticed, so it gets a test rather than a
+  // comment.
+  const pos = {
+    contracts: 0n,
+    avgPrice: 0n,
+    realizedPnl: 6_522_430_415_946_348n, // 0.00652243 WAD, the live maker's
+  };
+  const real = buildDeskRow(series({ multiplier: 10 }), pos, 0n, 0n);
+  const wrong = buildDeskRow(series({ multiplier: 1 }), pos, 0n, 0n);
+  // The exact figure the venue reports for this maker, to the last place.
+  assert.ok(Math.abs(real.maker_realized_usdc - 0.06522430415946348) < 1e-12);
+  assert.ok(Math.abs(wrong.maker_realized_usdc * 10 - real.maker_realized_usdc) < 1e-9);
+});
+
 test("decodeTraded derives side from the qty sign", () => {
   const buy = decodeTraded(1n, "0xtaker", 2n * WAD, 25n * 10n ** 14n, 123n, "0xtx", 1_700_000_000);
   assert.equal(buy.side, "buy");

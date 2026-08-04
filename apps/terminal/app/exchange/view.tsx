@@ -8,6 +8,7 @@ import { SettlementTape } from "@/components/chain/SettlementTape";
 import { WalletPanel } from "@/components/chain/WalletPanel";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
+import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { useEdition } from "@/lib/useEdition";
 import { chainFacts } from "@/lib/chain";
 import {
@@ -15,6 +16,7 @@ import {
   useBuyerReady,
   useBuyerRun,
   useCatalog,
+  useHedger,
   useMarketReceipts,
   useTerminal,
 } from "@/lib/useLive";
@@ -42,6 +44,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
   const env = useTerminal(initial);
   const catalog = useCatalog();
   const { tape } = useMarketReceipts();
+  const hedge = useHedger();
   const plain = useEdition() === "plain";
 
   const items = catalog?.data?.items ?? [];
@@ -456,6 +459,32 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           }
         />
       </section>
+
+      {/* The loop this page argues for, actually closed. Everything above is a
+          machine BUYING the print; this is the machine that then trades a real
+          on-chain future on what it read. useHedger shares its SWR key with
+          /curve, so mounting it here costs no extra request. */}
+      <section className="section">
+        <div className="section-head">
+          <Ed
+            x="…and what a machine does with what it bought"
+            p="…and what a robot does with what it bought"
+            className="label"
+          />
+        </div>
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}
+          x="The hedger pays for the print above, then trades the on-chain future on what it read — one agent, both sides of the marketplace."
+          p="This robot pays for the rate above, then trades a real contract on what it learned — one agent, both halves of the shop."
+        />
+      </section>
+      <HedgerPanel
+        state={hedge.hedger?.data ?? null}
+        live={Boolean(hedge.hedger?.live)}
+        explorer={explorer}
+      />
 
       <section className="section">
         <div className="section-head">

@@ -2,6 +2,7 @@
 
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
+import { FuturesMarkChart } from "@/components/charts/FuturesMarkChart";
 import { FuturesTape } from "@/components/chain/FuturesTape";
 import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { PublicDesk } from "@/components/chain/PublicDesk";
@@ -12,7 +13,9 @@ import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
 import { useFutures, useHedger } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
-import { fmt, serviceName } from "@/lib/format";
+import { useDeskAddress } from "@/lib/useDeskAddress";
+import { contractNotional } from "@/lib/futuresBook";
+import { fmt, heroFigure, money, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 /* Curve data is maker quotes the oracle does NOT publish — there is no
@@ -60,8 +63,25 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
   const futLive = Boolean(fut.roster?.live);
   const explorer = chainFacts(env.data.chain).explorer;
   const nowS = useNow();
+  const you = useDeskAddress();
   const deskAgeS =
     nowS > 0 && fut.roster ? Math.max(0, nowS - Math.floor(fut.roster.fetchedAt / 1000)) : null;
+
+  // What one contract is actually worth, read off the live series instead of
+  // written down. Leads with the on-chain print (heroFigure) because that is
+  // the number the contract settles against.
+  const primaryDesk = (() => {
+    const desks = roster?.desks ?? env.data.futures;
+    return desks?.["ACR-INF"] ?? Object.values(desks ?? {})[0];
+  })();
+  const contractSize = (() => {
+    const row = primaryDesk;
+    const print = row ? env.data.prints[row.index_id] : undefined;
+    if (!row || !print) return null;
+    const mark = heroFigure(print).value;
+    const notional = contractNotional(mark, row.multiplier);
+    return notional == null ? null : { multiplier: row.multiplier, notional, mark };
+  })();
 
   return (
     <>
@@ -103,7 +123,47 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         trades={roster?.trades}
         chain={env.data.chain}
         live={futLive}
+        mark={contractSize?.mark}
+        source={roster?.source}
       />
+
+      {/* What the futures actually traded at, against the rate they settle on.
+          Reads book → mark → tape: the desk states the position, the chart
+          shows how it got there, the tape scrolls the fills one by one. */}
+      {primaryDesk ? (
+        <section className="section">
+          <div className="section-head">
+            <span className="label">
+              <Ed
+                x="Fills against the oracle — what the future traded at"
+                p="Trades against the official rate — what people paid"
+              />
+            </span>
+            <span className="label muted">
+              <Ed x="every dot is one on-chain fill" p="every dot is one real trade" />
+            </span>
+          </div>
+          <FuturesMarkChart
+            trades={roster?.trades ?? []}
+            seriesId={primaryDesk.series_id}
+            oracle={contractSize?.mark ?? null}
+            you={you}
+          />
+          <Ed
+            as="p"
+            className="muted"
+            style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}
+            x="The dashed line is the on-chain print these contracts cash-settle against; the gap is the basis, in basis points."
+            p={
+              <>
+                The dashed line is the official rate these contracts{" "}
+                <Term k="cash-settled">pay out</Term> against — the space between is{" "}
+                <Term k="basis">the gap</Term>.
+              </>
+            }
+          />
+        </section>
+      ) : null}
 
       <section className="section">
         <div className="section-head">
@@ -123,7 +183,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
             )}
           </span>
         </div>
-        <FuturesTape trades={roster?.trades ?? []} explorer={explorer} live={futLive} />
+        <FuturesTape trades={roster?.trades ?? []} explorer={explorer} live={futLive} you={you} />
       </section>
 
       {/* Trading needs chain-backed series data, which the press and the direct
@@ -185,6 +245,11 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
             </tbody>
           </table>
         </div>
+        {/* The contract size is DERIVED, never authored. This sentence used to
+            state 1,000 USDC a contract — the example from ACRFutures.sol's own
+            comment — while the live series runs a multiplier of 10, so it
+            overstated a position 200×. `contractNotional` returns null rather
+            than a confident zero, and the null branch quotes no figure at all. */}
         <Ed
           as="p"
           className="muted"
@@ -192,14 +257,19 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           x={
             <>
               An Avellaneda–Stoikov maker quotes both sides of the latest print; the weekly future
-              settles in cash on <span className="mono">ACROracle</span> at 1,000 USDC a unit.
+              settles in cash on <span className="mono">ACROracle</span>
+              {contractSize
+                ? ` at ${contractSize.multiplier}× the index — ${money(contractSize.notional)} a contract at today's mark.`
+                : "."}
             </>
           }
           p={
             <>
               An automated <Term k="market-maker">dealer</Term> quotes both sides of the official
-              rate; weekly contracts <Term k="cash-settled">pay out in cash</Term> against it,
-              $1,000 a unit.
+              rate; weekly contracts <Term k="cash-settled">pay out in cash</Term> against it
+              {contractSize
+                ? `, and one contract is worth about ${money(contractSize.notional)} at today's price.`
+                : "."}
             </>
           }
         />

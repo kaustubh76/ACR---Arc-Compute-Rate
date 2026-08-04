@@ -251,6 +251,37 @@ export interface TraderPosition {
   contracts: number;
   avg_price: number;
   upnl_usdc: number;
+  realized_usdc: number;
+}
+
+/** The series' USDC-per-index-point multiplier, resolved SERVER-side.
+ *
+ *  Load-bearing, and the reason `readTraderPosition` takes it as an argument.
+ *  `buildDeskRow` scales realized PnL by the series multiplier, so passing the
+ *  placeholder 1 (as this file did) understates a reader's banked PnL by
+ *  exactly the multiplier — 10x on the live series. Unrealized comes back
+ *  already scaled from `unrealizedPnl`, which is why nothing looked wrong.
+ *
+ *  Sourced from the 60s roster memo when it is warm, so the ordinary path costs
+ *  no extra RPC, and never from the client — a caller-supplied multiplier would
+ *  be a caller-supplied PnL.
+ */
+async function seriesMultiplier(seriesId: number): Promise<number> {
+  const cached = Object.values(memo?.data?.desks ?? {}).find((d) => d.series_id === seriesId);
+  if (cached?.multiplier) return cached.multiplier;
+  const venue = futuresAddress();
+  if (!venue) return 1;
+  try {
+    const raw = (await client().readContract({
+      address: venue,
+      abi: FUTURES_ABI,
+      functionName: "getSeries",
+      args: [BigInt(seriesId)],
+    } as never)) as unknown as RawSeries;
+    return decodeSeries(seriesId, raw).multiplier || 1;
+  } catch {
+    return 1; // throttled — a 1x figure is wrong, so the caller must not show it
+  }
 }
 
 export async function readTraderPosition(
@@ -264,6 +295,7 @@ export async function readTraderPosition(
   if (hit && Date.now() - hit.at < POS_MEMO_MS) return hit.data;
   let data: TraderPosition | null = null;
   try {
+    const multiplier = await seriesMultiplier(seriesId);
     const pos = (await client().readContract({
       address: venue,
       abi: FUTURES_ABI,
@@ -278,7 +310,7 @@ export async function readTraderPosition(
       args: [BigInt(seriesId), trader],
     } as never)) as unknown as bigint;
     const row = buildDeskRow(
-      { series_id: seriesId, index_id: "", expiry_ts: 0, multiplier: 1, maker: trader, exists: true, settled: false, settlement_price: 0 },
+      { series_id: seriesId, index_id: "", expiry_ts: 0, multiplier, maker: trader, exists: true, settled: false, settlement_price: 0 },
       pos,
       upnl,
       0n,
@@ -287,6 +319,9 @@ export async function readTraderPosition(
       contracts: row.maker_inventory,
       avg_price: row.maker_avg_price,
       upnl_usdc: row.maker_unrealized_usdc,
+      // Banked PnL — computed all along, then thrown away, so a reader who had
+      // closed a position saw only their paper figure.
+      realized_usdc: row.maker_realized_usdc,
     };
   } catch {
     data = null; // throttled — the poll retries next window
@@ -297,6 +332,85 @@ export async function readTraderPosition(
   }
   posMemo.set(key, { at: Date.now(), data });
   return data;
+}
+
+/* One reader's own fills. `seriesId` and `taker` are both INDEXED on `Traded`,
+   so this is a topic-filtered query the node answers cheaply — no client-side
+   scan of the whole tape. Memoized per (series, trader) like the position read,
+   because it is polled from the same desk row. */
+const fillsMemo = new Map<string, { at: number; data: FuturesTradeRow[] }>();
+
+export async function readTraderFills(
+  seriesId: number,
+  trader: `0x${string}`,
+  limit = 8,
+): Promise<FuturesTradeRow[]> {
+  const venue = futuresAddress();
+  if (!venue) return [];
+  const key = `${seriesId}:${trader.toLowerCase()}`;
+  const hit = fillsMemo.get(key);
+  if (hit && Date.now() - hit.at < POS_MEMO_MS) return hit.data;
+
+  let rows: FuturesTradeRow[] = [];
+  try {
+    const latest = await client().getBlockNumber();
+    // The same backwards walk, span ladder and 413-vs-429 distinction as
+    // readTape. Arc's getLogs limits are solved in this file; re-solving them
+    // here is how a second, subtly different bug gets in.
+    const collected: TradedLog[] = [];
+    let end = latest;
+    for (let page = 0; page < TAPE_PAGES; page += 1) {
+      if (end <= 0n) break;
+      let got: TradedLog[] | null = null;
+      let start = end > LOG_SPANS[0] ? end - LOG_SPANS[0] : 0n;
+      for (const span of LOG_SPANS) {
+        start = end > span ? end - span : 0n;
+        try {
+          got = (await client().getLogs({
+            address: venue,
+            event: TRADED_EVENT,
+            args: { seriesId: BigInt(seriesId), taker: trader },
+            fromBlock: start,
+            toBlock: end,
+          })) as TradedLog[];
+          break;
+        } catch (e) {
+          if (!isRangeError(e)) break; // throttled — narrowing is no cure
+          got = null;
+          await sleep(RPC_GAP_MS * 2);
+        }
+      }
+      if (!got) break;
+      collected.unshift(...got);
+      if (collected.length >= limit || start <= 0n) break;
+      end = start - 1n;
+      await sleep(RPC_GAP_MS);
+    }
+    const now = Math.floor(Date.now() / 1000);
+    rows = collected
+      .slice(-limit)
+      .reverse()
+      .map((log) => {
+        const tx = log.transactionHash ?? "";
+        return decodeTraded(
+          log.args.seriesId ?? 0n,
+          log.args.taker ?? "",
+          log.args.qty ?? 0n,
+          log.args.mark ?? 0n,
+          log.blockNumber ?? 0n,
+          tx,
+          seenAt.get(tx) ?? now,
+        );
+      });
+  } catch {
+    rows = []; // an unreadable window is not an empty history; the poll retries
+  }
+  if (fillsMemo.size > 64) {
+    const oldest = [...fillsMemo.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) fillsMemo.delete(oldest[0]);
+  }
+  fillsMemo.set(key, { at: Date.now(), data: rows });
+  return rows;
 }
 
 /** Read the whole venue — desks per index plus the recent fill tape — straight
