@@ -58,6 +58,13 @@ DRY_RUN = os.environ.get("COLLATERALIZE_DRY_RUN", "") not in ("", "0", "false")
 #: buys is the one that matters on a public desk: whatever a reader is offered,
 #: the book can actually fill.
 TARGET_CONTRACTS = float(os.environ.get("COLLATERALIZE_TARGET_QTY", str(MAX_QTY)))
+#: How many FULL reader-sized trades the book should still absorb. The headroom
+#: target above CANNOT express this: feasible_qty clamps at MAX_QTY, so a book
+#: two trades from frozen and one eleven trades from frozen both report a
+#: saturated 2.00 and this script says "already at target". That is exactly how
+#: ACR-GPU — the index the desk defaults to — sat 1.9 trades from frozen while
+#: every check was green. Mirrors VERIFY_BOOK_DEPTH in scripts/verify_live.py.
+TARGET_TRADES = float(os.environ.get("COLLATERALIZE_TARGET_TRADES", "4"))
 #: A ceiling on a single run, because this moves real money and the operator
 #: should decide the size, not an arithmetic that has already been wrong once.
 MAX_TOPUP_USDC = float(os.environ.get("COLLATERALIZE_MAX_USDC", "2.0"))
@@ -96,6 +103,22 @@ def headroom(mark: float, multiplier: int, margin_bps: int,
     maker's inventory talking.
     """
     return feasible_qty(mark, multiplier, margin_bps, collateral, 0.0, collateral, maker_inv)
+
+
+def collateral_for_depth(
+    per_contract: float, maker_inv: float, unit: float, trades: float
+) -> float:
+    """Collateral so the book still absorbs ``trades`` full reader-sized trades.
+
+    Depth is the maker's UNCLAMPED cap less what it is already carrying, over
+    what one reader can put on: ``(m_cap - |inv|) / unit``. Inverting that is
+    the only way to size for "how many judges can trade", which is the question
+    during a demo — "can the next trade fill" is a different and much easier one.
+    """
+    if per_contract <= 0 or unit <= 0:
+        return 0.0
+    need_cap = trades * unit + abs(maker_inv)
+    return round(need_cap * per_contract / MARGIN_SAFETY + 0.005, 2)
 
 
 def required_collateral(mark: float, multiplier: int, margin_bps: int,
@@ -186,13 +209,26 @@ def main() -> None:
     print(f"so the book absorbs {thin / unit:.1f} reader-sized {side}s "
           f"(target {TARGET_CONTRACTS:.2f} contracts = {TARGET_CONTRACTS / unit:.1f})")
 
+    # Depth first — it is the binding constraint on a cheap book, and the
+    # headroom target below saturates before it ever fires.
+    m_cap = MARGIN_SAFETY * posted / (mark * mult * margin_bps / 10_000)
+    depth = (m_cap - abs(float(maker_inv))) / unit if unit else 0.0
+    print(f"depth               {depth:.1f} full reader trades before it freezes "
+          f"(target {TARGET_TRADES:.0f})")
+    want_depth = collateral_for_depth(
+        mark * mult * (margin_bps / 10_000), float(maker_inv), unit, TARGET_TRADES
+    )
+
     target_contracts = TARGET_CONTRACTS
-    if thin >= target_contracts:
+    if thin >= target_contracts and depth >= TARGET_TRADES:
         print(f"\n✓ the book is already at target — {thin:.2f} contracts of "
               f"{side} headroom against {target_contracts:.2f} wanted")
         sys.exit(0)
 
-    want = required_collateral(mark, mult, margin_bps, float(maker_inv), target_contracts)
+    want = max(
+        required_collateral(mark, mult, margin_bps, float(maker_inv), target_contracts),
+        want_depth,
+    )
     if want == float("inf"):
         print(f"\n  ✗ {target_contracts:.2f} contracts is not reachable at any "
               f"collateral — feasible_qty clamps at MAX_QTY ({MAX_QTY}). "
@@ -261,8 +297,17 @@ def main() -> None:
         failures.append(f"contract balance did not rise by {expected} units")
     if after[1] <= before[1]:
         failures.append("the venue's own USDC did not rise — nothing reached the contract")
-    if min(end_buy, end_sell) <= thin:
-        failures.append("the desk quotes no more room than before the top-up")
+    # Headroom OR depth. Asserting headroom alone fails a top-up that worked:
+    # feasible_qty clamps at MAX_QTY, so on a cheap book headroom is already
+    # saturated and cannot rise however much collateral is posted — the money
+    # buys DEPTH, which is the thing that was short. This check called a
+    # correct 0.11 USDC top-up a failure while the contract balance, the venue
+    # balance and the chain all said it landed.
+    _per = mark * mult * (margin_bps / 10_000)
+    end_m_cap = MARGIN_SAFETY * (after[0] / 1e6) / _per if _per > 0 else 0.0
+    end_depth = (end_m_cap - abs(float(inv_now))) / unit if unit else 0.0
+    if min(end_buy, end_sell) <= thin and end_depth <= depth:
+        failures.append("neither the quoted room nor the book's depth improved")
     for f in failures:
         print(f"  ✗ {f}")
     if not failures:
