@@ -53,7 +53,8 @@ COMMON = set(
     agentic economy autonomous demand deploy platform webhooks zone auto-discovers auto-refreshes
     discovers cache editorial events lands mocked pings registers seconds spend query intrinsic
     listings paid-query rpc.testnet.arc.network floor backed netoi none skews warm
-    anvil gated node limited
+    anvil gated node limited breach ignores refuses restarts rounded silently
+    deployfutures reads owns mandate gap position
     """.split()
 )
 

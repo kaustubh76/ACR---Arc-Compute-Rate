@@ -212,8 +212,8 @@ def build() -> None:
     text(80, 40, "ACR — THE ARC COMPUTE RATE", 32, INK, w=1100, bold=True)
     text(80, 92, "A manipulation-resistant benchmark family for machine commerce · "
                  "one estimand · four pillars · settlement-grade on-chain rate", 15, GRAY, w=1600)
-    text(80, 116, "◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · "
-                  "Seller API on Render · hourly Circle-signed oracle posts", 13, GREEN, w=1600, bold=True)
+    text(80, 116, "◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · Seller API on Render · "
+                  "hourly Circle-signed posts · agents read AND trade the rate (autonomous hedger)", 13, GREEN, w=1700, bold=True)
 
     zone(2860, 40, 620, 250, "LEGEND", GRAY)
     legend = [
@@ -319,26 +319,32 @@ def build() -> None:
     # ---------- E · DISTRIBUTION ----------
     zone(720, 1250, 1480, 360, "E · DISTRIBUTION (self-referential · x402-monetized)", PURPLE)
     card("e_api", 745, 1302, 430, 190, "INDEX API (FastAPI)",
-         ["x402-gated: /prints /curve /vol", "/futures /desk/* /marketplace /webhooks",
-          "lifespan: refresh + poster + book warm", "/onchain + futures readers (90s TTL)"], PURPLE)
+         ["x402-gated: /prints /curve /vol /futures", "/desk/* /marketplace /webhooks /hedger /revenue",
+          "lifespan: refresh + poster + keeper + book warm", "/onchain + futures readers (90s TTL)"], PURPLE, body_size=12)
     card("e_facil", 1195, 1302, 430, 190, "x402 FACILITATOR",
          ["Dev (mock) | Circle (Nanopayments)", "gateway-api-testnet.circle.com /v1/x402",
-          "verify+settle · exact · x402Version 2 · fail-closed", "GatewayWalletBatched · GatewayWallet 0x0077…"], PURPLE)
+          "verify+settle · exact · x402Version 2 · fail-closed",
+          "durable receipts_live.jsonl (in image) · /revenue rounded 6dp"], PURPLE, body_size=11)
     card("e_term", 1660, 1302, 510, 190, "ACR TERMINAL (Next.js · 'Arc Dawn')",
          ["editorial 'The Fixing' · /curve /exchange /companion", "PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor",
           "ChainFactsStrip · OracleProvenance · FinalityBadge", "SWR live polling · apps/terminal"], PURPLE)
 
     # ---------- K · AGENTIC ECONOMY (demand side) ----------
-    zone(720, 1630, 1480, 250, "K · AGENTIC ECONOMY (demand side · the loop closes)", PURPLE)
+    zone(720, 1630, 1480, 410, "K · AGENTIC ECONOMY (demand side · the loop closes)", PURPLE)
     card("k_market", 745, 1682, 430, 168, "AGENT MARKETPLACE",
          ["/marketplace/catalog — Bazaar-shaped listings", "/marketplace/receipts — paid-query ledger",
           "the index listed as a payable service", "marketplace.py"], PURPLE)
-    card("k_agent", 1195, 1682, 430, 168, "AUTONOMOUS x402 BUYER",
-         ["apps/agent — TS · viem · GatewayClient", "DevPayer | GatewayPayer · USDC spend cap",
-          "discovers catalog → pays per query → receipts", "interop.ts (12-check conformance)"], PURPLE)
+    card("k_agent", 1195, 1682, 430, 168, "AUTONOMOUS x402 BUYER (live)",
+         ["apps/agent — TS · viem · GatewayPayer / Circle Gateway", "--live real settlements · USDC spend cap",
+          "discovers catalog → pays per query → receipts.ts", "interop.ts (12-check) · x402-buy.yml"], PURPLE, body_size=12)
     card("k_webhooks", 1660, 1682, 510, 168, "CIRCLE WEBHOOKS",
          ["/webhooks/circle — settlement events", "P-256 (ECDSA) signature verified",
           "→ SettlementTape · in-app floor buyer /demo/buyer/*", "webhooks.py · buyer_demo.py"], PURPLE)
+    card("k_hedger", 745, 1870, 700, 150, "AUTONOMOUS HEDGER — reads the rate, then trades on it",
+         ["Circle agent wallet (no exportable key) · scripts/hedger.py · GET /hedger",
+          "1 pay x402 for ACR-INF print → 2 read own on-chain futures position",
+          "3 gap = mandate TARGET − position → 4 trade(qty) the difference",
+          "refuses on position-cap / book-room breach — never silently clamps"], PURPLE, body_size=12)
 
     # ---------- G · RED TEAM / LIVE DEMO ----------
     zone(60, 1150, 620, 300, "G · RED TEAM / LIVE DEMO", RED)
@@ -365,13 +371,15 @@ def build() -> None:
          ["Terminal (Vercel) · Seller API (Render) · chain 5042002",
           "ACROracle            0x4f00…2609",
           "AttestationRegistry  0x23ae…dFb7",
-          "ACRFutures           0x29d9…42fe · series 0 seeded",
-          "hourly Circle-custody-signed oracle posts",
-          "real x402 settled via Circle Gateway (live receipts)",
-          "attack-cost-per-bp on EVERY print",
-          "naive-VWAP err vs ACR err → 50–560×",
+          "ACRFutures           0x29d9…42fe · self-rolling (series 3)",
+          "FeedAccessAttestor   0xe671…FD47",
+          "wallets by role: poster 0x8366… · owner+maker 0x9D44…",
+          "taker 0xc972… · readers user-controlled · hedger agent wallet",
+          "retired deploy EOA 0x3318…: holds no authority",
+          "real x402 settled via Circle Gateway · durable receipts",
+          "attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP",
           "100% Foundry invariants passing",
-          "230 python · 50 forge · 50 node tests green"], INK, body_size=12)
+          "281 py · 60 forge · 55 terminal · 10 agent — green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
@@ -388,7 +396,6 @@ def build() -> None:
         "RTS smoother — a backward pass that sharpens earlier estimates",
         "WLS — regression that weights bigger trades more heavily",
         "α-trim median (VWM) — drop the extreme few %, keep the middle",
-        "breakdown ½ — survives up to 50% bad data before it breaks",
         "bootstrap CI — resample to get an honest 'give-or-take' range",
         "sybil — many fake identities run by one attacker",
         "wash trade / self-deal — fake trades to pump volume or price",
@@ -397,7 +404,7 @@ def build() -> None:
         "basis point (bp) — one hundredth of a percent (0.01%)",
         "oracle — on-chain contract that publishes the rate to read",
         "postPrint / relayer — publish the rate; anyone may submit it",
-        "signer (Local | Circle) — who holds the key that signs the rate",
+        "role signer — each job (maker/taker/poster) signs from its own Circle wallet",
         "EIP-712 verify — contract checks WHO signed, not who sent it",
         "MAX_TS_SKEW / isStale — reject far-future or too-old prints",
         "nonce + deadline — one-time counter + expiry ⇒ replay-proof",
@@ -408,10 +415,8 @@ def build() -> None:
         "facilitator /verify /settle — check the payment, then move the USDC",
         "fail-closed — if payment can't verify, deny (the safe default)",
         "Arc / USDC-gas — Circle's chain; fees are paid in USDC itself",
-        "testnet — a practice chain with fake-value tokens",
         "TapeSource — one data-in interface: SimSource | ArcSource",
         "/onchain reader — API serves the rate read straight from chain",
-        "SSR — web page built on the server; loads fast",
         "settlement-grade — trustworthy enough for contracts to settle on",
         "cash-settled future — bet on the rate; pays the diff, no delivery",
         "Avellaneda–Stoikov — a recipe for a market maker's buy/sell quotes",
@@ -421,20 +426,23 @@ def build() -> None:
         "socialized-loss — if a loser can't pay, winners are haircut pro-rata",
         "Public Desk — trade the future with a Circle user-controlled wallet",
         "user-controlled wallet — the user's own PIN/passkey keys; server has none",
-        "buyer agent — a machine that auto-discovers + pays for the index",
         "Agent Marketplace — catalog of payable services + receipts ledger",
-        "GatewayWalletBatched — Circle contract the x402 payment signs against",
         "meta-attestation (attestWithSig) — seller signs, a relayer pays gas",
         "Circle wallet / SCP — custodial signer + on-chain deploy platform",
         "webhook — Circle pings the API when a settlement lands",
-        "SettlementTape — the Terminal's live feed of on-chain settlements",
         "SWR — the Terminal auto-refreshes its data every few seconds",
+        "autonomous hedger — an agent that buys the rate, then trades futures on it",
+        "agent wallet — a Circle wallet an agent signs with; no exportable key",
+        "self-rolling venue — the futures book opens its own next series (it owns itself)",
+        "venue keeper — the loop that trades + rolls the book, reading its shape on-chain",
+        "FeedAccessAttestor — on-chain proof a wallet paid for the feed (hasFeedAccess)",
+        "durable receipts — the settlement ledger ships in the image; survives restarts",
     ]
     text(2884, 1132, "\n".join(glossary), 11, INK, w=588)
     text(2884, 1862, "full glossary (every term) → docs/GLOSSARY.md", 10.5, GRAY, w=560)
 
     # ---------- F · WHY ARC ----------
-    zone(60, 1900, 3420, 250,
+    zone(60, 2060, 3420, 250,
          "F · WHY ARC — load-bearing for the MATH, not the deployment    ·    chain 5042002 · USDC = native gas token", TEAL)
     why = [
         ("ARC L1 (Malachite)", ["deterministic sub-second finality · no reorgs",
@@ -447,10 +455,10 @@ def build() -> None:
         ("AGENT MARKETPLACE", ["ACR listed as a payable service", "agents discover + pay natively (Zone K)"]),
     ]
     for i, (t, lines) in enumerate(why):
-        card(f"f{i}", 80 + i * 566, 1975, 520, 150, t, lines, TEAL)
+        card(f"f{i}", 80 + i * 566, 2135, 520, 150, t, lines, TEAL)
 
     # ---------- 7-week roadmap ----------
-    zone(60, 2200, 3420, 340,
+    zone(60, 2360, 3420, 340,
          "7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper", GRAY)
     weeks = [
         ("W1 — TAPE", ["indexer live on Arc testnet", "empirical batching study", "OSS: microstructure paper"]),
@@ -462,7 +470,7 @@ def build() -> None:
         ("W7 — SHIP", ["freeze Monday", "paper polish + rehearse", "attack demo twice"]),
     ]
     for i, (t, lines) in enumerate(weeks):
-        card(f"w{i}", 80 + i * 486, 2270, 450, 240, t, lines, GRAY if i != 3 else ORANGE)
+        card(f"w{i}", 80 + i * 486, 2430, 450, 240, t, lines, GRAY if i != 3 else ORANGE)
 
     # ---------- WIRING (all bound · orthogonal routing) ----------
     # Zone A → indexer: fan up the A|B corridor (x≈690–706) into the indexer's left.
@@ -491,24 +499,32 @@ def build() -> None:
     wire("d_desk", "d_future", GREEN, side_a="L", side_b="L", lane=2210)     # reader trades (PIN)
     # Long reads → API: down the B|C lane, across the B/E band (y≈1230), into e_api's top.
     wire("d_future", "e_api", GREEN, dashed=True, side_a="L", side_b="T",
-         via=[(2230, 1204), (2230, 1228), (975, 1228)])   # desk/inventory → curve skew
+         via=[(2230, 1304), (2230, 1228), (975, 1228)])   # desk/inventory → curve skew
     wire("c_oracle", "e_api", ORANGE, dashed=True, side_a="L", side_b="T",
          via=[(2225, 582), (2225, 1236), (960, 1236)])    # /onchain read
     wire("b_bound", "e_api", PURPLE, side_a="B", side_b="T")                 # ⑩
     wire("e_facil", "e_api", PURPLE, side_a="L", side_b="R")                 # x402 verify/settle
     wire("e_api", "e_term", PURPLE, side_a="T", side_b="T", lane=1272)       # over the E band (clears facil)
-    # $-loop → Nanopayments: down the left margin (x≈700), clear of zone K.
+    # $-loop → Nanopayments: down the left margin (x≈700), across the F band (y≈2115).
     wire("e_api", "f2", PURPLE, dashed=True, side_a="L", side_b="T",
-         via=[(700, 1397), (700, 1955), (1472, 1955)])
+         via=[(700, 1397), (700, 2115), (1472, 2115)])
     # Arc L1 canonical-tape riser: up the f0|f1 gap (x≈623), then the A|B corridor (x≈700).
     wire("f0", "b_indexer", TEAL, dashed=True, side_a="R", side_b="L",
-         via=[(623, 2050), (623, 1890), (700, 1890), (700, 412)])
+         via=[(623, 2210), (623, 2040), (700, 2040), (700, 412)])
     wire("a_adv", "g_demo", RED, dashed=True, side_a="R", side_b="R", lane=704)  # clears a_tape
     # Zone K — the demand side / the loop closes.
     wire("k_agent", "e_facil", PURPLE, side_a="T", side_b="B")              # buyer pays via x402
     wire("k_agent", "k_market", PURPLE, dashed=True, side_a="L", side_b="R")  # discovers catalog
     wire("e_api", "k_market", PURPLE, dashed=True, side_a="B", side_b="T")    # lists the index
     wire("e_facil", "k_webhooks", PURPLE, dashed=True, side_a="B", side_b="T", lane=1587)
+    # Autonomous hedger: reads the print (x402), then trades the gap on-chain — the loop, closed.
+    wire("e_api", "k_hedger", PURPLE, dashed=True, side_a="L", side_b="L",
+         via=[(690, 1397), (690, 1945)])                                    # serves the ACR-INF print
+    wire("k_hedger", "e_facil", PURPLE, side_a="R", side_b="R",
+         via=[(1642, 1945), (1642, 1397)])                                  # pays x402 (the $ loop)
+    wire("k_hedger", "d_future", GREEN, side_a="R", side_b="L", lane=2230)  # trades the gap on-chain
+    # Poster Circle wallet also signs the on-chain feed-access attestation.
+    wire("c_signer", "c_attestor", ORANGE, side_a="R", side_b="R", lane=2820)
 
 
 def validate() -> dict:

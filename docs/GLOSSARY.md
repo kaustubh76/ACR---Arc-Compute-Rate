@@ -430,7 +430,8 @@ and it proves its own tamper-resistance.
   up a contract or transaction. *The public land registry for the chain.*
 - **the deployed contracts** — the live addresses on Arc: **ACROracle
   `0x4f00…2609`**, **AttestationRegistry `0x23ae…dFb7`**, **ACRFutures
-  `0x29d9…42fe`** (series 0 seeded). *The three shops' street addresses.*
+  `0x29d9…42fe`** (self-rolling; series 3 in the latest bundle), and
+  **FeedAccessAttestor `0xe671…FD47`**. *The shops' street addresses.*
 - **Circle Gateway receipts / batch UUID** — every real x402 payment produces a
   durable receipt carrying Circle's Gateway batch identifier, saved in-repo. *The
   stamped, filed copy of each sale.*
@@ -458,6 +459,71 @@ and it proves its own tamper-resistance.
 - **CI jobs (python · contracts · agent · terminal)** — the four independent
   GitHub-CI checks that must pass on every push. *Four inspectors who each sign off
   before anything ships.*
+
+## Autonomous agents & the self-owning venue
+
+- **autonomous hedger (`scripts/hedger.py`, `GET /hedger`)** — a single agent that
+  runs a four-step loop: pay a real x402 nanopayment for the latest `ACR-INF` print,
+  read its own on-chain ACRFutures position, compute the gap to its mandate, and
+  trade that difference. It is the demand side made whole — an agent that *reads the
+  rate, then trades on what it read*. *A trader who buys today's price sheet, checks
+  what it already owns, and places one order to hit its target.*
+- **mandate / `TARGET`** — the position the hedger is told to hold (in contracts);
+  `gap = TARGET − position` drives each trade. *The instruction: "stay this long."*
+- **agent wallet** — a Circle wallet an agent signs through (email/OTP), with **no
+  exportable private key**; the hedger signs every payment and trade this way. *A
+  company card the agent can spend with but can never photocopy.*
+- **`feasible_qty`** — the shared sizing helper (from `index_api.desk`) that clamps a
+  desired trade to what margin and book room actually allow. *Checking your wallet and
+  the shelf before deciding how much to buy.*
+- **venue keeper (`services/index_api/index_api/keeper.py`)** — the in-process loop
+  (runs beside the press) that keeps the futures venue trading and rolls it across
+  expiries. *The caretaker who both works the counter and opens tomorrow's stall.*
+- **self-rolling venue / `roll_if_needed` / `openSeries` / `onlyOwner`** — because
+  ACRFutures ownership was migrated to the maker's own Circle wallet, and `openSeries`
+  is `onlyOwner`, the keeper can open the successor series unattended — the venue
+  *owns itself*. *The shop holds its own keys, so it can unlock itself each morning.*
+- **`migrate_venue_owner.py` / `pendingOwner` / `acceptOwnership`** — the one-time tool
+  that handed venue ownership from the retiring deploy EOA to the maker wallet using
+  the safe **two-step** transfer (propose, then accept). *Signing the deed over to the
+  new owner, who must counter-sign to take it.*
+- **"shape read from the chain" (`live_indices`)** — the keeper derives the tradable
+  roster from `read_all_series()` (unsettled, unexpired) and reads the mark on-chain,
+  instead of trusting a configured constant. *Reading today's board off the wall, not
+  last week's memo.*
+- **`build_role_signer` / role signer** — the router that maps each job
+  (**maker · taker · poster · owner**) to *its own* Circle Developer-Controlled wallet,
+  deliberately **ignoring the ambient `.env` key**. *Every role carries its own badge;
+  none can borrow the master key.*
+- **FeedAccessAttestor (`contracts/src/FeedAccessAttestor.sol`, `0xe671…FD47`)** — a
+  fifth on-chain contract. The seller signs an EIP-712 **`FeedAccess`** struct
+  (`payer`, `beneficiary`, `paidUntil`, `amountUsdc`, `nonce`) with the same poster
+  Circle wallet that signs oracle prints; anyone relays **`redeem(...)`**, which
+  `ecrecover`s the authorized signer and records `paidUntil[beneficiary]`, so
+  **`hasFeedAccess(addr)`** becomes an on-chain fact. The seller *signs, it does not
+  decide* — it can only attest wallets that actually paid (appear in
+  `/marketplace/receipts` with `scheme == "exact"`). *A turnstile that opens for
+  anyone holding a receipt the shop already signed.*
+- **`MAX_ACCESS_WINDOW` (90 days)** — the contract's cap on how far any single grant
+  may reach, so a signer compromise costs weeks, not a century (the live grant was
+  re-minted from 7 → 60 days, inside the cap). *A gift card that can never be dated
+  more than three months out.*
+- **`attest_feed_access.py` / `DeployAttestor.s.sol`** — the script that reads the
+  public receipts ledger and signs the grant, and the Foundry deploy for the contract.
+- **durable receipts (`services/index_api/index_api/receipts_live.jsonl`, `_rehydrate`)**
+  — the settlement ledger was moved out of gitignored/dockerignored `data/` into
+  `services/…` so it ships **inside the image** and `/revenue` + `/marketplace/receipts`
+  survive a restart; `revenue_usdc` now rounds to 6 dp (no float noise). *Keeping the
+  sales book in the safe that moves with the shop, not on a desk that gets cleared.*
+- **x402 live buyer / `GatewayPayer` (`apps/agent`, `x402-buy.yml`)** — the TypeScript
+  buyer that runs **real** settlements against the live seller through Circle's Gateway
+  (402 → sign EIP-3009 → settle), archiving each `PAYMENT-RESPONSE` receipt. *A real
+  customer who actually pays at the till, not a demo shopper.*
+- **wallets by role** — the live keys, each doing one job: **poster/press `0x8366…`**,
+  **venue owner + maker `0x9D44…`**, **heartbeat taker `0xc972…`**, **readers** on
+  their own **user-controlled** wallets, the **autonomous hedger** on a Circle **agent
+  wallet**, and the **retired deploy EOA `0x3318…`**, which now holds **no authority**.
+  *One badge per role, and the old master badge deactivated.*
 
 ## Instrument (Pillar 4)
 

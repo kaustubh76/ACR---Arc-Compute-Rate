@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="1016" viewBox="0 0 2160 1016" font-family="Helvetica,Arial,sans-serif">
-<rect width="2160" height="1016" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="2180" height="980" viewBox="0 0 2180 980" font-family="Helvetica,Arial,sans-serif">
+<rect width="2180" height="980" fill="#ffffff"/>
 <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
 <rect x="40" y="40" width="1480" height="900" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2" stroke-dasharray="7 5"/>
 <rect x="65" y="92" width="350" height="120" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
@@ -10,12 +10,13 @@
 <rect x="500" y="502" width="370" height="96" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
 <rect x="500" y="628" width="370" height="150" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
 <rect x="65" y="702" width="400" height="200" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
-<rect x="1560" y="40" width="560" height="780" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1560" y="40" width="560" height="880" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2" stroke-dasharray="7 5"/>
 <rect x="1580" y="92" width="510" height="116" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="220" width="510" height="205" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="437" width="510" height="116" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="565" width="510" height="92" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <rect x="1580" y="669" width="510" height="132" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="1580" y="813" width="510" height="96" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
 <polyline points="415,152.0 427.5,152.0 427.5,179.5 440,179.5" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="240.0,212 240.0,226.0 245.0,226.0 245.0,240" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="655.0,267 655.0,283.5 685.0,283.5 685.0,300" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
@@ -26,7 +27,7 @@
 <polyline points="500,703.0 482,703.0 482,802.0 465,802.0" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="1835.0,208 1835.0,214.0 1835.0,220" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="870,703.0 1225,703.0 1225,322.5 1580,322.5" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
-<polyline points="1580,322.5 1540,322.5 1540,944.0 1580,944.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="2090,150.0 2140,150.0 2140,861.0 2090,861.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
 <text x="58" y="65.5" font-size="15" fill="#1971c2">B · ESTIMATOR CORE — one estimand: the latent price of machine services</text>
 <text x="78" y="115.5" font-size="15" fill="#1971c2">TAPE INDEXER</text>
 <text x="78" y="138.2" font-size="13" fill="#1e1e1e">raw event ingestion</text>
@@ -72,10 +73,10 @@
 <text x="78" y="787.2" font-size="13" fill="#1e1e1e">a NUMBER on Arc (deterministic fee)</text>
 <text x="78" y="800.2" font-size="13" fill="#1e1e1e">bound.py + redteam/optimal_attack.py</text>
 <text x="1578" y="65.5" font-size="15" fill="#e8590c">C · ON-CHAIN (settlement-grade)</text>
-<text x="1593" y="115.5" font-size="15" fill="#e8590c">SIGNER</text>
-<text x="1593" y="138.2" font-size="13" fill="#1e1e1e">LocalKeySigner (raw key · dev)</text>
-<text x="1593" y="151.2" font-size="13" fill="#1e1e1e">CircleWalletSigner — Dev-Controlled Wallet</text>
-<text x="1593" y="164.2" font-size="13" fill="#1e1e1e">circle-developer-controlled-wallets SDK</text>
+<text x="1593" y="115.5" font-size="15" fill="#e8590c">SIGNER (custody-only in prod)</text>
+<text x="1593" y="136.4" font-size="11" fill="#1e1e1e">build_role_signer(maker·taker·poster·owner) → own Circle wallet</text>
+<text x="1593" y="147.4" font-size="11" fill="#1e1e1e">CircleWalletSigner (Dev-Controlled) · ignores ambient .env key</text>
+<text x="1593" y="158.4" font-size="11" fill="#1e1e1e">LocalKeySigner only for dev/anvil · docs/WALLETS.md</text>
 <text x="1593" y="243.5" font-size="15" fill="#e8590c">ACROracle.sol</text>
 <text x="1593" y="266.2" font-size="13" fill="#1e1e1e">EIP-712 verifies the signer</text>
 <text x="1593" y="279.2" font-size="13" fill="#1e1e1e">any relayer submits postPrint</text>
@@ -87,15 +88,15 @@
 <text x="1593" y="496.2" font-size="13" fill="#1e1e1e">attestWithSig — seller signs, relayer pays</text>
 <text x="1593" y="509.2" font-size="13" fill="#1e1e1e">→ one relayer registers many sellers</text>
 <text x="1593" y="588.5" font-size="15" fill="#e8590c">FOUNDRY</text>
-<text x="1593" y="610.3" font-size="12" fill="#1e1e1e">50 tests · invariants: oracle · registry · futures</text>
-<text x="1593" y="622.3" font-size="12" fill="#1e1e1e">netOI=0 · collateral-backed · fail_on_revert</text>
+<text x="1593" y="610.3" font-size="12" fill="#1e1e1e">60 tests · oracle · registry · futures · FeedAccessAttestor</text>
+<text x="1593" y="622.3" font-size="12" fill="#1e1e1e">invariants: netOI=0 · collateral-backed · fail_on_revert</text>
 <text x="1593" y="692.5" font-size="15" fill="#e8590c">CIRCLE DEPLOY</text>
-<text x="1593" y="715.2" font-size="13" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>
-<text x="1593" y="728.2" font-size="13" fill="#1e1e1e">oracle + registry + ACRFutures → setSigner</text>
-<text x="1593" y="741.2" font-size="13" fill="#1e1e1e">deploy_circle.py · Deploy / DeployFutures.s.sol</text>
-<text x="1578" y="875.5" font-size="15" fill="#2f9e44">D · INSTRUMENT &amp; PUBLIC DESK (Pillar 4 · on-chain)</text>
-<text x="1593" y="919.5" font-size="15" fill="#2f9e44">ACRFutures.sol  (on-chain venue)</text>
-<text x="1593" y="941.3" font-size="12" fill="#1e1e1e">weekly cash-settled vs oracle · stale-guard (7200s)</text>
-<text x="1593" y="953.3" font-size="12" fill="#1e1e1e">maker mirrors every taker → net OI = 0 · 20% margin</text>
-<text x="1593" y="965.3" font-size="12" fill="#1e1e1e">USDC collateral · Traded tape · socialized-loss settle</text>
+<text x="1593" y="714.3" font-size="12" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>
+<text x="1593" y="726.3" font-size="12" fill="#1e1e1e">oracle + registry + ACRFutures → setSigner</text>
+<text x="1593" y="738.3" font-size="12" fill="#1e1e1e">deploy_circle.py · Deploy / DeployFutures / DeployAttestor.s.sol</text>
+<text x="1593" y="836.5" font-size="15" fill="#e8590c">FeedAccessAttestor.sol</text>
+<text x="1593" y="857.4" font-size="11" fill="#1e1e1e">EIP-712 FeedAccess: payer·beneficiary·paidUntil·amountUsdc·nonce</text>
+<text x="1593" y="868.4" font-size="11" fill="#1e1e1e">seller signs (poster Circle wallet) · anyone relays redeem()</text>
+<text x="1593" y="879.4" font-size="11" fill="#1e1e1e">hasFeedAccess(addr) → on-chain fact · MAX_ACCESS_WINDOW 90d</text>
+<text x="1593" y="890.4" font-size="11" fill="#1e1e1e">0xe671…FD47 · attest_feed_access.py</text>
 </svg>
