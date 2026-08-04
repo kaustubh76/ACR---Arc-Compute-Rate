@@ -24,7 +24,8 @@ FALLBACK = _ROOT / "apps/terminal/lib/fallback.json"
 
 #: Keys build_terminal_payload always emits (stable core; the drift-prone
 #: bundle sections are derived dynamically below).
-PAYLOAD_CORE_KEYS = {"prints", "history", "sellers", "attack", "oracle", "chain"}
+PAYLOAD_CORE_KEYS = {
+    "futures","prints", "history", "sellers", "attack", "oracle", "chain"}
 
 
 def _bundle_keys() -> set[str]:
@@ -66,3 +67,29 @@ def test_fallback_revenue_counters_agree_with_the_ledger():
     ledger = snapshot["marketplace"]["receipts"]
     assert snapshot["revenue"]["paid_queries"] == ledger["paid_queries"]
     assert snapshot["revenue"]["revenue_usdc"] == ledger["revenue_usdc"]
+
+
+def test_fallback_futures_sections_are_not_silently_empty():
+    """The archived venue must actually contain a venue.
+
+    `capture_futures_trades` swallows every exception and returns [], and the
+    payload emits {} for `futures` when no venue is configured — so a snapshot
+    run without ACR_FUTURES_ADDRESS, or against a throttled RPC, writes a
+    syntactically perfect bundle with the desk and the tape deleted. Presence
+    checks pass on both; only content tells them apart, and the offline terminal
+    is where the difference shows.
+    """
+    snapshot = json.loads(FALLBACK.read_text())
+    desks = snapshot.get("futures") or {}
+    assert desks, "fallback.json has no futures desks — a snapshot ran without a venue"
+    for index_id, row in desks.items():
+        assert row.get("multiplier", 0) > 0, f"{index_id}: multiplier must be real"
+        assert isinstance(row.get("series_id"), int), f"{index_id}: needs a series id"
+        assert not row.get("settled"), f"{index_id}: archived a SETTLED series as the desk"
+
+    trades = snapshot.get("futures_trades") or []
+    assert trades, "fallback.json has an empty futures tape — the archive shows a dead venue"
+    # Distinct blocks are what makes the archived tape a series rather than a
+    # column: every row shares one `seen_at` (the snapshot stamp), so block
+    # height is the only ordering the offline chart can trust.
+    assert len({t["block"] for t in trades}) > 1, "archived fills must span more than one block"

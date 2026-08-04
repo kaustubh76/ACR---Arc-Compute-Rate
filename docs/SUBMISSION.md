@@ -109,7 +109,7 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
 | Contracts | `forge test -vvv` | ✅ **60 passed** (17 oracle + 10 registry + 16 futures + 10 feed-access attestor + 7 invariants, `fail_on_revert=true`) |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |
-| Terminal | `npm test && next build` | ✅ **67/67 node tests** (9 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase · futures book) + clean build (8 pages + 15 API proxies) |
+| Terminal | `npm test && next build` | ✅ **81/81 node tests** (11 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase · futures book · read result · chain constants) + clean build (8 pages + 15 API proxies) |
 | Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient` — re-run 2026-07-31 against the **deployed** gate) |
 | On-chain read | `make verify-testnet` | ✅ chain id + contracts' bytecode + 3 live prints read from Arc (+ `cast code` shows bytecode at ACRFutures) |
 | GitHub CI | push to `main` | ✅ 4/4 jobs green |

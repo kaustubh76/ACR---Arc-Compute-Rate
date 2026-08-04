@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import types
 from pathlib import Path
 
@@ -252,6 +253,42 @@ def check_oracle_commit_guard(chain_id: int | None) -> None:
         )
 
 
+def check_futures_commit_guard(payload: dict) -> None:
+    """Refuse to commit a bundle whose futures sections are empty.
+
+    ``capture_futures_trades`` swallows every exception and returns ``[]``, and
+    ``build_terminal_payload`` emits ``{}`` for ``futures`` when no venue is
+    configured — so a run without ``ACR_FUTURES_ADDRESS``, or against a
+    throttled Arc RPC, writes a SYNTACTICALLY PERFECT bundle with the desk, the
+    tape and the archived book silently deleted. Nothing downstream notices:
+    ``tests/test_snapshot_bundle.py`` checks those keys for presence only, so CI
+    stays green while the offline terminal loses the whole pillar.
+
+    Same shape and same reason as ``check_oracle_commit_guard`` — an empty
+    section is indistinguishable from a venue that does not exist, and only the
+    generator is in a position to tell the difference.
+
+    Opt out with ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 for a deliberately venue-less
+    bundle, so the guard is a refusal rather than an obstacle.
+    """
+    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_FUTURES", "") not in ("", "0", "false"):
+        return
+    desks = payload.get("futures") or {}
+    trades = payload.get("futures_trades") or []
+    if not desks:
+        raise SystemExit(
+            "refusing to commit a bundle with no futures desks — set "
+            "ACR_FUTURES_ADDRESS (and check the RPC), or pass "
+            "ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 if that is really intended"
+        )
+    if not trades:
+        raise SystemExit(
+            "refusing to commit a bundle with an empty futures tape — the archived "
+            "edition would show a venue that has never traded; re-run when the "
+            "RPC answers, or pass ACR_SNAPSHOT_ALLOW_NO_FUTURES=1"
+        )
+
+
 def main() -> None:
     store = build_warmup_store()
     for _ in range(WARMUP_REFRESHES):
@@ -287,6 +324,7 @@ def main() -> None:
         assert payload["oracle"] is None
         assert all(p["onchain"] is None for p in payload["prints"].values())
     embed_bundle_sections(payload)
+    check_futures_commit_guard(payload)
     out = Path("apps/terminal/lib/fallback.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2))
