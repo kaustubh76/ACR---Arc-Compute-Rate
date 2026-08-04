@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -28,6 +28,7 @@ help:
 	@echo ""
 	@echo "  make futures-roll    open a fresh series before the current one expires (idempotent)"
 	@echo "  make futures-settle  cash-settle expired series so collateral can be withdrawn"
+	@echo "  make futures-collateralize  deepen the book so the desk can fill the size it offers (dry by default)"
 	@echo ""
 	@echo "  the Public Desk (readers trade ACRFutures with a Circle user-controlled wallet):"
 	@echo "  make desk-preflight  read-only gates: series life, margin capacity, custody balance"
@@ -180,6 +181,15 @@ futures-settle:
 # Reports only, unless you ask it to move money: WITHDRAW_DRY_RUN=0.
 futures-withdraw:
 	WITHDRAW_DRY_RUN=$${WITHDRAW_DRY_RUN-1} uv run python scripts/futures_withdraw.py
+
+# The other direction: deepen the book so the desk can fill what it offers.
+# "The maker is collateralized" and "the book can absorb a trade" are different
+# facts, and the gap between them once cost this venue eleven frozen hours.
+# Sizes itself in reader-sized trades against the desk's own feasible_qty, and
+# refuses to spend the wallet below what funds the next roll. Reports only,
+# unless you ask it to move money: COLLATERALIZE_DRY_RUN=0.
+futures-collateralize:
+	COLLATERALIZE_DRY_RUN=$${COLLATERALIZE_DRY_RUN-1} uv run python scripts/futures_collateralize.py
 
 # --- the Public Desk (user-controlled wallets trading ACRFutures) ---
 

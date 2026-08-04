@@ -58,16 +58,15 @@ MIN_RUNWAY_DAYS = float(os.environ.get("VERIFY_MIN_RUNWAY_DAYS", "3"))
 #: runway — and a floor that is wrong is a floor people learn to ignore.
 VENUE_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_VENUE_FLOOR_USDC", "2.5"))
 TAKER_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_TAKER_FLOOR_USDC", "1.0"))
-#: The keeper's per-tick size, mirrored from ACR_KEEPER_QTY in
-#: services/index_api/index_api/keeper.py — a yardstick for book headroom,
-#: because "how much room" means nothing until you can count it in trades.
-_KEEPER_QTY = float(os.environ.get("ACR_KEEPER_QTY", "0.25"))
-#: Warn below two dozen keeper-sized trades of headroom. The eleven-hour outage
-#: was not caused by the book being tight — it was caused by nothing saying so
-#: until the trades were already reverting.
-_BOOK_HEADROOM_FLOOR = float(
-    os.environ.get("VERIFY_BOOK_HEADROOM", str(_KEEPER_QTY * 24))
-)
+#: The eleven-hour outage was not caused by the book being tight — it was
+#: caused by nothing saying so until the trades were already reverting. So this
+#: file wants a threshold, and the only defensible one is the desk's own
+#: MAX_QTY: `feasible_qty` CLAMPS its answer there, so headroom saturates at
+#: MAX_QTY and any floor above it would warn forever. Read from the desk rather
+#: than restated, so the two can never drift apart. Overridable, but the default
+#: is the property that matters on a public desk — whatever a reader is
+#: offered, the book can actually fill.
+_BOOK_HEADROOM_FLOOR = float(os.environ.get("VERIFY_BOOK_HEADROOM", "0")) or None
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
@@ -265,7 +264,7 @@ def verify_venue(w3, settings) -> dict | None:
     # while the thing it guards is broken is the failure this file exists to
     # prevent, so ask the desk's OWN arithmetic whether a trade can happen.
     try:
-        from index_api.desk import feasible_qty
+        from index_api.desk import FAUCET_USDC, MARGIN_SAFETY, MAX_QTY, feasible_qty
 
         desk = fc.read_desk(s["index_id"])
         mark = (
@@ -285,22 +284,25 @@ def verify_venue(w3, settings) -> dict | None:
                 warn_only=True,
             )
             # Above-zero is a verdict that arrives the hour the book freezes.
-            # Measure the distance to that hour instead, in units of a keeper
-            # tick — but say ONE-DIRECTIONAL, because the keeper itself
-            # mean-reverts around flat (keeper.py: sell when long, buy when
-            # short) and so consumes no net headroom. What actually eats this
-            # is flow that only goes one way: the hedger walking to its
-            # mandate, or readers buying on the Public Desk.
+            # Measure the distance to it instead, against the largest trade the
+            # desk will ever quote — because the failure a reader actually
+            # meets is being offered a size the book cannot fill, and pressing
+            # BUY on it. Counted in reader-sized trades (what a faucet drip
+            # buys) rather than in USDC, which nobody can judge by eye.
             room = min(buy, sell)
+            floor = _BOOK_HEADROOM_FLOOR or MAX_QTY
+            per_contract = mark * desk["multiplier"] * (
+                _margin_bps_or_default(w3, settings) / 10_000
+            )
+            unit = (MARGIN_SAFETY * FAUCET_USDC / per_contract) if per_contract > 0 else 0.0
             check(
-                room >= _BOOK_HEADROOM_FLOOR,
-                f"headroom {room:.2f} on the thin side — "
-                f"{room / _KEEPER_QTY:.0f} keeper-sized trades of ONE-WAY flow"
+                room >= floor,
+                f"headroom {room:.2f} of the {floor:.2f} the desk may quote"
+                + (f" — {room / unit:.1f} reader-sized trades" if unit else "")
                 + (
-                    " before the book freezes; add maker collateral "
-                    "(make futures-collateralize)"
-                    if room < _BOOK_HEADROOM_FLOOR
-                    else " in hand"
+                    "; top the maker up (make futures-collateralize)"
+                    if room < floor
+                    else ", so any size the desk offers can be filled"
                 ),
                 warn_only=True,
             )
