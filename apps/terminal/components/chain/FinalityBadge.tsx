@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_SETTLE_AGE_S } from "@/lib/chain";
 import { Ed } from "@/components/Ed";
 import { useEdition } from "@/lib/useEdition";
 import { useNow } from "@/lib/useNow";
@@ -13,7 +14,7 @@ import type { OnchainPrint } from "@/lib/types";
 export function FinalityBadge({
   onchain,
   live = true,
-  staleAfterS = 7200,
+  staleAfterS = MAX_SETTLE_AGE_S,
   micro = false,
 }: {
   onchain?: OnchainPrint | null;

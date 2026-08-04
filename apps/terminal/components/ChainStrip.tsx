@@ -1,6 +1,7 @@
 "use client";
 
 import { chainFacts } from "@/lib/chain";
+import { deskTier, formatOi } from "@/lib/futuresBook";
 import { editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
@@ -69,7 +70,14 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const fut = useFutures();
   const futDesks = fut.roster?.data?.desks ? Object.values(fut.roster.data.desks) : [];
   const futOi = futDesks.reduce((a, d) => a + d.open_interest, 0);
-  const futLive = Boolean(fut.roster?.live && fut.roster?.data?.venue && futDesks.length);
+  const futLive = Boolean(fut.roster?.live);
+  // Render whenever a venue is KNOWN, live or not. Gating on liveness made the
+  // futures chip the one thing in this dateline that vanishes offline —
+  // contradicting this file's own rule (see the header: it always renders the
+  // network identity, and the tier chip marks the rung) and the oracle chip
+  // fifteen lines below, which says "undeployed" rather than disappearing.
+  const futVenue = fut.roster?.data?.venue ?? c.futures ?? null;
+  const futTier = deskTier(fut.roster?.data?.source, futLive);
 
   const parts: React.ReactNode[] = [];
   const tier = TIER_CHIP[conn.state];
@@ -147,19 +155,21 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
       </span>,
     );
   }
-  if (futLive) {
+  if (futVenue && futDesks.length) {
     parts.push(
       <span
         key="futures"
-        className="chip chip-teal"
+        className={`chip ${futTier.chip}`}
         title={
           plain
-            ? "the futures trading desk is live — contracts currently open"
-            : "ACRFutures desk live — total open interest"
+            ? "the futures trading desk — contracts currently open"
+            : "ACRFutures desk — total open interest"
         }
       >
-        <span className="dot breathe" aria-hidden />
-        <Ed x="futures" p="futures desk" /> · OI {futOi.toFixed(0)}
+        {futTier.chip === "chip-sim" ? null : <span className="dot breathe" aria-hidden />}
+        {/* formatOi, not toFixed(0): an open interest of 2.82 printed here as
+            "3" while the desk table printed "2.8". */}
+        <Ed x="futures" p="futures desk" /> · OI {formatOi(futOi)}
       </span>,
     );
   }

@@ -4,6 +4,16 @@
 
 import type { ChainFactsData } from "./types";
 
+/** ACRFutures.MAX_SETTLE_AGE, in seconds — the window inside which a print is
+ *  fresh enough for the venue to settle against.
+ *
+ *  A copy of an on-chain constant, so it is bound to its source by a test
+ *  (lib/chain.test.ts reads contracts/src/ACRFutures.sol and asserts equality).
+ *  It was right when it was typed, which is exactly what the `multiplier` bug
+ *  was too: that number was also correct once, in an example, in a comment.
+ */
+export const MAX_SETTLE_AGE_S = 7200;
+
 export const CHAIN = {
   name: "Arc Testnet",
   chainId: 5042002,

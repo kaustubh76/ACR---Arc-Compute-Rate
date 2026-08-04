@@ -364,7 +364,7 @@ and it proves its own tamper-resistance.
   bet.*
 - **open interest (OI)** — the total size of open positions; here it nets to zero
   because the maker mirrors everyone. *How much money is riding on the table.*
-- **initial margin (`MARGIN_BPS`, 20%)** — collateral you must post to hold a
+- **initial margin (`MARGIN_BPS` — 2000 bp / 20% on the current deployment; it is an immutable constructor argument, so read it from the venue rather than assuming it)** — collateral you must post to hold a
   position; trades/withdrawals revert below it. *The deposit you leave to hold
   the bet.* (Initial-margin only — no intraday liquidation, a documented testnet
   simplification.)

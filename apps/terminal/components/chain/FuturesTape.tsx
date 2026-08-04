@@ -4,26 +4,20 @@ import { AddressChip } from "./AddressChip";
 import { TxLink } from "./TxLink";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
-import { formatQty } from "@/lib/futuresBook";
+import { formatQty, tapeAge } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
-import type { FuturesTradeRow } from "@/lib/types";
+import type { FuturesRoster, FuturesTradeRow } from "@/lib/types";
 
 /* The live futures tape: every on-chain fill (an ACRFutures `Traded` event)
    scrolls past — a slow marquee (paused on hover; static under reduced motion).
    BUY green / SELL vermilion, the taker + tx deep-link to Arc, and an honest
    "seen Ns ago" (server-observed, ticking via the shared 1 Hz clock). */
-function ago(nowS: number, s: number): string {
-  const d = Math.max(0, nowS - Math.floor(s));
-  if (d < 60) return `${d}s`;
-  if (d < 3600) return `${Math.floor(d / 60)}m`;
-  return `${Math.floor(d / 3600)}h`;
-}
-
 export function FuturesTape({
   trades,
   explorer,
   live,
   you,
+  source,
 }: {
   trades: FuturesTradeRow[];
   explorer?: string;
@@ -32,6 +26,12 @@ export function FuturesTape({
    *  Marked, never filtered: watching your own trade go by on the public tape
    *  is the most convincing thing this page does. */
   you?: string;
+  /** Which tier served these rows. Archived fills all carry the SAME seen_at
+   *  (the snapshot stamp), so ticking it as a live age says one wrong number on
+   *  every row and drifts further every hour the bundle sits — "160h ago",
+   *  twenty-three times. FinalityBadge already refuses to tick a fake live age
+   *  on an archived print; this is the same rule for the tape. */
+  source?: FuturesRoster["source"];
 }) {
   const nowS = useNow();
   const mine = you?.toLowerCase();
@@ -66,7 +66,10 @@ export function FuturesTape({
         </span>
       ) : null}
       <TxLink txRef={t.tx} explorer={explorer} />
-      {nowS > 0 ? <span className="muted">{ago(nowS, t.seen_at)} ago</span> : null}
+      {(() => {
+        const age = tapeAge(t.seen_at, nowS, source);
+        return age.text ? <span className="muted">{age.text}</span> : null;
+      })()}
     </span>
   ));
 
