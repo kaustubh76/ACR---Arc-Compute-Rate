@@ -401,7 +401,7 @@ footer, section::after {
 <li><strong>Portia</strong>, an autonomous paralegal fleet, resells LLM work at fixed prices but pays for inference per call — ~<strong>100M tokens/mo × 0.49236 $/1k tokens</strong> (the ACR-INF print) ≈ <strong>$49,236/mo</strong>, all floating. One +10% month is <strong>+$4,924</strong> of unbudgeted burn.</li>
 <li>The fix: go <strong>long ACR-INF futures</strong>. Cash-settled — at expiry the venue <strong>freezes the freshest oracle print</strong> (≤ 2 h old, enforced on-chain) and pays the difference in USDC. <strong>No delivery, no GPU repossession, no seller cooperation.</strong></li>
 <li>A hedge is only as good as its settlement print: every ACR print ships its <strong>CI</strong> and its <strong>attack-cost-per-bp</strong>, so both sides can read — on-chain — what bending the settle would cost.</li>
-<li><strong>This loop is live on Arc testnet:</strong> <code>ACRFutures 0x29d97c62…82642fe</code> — ACR-INF, 10× multiplier, 20% initial margin, socialized-loss clearing, settling against the same ACROracle. The maker standing behind the book is a <strong>Circle developer-controlled wallet</strong>, and an <strong>autonomous agent buys the print over x402 and trades on it</strong>. Watch both on <code>/curve</code>.</li>
+<li><strong>This loop is live on Arc testnet:</strong> <code>ACRFutures 0x29d97c62…82642fe</code> — <strong>three books</strong> (ACR-INF, ACR-GPU, ACR-DATA), 10× multiplier, 2000 bp initial margin on this deployment, socialized-loss clearing, settling against the same ACROracle. The maker standing behind the book is a <strong>Circle developer-controlled wallet</strong>, and an <strong>autonomous agent buys the print over x402 and trades on it</strong>. Watch both on <code>/curve</code>.</li>
 </ul>
 <footer>ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-31</footer>
 </section>
@@ -1304,7 +1304,7 @@ footer, section::after {
 </tr>
 <tr>
 <td><strong>ACRFutures</strong> <code>0x29d97c62…82642fe</code></td>
-<td>Live series, <strong>maker is a Circle custody wallet</strong>, cash-settles on the print</td>
+<td>Three live books (INF/GPU/DATA), <strong>maker is a Circle custody wallet</strong>, cash-settles on the print</td>
 </tr>
 <tr>
 <td><strong>Terminal + Seller API</strong></td>
@@ -1312,7 +1312,7 @@ footer, section::after {
 </tr>
 </tbody>
 </table>
-<p><code>make ci</code> green 2026-08-04: <strong>289 py</strong> · <strong>60 forge</strong> (incl. futures + invariants) · <strong>81 terminal</strong> · <strong>10/10 agent</strong> · resistance <strong>4/4</strong> · interop <strong>12/12</strong> · glossary <strong>423/423</strong> · GitHub CI <strong>4/4</strong>.</p>
+<p><code>make ci</code> green 2026-08-04: <strong>296 py</strong> · <strong>60 forge</strong> (incl. futures + invariants) · <strong>81 terminal</strong> · <strong>10/10 agent</strong> · resistance <strong>4/4</strong> · interop <strong>12/12</strong> · glossary <strong>423/423</strong> · GitHub CI <strong>4/4</strong>.</p>
 <p>Real settlement through <strong>Circle Gateway</strong> — batch-UUID receipts in-repo and on the public <code>/exchange</code> tape; Circle's own CLI paid the gate (<code>payable</code>).</p>
 <p>Provenance labeled on every value — <code>sim</code> / <code>gateway-ref</code> / <code>tx</code>. Reproduce: <code>make setup &amp;&amp; make ci &amp;&amp; make demo</code>.</p>
 <footer>ACR · ARC COMPUTE RATE · SHIP WEEK · 2026-07-31</footer>
@@ -1580,7 +1580,7 @@ footer, section::after {
 <li><strong>Judge fit:</strong> ICE — a benchmark administrator — is on Arc's testnet roster; Apollo, BNY, Mastercard are rate-native.</li>
 <li><strong>The neutrality moat:</strong> Circle can't own the benchmark (the LIBOR lesson) — ACR is a partner, not a feature.</li>
 <li><strong>The loop closes:</strong> resistant print → on-chain oracle → <strong>cash-settled futures</strong> + x402-paying machine customers → attestations → a better print.</li>
-<li>The first machine-commerce benchmark with a <strong>live derivative venue</strong> — a term structure from day one.</li>
+<li>The first machine-commerce benchmark with a <strong>live derivative venue</strong> — three books, a term structure, and agents on both sides of it.</li>
 </ul>
 <p><strong>Terminal</strong> <code>arc-compute-rate.vercel.app</code> · <strong>API</strong> <code>acr-api-1fto.onrender.com</code><br />
 <strong>Contracts</strong> <code>0x4f00e3BD…</code> / <code>0x23ae3E1A…</code> / <code>0x29d97c62…</code> on <code>testnet.arcscan.app</code> · <code>docs/SUBMISSION.md</code></p>
