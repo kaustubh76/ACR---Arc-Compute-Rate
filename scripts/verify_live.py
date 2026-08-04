@@ -50,7 +50,14 @@ MIN_RUNWAY_DAYS = float(os.environ.get("VERIFY_MIN_RUNWAY_DAYS", "3"))
 #: The venue's custody wallets need enough to open AND collateralize a series
 #: (default roll: 1.5 collateral + gas). Below this a roll fails on its budget
 #: guard, which is a silent expiry rather than a loud error.
+#: PER ROLE, because they do different jobs and one floor for both is a check
+#: that is wrong for at least one of them. The maker opens and collateralizes a
+#: series (1.5 collateral + 1.0 gas); the taker only trades, at roughly
+#: 0.002 USDC of gas a fill, and its collateral is already posted. Applying the
+#: maker's number to the taker cried wolf at 1.78 USDC — hundreds of trades of
+#: runway — and a floor that is wrong is a floor people learn to ignore.
 VENUE_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_VENUE_FLOOR_USDC", "2.5"))
+TAKER_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_TAKER_FLOOR_USDC", "1.0"))
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
@@ -508,9 +515,11 @@ def verify_funding(w3, settings) -> None:
     # means "cannot transact at all", not merely "cannot post collateral".
     from acr_oracle_client import build_role_signer
 
-    for role, why in (
-        ("maker", "stands behind the book; pays to open + collateralize each series"),
-        ("taker", "the hourly heartbeat that keeps the tape moving"),
+    for role, floor, why in (
+        ("maker", VENUE_WALLET_FLOOR_USDC,
+         "stands behind the book; pays to open + collateralize each series"),
+        ("taker", TAKER_WALLET_FLOOR_USDC,
+         "the hourly heartbeat that keeps the tape moving (gas only)"),
     ):
         try:
             sg = build_role_signer(role, settings)
@@ -521,9 +530,9 @@ def verify_funding(w3, settings) -> None:
             check(False, f"{role} wallet unreadable ({str(exc)[:40]})", warn_only=True)
             continue
         check(
-            bal >= VENUE_WALLET_FLOOR_USDC,
+            bal >= floor,
             f"{role} custody wallet {sg.address[:10]}…: {bal:.3f} USDC "
-            f"(floor {VENUE_WALLET_FLOOR_USDC}) — {why}",
+            f"(floor {floor}) — {why}",
             warn_only=True,
         )
 
