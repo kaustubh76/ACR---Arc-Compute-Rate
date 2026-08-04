@@ -160,11 +160,25 @@ def verify_oracle(w3, settings) -> None:
                   warn_only=True)
 
 
+def _margin_bps_or_default(w3, settings) -> int:
+    """MARGIN_BPS from the venue, or the deployed default. Never guess silently."""
+    try:
+        return int(_rpc_retry(
+            w3.eth.contract(
+                address=w3.to_checksum_address(settings.futures_address),
+                abi=[{"type": "function", "name": "MARGIN_BPS", "stateMutability": "view",
+                      "inputs": [], "outputs": [{"name": "", "type": "uint256"}]}],
+            ).functions.MARGIN_BPS().call
+        ))
+    except Exception:
+        return 2000
+
+
 def verify_venue(w3, settings) -> dict | None:
     """The live series, returned so later checks can assert against the SAME one
     the chain says is live — that asymmetry is where a dead series slipped
     through before."""
-    from acr_oracle_client import FuturesClient
+    from acr_oracle_client import FuturesClient, OracleClient
 
     print("\nvenue — ACRFutures, where the index becomes a position")
     if not settings.futures_address:
@@ -226,6 +240,35 @@ def verify_venue(w3, settings) -> dict | None:
         ),
         warn_only=True,
     )
+
+    # "Collateralized" is not "tradable". The maker being above zero passed for
+    # eleven hours while the book was frozen: the maker had drifted short 2.31
+    # contracts against a 2.26 margin cap, so `feasible_qty` returned max_buy=0
+    # and every buy the keeper wanted was impossible. A check that is green
+    # while the thing it guards is broken is the failure this file exists to
+    # prevent, so ask the desk's OWN arithmetic whether a trade can happen.
+    try:
+        from index_api.desk import feasible_qty
+
+        desk = fc.read_desk(s["index_id"])
+        mark = (
+            OracleClient(
+                rpc_url=settings.arc_rpc_url, oracle_address=settings.oracle_address
+            ).read_latest(s["index_id"])
+            or {}
+        ).get("value")
+        if desk and mark and maker is not None:
+            buy, sell = feasible_qty(
+                mark, desk["multiplier"], _margin_bps_or_default(w3, settings),
+                maker, 0.0, maker, desk.get("maker_inventory") or 0.0,
+            )
+            check(
+                buy > 0 and sell > 0,
+                f"the book can absorb a trade both ways (max_buy {buy}, max_sell {sell})",
+                warn_only=True,
+            )
+    except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+        check(False, f"could not size the book ({str(exc)[:45]})", warn_only=True)
 
     # Who can open a series. The venue was handed from the deploy EOA to the
     # maker's own Circle wallet on 2026-08-03, which is what lets the keeper
