@@ -185,7 +185,7 @@ def main() -> None:
         # judge to /curve expecting one thing and showing another.
         check(
             "series 0" not in deck.lower(),
-            "the deck no longer narrates series 0 (the venue is on series 3)",
+            "the deck does not narrate the venue's first, long-settled series",
         )
 
     print("\nglossary")
@@ -209,9 +209,15 @@ def main() -> None:
     # The scheduled workflows are load-bearing (the heartbeat and the lifecycle
     # roll keep the venue alive), so a doc describing only a keepalive is
     # describing a different, smaller product.
+    # Names HOW the venue stays alive, not WHICH implementation. This required
+    # the workflow names — and then the venue's chores moved into the in-process
+    # keeper and the workflows became dispatch-only fallbacks, so the check
+    # rewarded a sentence that had become false and would have gone RED the
+    # moment STATUS was corrected. A gate that punishes accuracy is worse than
+    # no gate.
     check(
-        "futures-heartbeat" in status or "futures-lifecycle" in status,
-        f"STATUS mentions the scheduled venue workflows ({measured_workflows()} workflow files exist)",
+        any(k in status for k in ("keeper", "futures-heartbeat", "futures-lifecycle")),
+        f"STATUS says what keeps the venue alive ({measured_workflows()} workflow files exist)",
     )
 
     print("\naddresses named in the docs match the live deploy")
@@ -241,6 +247,28 @@ def main() -> None:
         "never folded in" not in status,
         "STATUS no longer says the real Gateway receipts were never folded into the bundle",
     )
+
+    # The venue's SHAPE. Every number above is checked by measurement, and the
+    # one thing no measurement covered was how many books exist — so when the
+    # venue went from one index to three, every doc describing a single
+    # ACR-INF series passed this audit clean, including one that still called
+    # the instrument layer "not live-traded" while it traded hourly.
+    #
+    # Phrases, not counts, because the count needs a chain read this file
+    # deliberately does not do. Each of these was true once, which is exactly
+    # what makes it dangerous: a judge reads it as current.
+    print("\nthe venue's shape (three books since 2026-08-04)")
+    from pathlib import Path as _P
+
+    STALE_VENUE = {
+        "not live-traded": "the instrument layer trades hourly across three books",
+        "series 0 seeded": "the venue is well past series 0",
+        "a live acr-inf series": "there are three live series, not one",
+    }
+    for doc in ("SUBMISSION.md", "IMPLEMENTATION_STATUS.md", "MVP_STATUS.md", "presentation.md"):
+        body = (_P("docs") / doc).read_text().lower() if (_P("docs") / doc).exists() else ""
+        for phrase, why in STALE_VENUE.items():
+            check(phrase not in body, f"{doc} no longer says '{phrase}' — {why}")
 
     print()
     if _failures:

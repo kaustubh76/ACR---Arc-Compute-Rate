@@ -74,6 +74,13 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
     const desks = roster?.desks ?? env.data.futures;
     return desks?.["ACR-INF"] ?? Object.values(desks ?? {})[0];
   })();
+  // Every index's own mark, so the desk prices each row against its own
+  // oracle rather than against whichever row the crawl happened to insert
+  // first. heroFigure leads with the on-chain print, which is the number the
+  // contract settles on.
+  const marks = Object.fromEntries(
+    Object.values(env.data.prints).map((p) => [p.index_id, heroFigure(p).value]),
+  );
   const contractSize = (() => {
     const row = primaryDesk;
     const print = row ? env.data.prints[row.index_id] : undefined;
@@ -123,7 +130,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         trades={roster?.trades}
         chain={env.data.chain}
         live={futLive}
-        mark={contractSize?.mark}
+        marks={marks}
         source={roster?.source}
       />
 
@@ -135,8 +142,8 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           <div className="section-head">
             <span className="label">
               <Ed
-                x="Fills against the oracle — what the future traded at"
-                p="Trades against the official rate — what people paid"
+                x={<>Fills against the oracle — {primaryDesk.index_id}</>}
+                p={<>Trades against the official rate — {primaryDesk.index_id}</>}
               />
             </span>
             <span className="label muted">

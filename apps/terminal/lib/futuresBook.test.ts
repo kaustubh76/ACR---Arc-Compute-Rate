@@ -73,8 +73,14 @@ test("no surface re-authors the $1,000 contract size", () => {
     return out;
   };
   const BANNED = /1,?000 (USDC )?a unit|\$1,000 a (unit|contract)/i;
+  // Strip comments first. The guard is about COPY a reader sees, and this
+  // codebase explains its own history in comments — the note above the
+  // contract-size panel names the very phrase it exists to prevent. Scanning
+  // commentary would make writing that note impossible, which is the wrong
+  // trade: the bug was a rendered sentence, not a remembered one.
+  const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const offenders = [...tsx(join(ROOT, "app")), ...tsx(join(ROOT, "components"))]
-    .filter((f) => BANNED.test(readFileSync(f, "utf8")))
+    .filter((f) => BANNED.test(code(readFileSync(f, "utf8"))))
     .map((f) => relative(ROOT, f));
   assert.deepEqual(offenders, [], `contract size must come from desk.multiplier: ${offenders}`);
 });

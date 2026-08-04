@@ -265,7 +265,7 @@ only honest verification drives a browser.
 > don't size anything (like the trade tape's window) on the nominal cadence.
 
 A series expires. Two idempotent commands own that, and
-`.github/workflows/futures-lifecycle.yml` runs them hourly at `:17` (offset
+the in-process keeper runs them; `.github/workflows/futures-lifecycle.yml` is the dispatch-only fallback (it used to run hourly at `:17`, offset
 from the heartbeat so they never race on the maker's nonce):
 
 - `make futures-roll` — opens a successor when the current series is running

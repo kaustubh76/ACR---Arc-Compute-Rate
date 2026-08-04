@@ -24,7 +24,7 @@ roll a series at 02:17 UTC. See docs/WALLETS.md.
     uv run python scripts/futures_roll.py                          # == make futures-roll
     MAKER_PRIVATE_KEY=0x… uv run python scripts/futures_roll.py    # anvil / offline
 
-    ROLL_INDEX=ACR-INF ROLL_MULT=10 ROLL_COLLATERAL=1.5 ROLL_EXPIRY_DAYS=7
+    ROLL_INDEX=ACR-INF ROLL_MULT=10 ROLL_COLLATERAL=1.5 ROLL_EXPIRY_DAYS=14
     ROLL_MIN_LIFE_H=24     # below this much life left, roll
     ROLL_GAS_FLOOR=0.75    # never spend the maker below this many USDC of gas
 """
@@ -42,7 +42,10 @@ from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 INDEX = os.environ.get("ROLL_INDEX", "ACR-INF")
 MULT = int(os.environ.get("ROLL_MULT", "10"))
 COLLATERAL = float(os.environ.get("ROLL_COLLATERAL", "1.5"))
-EXPIRY_DAYS = float(os.environ.get("ROLL_EXPIRY_DAYS", "7"))
+#: 14 days, matching the keeper (index_api/keeper.py). They were 7 and 14:
+#: two paths that both roll this venue, opening series of different lengths
+#: depending on which one happened to fire.
+EXPIRY_DAYS = float(os.environ.get("ROLL_EXPIRY_DAYS", "14"))
 MIN_LIFE_H = float(os.environ.get("ROLL_MIN_LIFE_H", "24"))
 #: On Arc, USDC *is* the gas token — posted collateral comes straight out of the
 #: maker's ability to pay for its next transaction. Never spend below this.

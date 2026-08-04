@@ -58,18 +58,26 @@ export function FuturesDesk({
   trades,
   chain,
   live,
-  mark,
+  marks,
   source,
 }: {
   desks: Record<string, FuturesDeskRow> | undefined;
   trades?: FuturesTradeRow[];
   chain: ChainFactsData | null | undefined;
   live: boolean;
-  /** The primary index's live oracle mark, used only to price the contract
-   *  size. Optional: without it the panel states the multiplier and quotes no
-   *  dollar figure, which is the honest degradation — a made-up notional is
-   *  exactly the mistake this replaced. */
-  mark?: number;
+  /** Live oracle marks BY INDEX, used only to price the contract size.
+   *
+   *  A map, not one number. It was a single `mark` — passed as ACR-INF's —
+   *  priced against `rows[0]`, whose order is the crawl's insertion order; and
+   *  a throttled first pass back-fills a missed index LATER
+   *  (futuresOnchain readDesk retry). So one throttle could put ACR-GPU first
+   *  and price its contract at ACR-INF's mark: ~45x wrong, and right the rest
+   *  of the time only by accident. A number that is correct because of an
+   *  ordering coincidence is the `$1,000 a unit` bug rebuilt from new parts.
+   *
+   *  Missing entries are fine: the panel states the multiplier and quotes no
+   *  dollar figure, which is the honest degradation. */
+  marks?: Record<string, number>;
   /** Which tier of the connection ladder served this desk. Every other surface
    *  on the site says where its numbers came from; this one read `source` as a
    *  boolean and told the reader nothing. */
@@ -83,7 +91,10 @@ export function FuturesDesk({
   const explorer = cf.explorer;
   const primary = rows[0];
   const spark = primary ? inventoryPath(primary.maker_inventory, trades ?? [], primary.series_id) : [];
-  const notional = primary ? contractNotional(mark ?? 0, primary.multiplier) : null;
+  // Priced from the row's OWN index, never from whichever row sorted first.
+  const notional = primary
+    ? contractNotional(marks?.[primary.index_id] ?? 0, primary.multiplier)
+    : null;
   const tier = deskTier(source, live);
 
   return (
@@ -236,7 +247,8 @@ export function FuturesDesk({
             <div className="panel panel-pad" style={{ marginTop: 16 }}>
               <div className="provenance-row">
                 <span className="label">
-                  <Ed x="Contract size" p="What one contract is worth" />
+                  <Ed x="Contract size" p="What one contract is worth" />{" "}
+                  <span className="muted">{primary.index_id}</span>
                 </span>
                 <span className="mono">
                   {primary.multiplier}×
@@ -253,7 +265,8 @@ export function FuturesDesk({
               </div>
               <div className="provenance-row">
                 <span className="label">
-                  <Ed x="Maker" p="Who is on the other side" />
+                  <Ed x="Maker" p="Who is on the other side" />{" "}
+                  <span className="muted">{primary.index_id}</span>
                 </span>
                 <span className="mono">
                   <AddressChip address={primary.maker} explorer={explorer} copy={false} />{" "}
@@ -267,7 +280,8 @@ export function FuturesDesk({
               </div>
               <div className="provenance-row">
                 <span className="label">
-                  <Ed x="Settlement" p="How it pays out" />
+                  <Ed x="Settlement" p="How it pays out" />{" "}
+                  <span className="muted">{primary.index_id}</span>
                 </span>
                 <span className="mono">
                   {primary.settled ? (

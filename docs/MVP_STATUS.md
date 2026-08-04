@@ -18,7 +18,7 @@
 | On-chain (Oracle + Registry + x402 + webhooks) | ✅ Deployed & live on Arc testnet |
 | Dashboard (Terminal UI) | ✅ MVP-ready, 6 pages, live on Vercel |
 | Tests / CI | ✅ 230 py + 50 forge + 60 node, 4-job CI green |
-| Instrument layer (futures/MM) | 🟡 Model complete, **not live-traded** |
+| Instrument layer (futures/MM) | ✅ **Live-traded** — three books on Arc (ACR-INF, ACR-GPU, ACR-DATA), a keeper rotating hourly fills, and readers trading from their own Circle wallets |
 | Production hardening | 🟡 Paid cloud tier, Next 15, clean `.env`, 3 FLAGs to verify |
 
 ---
@@ -158,7 +158,7 @@ claim gets re-checked rather than re-asserted.
 5. Submit ACR to Circle's **Agent Marketplace** directory (manual form — not yet done).
 6. Cap-denominator methodology refinement (cap as fraction of surviving vs raw volume).
 
-**The one genuinely half-built piece — instrument layer (W6):** `acr_instrument` is a *complete, correct model* (cash-settled `ACRFuture` + textbook Avellaneda–Stoikov MM, 168 LOC, tested) whose quotes are **computed and displayed** (`/curve`). **Update 2026-07-31:** the on-chain venue now exists — `ACRFutures` deployed on Arc (`0x29d9…42fe`), series 0 (ACR-INF, 10× multiplier) seeded with a long/short book, cash-settling against the oracle print. What remains aspirational is autonomous trading with external counterparties; the seeded book is first-party.
+**The one genuinely half-built piece — instrument layer (W6):** `acr_instrument` is a *complete, correct model* (cash-settled `ACRFuture` + textbook Avellaneda–Stoikov MM, 168 LOC, tested) whose quotes are **computed and displayed** (`/curve`). **Update 2026-08-04:** this is no longer the half-built piece. `ACRFutures` (`0x29d9…42fe`) runs **three live books** — ACR-INF, ACR-GPU and ACR-DATA, 10× multiplier each — cash-settling against the oracle print. A keeper on the trusted host rotates an hourly fill across whichever indices actually have a live series, an autonomous agent buys the print over x402 and trades on what it read, and any reader can take the other side from a Circle user-controlled wallet. What remains aspirational is **third-party** market makers: the maker on every book is still first-party.
 
 **Update 2026-08-01:** the desk is no longer read-only. The **Public Desk** lets any reader open a Circle *user-controlled* wallet (SCA on Arc, PIN-secured in Circle's hosted UI) and run the whole lifecycle — faucet stake → `approve` → `postCollateral` → `trade` → `withdrawCollateral` — with settlement and series rolls automated. So the counterparties are now genuinely external *humans*, even though the **maker** on the other side of every fill is still our own bot and the stake is our grant; the UI says so. Verified on Arc with four independent witnesses per action, including a withdrawal that moved 0.50 USDC back out of the venue.
 
@@ -168,7 +168,7 @@ claim gets re-checked rather than re-asserted.
 
 ## 8. Roadmap (7-week hackathon) & the funky-UI hook
 
-**Roadmap** (from `Readme.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ live on-chain (`ACRFutures` `0x29d9…42fe`, series 0 seeded) · W7 SHIP ✅ shipped** (repo pushed, CI green, cloud hardened + posting re-enabled, deck re-rendered at final submission 2026-07-31).
+**Roadmap** (from `Readme.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ live on-chain (`ACRFutures` `0x29d9…42fe`, three books traded hourly) · W7 SHIP ✅ shipped** (repo pushed, CI green, cloud hardened + posting re-enabled, deck re-rendered at final submission 2026-07-31).
 
 **Funky-UI hook (this milestone):** the Terminal is polished but reads like a Bloomberg-meets-newspaper grid — it rewards reading, it doesn't grab in the first 300ms. **Shipping now:** a bolder full-viewport **dawn landing hero** on `/` — the signature `--dawn-full` gradient + rising-sun/arc SVG (previously buried in the footer) as the first-viewport moment, a **giant live-ticking flagship rate** (ACR-INF, honestly badged live/on-chain/archived), the tagline, the **562× resistance stat**, and a "Watch the attack →" CTA. Fully reduced-motion-safe; the other 6 pages are untouched.
 

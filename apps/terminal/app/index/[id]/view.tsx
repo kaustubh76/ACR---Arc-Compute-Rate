@@ -326,7 +326,7 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             trades={futures.roster?.data?.trades}
             chain={env.data.chain}
             live={Boolean(futures.roster?.live)}
-            mark={h.value}
+            marks={{ [p.index_id]: h.value }}
             source={futures.roster?.data?.source}
           />
           <section className="section">

@@ -356,7 +356,7 @@ and it proves its own tamper-resistance.
   against the official scoreboard.*
 - **series** — one tradeable contract line (an index + expiry + multiplier + a
   designated maker). *One specific "Team A to win, by Friday" market.*
-- **multiplier** — USDC paid per 1.0 of index value per contract (e.g. 1000). *How
+- **multiplier** — USDC paid per 1.0 of index value per contract (**10** on this deployment; the contract's own comment says "e.g. 1000", which the terminal once quoted as fact and overstated a position 200×). *How
   many dollars each "point" is worth.*
 - **designated maker / mirror side** — one appointed counterparty takes the exact
   opposite of every taker's fill, so the book's net position is always zero
