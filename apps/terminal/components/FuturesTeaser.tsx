@@ -28,7 +28,12 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
   const live = Boolean(roster?.live);
   const trades = r?.trades ?? [];
   const explorer = chainFacts(data.chain).explorer;
-  const desks = r?.desks ? Object.values(r.desks) : [];
+  // Fall back to the SERVER payload, not to nothing. useFutures() is a client
+  // hook, so on first paint `r` is null — and the sentence below is derived
+  // from these desks, which rendered "A cash-settled future , settling…" with a
+  // dangling comma until hydration. data.futures is server-rendered and carries
+  // the same rows.
+  const desks = Object.values(r?.desks ?? data.futures ?? {});
   const oi = desks.reduce((a, d) => a + d.open_interest, 0);
   const venue = r?.venue ?? data.chain?.futures_address ?? null;
   const you = useDeskAddress();
@@ -99,10 +104,10 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}
-        x={`A cash-settled future ${phrase}, settling against the same on-chain oracle as the spot rate — the fills above are real.`}
+        x={`A cash-settled future${phrase ? " " + phrase : ""}, settling against the same on-chain oracle as the spot rate — the fills above are real.`}
         p={
           <>
-            You can lock in a future price of machine work {phrase} — each contract{" "}
+            You can lock in a future price of machine work{phrase ? ` ${phrase}` : ""} — each contract{" "}
             <Term k="cash-settled">pays out</Term> against the official on-chain rate, and the
             trades above are real.
           </>
