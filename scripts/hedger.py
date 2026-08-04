@@ -88,7 +88,12 @@ INDEX = os.environ.get("HEDGER_INDEX", "ACR-INF")
 #: The mandate: the position, in contracts, this agent is trying to hold. A
 #: compute BUYER is short the rate it pays, so it hedges by going long the
 #: future — a negative target would be a seller's mandate.
-TARGET = float(os.environ.get("HEDGER_TARGET", "1.0"))
+#: The mandate. Matches the DEPLOYED value (services/index_api/hedger.py, and
+#: HEDGER_TARGET on Render) on purpose: this defaulted to 1.0 while the live
+#: service advertised 2.0, so `make hedger` with only ACR_HEDGER_ADDRESS
+#: exported would have SOLD 0.82 — the exact opposite of the mandate the site
+#: shows a judge. Two files, two defaults, one agent.
+TARGET = float(os.environ.get("HEDGER_TARGET", "2.0"))
 #: Do not trade for less than this; a dust fill costs more in gas than it hedges.
 MIN_TRADE = float(os.environ.get("HEDGER_MIN_TRADE", "0.25"))
 
@@ -97,6 +102,11 @@ SPEND_CAP_USDC = float(os.environ.get("HEDGER_SPEND_CAP_USDC", "0.005"))
 POSITION_CAP = float(os.environ.get("HEDGER_POSITION_CAP", "3.0"))
 GAS_FLOOR_USDC = float(os.environ.get("HEDGER_GAS_FLOOR_USDC", "1.0"))
 COLLATERAL_USDC = float(os.environ.get("HEDGER_COLLATERAL_USDC", "2.0"))
+#: The most one tick may add to its own margin, and the most it may ever hold.
+#: An agent that can post collateral is an agent that can spend, so the ceiling
+#: is here rather than in the caller's head.
+TOPUP_MAX_USDC = float(os.environ.get("HEDGER_TOPUP_MAX_USDC", "0.50"))
+COLLATERAL_CAP_USDC = float(os.environ.get("HEDGER_COLLATERAL_CAP_USDC", "3.0"))
 KILL_SWITCH = os.environ.get("HEDGER_STOP", "") not in ("", "0", "false")
 DRY_RUN = os.environ.get("HEDGER_DRY_RUN", "") not in ("", "0", "false")
 
@@ -180,6 +190,54 @@ def circle(args: list[str], *, timeout: float = CLI_TIMEOUT_S) -> tuple[int, dic
             except Exception:
                 continue
     return p.returncode, None, raw
+
+
+def margin_bound(
+    want: float, t_cap: float, position: float, m_cap: float, maker_inv: float
+) -> bool:
+    """True when OUR OWN margin is what blocks the trade, not the book's depth.
+
+    ``feasible_qty`` returns ``min(t_cap − position, m_cap + maker_inv)`` for a
+    buy and ``min(t_cap + position, m_cap − maker_inv)`` for a sell. Which term
+    binds decides what an agent should DO about it, and the two answers are
+    opposite:
+
+    * the maker's term binds → the BOOK is full. Posting collateral spends
+      money and still cannot trade. Refuse, and say so accurately.
+    * our own term binds → we are margin-bound, and we can fix it. An agent
+      with a mandate it can reach and does not is not much of an agent.
+
+    Getting this backwards is the expensive direction: it buys margin that
+    changes nothing. So the test is explicit rather than inferred from
+    ``room <= 0``, which cannot tell you which side ran out.
+    """
+    mine, theirs = (
+        (t_cap - position, m_cap + maker_inv)
+        if want > 0
+        else (t_cap + position, m_cap - maker_inv)
+    )
+    return mine < theirs
+
+
+def topup_for(
+    want: float, mine_now: float, per_contract: float, safety: float,
+    posted: float, topup_max: float, cap: float,
+) -> float:
+    """USDC to add so our own cap covers ``want`` — bounded twice, rounded up.
+
+    Returns 0.0 when nothing is needed or nothing is allowed. `per_contract` is
+    ``mark × multiplier × MARGIN_BPS/1e4``: the same arithmetic the desk margins
+    with, so the number we buy is the number that clears.
+    """
+    if per_contract <= 0 or safety <= 0:
+        return 0.0
+    need_cap = abs(want) + (mine_now if want > 0 else -mine_now)
+    need_collateral = need_cap * per_contract / safety
+    short = need_collateral - posted
+    if short <= 0:
+        return 0.0
+    allowed = min(topup_max, max(0.0, cap - posted))
+    return round(min(short + 0.01, allowed) + 0.004, 2)
 
 
 def _fmt_qty(q: float) -> str:
@@ -367,11 +425,78 @@ def main() -> None:
         )
         want = d.gap
         room = max_buy if want > 0 else max_sell
-        if room <= 0:
-            d.refused = (f"the book has no room this way (max_buy {max_buy}, "
-                         f"max_sell {max_sell}) — the desk's own clamp says so")
-            log_decision(d)
-            break
+
+        # Blocked — but by WHAT? "no room" was one message for two opposite
+        # situations. Here the agent sat at 1.82 contracts on 2.00 USDC of its
+        # own collateral, so its taker cap was 1.817 and max_buy was exactly
+        # 0.00 while the book had depth to spare. It called that "the book has
+        # no room" and stopped, tick after tick, permanently short of a mandate
+        # it could have reached by posting a few cents of margin.
+        # Not `room <= 0`. The room a margin-bound agent has drifts with the
+        # mark, so at 1.82 contracts it was 0.00 one minute and 0.01 the next —
+        # and 0.01 is not "unblocked", it is eighteen ticks of gas to close a
+        # 0.18 gap. The question is whether OUR OWN margin stops us making the
+        # trade we actually want, which is true at 0.01 exactly as it is at 0.
+        if room < abs(want):
+            from index_api.desk import MARGIN_SAFETY
+
+            per_contract = d.mark * mult * (margin_bps / 10_000)
+            t_cap = MARGIN_SAFETY * mine / per_contract if per_contract > 0 else 0.0
+            m_cap = MARGIN_SAFETY * maker_coll / per_contract if per_contract > 0 else 0.0
+            maker_inv = series.get("maker_inventory", 0.0)
+            if not margin_bound(want, t_cap, d.position, m_cap, maker_inv):
+                # The book is the constraint, so buying margin changes nothing.
+                # Take what room there is if it is worth the gas; otherwise say
+                # plainly which side ran out.
+                if room <= 0:
+                    d.refused = (f"the BOOK has no room this way (max_buy {max_buy}, "
+                                 f"max_sell {max_sell}) — more margin of mine would "
+                                 "not change that")
+                    log_decision(d)
+                    break
+                d.notes.append(f"book-bound: taking {room} of the {abs(want):.2f} I want")
+            add = topup_for(want, d.position, per_contract, MARGIN_SAFETY,
+                            mine, TOPUP_MAX_USDC, COLLATERAL_CAP_USDC)
+            if add <= 0:
+                d.refused = (f"margin-bound at {mine:.2f} USDC and the top-up cap "
+                             f"({TOPUP_MAX_USDC:.2f}/tick, {COLLATERAL_CAP_USDC:.2f} "
+                             "total) leaves nothing to add — refusing rather than "
+                             "quietly holding short of the mandate")
+                log_decision(d)
+                break
+            if DRY_RUN:
+                d.notes.append(f"margin-bound — would post {add:.2f} USDC, then trade")
+                log_decision(d)
+                break
+            code, _, raw = circle(["wallet", "execute", "postCollateral(uint256,uint256)",
+                                   str(sid), str(int(round(add * 1_000_000))),
+                                   "--contract", s.futures_address,
+                                   "--address", AGENT_ADDRESS, "--chain", CHAIN])
+            if code != 0:
+                d.refused = f"margin top-up failed: {raw.strip()[:160]}"
+                log_decision(d)
+                sys.exit(1)
+            time.sleep(3)
+            # Re-READ it. A transaction that returned is not collateral posted,
+            # and sizing the trade off the number we hoped for is how an agent
+            # authorizes an order the contract then reverts.
+            mine_after = collateral_or_none(fc, sid, me)
+            if mine_after is None or mine_after <= mine:
+                d.refused = (f"posted {add:.2f} USDC but the venue does not show it yet "
+                             "— not sizing a trade against a hope")
+                log_decision(d)
+                break
+            d.notes.append(f"margin-bound: posted {add:.2f} USDC ({mine:.2f} → {mine_after:.2f})")
+            mine = mine_after
+            max_buy, max_sell = feasible_qty(
+                d.mark, mult, margin_bps, mine, d.position, maker_coll, maker_inv,
+            )
+            room = max_buy if want > 0 else max_sell
+            if room <= 0:
+                d.refused = (f"still no room after the top-up (max_buy {max_buy}, "
+                             f"max_sell {max_sell})")
+                log_decision(d)
+                break
         d.qty = round(min(abs(want), room) * (1 if want > 0 else -1), 2)
         d.intent = "buy" if d.qty > 0 else "sell"
 
