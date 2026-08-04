@@ -129,6 +129,10 @@ const LOG_SPANS = [14000n, 2500n, 1000n];
  *  and 209m. Against one 10k window the public tape was empty 39% of the
  *  time. */
 const TAPE_PAGES = 4;
+/** Retries for a THROTTLED (not too-wide) log window, on the same range.
+ *  Shared egress gets squeezed harder than a laptop: the same query Arc served
+ *  in 0.29s from a developer machine failed 4 times in 10 from Vercel. */
+const LOG_RETRIES = 2;
 const TAPE_LIMIT = 25;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -380,20 +384,32 @@ export async function readTraderFills(
       let start = end > LOG_SPANS[0] ? end - LOG_SPANS[0] : 0n;
       for (const span of LOG_SPANS) {
         start = end > span ? end - span : 0n;
-        try {
-          got = (await client().getLogs({
-            address: venue,
-            event: TRADED_EVENT,
-            args: { seriesId: BigInt(seriesId), taker: trader },
-            fromBlock: start,
-            toBlock: end,
-          })) as TradedLog[];
-          break;
-        } catch (e) {
-          if (!isRangeError(e)) break; // throttled — narrowing is no cure
-          got = null;
-          await sleep(RPC_GAP_MS * 2);
+        // A THROTTLE deserves a retry, not a narrower window. Narrowing is the
+        // cure for 413 (the range was too wide); against 429 it just walks the
+        // cursor forward a few hundred blocks and destroys the reach — measured
+        // once at a 7.9h walk collapsing to 1264 blocks. So the SAME range is
+        // asked again after a backoff. Measured on production before this:
+        // 4 of 10 reads failed, each one costing a reader their fill history.
+        let attempts = 0;
+        for (;;) {
+          try {
+            got = (await client().getLogs({
+              address: venue,
+              event: TRADED_EVENT,
+              args: { seriesId: BigInt(seriesId), taker: trader },
+              fromBlock: start,
+              toBlock: end,
+            })) as TradedLog[];
+            break;
+          } catch (e) {
+            got = null;
+            if (isRangeError(e)) break; // too wide — the ladder narrows below
+            if (++attempts > LOG_RETRIES) break;
+            await sleep(RPC_GAP_MS * 2 * attempts);
+          }
         }
+        if (got) break;
+        await sleep(RPC_GAP_MS);
       }
       if (!got) {
         // THE measured bug. A failed page 0 left `collected` empty and fell

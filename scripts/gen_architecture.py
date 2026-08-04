@@ -276,10 +276,11 @@ def build() -> None:
           "bound.py + redteam/optimal_attack.py"], RED)
 
     # ---------- C · ON-CHAIN ----------
-    zone(2240, 300, 560, 780, "C · ON-CHAIN (settlement-grade)", ORANGE)
-    card("c_signer", 2260, 352, 510, 116, "SIGNER",
-         ["LocalKeySigner (raw key · dev)", "CircleWalletSigner — Dev-Controlled Wallet",
-          "circle-developer-controlled-wallets SDK"], ORANGE)
+    zone(2240, 300, 560, 880, "C · ON-CHAIN (settlement-grade)", ORANGE)
+    card("c_signer", 2260, 352, 510, 116, "SIGNER (custody-only in prod)",
+         ["build_role_signer(maker·taker·poster·owner) → own Circle wallet",
+          "CircleWalletSigner (Dev-Controlled) · ignores ambient .env key",
+          "LocalKeySigner only for dev/anvil · docs/WALLETS.md"], ORANGE, body_size=11)
     card("c_oracle", 2260, 480, 510, 205, "ACROracle.sol",
          ["EIP-712 verifies the signer", "any relayer submits postPrint",
           "invariants: value∈CI · bound>0", "monotone ts · MAX_TS_SKEW",
@@ -289,23 +290,28 @@ def build() -> None:
           "attestWithSig — seller signs, relayer pays",
           "→ one relayer registers many sellers"], ORANGE)
     card("c_foundry", 2260, 825, 510, 92, "FOUNDRY",
-         ["50 tests · invariants: oracle · registry · futures",
-          "netOI=0 · collateral-backed · fail_on_revert"], ORANGE, body_size=12)
+         ["60 tests · oracle · registry · futures · FeedAccessAttestor",
+          "invariants: netOI=0 · collateral-backed · fail_on_revert"], ORANGE, body_size=12)
     card("c_deploy", 2260, 929, 510, 132, "CIRCLE DEPLOY",
          ["Smart Contract Platform + Gas Station", "oracle + registry + ACRFutures → setSigner",
-          "deploy_circle.py · Deploy / DeployFutures.s.sol"], ORANGE)
+          "deploy_circle.py · Deploy / DeployFutures / DeployAttestor.s.sol"], ORANGE, body_size=12)
+    card("c_attestor", 2260, 1073, 510, 96, "FeedAccessAttestor.sol",
+         ["EIP-712 FeedAccess: payer·beneficiary·paidUntil·amountUsdc·nonce",
+          "seller signs (poster Circle wallet) · anyone relays redeem()",
+          "hasFeedAccess(addr) → on-chain fact · MAX_ACCESS_WINDOW 90d",
+          "0xe671…FD47 · attest_feed_access.py"], ORANGE, body_size=11)
 
     # ---------- D · INSTRUMENT ----------
-    zone(2240, 1110, 560, 350, "D · INSTRUMENT & PUBLIC DESK (Pillar 4 · on-chain)", GREEN)
-    card("d_future", 2260, 1156, 510, 96, "ACRFutures.sol  (on-chain venue)",
+    zone(2240, 1210, 560, 350, "D · INSTRUMENT & PUBLIC DESK (Pillar 4 · on-chain)", GREEN)
+    card("d_future", 2260, 1256, 510, 96, "ACRFutures.sol  (on-chain venue)",
          ["weekly cash-settled vs oracle · stale-guard (7200s)",
           "maker mirrors every taker → net OI = 0 · 20% margin",
           "USDC collateral · Traded tape · socialized-loss settle"], GREEN, body_size=12)
-    card("d_mm", 2260, 1258, 510, 96, "MARKET MAKER (Avellaneda–Stoikov)",
-         ["r = s − q·γ·σ²·(T−t) · inventory skews the curve",
-          "24/7 heartbeat cron seeds + keeps the book live",
-          "futures_loop.py · futures-heartbeat/lifecycle.yml"], GREEN, body_size=12)
-    card("d_desk", 2260, 1360, 510, 96, "PUBLIC DESK",
+    card("d_mm", 2260, 1358, 510, 96, "MARKET MAKER + VENUE KEEPER",
+         ["A–S: r = s − q·γ·σ²·(T−t) · inventory skews the curve",
+          "keeper OWNS the venue (maker Circle wallet 0x9D44…)",
+          "roll_if_needed opens next series onlyOwner · shape read from chain"], GREEN, body_size=11)
+    card("d_desk", 2260, 1460, 510, 96, "PUBLIC DESK",
          ["readers trade ACRFutures via Circle user-controlled wallet",
           "PIN ceremony · SCA · Gas-Station gas · no server key",
           "desk.py · /desk/* · per-identity rate-limited"], GREEN, body_size=12)
@@ -344,10 +350,11 @@ def build() -> None:
          ["runs the priced attack through real clean()", "→ the bound is attainable, not loose"], RED)
 
     # ---------- H · VERIFICATION ----------
-    zone(2240, 1500, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1552, 510, 180, "TESTS · 230 py + 50 forge + 50 node",
+    zone(2240, 1590, 560, 300, "H · VERIFICATION", GRAY)
+    card("h_tests", 2260, 1642, 510, 180, "TESTS · 281 py + 60 forge + 55 terminal + 10 agent",
          ["4 CI jobs: python · contracts · agent · terminal", "anvil-gated on-chain integration · eval gate",
-          "glossary gate · ruff · make deck · keepalive cron", "hermetic conftest (Circle mocked)"], GRAY, body_size=12)
+          "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
+          "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
 
     # ---------- Judge Fit + Demo Metrics (far right) ----------
     card("j_judge", 2860, 320, 620, 240, "JUDGE FIT (surgical)",
