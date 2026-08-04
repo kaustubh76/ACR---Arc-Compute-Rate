@@ -67,6 +67,11 @@ TAKER_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_TAKER_FLOOR_USDC", "1.0")
 #: is the property that matters on a public desk — whatever a reader is
 #: offered, the book can actually fill.
 _BOOK_HEADROOM_FLOOR = float(os.environ.get("VERIFY_BOOK_HEADROOM", "0")) or None
+#: How many FULL reader-sized trades a book should still be able to absorb.
+#: Headroom alone cannot say this — feasible_qty clamps at MAX_QTY, so a book
+#: two trades from frozen and one eleven trades from frozen report the same
+#: number. Four is "a demo session's worth of judges".
+_BOOK_DEPTH_TRADES = float(os.environ.get("VERIFY_BOOK_DEPTH", "4"))
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
@@ -227,12 +232,11 @@ def verify_venue(w3, settings) -> dict | None:
     # the verifier announce an uncollateralized venue whenever Arc was busy —
     # crying outage over RPC weather.
     maker_addr = w3.to_checksum_address(s["maker"])
-    maker = None
+    maker_coll: dict[str, float | None] = {}
     for idx in sorted(by_index):
         row = by_index[idx]
         c = collateral_or_none(fc, row["series_id"], w3.to_checksum_address(row["maker"]))
-        if row["series_id"] == s["series_id"]:
-            maker = c  # the primary, reused by the headroom check below
+        maker_coll[idx] = c
         if c is None:
             check(False, f"{idx}: maker collateral — the chain would not say", warn_only=True)
         else:
@@ -290,21 +294,28 @@ def verify_venue(w3, settings) -> dict | None:
     try:
         from index_api.desk import FAUCET_USDC, MARGIN_SAFETY, MAX_QTY, feasible_qty
 
-        desk = fc.read_desk(s["index_id"])
-        mark = (
-            OracleClient(
-                rpc_url=settings.arc_rpc_url, oracle_address=settings.oracle_address
-            ).read_latest(s["index_id"])
-            or {}
-        ).get("value")
-        if desk and mark and maker is not None:
+        # EVERY book, not just the newest series. This ran once against
+        # max(series_id) — which is ACR-DATA — so the depth of ACR-GPU (the
+        # index the DESK DEFAULTS TO) and of ACR-INF was never measured at all.
+        # The one book it did check was the one nobody lands on.
+        oc = OracleClient(
+            rpc_url=settings.arc_rpc_url, oracle_address=settings.oracle_address
+        )
+        margin_bps = _margin_bps_or_default(w3, settings)
+        for idx in sorted(by_index):
+            desk = fc.read_desk(idx)
+            mark = (oc.read_latest(idx) or {}).get("value")
+            maker = maker_coll.get(idx)
+            if not (desk and mark and maker is not None):
+                continue
             buy, sell = feasible_qty(
-                mark, desk["multiplier"], _margin_bps_or_default(w3, settings),
+                mark, desk["multiplier"], margin_bps,
                 maker, 0.0, maker, desk.get("maker_inventory") or 0.0,
             )
             check(
                 buy > 0 and sell > 0,
-                f"the book can absorb a trade both ways (max_buy {buy}, max_sell {sell})",
+                f"{idx}: the book can absorb a trade both ways "
+                f"(max_buy {buy}, max_sell {sell})",
                 warn_only=True,
             )
             # Above-zero is a verdict that arrives the hour the book freezes.
@@ -315,18 +326,31 @@ def verify_venue(w3, settings) -> dict | None:
             # buys) rather than in USDC, which nobody can judge by eye.
             room = min(buy, sell)
             floor = _BOOK_HEADROOM_FLOOR or MAX_QTY
-            per_contract = mark * desk["multiplier"] * (
-                _margin_bps_or_default(w3, settings) / 10_000
-            )
+            per_contract = mark * desk["multiplier"] * (margin_bps / 10_000)
             # CLAMPED at MAX_QTY, because that is the largest trade the desk
             # will quote. Unclamped, a cheap index (ACR-DATA at 0.002) made a
             # 0.50 drip cover ~100 contracts, so a saturated book reported
             # "0.0 reader-sized trades" — a healthy venue described as a dead
             # one by the very line that exists to say whether it is healthy.
             unit = min(MARGIN_SAFETY * FAUCET_USDC / per_contract, MAX_QTY) if per_contract > 0 else 0.0
+            # DEPTH, which the line below cannot express. `feasible_qty` clamps
+            # at MAX_QTY, so "headroom" saturates at 2.00 and reports the same
+            # number for a book that can take two more reader trades and one
+            # that can take eleven. That distinction is the whole question
+            # during judging: the maker's UNCLAMPED cap, minus what it is
+            # already carrying, divided by what one reader can put on.
+            m_cap = (MARGIN_SAFETY * maker / per_contract) if per_contract > 0 else 0.0
+            inv = desk.get("maker_inventory") or 0.0
+            left = min(m_cap + inv, m_cap - inv) / unit if unit else 0.0
+            check(
+                left >= _BOOK_DEPTH_TRADES,
+                f"{idx}: {left:.1f} more full reader trades before this book freezes"
+                + ("" if left >= _BOOK_DEPTH_TRADES else " — deepen it (make futures-collateralize)"),
+                warn_only=True,
+            )
             check(
                 room >= floor,
-                f"headroom {room:.2f} of the {floor:.2f} the desk may quote"
+                f"{idx}: headroom {room:.2f} of the {floor:.2f} the desk may quote"
                 + (f" — {room / unit:.1f} reader-sized trades" if unit else "")
                 + (
                     "; top the maker up (make futures-collateralize)"
@@ -476,11 +500,21 @@ def verify_desk(live_series: dict | None) -> None:
     addr = "0x95DE70736E21e70DF921Fb3ab91dD56750965b59"  # a real past desk wallet
     status, body = post(f"{API}/desk/withdrawable", {"address": addr})
     check(status == 200 and body is not None, f"/desk/withdrawable -> {status}")
-    status, body = post(
-        f"{API}/desk/limits", {"address": addr, "index_id": "ACR-INF"}
-    )
+    # ACR-GPU FIRST, because that is what components/chain/PublicDesk.tsx
+    # defaults to — a judge's first trade lands there. Until ACR-GPU had a
+    # series the UI silently fell back to ACR-INF, so this only ever exercised
+    # the index nobody starts on.
+    for iid in ("ACR-GPU", "ACR-INF"):
+        st, bd = post(f"{API}/desk/limits", {"address": addr, "index_id": iid})
+        good = st == 200 and isinstance(bd, dict) and bd.get("mark", 0) > 0
+        check(
+            good,
+            f"/desk/limits {iid} -> {st}"
+            + (f", mark {bd.get('mark'):.5f}, max_buy {bd.get('max_buy')}" if good else ""),
+        )
+        if iid == "ACR-INF":
+            status, body = st, bd
     ok = status == 200 and isinstance(body, dict) and body.get("mark", 0) > 0
-    check(ok, f"/desk/limits -> {status}" + (f", mark {body.get('mark'):.5f}" if ok else ""))
     if ok and live_series is not None:
         # The desk must quote the series the CHAIN says is live FOR THIS INDEX.
         # Comparing against the newest series venue-wide was right with one
