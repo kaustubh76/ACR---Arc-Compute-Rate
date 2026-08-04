@@ -205,9 +205,22 @@ def verify_venue(w3, settings) -> dict | None:
     live = [s for s in fc.read_all_series() if not s["settled"] and s["expiry_ts"] > now]
     if not check(bool(live), "a live, unexpired series exists"):
         return None
-    s = max(live, key=lambda x: x["series_id"])
-    left_h = (s["expiry_ts"] - now) / 3600
-    check(left_h > 24, f"series {s['series_id']} ({s['index_id']}) has {left_h:.0f}h left")
+    # ONE live series per index, newest wins — not one series for the whole
+    # venue. Collapsing the venue to `max(series_id)` verified whichever book
+    # happened to have the highest id and said nothing at all about the others,
+    # so a second index could be frozen, uncollateralized or expired and every
+    # line here would still be green.
+    by_index: dict[str, dict] = {}
+    for row in live:
+        cur = by_index.get(row["index_id"])
+        if cur is None or row["series_id"] > cur["series_id"]:
+            by_index[row["index_id"]] = row
+    s = max(live, key=lambda x: x["series_id"])  # the primary, for the checks below
+    check(True, f"{len(by_index)} index book(s) live: {', '.join(sorted(by_index))}")
+    for idx in sorted(by_index):
+        row = by_index[idx]
+        left_h = (row["expiry_ts"] - now) / 3600
+        check(left_h > 24, f"{idx} series {row['series_id']} has {left_h:.0f}h left")
 
     # `collateral_of(...) or 0.0` is the spelling this project has a helper to
     # avoid: it turns a THROTTLED READ into an empty account, and here that made
@@ -314,6 +327,37 @@ def verify_venue(w3, settings) -> dict | None:
     # roll unattended — so this is a capability check, not a vanity one. If
     # ownership ever moves back to a raw key the keeper silently stops being
     # able to roll, and the first symptom would be an expired series.
+    # The KEEPER'S TAKER must hold collateral on every book it rotates onto.
+    # Without a stake the heartbeat returns "no taker collateral" and does
+    # nothing — silently, on that index only, while the maker stays funded, the
+    # series stays live and every other line on this page stays green. With one
+    # book that was invisible; with three it would be two thirds of the venue
+    # quietly not trading.
+    # Resolved through build_role_signer, the same seam the funding section
+    # uses — an env var here would be a second source of truth for one address,
+    # and the two would drift the first time a wallet is rotated.
+    taker_addr = ""
+    try:
+        from acr_oracle_client import build_role_signer
+
+        sg = build_role_signer("taker", settings)
+        if sg is not None and type(sg).__name__ == "CircleWalletSigner":
+            taker_addr = sg.address
+    except Exception:  # noqa: BLE001 — not migrated here; the check just skips
+        taker_addr = ""
+    if taker_addr:
+        for idx in sorted(by_index):
+            row = by_index[idx]
+            tc = collateral_or_none(fc, row["series_id"], w3.to_checksum_address(taker_addr))
+            if tc is None:
+                check(False, f"{idx}: taker collateral unreadable", warn_only=True)
+            else:
+                check(
+                    tc > 0,
+                    f"{idx}: the heartbeat taker is collateralized ({tc:.2f} USDC) "
+                    "— it can actually trade this book",
+                )
+
     try:
         owner = _rpc_retry(
             w3.eth.contract(

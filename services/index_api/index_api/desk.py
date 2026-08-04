@@ -573,6 +573,23 @@ def feasible_qty(
     return (clamp(max_buy), clamp(max_sell))
 
 
+def collateral_for_full_book(
+    mark: float, multiplier: int, margin_bps: int, cap: float = MAX_QTY
+) -> float:
+    """The maker stake that lets the book absorb ``cap`` contracts either way.
+
+    Lives beside ``feasible_qty`` because it is its inverse: a stake sized by
+    anything else would let the desk quote a size the book cannot fill. Margin
+    scales with the mark, so this varies ~200x across the three indices — a flat
+    constant is generous on ACR-INF (mark ~0.49) and 30x more than ACR-GPU needs
+    (mark ~0.011), which is how one book ends up starving another.
+    """
+    per_contract = mark * multiplier * (margin_bps / 10_000)
+    if per_contract <= 0:
+        return 0.0
+    return round(cap * per_contract / MARGIN_SAFETY + 0.005, 2)
+
+
 def free_collateral_units(
     units: int,
     contracts: float,

@@ -49,7 +49,17 @@ GAS_FLOOR_USDC = float(os.environ.get("ACR_KEEPER_GAS_FLOOR", "1.0"))
 #: How much a heartbeat trade moves. Small on purpose: the point is a live tape,
 #: not a position.
 TRADE_QTY = float(os.environ.get("ACR_KEEPER_QTY", "0.25"))
-INDEX = os.environ.get("ACR_KEEPER_INDEX", os.environ.get("SEED_INDEX", "ACR-INF"))
+#: An ALLOWLIST and an ordering, never a selection. Which indices the keeper
+#: works is DERIVED from which ones actually have a live series (see
+#: `live_indices`) — a fixed list is precisely what was removed from
+#: .github/workflows/futures-heartbeat.yml, where rotating over all three meant
+#: "two hours in three picked an index with no series at all and the workflow
+#: failed — noise that would have masked a real outage". Empty means "any".
+INDEX_ALLOW = [
+    x.strip()
+    for x in os.environ.get("ACR_KEEPER_INDEX", os.environ.get("SEED_INDEX", "")).split(",")
+    if x.strip()
+]
 #: What a roll posts as maker collateral. Mirrors scripts/futures_roll.py so the
 #: two paths cannot disagree about what a healthy successor looks like.
 ROLL_COLLATERAL = float(os.environ.get("ROLL_COLLATERAL", "1.5"))
@@ -64,6 +74,8 @@ _OWNER_ABI = [
 ]
 
 _last_heartbeat = 0.0
+#: Which index the next heartbeat trades, modulo the live roster.
+_hb_cursor = 0
 _last_roll_check = 0.0
 
 
@@ -85,7 +97,29 @@ def may_open_series(owner: str, me: str) -> bool:
     return bool(owner) and bool(me) and str(owner).lower() == str(me).lower()
 
 
-def roll_budget_ok(gas_usdc: float) -> bool:
+def roll_collateral_for(fc, index_id: str) -> float:
+    """What a fresh book on ``index_id`` should be funded with.
+
+    Asks the desk's own inverse of ``feasible_qty`` rather than posting the flat
+    ROLL_COLLATERAL, which is sized for ACR-INF and would be ~30x ACR-GPU's
+    requirement. Falls back to the constant when there is no mark — never a
+    guess dressed as a measurement, and never zero, which would open a series
+    nobody can trade into.
+    """
+    from .desk import collateral_for_full_book
+    from .onchain import get_reader
+
+    mark = (get_reader().read(index_id) or {}).get("value")
+    if not mark:
+        return ROLL_COLLATERAL
+    mult = int(os.environ.get("ROLL_MULT", "10"))
+    want = collateral_for_full_book(float(mark), mult, 2000)
+    # Never below a floor that pays for its own gas, never above the ACR-INF
+    # sized constant — this decides real money on a cron with no human watching.
+    return max(0.05, min(want, ROLL_COLLATERAL))
+
+
+def roll_budget_ok(gas_usdc: float, collateral: float | None = None) -> bool:
     """Whether one wallet can afford BOTH the collateral and the gas.
 
     On Arc they come out of the same balance, so checking them separately is
@@ -93,7 +127,32 @@ def roll_budget_ok(gas_usdc: float) -> bool:
     uncollateralized series is a desk that looks live and reverts on first
     contact, which is worse than no roll at all.
     """
-    return gas_usdc >= GAS_FLOOR_USDC + ROLL_COLLATERAL
+    return gas_usdc >= GAS_FLOOR_USDC + (ROLL_COLLATERAL if collateral is None else collateral)
+
+
+def live_indices(
+    all_series: list[dict], now_chain: int, allow: list[str] | None = None
+) -> list[str]:
+    """Indices with an unsettled, unexpired series — DERIVED, never a list.
+
+    The venue's shape is a fact about the chain, not configuration. Hard-coding
+    it is what broke the old rotation: two hours in three the cron picked an
+    index that had no series, failed, and buried a real outage in the noise.
+    Here an index without a series is simply absent from the roster, so that
+    failure mode is unreachable rather than merely unlikely.
+
+    Ordered by ``allow`` when given (so an operator can pin the rotation without
+    a deploy), then by index id, so the cursor advances deterministically under
+    test rather than however the chain happened to return the series.
+    """
+    live = {
+        s["index_id"]
+        for s in all_series
+        if not s.get("settled") and int(s.get("expiry_ts") or 0) > now_chain
+    }
+    if allow:
+        return [i for i in allow if i in live]
+    return sorted(live)
 
 
 def maker_inventory_or_none(desk: dict | None) -> float | None:
@@ -147,7 +206,7 @@ def heartbeat_once(futures) -> str | None:
     _last_heartbeat = now
 
     from acr_oracle_client import FuturesClient
-    from acr_oracle_client.futures import collateral_or_none
+    from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
     from .desk import feasible_qty
 
@@ -163,9 +222,24 @@ def heartbeat_once(futures) -> str | None:
     # sides were near flat, then every trade reverted once the maker had gone
     # short 2.31 contracts, because the cap it computed was for a maker holding
     # nothing. A missing dict key defaulted to 0.0 and read as a fact.
-    series = futures.read_desk(INDEX)
+    # WHICH index this tick trades is derived from the chain, then advanced by
+    # a CURSOR rather than the wall-clock hour: Render restarts and dropped
+    # ticks make hour-based rotation skip indices unevenly, and a cursor is
+    # deterministic under test.
+    global _hb_cursor
+    w3 = fc._connect()
+    if w3 is None:
+        return "no chain — skipped"
+    now_chain = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
+    roster = live_indices(fc.read_all_series(), now_chain, INDEX_ALLOW)
+    if not roster:
+        return "no live series on any index"
+    index_id = roster[_hb_cursor % len(roster)]
+    _hb_cursor += 1
+
+    series = futures.read_desk(index_id)
     if not series or series.get("settled"):
-        return "no live series"
+        return f"no live series on {index_id}"
 
     sid, mult = series["series_id"], series["multiplier"]
     mine = collateral_or_none(fc, sid, me)
@@ -175,13 +249,15 @@ def heartbeat_once(futures) -> str | None:
     if mine is None or maker_coll is None:
         return "chain would not say — skipped"
     if mine <= 0:
-        return "no collateral on the live series — operator must provision"
+        # The taker must hold collateral on EVERY series it rotates onto, or
+        # this silently no-ops on that index while every dashboard stays green.
+        return f"no taker collateral on {index_id} series {sid} — operator must provision"
 
     from .onchain import get_reader
 
-    mark = (get_reader().read(INDEX) or {}).get("value")
+    mark = (get_reader().read(index_id) or {}).get("value")
     if not mark:
-        return "no mark"
+        return f"no mark for {index_id}"
     pos = (fc.position_of(sid, me) or {}).get("contracts", 0.0)
     maker_inv = maker_inventory_or_none(series)
     if maker_inv is None:
@@ -199,8 +275,8 @@ def heartbeat_once(futures) -> str | None:
     try:
         fc.trade(sid, qty)
     except Exception as exc:  # noqa: BLE001 — the reason matters more than the trace
-        return f"trade {qty:+.2f} REVERTED on series {sid}: {str(exc)[:100]}"
-    return f"traded {qty:+.2f} on series {sid}"
+        return f"trade {qty:+.2f} REVERTED on {index_id} series {sid}: {str(exc)[:100]}"
+    return f"traded {qty:+.2f} on {index_id} series {sid}"
 
 
 def roll_if_needed(futures) -> str | None:
@@ -234,15 +310,37 @@ def roll_if_needed(futures) -> str | None:
     if w3 is None:
         return None
     now_chain = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
-    for existing in fc.read_all_series():
-        if existing["index_id"] != INDEX or existing["settled"]:
-            continue
-        hours_left = (existing["expiry_ts"] - now_chain) / 3600
-        funded = collateral_or_none(fc, existing["series_id"], signer.address)
-        if funded is None:
-            return "collateral unreadable — refusing to roll on a guess"
-        if hours_left > min_life_h and funded > 0:
-            return None  # healthy; nothing to do and nothing worth logging
+    all_series = fc.read_all_series()
+
+    # Per-index ANY(healthy), not "the first healthy series wins".
+    #
+    # The old loop returned None on the first healthy series it met, whatever
+    # index it belonged to — so the answer depended on the order the chain
+    # returned them. Series 1 and 2 expire 8 and 9 Aug, INSIDE judging week, and
+    # the venue only stayed quiet because series 3 happened to come last. With
+    # three indices that ordering accident becomes a wrong answer for two of
+    # them.
+    want = INDEX_ALLOW or sorted({s["index_id"] for s in all_series})
+    due: list[str] = []
+    for idx in want:
+        healthy = False
+        for existing in all_series:
+            if existing["index_id"] != idx or existing["settled"]:
+                continue
+            hours_left = (existing["expiry_ts"] - now_chain) / 3600
+            funded = collateral_or_none(fc, existing["series_id"], signer.address)
+            if funded is None:
+                return "collateral unreadable — refusing to roll on a guess"
+            if hours_left > min_life_h and funded > 0:
+                healthy = True
+                break
+        if not healthy:
+            due.append(idx)
+    if not due:
+        return None  # every index healthy; nothing to do and nothing to log
+    # At most ONE roll per check, so a single tick can never spend three rolls'
+    # worth of collateral. The next cooldown picks up the next one.
+    index_id = due[0]
 
     # Something needs rolling.
     #
@@ -256,8 +354,12 @@ def roll_if_needed(futures) -> str | None:
     # front rather than opening a series we then cannot collateralize — an
     # uncollateralized series is a desk that looks live and reverts on first
     # contact, which is worse than no roll at all.
-    if not roll_budget_ok(gas):
-        return (f"maker holds {gas:.2f} USDC; a roll needs {ROLL_COLLATERAL:.2f} "
+    # Size the stake to the index being rolled. Margin scales with the mark, so
+    # a flat 1.50 is roughly right for ACR-INF (mark ~0.49) and ~30x more than
+    # ACR-GPU needs (mark ~0.011) — over-funding one book starves another.
+    stake = roll_collateral_for(fc, index_id)
+    if not roll_budget_ok(gas, stake):
+        return (f"maker holds {gas:.2f} USDC; rolling {index_id} needs {stake:.2f} "
                 f"collateral + {GAS_FLOOR_USDC:.2f} gas floor — standing down")
 
     owner = _rpc_retry(
@@ -271,20 +373,21 @@ def roll_if_needed(futures) -> str | None:
         return f"ROLL DUE but the venue is owned by {owner} — run `make futures-roll`"
 
     expiry = now_chain + int(float(os.environ.get("ROLL_EXPIRY_DAYS", "14")) * 86400)
-    fc.open_series(INDEX, expiry, int(os.environ.get("ROLL_MULT", "10")), signer.address)
+    fc.open_series(index_id, expiry, int(os.environ.get("ROLL_MULT", "10")), signer.address)
     series = fc.read_all_series()
     sid = len(series) - 1
 
     # Post collateral, or the successor is a series nobody can trade into.
     allowance = fc.allowance_units(USDC_ADDRESS, signer.address)
-    if allowance is not None and allowance < int(ROLL_COLLATERAL * 1_000_000):
+    if allowance is not None and allowance < int(stake * 1_000_000):
         fc.approve_venue(USDC_ADDRESS)
         time.sleep(2)
-    fc.post_collateral(sid, ROLL_COLLATERAL)
+    fc.post_collateral(sid, stake)
 
     # Assert it landed. `futures_seed` exits 0 on an uncollateralized series and
     # that is exactly the failure worth refusing to repeat here.
     posted = collateral_or_none(fc, sid, signer.address)
     if not posted:
         return f"opened series {sid} but collateral did NOT land — the desk needs a human"
-    return f"rolled to series {sid} (+{os.environ.get('ROLL_EXPIRY_DAYS', '14')}d), {posted:.2f} USDC posted"
+    return (f"rolled {index_id} to series {sid} "
+            f"(+{os.environ.get('ROLL_EXPIRY_DAYS', '14')}d), {posted:.2f} USDC posted")

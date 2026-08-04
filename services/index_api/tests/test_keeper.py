@@ -166,3 +166,81 @@ def test_a_missing_maker_inventory_is_never_read_as_flat():
     # distinguishable from not having looked.
     assert keeper.maker_inventory_or_none({"maker_inventory": -2.31}) == -2.31
     assert keeper.maker_inventory_or_none({"maker_inventory": 0.0}) == 0.0
+
+
+# --- the venue's shape is derived from the chain, never configured ------------
+
+
+def _series(sid: int, index_id: str, expiry: int, settled: bool = False) -> dict:
+    return {
+        "series_id": sid,
+        "index_id": index_id,
+        "expiry_ts": expiry,
+        "settled": settled,
+        "multiplier": 10,
+    }
+
+
+NOW = 1_786_000_000
+
+
+def test_an_index_with_no_series_is_simply_absent():
+    """The failure that killed the old rotation, made unreachable.
+
+    `futures-heartbeat.yml` records why a fixed list was removed: rotating over
+    all three meant "two hours in three picked an index with no series at all
+    and the workflow failed — noise that would have masked a real outage."
+    Deriving the roster means an index without a book cannot be picked.
+    """
+    roster = keeper.live_indices([_series(3, "ACR-INF", NOW + 86_400)], NOW)
+    assert roster == ["ACR-INF"]
+
+
+def test_settled_and_expired_series_do_not_count_as_live():
+    rows = [
+        _series(0, "ACR-INF", NOW + 86_400, settled=True),  # settled
+        _series(1, "ACR-GPU", NOW - 10),  # expired
+        _series(2, "ACR-DATA", NOW + 86_400),  # the only live one
+    ]
+    assert keeper.live_indices(rows, NOW) == ["ACR-DATA"]
+
+
+def test_the_roster_grows_as_books_are_opened():
+    rows = [
+        _series(3, "ACR-INF", NOW + 86_400),
+        _series(4, "ACR-GPU", NOW + 86_400),
+        _series(5, "ACR-DATA", NOW + 86_400),
+    ]
+    assert keeper.live_indices(rows, NOW) == ["ACR-DATA", "ACR-GPU", "ACR-INF"]
+
+
+def test_the_allowlist_orders_and_pins_but_never_invents():
+    """An operator can pin the rotation without a deploy — but an allowlisted
+    index that has no series still cannot be traded."""
+    rows = [_series(3, "ACR-INF", NOW + 86_400), _series(4, "ACR-GPU", NOW + 86_400)]
+    assert keeper.live_indices(rows, NOW, ["ACR-GPU", "ACR-INF"]) == ["ACR-GPU", "ACR-INF"]
+    assert keeper.live_indices(rows, NOW, ["ACR-DATA"]) == []
+    assert keeper.live_indices([], NOW, ["ACR-INF"]) == []
+
+
+def test_a_roll_is_budgeted_for_the_stake_it_will_actually_post():
+    """A flat budget check would stand the keeper down on a book that costs
+    pennies, or wave through one it cannot fund."""
+    assert keeper.roll_budget_ok(1.10, 0.05) is True  # a cheap ACR-GPU book
+    assert keeper.roll_budget_ok(1.10, 1.50) is False  # an ACR-INF-sized one
+    assert keeper.roll_budget_ok(2.60, 1.50) is True
+
+
+def test_collateral_is_sized_to_the_index_not_to_a_constant():
+    """Margin scales with the mark, so one constant cannot fit three books."""
+    from index_api.desk import MAX_QTY, collateral_for_full_book, feasible_qty
+
+    inf = collateral_for_full_book(0.4924, 10, 2000)
+    gpu = collateral_for_full_book(0.0111, 10, 2000)
+    assert inf > 2.0, "ACR-INF genuinely needs a couple of USDC"
+    assert gpu < 0.1, "ACR-GPU needs pennies — a flat 1.50 would be ~30x over"
+    # The sizing must satisfy the very function the desk quotes readers with,
+    # or the book would offer a size it cannot fill.
+    buy, sell = feasible_qty(0.0111, 10, 2000, gpu, 0.0, gpu, 0.0)
+    assert buy >= MAX_QTY and sell >= MAX_QTY
+    assert collateral_for_full_book(0.0, 10, 2000) == 0.0
