@@ -58,6 +58,16 @@ MIN_RUNWAY_DAYS = float(os.environ.get("VERIFY_MIN_RUNWAY_DAYS", "3"))
 #: runway — and a floor that is wrong is a floor people learn to ignore.
 VENUE_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_VENUE_FLOOR_USDC", "2.5"))
 TAKER_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_TAKER_FLOOR_USDC", "1.0"))
+#: The keeper's per-tick size, mirrored from ACR_KEEPER_QTY in
+#: services/index_api/index_api/keeper.py — a yardstick for book headroom,
+#: because "how much room" means nothing until you can count it in trades.
+_KEEPER_QTY = float(os.environ.get("ACR_KEEPER_QTY", "0.25"))
+#: Warn below two dozen keeper-sized trades of headroom. The eleven-hour outage
+#: was not caused by the book being tight — it was caused by nothing saying so
+#: until the trades were already reverting.
+_BOOK_HEADROOM_FLOOR = float(
+    os.environ.get("VERIFY_BOOK_HEADROOM", str(_KEEPER_QTY * 24))
+)
 #: GitHub drops most scheduled ticks on a private repo, so "recent" has to be
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
@@ -272,6 +282,26 @@ def verify_venue(w3, settings) -> dict | None:
             check(
                 buy > 0 and sell > 0,
                 f"the book can absorb a trade both ways (max_buy {buy}, max_sell {sell})",
+                warn_only=True,
+            )
+            # Above-zero is a verdict that arrives the hour the book freezes.
+            # Measure the distance to that hour instead, in units of a keeper
+            # tick — but say ONE-DIRECTIONAL, because the keeper itself
+            # mean-reverts around flat (keeper.py: sell when long, buy when
+            # short) and so consumes no net headroom. What actually eats this
+            # is flow that only goes one way: the hedger walking to its
+            # mandate, or readers buying on the Public Desk.
+            room = min(buy, sell)
+            check(
+                room >= _BOOK_HEADROOM_FLOOR,
+                f"headroom {room:.2f} on the thin side — "
+                f"{room / _KEEPER_QTY:.0f} keeper-sized trades of ONE-WAY flow"
+                + (
+                    " before the book freezes; add maker collateral "
+                    "(make futures-collateralize)"
+                    if room < _BOOK_HEADROOM_FLOOR
+                    else " in hand"
+                ),
                 warn_only=True,
             )
     except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
