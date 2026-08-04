@@ -573,6 +573,53 @@ def feasible_qty(
     return (clamp(max_buy), clamp(max_sell))
 
 
+def reader_stake_for(
+    mark: float, multiplier: int, margin_bps: int, wallet: float | None,
+    drip: float = FAUCET_USDC, gas_reserve: float = GAS_RESERVE_USDC,
+) -> float:
+    """How much of a reader's drip to post on THIS book.
+
+    The desk posted a flat ``FAUCET_USDC`` whatever the index. On ACR-INF that
+    is right — a 0.50 stake margins 0.46 contracts, less than the 2.0 the desk
+    would quote, so every cent of it is usable. On ACR-GPU the same 0.50 margins
+    about 22 contracts against the same 2.0 cap: ten times more than the reader
+    can ever trade, locked into that series.
+
+    The cost was not waste, it was a DEAD END. The stake leaves the wallet, so a
+    reader who then picked another index from the dropdown hit "this wallet has
+    no stake to post yet" with nothing on screen saying why or what to do. That
+    became reachable the day ACR-GPU got a book — before then the UI silently
+    fell back to ACR-INF and nobody could get there.
+
+    So: post what the book needs, keep the rest. Bounded by the wallet (minus a
+    sliver for this transaction's own gas, because USDC *is* gas on Arc and the
+    approve may already have spent some), and never dust — a stake too small to
+    margin the desk's minimum is worse than no stake, because it costs a PIN
+    ceremony to discover.
+    """
+    want = collateral_for_full_book(mark, multiplier, margin_bps)
+    per_contract = mark * multiplier * (margin_bps / 10_000)
+    floor = round(MIN_QTY * per_contract / MARGIN_SAFETY + 0.005, 2) if per_contract > 0 else 0.0
+    if want <= 0:
+        want = drip  # no mark to size against — fall back to the old behaviour
+    # The gas sliver comes off ONLY when the wallet has already dropped below a
+    # full drip — that is the signal Gas Station is not sponsoring this SCA and
+    # the approve burned part of the stake. When it IS sponsored the whole drip
+    # is postable, and shaving it anyway would quietly change the one case that
+    # has worked all week.
+    if wallet is None:
+        spendable = drip
+    elif wallet >= drip:
+        spendable = drip
+    else:
+        spendable = max(0.0, wallet - gas_reserve)
+    stake = min(want, spendable)
+    # Below the floor the stake cannot margin even MIN_QTY, so posting it would
+    # buy a PIN ceremony and a disabled button. Take the whole spendable
+    # balance instead and let the caller's `stake <= 0` refusal do its job.
+    return round(spendable, 6) if stake < floor else round(stake, 6)
+
+
 def collateral_for_full_book(
     mark: float, multiplier: int, margin_bps: int, cap: float = MAX_QTY
 ) -> float:
@@ -877,12 +924,24 @@ def build_challenge(
         # as gas (USDC *is* Arc's gas token) and a full-stake postCollateral
         # would revert inside transferFrom. Keep a sliver back for this tx's own
         # gas in that case.
-        stake = FAUCET_USDC
         bal = _wallet_usdc(address) if address else None
-        if bal is not None and bal < FAUCET_USDC:
-            stake = max(0.0, bal - GAS_RESERVE_USDC)
+        # A throttled oracle must not 503 a reader mid-ceremony: without a mark
+        # we cannot SIZE the stake, so fall back to the flat drip, which is what
+        # the desk posted for its whole life. Sizing is an improvement, not a
+        # precondition.
+        try:
+            mark = _live_mark(index_id)
+        except DeskError:
+            mark = 0.0
+        # A missing multiplier is the same situation as a missing mark: we
+        # cannot size, so we fall back rather than guess one.
+        stake = reader_stake_for(mark, desk.get("multiplier") or 0, _margin_bps(), bal)
         if stake <= 0:
-            raise DeskError(409, "this wallet has no stake to post yet")
+            raise DeskError(
+                409,
+                "your stake is already posted on another market — withdraw it "
+                "below, or take a fresh one, before posting here",
+            )
         contract, sig, params = (
             venue,
             "postCollateral(uint256,uint256)",

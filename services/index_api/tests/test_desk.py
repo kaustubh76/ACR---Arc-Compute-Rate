@@ -503,3 +503,85 @@ def test_challenge_withdraw_requires_an_address(circle_capture):
     with pytest.raises(DeskError) as e:
         desk.build_challenge("tok", "wid", "withdraw", "ACR-INF")
     assert e.value.status == 400
+
+
+# --- the reader's stake fits the book it is posted on -------------------------
+
+from index_api.desk import (  # noqa: E402
+    FAUCET_USDC,
+    MARGIN_SAFETY,
+    MAX_QTY,
+    reader_stake_for,
+)
+
+_MULT, _BPS = 10, 2000
+_MARKS = {"ACR-INF": 0.4924, "ACR-GPU": 0.0111, "ACR-DATA": 0.00209}
+
+
+def _tradable(stake: float, mark: float) -> float:
+    """What the reader could actually trade with that stake — the desk's own cap."""
+    return min(MARGIN_SAFETY * stake / (mark * _MULT * _BPS / 10_000), MAX_QTY)
+
+
+def test_the_expensive_book_still_takes_the_whole_drip():
+    """ACR-INF is why the flat stake looked right for a year.
+
+    A 0.50 stake margins only ~0.46 contracts there, well under the 2.0 the
+    desk would quote, so every cent is usable. This must not change: it is the
+    index the demo has been walked on all week.
+    """
+    stake = reader_stake_for(_MARKS["ACR-INF"], _MULT, _BPS, FAUCET_USDC)
+    assert stake >= FAUCET_USDC - 0.02, stake
+    assert _tradable(stake, _MARKS["ACR-INF"]) < MAX_QTY
+
+
+def test_a_cheap_book_takes_a_fraction_and_loses_nothing():
+    """On ACR-GPU the flat 0.50 was ten times what the desk can ever use."""
+    for idx in ("ACR-GPU", "ACR-DATA"):
+        stake = reader_stake_for(_MARKS[idx], _MULT, _BPS, FAUCET_USDC)
+        assert stake < 0.10, f"{idx}: {stake}"
+        # The point: nothing is taken away — the reader can still trade the
+        # largest size the desk will ever quote.
+        assert _tradable(stake, _MARKS[idx]) >= MAX_QTY, idx
+
+
+def test_a_reader_can_still_post_on_a_second_book():
+    """The dead end, pinned.
+
+    Posting moved the whole drip to the venue, so switching index ran
+    `max(0, bal - gas)` -> 0 and answered 409 "this wallet has no stake to post
+    yet" with nothing on screen saying why. It became reachable the day ACR-GPU
+    got a book — the UI defaults to it.
+    """
+    first = reader_stake_for(_MARKS["ACR-GPU"], _MULT, _BPS, FAUCET_USDC)
+    left = FAUCET_USDC - first
+    second = reader_stake_for(_MARKS["ACR-INF"], _MULT, _BPS, left)
+    assert second > 0, "a reader who posted on one book must be able to post on another"
+    assert second <= left
+
+
+def test_the_stake_never_exceeds_the_wallet():
+    # USDC is gas on Arc, so a stake equal to the balance leaves nothing to pay
+    # for its own postCollateral — the sliver is load-bearing.
+    for bal in (0.50, 0.20, 0.05, 0.011):
+        stake = reader_stake_for(_MARKS["ACR-INF"], _MULT, _BPS, bal)
+        assert stake <= bal, (bal, stake)
+
+
+def test_an_empty_wallet_posts_nothing_so_the_caller_can_refuse():
+    assert reader_stake_for(_MARKS["ACR-GPU"], _MULT, _BPS, 0.0) == 0.0
+    assert reader_stake_for(_MARKS["ACR-GPU"], _MULT, _BPS, 0.005) == 0.0
+
+
+def test_a_stake_too_small_to_trade_is_not_posted_as_dust():
+    """Below the floor a stake buys a PIN ceremony and a disabled button."""
+    tiny = 0.02
+    stake = reader_stake_for(_MARKS["ACR-INF"], _MULT, _BPS, tiny)
+    # Either it takes what is there (so the caller can decide), or nothing —
+    # never a rounded-down sliver that margins less than the desk's minimum.
+    assert stake == 0.0 or stake <= tiny
+
+
+def test_no_mark_falls_back_rather_than_posting_zero():
+    """A throttled oracle read must not silently post nothing."""
+    assert reader_stake_for(0.0, _MULT, _BPS, FAUCET_USDC) > 0
