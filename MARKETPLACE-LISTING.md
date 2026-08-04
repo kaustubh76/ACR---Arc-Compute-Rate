@@ -165,24 +165,50 @@ Tell me and I will:
 ## The other registries Circle points sellers at
 
 From <https://developers.circle.com/agent-stack/agent-nanopayments/seller-integration-tools>.
-Worth trying in this order — **Proceeds is the only one whose docs mention Arc**:
+**Proceeds is the only one whose docs mention Arc** — and the only one I have
+been able to evaluate:
 
 | Registry | URL | Why it might take us |
 |---|---|---|
-| **Proceeds** | <https://myproceeds.xyz> | Circle's docs say it supports "Arc and other blockchains" — the best odds for a testnet-Arc service |
+| **Proceeds** | <https://myproceeds.xyz> | Circle's docs say it supports "Arc and other blockchains" — **evaluated, see below: Arc is real there, but it is a paying proxy, so declined** |
 | **x402scan** | <https://www.x402scan.com/> | "a registry for x402 and agent-native APIs" |
 | Blockrun | <https://blockrun.ai> | "helps API sellers list their services in a directory" |
 | Sponge | <https://paysponge.com> | x402 + MPP, but **not** nanopayments — worst fit |
 
-**These need a browser — I could not evaluate them from here.** All three are
-client-rendered single-page apps: fetching them returns a shell, and
-`myproceeds.xyz/docs` returns literally "Loading API reference…". I probed the
-obvious API and docs paths on x402scan (`/api/resources`, `/api/services`,
-`/docs`, `/about`) and every one 404s, so there is no unauthenticated endpoint
-I can read.
+### Proceeds — evaluated 2026-08-04, and declined
 
-So I do not know whether any of them accepts an Arc testnet service, and I am
-not going to guess from a marketing line. **Ten minutes in a browser on
-Proceeds first** (the only one whose docs mention Arc) would settle it. If any
-offers self-serve registration, the details you need are the same three the
-Circle form wanted — endpoint URL, payout wallet, description — all above.
+An API key from their dashboard settles it. The "Loading API reference…" page is
+a client-rendered shell over a real spec at
+**<https://myproceeds.xyz/api/openapi.yaml>** ("myproceeds API" 1.1.0) — note
+the live prefix is `/api/v1/…`, not the `/v1/…` the spec's `servers` block
+implies. Every read below was run against a no-auth control that returned 401,
+so these are measurements, not appearances.
+
+**Arc is genuinely there.** `arc-testnet` is a first-class value in their
+`NetworkId` enum (alongside `base-sepolia`, `hyperevm-testnet`,
+`tempo-testnet`), a service can be created with `mode: testnet`, and their
+`Transaction.scheme` enum carries **`nano`, documented as "Circle Gateway
+batching"** — the same rail ACR settles on. It is the only registry reachable
+from here that can price an Arc-testnet service at all.
+
+**But it is a paying proxy, not a link directory.** The model is Service →
+Paywalls: a buyer pays *Proceeds*, and Proceeds then calls our origin carrying a
+**shared bearer secret** from the service's `authConfig`. Listing ACR would mean
+teaching `require_payment` to admit a forwarded call on a static secret instead
+of an on-chain settlement — a weaker guarantee than the one this seller exists
+to make, added to a live paid API days before submission. Two further details
+that would have to be handled and are worth recording:
+`PaywallCreate` has no `merchantWallet` field, so a new paywall pays *their*
+embedded wallet (`0x0dd9e0e4…d821`) until it is PATCHed and read back; and
+whether `targetType: ROUTE` attaches the service's auth is undocumented, with a
+fallback that would put our token in plaintext in every paywalls response.
+
+**Not pursued.** The finding is worth more than the listing: the buyer would
+have been our own agent wallet either way, so it would have proven a rail, not
+demand.
+
+**x402scan, Blockrun and Sponge remain unevaluated.** All three are
+client-rendered SPAs returning a shell; on x402scan I probed `/api/resources`,
+`/api/services`, `/docs` and `/about` and every one 404s. If any offers
+self-serve registration, the details needed are the same three the Circle form
+wanted — endpoint URL, payout wallet, description — all above.

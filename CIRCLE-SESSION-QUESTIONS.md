@@ -66,6 +66,22 @@ one their agent marketplace cannot index. Everyone else in the room will ask
 - Your seller-integration-tools page points at Proceeds "on Arc and other
   blockchains" — is that the sanctioned route for Arc services today, and does
   it cover testnet?
+
+  > **Measured 2026-08-04 — half-answered, and the remaining half is sharper.**
+  > Technically yes: their management API
+  > (<https://myproceeds.xyz/api/openapi.yaml>) carries **`arc-testnet`** as a
+  > first-class `NetworkId`, accepts a `mode: testnet` service, and its
+  > `Transaction.scheme` even includes **`nano` — "Circle Gateway batching"**.
+  > But Proceeds is a **paying proxy**: the buyer pays *them*, and they call my
+  > origin carrying a static bearer token from the service's `authConfig`. So
+  > the real question is no longer "can an Arc service be listed" but **"is a
+  > proxy the sanctioned shape?"** — because taking that route means my gate
+  > admits a forwarded call on a shared secret instead of an on-chain
+  > settlement, which is a strictly weaker guarantee than x402 settling to my
+  > own wallet. Related: `PaywallCreate` has no `merchantWallet` field, so a new
+  > paywall pays *their* embedded wallet until it is PATCHed — a default worth
+  > flagging to any seller you point there. We declined the listing for those
+  > reasons; ask this in the reply to the marketplace form.
 - Is `x402Version: 2` a hard requirement for indexing? (Ours advertised 1 until
   we diffed against a live listing; nothing documented the version.)
 - `FINANCIAL_ANALYSIS` carries 447 of the 958. Is the six-category taxonomy

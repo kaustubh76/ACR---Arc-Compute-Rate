@@ -73,6 +73,23 @@ Counters survive a restart: production has no persistent disk, so `/revenue` rea
 | **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` — `docs/agent-runbook.md`. **Proven end-to-end**: Circle's own CLI buyer settled against the deployed gate (`circle services inspect …/prints` → `payable`; `circle services pay` from a faucet-funded agent wallet paid $0.0001 and received the full prints payload) |
 | **Circle Skills** | `circle-skills` Claude Code plugin (`make skills-install`) |
 
+**Discoverability, measured rather than assumed.** Circle's public Discovery API
+(`api.circle.com/v2/x402/discovery/resources`) serves **958 listings and every
+one is on a mainnet chain**; `network=eip155:5042002` returns **zero**, and no
+Arc network appears at all. We meet every listing prerequisite — 402 when
+unpaid, we serve on payment, we publish an OpenAPI spec, and the payout wallet
+is a Circle developer-controlled wallet — so the only thing disqualifying us is
+the chain. The listing form is submitted (`MARKETPLACE-LISTING.md`) and Circle
+say testnet listing works; **we do not claim ACR is listed**, because the
+Discovery API disproves that in ten seconds. Of the four third-party registries
+Circle points sellers at, only **Proceeds** carries Arc — `arc-testnet` is a
+first-class network there and its settlement schemes even include `nano`
+("Circle Gateway batching"). We evaluated it against their live API and
+**declined**: Proceeds is a *paying proxy*, so listing would mean admitting its
+forwarded calls on a static bearer secret instead of an on-chain settlement — a
+weaker guarantee than the one this seller exists to make. x402scan, Blockrun and
+Sponge expose no reachable API and remain unevaluated.
+
 ---
 
 ## 5. Verification evidence (re-run at final submission — 2026-07-31)
