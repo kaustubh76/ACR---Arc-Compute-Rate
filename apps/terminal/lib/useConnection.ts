@@ -53,8 +53,14 @@ export function useConnection(initial?: Envelope<TerminalData>): Connection {
 
   // Direct oracle reads only when the press isn't answering.
   const onchain = useOnchainPrints(!env.live && env.fetchedAt !== 0);
+  // A PARTIAL crawl does not earn the on-chain rung: the indices it missed are
+  // still archived, so claiming "read direct from ACROracle" would be true of
+  // some rows and false of others under one badge. Falling to the archived rung
+  // is true of all of them.
   const onchainOk =
-    onchain?.live === true && Object.keys(onchain.data?.prints ?? {}).length > 0;
+    onchain?.live === true &&
+    Object.keys(onchain.data?.prints ?? {}).length > 0 &&
+    onchain.data?.partial !== true;
 
   const status = connState({
     live: env.live,

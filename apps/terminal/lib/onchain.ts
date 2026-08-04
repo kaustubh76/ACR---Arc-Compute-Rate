@@ -17,6 +17,8 @@ import { INDICES } from "./indices";
 import { bundleSection } from "./api";
 import { decodePrint, indexIdBytes32, type RawPrint } from "./onchainCodec";
 import type { HistoryPoint, OnchainDirectRead } from "./types";
+import { completeHistory, onchainTier } from "./futuresBook";
+import { readFailure } from "./readResult";
 
 const ORACLE_ABI = [
   {
@@ -165,6 +167,10 @@ export async function readOracleDirect(
   if (Object.keys(prints).length === 0) return null;
 
   const data: OnchainDirectRead = { prints };
+  // "Some of them" is its own answer. Without this a 2-of-3 crawl showed one
+  // index still archived beside two fresh ones, under a single page-level
+  // badge claiming all three were read direct.
+  data.partial = onchainTier(Object.keys(prints).length, INDICES.length) === "partial";
 
   if (historyFor && prints[historyFor]) {
     const history: Record<string, HistoryPoint[]> = {};
@@ -191,12 +197,22 @@ export async function readOracleDirect(
             })) as unknown as RawPrint;
             const p = decodePrint(id, raw, 0n);
             if (p) points.push({ ts: p.timestamp, value: p.value, ci_lo: p.ci_lo, ci_hi: p.ci_hi });
-          } catch {
-            /* skip the throttled row */
+          } catch (e) {
+            // Skipped here, REFUSED below. The chart scales x by ordinal, so a
+            // dropped row leaves no hole — it silently shortens the series and
+            // draws a confident continuous line straight through the missing
+            // print. The count check is what turns that into a refusal.
+            console.error(readFailure("onchain.history.row", { id, i: j }, e));
           }
           await sleep(RPC_GAP_MS);
         }
-        if (points.length) history[id] = points;
+        // Complete or nothing. The archived history is complete AND correctly
+        // labelled as archived, so publishing nothing degrades honestly —
+        // the same reasoning the futures roster uses when a throttled crawl
+        // would otherwise advertise a dead series as the live desk.
+        const whole = completeHistory(points, n - from);
+        if (whole) history[id] = whole;
+        else console.error(readFailure("onchain.history", { id, got: points.length, want: n - from }));
       } catch {
         /* history is best-effort */
       }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { INDICES } from "@/lib/indices";
 import { readTraderFills, readTraderPosition } from "@/lib/futuresOnchain";
+import { readHeaders, readStatus } from "@/lib/readResult";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -168,10 +169,13 @@ export async function GET(req: NextRequest, { params }: { params: { action: stri
       if (!Number.isInteger(series) || series < 0 || !ADDR_RE.test(addr)) {
         return NextResponse.json({ detail: "bad position query" }, { status: 400 });
       }
-      const position = await readTraderPosition(series, addr as `0x${string}`);
+      // A read that failed answers 503 with no-store, never 200 with a null.
+      // Serving one throttled answer from the CDN for 10s handed every visitor
+      // the same wrong state and stopped the retry ever reaching the origin.
+      const r = await readTraderPosition(series, addr as `0x${string}`);
       return NextResponse.json(
-        { position },
-        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
+        r.ok ? { position: r.value } : { detail: "could not read the chain just now", unread: true },
+        { status: readStatus(r), headers: readHeaders(r) },
       );
     }
     /* A reader's own fills. The trade flow confirms by watching a position
@@ -184,10 +188,10 @@ export async function GET(req: NextRequest, { params }: { params: { action: stri
       if (!Number.isInteger(series) || series < 0 || !ADDR_RE.test(addr)) {
         return NextResponse.json({ detail: "bad fills query" }, { status: 400 });
       }
-      const fills = await readTraderFills(series, addr as `0x${string}`);
+      const r = await readTraderFills(series, addr as `0x${string}`);
       return NextResponse.json(
-        { fills },
-        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } },
+        r.ok ? { fills: r.value } : { detail: "could not read the chain just now", unread: true },
+        { status: readStatus(r), headers: readHeaders(r) },
       );
     }
     default:

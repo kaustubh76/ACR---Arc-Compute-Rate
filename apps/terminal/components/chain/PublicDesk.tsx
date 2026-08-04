@@ -130,6 +130,9 @@ export function PublicDesk({
   const [limits, setLimits] = useState<Limits | null>(null);
   const [exit, setExit] = useState<Withdrawable | null>(null);
   const [fills, setFills] = useState<FuturesTradeRow[]>([]);
+  /** The last position read failed. The numbers on screen are the last
+   *  CONFIRMED ones, not current — which is a different claim from "flat". */
+  const [positionUnread, setPositionUnread] = useState(false);
   const [fillToast, setFillToast] = useState<FillPayload | null>(null);
   const toastSeq = useRef(0);
   const [note, setNote] = useState<string | null>(null);
@@ -320,7 +323,11 @@ export function PublicDesk({
       setFills(rows);
       return rows;
     } catch {
-      return []; // an unreadable window is not an empty history — keep what we have
+      // UNDEFINED, not []. An unreadable window is not an empty history, and
+      // the receipt logic downstream must be able to tell them apart: a [] here
+      // made beforeTx null, which handed the reader a PREVIOUS fill as this
+      // trade's receipt. Keeps whatever is already on screen.
+      return undefined;
     }
   }, []);
 
@@ -360,11 +367,24 @@ export function PublicDesk({
     step(async () => {
       if (!session?.wallet) return;
       const { address } = session.wallet;
-      const before = (await refreshLimits(address, indexId))?.contracts ?? 0;
+      // Never authorize a PIN ceremony whose success condition cannot be
+      // evaluated. `?? 0` on a throttled read made `before` zero, so the very
+      // first poll saw a difference and declared the fill confirmed — firing a
+      // receipt for a trade that had not happened.
+      const pre = await refreshLimits(address, indexId);
+      if (!pre) {
+        setNote("could not read your margin just now — try again in a moment");
+        return;
+      }
+      const before = pre.contracts;
       // The newest fill BEFORE this trade, so the receipt below can tell a new
       // one from whatever was already sitting in the log window. Without it a
       // quiet desk hands every reader the same stale hash.
-      const beforeTx = desk ? (await refreshFills(address, desk.series_id))[0]?.tx ?? null : null;
+      // undefined = the read failed, so no receipt may be minted from it;
+      // null = read fine, this reader has no prior fill.
+      const beforeTx = desk
+        ? (await refreshFills(address, desk.series_id))?.[0]?.tx ?? null
+        : undefined;
       const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
         user_token: session.user_token,
         wallet_id: session.wallet.wallet_id,
@@ -448,9 +468,15 @@ export function PublicDesk({
         const r = await api<{ position: Position | null }>(
           `/api/desk/position?series=${desk.series_id}&addr=${session.wallet!.address}`,
         );
-        if (alive) setPosition(r.position);
+        if (alive) {
+          setPosition(r.position);
+          setPositionUnread(false);
+        }
       } catch {
-        /* throttled — next tick */
+        // A throttled read is not a flat position. Keep the last confirmed one
+        // and SAY it is unconfirmed — overwriting it with null told a reader
+        // holding a position that they held nothing.
+        if (alive) setPositionUnread(true);
       }
     };
     void poll();
@@ -611,6 +637,14 @@ export function PublicDesk({
           )}
           {position && position.contracts !== 0 ? (
             <span className="mono">
+              {positionUnread ? (
+                <span className="muted">
+                  <Ed
+                    x="last confirmed · "
+                    p="last confirmed · "
+                  />
+                </span>
+              ) : null}
               {position.contracts > 0 ? "long" : "short"} {formatQty(position.contracts)} @ {fmt(position.avg_price)}{" "}
               <span className={position.upnl_usdc >= 0 ? "green" : "vermilion"}>
                 {position.upnl_usdc >= 0 ? "+" : ""}
@@ -628,6 +662,15 @@ export function PublicDesk({
                   </span>
                 </span>
               ) : null}
+            </span>
+          ) : positionUnread ? (
+            // Never read is not the same as read-and-flat. Saying "flat" here
+            // is the bug this branch exists to avoid.
+            <span className="muted">
+              <Ed
+                x="the desk could not read the chain just now — this retries on its own"
+                p="we could not check just now — this retries on its own"
+              />
             </span>
           ) : (
             <span className="muted">

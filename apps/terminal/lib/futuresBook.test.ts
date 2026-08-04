@@ -4,13 +4,18 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   basisBp,
+  completeHistory,
   contractNotional,
+  deskIndexPhrase,
   deskTier,
   expiryLabel,
+  formatOi,
   formatQty,
   headroomBar,
   markSeries,
   newestFillSince,
+  onchainTier,
+  tapeAge,
 } from "./futuresBook";
 import fallback from "./fallback.json";
 import type { FuturesTradeRow } from "./types";
@@ -147,4 +152,59 @@ test("book capacity draws both sides, and names a frozen one", () => {
   assert.equal(headroomBar(1.47, 2).buyPct, 73.5);
   assert.equal(headroomBar(9, 9).buyPct, 100, "clamped at the cap the desk applies");
   assert.equal(headroomBar(Number.NaN, 2).frozen, true);
+});
+
+test("open interest reads the same on every surface", () => {
+  // The home page and the dateline printed toFixed(0) while the desk printed
+  // toFixed(1), so 2.82 was "3 contracts open" on one page and "2.8" on
+  // another. One function, so they cannot drift apart again.
+  assert.equal(formatOi(2.82), "2.8");
+  assert.equal(formatOi(2.31), "2.3");
+  assert.equal(formatOi(0), "0.0");
+  assert.equal(formatOi(-2.82), "2.8", "open interest is a magnitude");
+  assert.equal(formatOi(Number.NaN), "0.0");
+});
+
+test("the copy names the indices that actually have books", () => {
+  assert.equal(deskIndexPhrase(["ACR-INF"]), "on ACR-INF");
+  assert.equal(deskIndexPhrase(["ACR-INF", "ACR-GPU"]), "on ACR-GPU and ACR-INF");
+  assert.equal(deskIndexPhrase(["ACR-INF", "ACR-GPU", "ACR-DATA"]), "on all 3 indices");
+  assert.equal(deskIndexPhrase(["ACR-INF", "ACR-INF"]), "on ACR-INF", "deduped");
+  assert.equal(deskIndexPhrase([]), "");
+});
+
+test("an archived fill does not pretend to have a live age", () => {
+  // Every archived row shares one seen_at (the snapshot stamp), so a ticking
+  // age says the same wrong number on all 23 of them and drifts further every
+  // hour the bundle sits.
+  assert.deepEqual(tapeAge(1785779305, 1785839259, "bundle"), { text: "archived", live: false });
+  assert.equal(tapeAge(1785839200, 1785839259, "press").text, "59s ago");
+  assert.equal(tapeAge(1785839259 - 600, 1785839259, "chain").text, "10m ago");
+  assert.equal(tapeAge(1785839259 - 7200, 1785839259, "press").text, "2h ago");
+  // Before the shared clock starts there is no age to state.
+  assert.equal(tapeAge(1785839200, 0, "press").text, "");
+});
+
+test("a direct history is published only when it is complete", () => {
+  // A dropped row left no hole — the chart scales by ordinal, so it drew a
+  // confident continuous line through the missing print.
+  assert.deepEqual(completeHistory([1, 2, 3], 3), [1, 2, 3]);
+  assert.equal(completeHistory([1, 2], 3), null, "a short series must not publish");
+  assert.equal(completeHistory([], 0), null);
+});
+
+test("a partial crawl is its own answer, not a full one", () => {
+  assert.equal(onchainTier(3, 3), "full");
+  assert.equal(onchainTier(2, 3), "partial");
+  assert.equal(onchainTier(0, 3), "none");
+});
+
+test("a receipt is never minted from a read that failed", () => {
+  const a = { ...TAPE[0], tx: "0xaaa", block: 10 } as FuturesTradeRow;
+  // undefined = the read failed. Previously an unreadable "before" collapsed
+  // to null and handed back whatever was newest — a PREVIOUS trade, shown as
+  // the receipt for the one just made.
+  assert.equal(newestFillSince(undefined, [a]), null);
+  assert.equal(newestFillSince(null, undefined), null);
+  assert.equal(newestFillSince(undefined, undefined), null);
 });

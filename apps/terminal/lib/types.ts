@@ -226,6 +226,11 @@ export interface Envelope<T> {
 export interface OnchainDirectRead {
   prints: Record<string, OnchainPrint & { age_s: number }>;
   history?: Record<string, HistoryPoint[]>;
+  /** True when the crawl resolved SOME indices but not all. A partial read must
+   *  not light the page-level "reading direct from the chain" rung: the rows it
+   *  missed are still archived, and one boolean claimed fresh provenance for
+   *  all of them. */
+  partial?: boolean;
 }
 
 export type AttackRunState = "idle" | "running" | "done" | "error";

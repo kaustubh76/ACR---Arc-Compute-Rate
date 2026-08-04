@@ -27,6 +27,9 @@ import {
   type SeriesInfo,
 } from "./futuresCodec";
 import type { FuturesRoster, FuturesTradeRow } from "./types";
+// Note: no shouldMemo here — every failure path returns BEFORE the memo
+// write, so an unread result can never reach the cache at all.
+import { ok, readFailure, unread, type Read } from "./readResult";
 
 const FUTURES_ABI = [
   {
@@ -266,11 +269,11 @@ export interface TraderPosition {
  *  no extra RPC, and never from the client — a caller-supplied multiplier would
  *  be a caller-supplied PnL.
  */
-async function seriesMultiplier(seriesId: number): Promise<number> {
+async function seriesMultiplier(seriesId: number): Promise<Read<number>> {
   const cached = Object.values(memo?.data?.desks ?? {}).find((d) => d.series_id === seriesId);
-  if (cached?.multiplier) return cached.multiplier;
+  if (cached?.multiplier) return ok(cached.multiplier);
   const venue = futuresAddress();
-  if (!venue) return 1;
+  if (!venue) return unread("multiplier.novenue");
   try {
     const raw = (await client().readContract({
       address: venue,
@@ -278,24 +281,33 @@ async function seriesMultiplier(seriesId: number): Promise<number> {
       functionName: "getSeries",
       args: [BigInt(seriesId)],
     } as never)) as unknown as RawSeries;
-    return decodeSeries(seriesId, raw).multiplier || 1;
-  } catch {
-    return 1; // throttled — a 1x figure is wrong, so the caller must not show it
+    const m = decodeSeries(seriesId, raw).multiplier;
+    return m > 0 ? ok(m) : unread("multiplier.zero");
+  } catch (e) {
+    // A 1x figure is not a fallback, it is a wrong answer: buildDeskRow scales
+    // realized PnL by this, so returning 1 published a reader's banked PnL at a
+    // TENTH of the truth on the live 10x series, with nothing to mark it. The
+    // comment here used to say "the caller must not show it" — and the caller
+    // showed it. Now it cannot.
+    console.error(readFailure("futures.multiplier", { series: seriesId }, e));
+    return unread("multiplier");
   }
 }
 
 export async function readTraderPosition(
   seriesId: number,
   trader: `0x${string}`,
-): Promise<TraderPosition | null> {
+): Promise<Read<TraderPosition | null>> {
   const venue = futuresAddress();
-  if (!venue) return null;
+  if (!venue) return ok(null); // no venue configured is a fact, not a failure
   const key = `${seriesId}:${trader.toLowerCase()}`;
   const hit = posMemo.get(key);
-  if (hit && Date.now() - hit.at < POS_MEMO_MS) return hit.data;
+  if (hit && Date.now() - hit.at < POS_MEMO_MS) return ok(hit.data);
   let data: TraderPosition | null = null;
   try {
-    const multiplier = await seriesMultiplier(seriesId);
+    const mult = await seriesMultiplier(seriesId);
+    if (!mult.ok) return unread(mult.why); // never a 1x PnL
+    const multiplier = mult.value;
     const pos = (await client().readContract({
       address: venue,
       abi: FUTURES_ABI,
@@ -323,15 +335,18 @@ export async function readTraderPosition(
       // closed a position saw only their paper figure.
       realized_usdc: row.maker_realized_usdc,
     };
-  } catch {
-    data = null; // throttled — the poll retries next window
+  } catch (e) {
+    // Was `data = null`, which the route served 200 and the desk rendered as
+    // "flat" — telling a reader holding a position that they hold nothing.
+    console.error(readFailure("desk.position", { series: seriesId, trader }, e));
+    return unread("position");
   }
   if (posMemo.size > 64) {
     const oldest = [...posMemo.entries()].sort((a, b) => a[1].at - b[1].at)[0];
     if (oldest) posMemo.delete(oldest[0]);
   }
   posMemo.set(key, { at: Date.now(), data });
-  return data;
+  return ok(data);
 }
 
 /* One reader's own fills. `seriesId` and `taker` are both INDEXED on `Traded`,
@@ -344,12 +359,12 @@ export async function readTraderFills(
   seriesId: number,
   trader: `0x${string}`,
   limit = 8,
-): Promise<FuturesTradeRow[]> {
+): Promise<Read<FuturesTradeRow[]>> {
   const venue = futuresAddress();
-  if (!venue) return [];
+  if (!venue) return ok([]);
   const key = `${seriesId}:${trader.toLowerCase()}`;
   const hit = fillsMemo.get(key);
-  if (hit && Date.now() - hit.at < POS_MEMO_MS) return hit.data;
+  if (hit && Date.now() - hit.at < POS_MEMO_MS) return ok(hit.data);
 
   let rows: FuturesTradeRow[] = [];
   try {
@@ -380,7 +395,18 @@ export async function readTraderFills(
           await sleep(RPC_GAP_MS * 2);
         }
       }
-      if (!got) break;
+      if (!got) {
+        // THE measured bug. A failed page 0 left `collected` empty and fell
+        // out through the SUCCESS path, returning [] — indistinguishable from
+        // "this reader has never traded" (seen on 1 of 5 production probes for
+        // a wallet with four fills). A catch alone never sees this. Later
+        // pages are only reach: keep what they found and stop.
+        if (page === 0) {
+          console.error(readFailure("desk.fills.page0", { series: seriesId, trader }));
+          return unread("fills");
+        }
+        break;
+      }
       collected.unshift(...got);
       if (collected.length >= limit || start <= 0n) break;
       end = start - 1n;
@@ -402,15 +428,18 @@ export async function readTraderFills(
           seenAt.get(tx) ?? now,
         );
       });
-  } catch {
-    rows = []; // an unreadable window is not an empty history; the poll retries
+  } catch (e) {
+    // An unreadable window is not an empty history — this comment used to sit
+    // above a line that returned one anyway.
+    console.error(readFailure("desk.fills", { series: seriesId, trader }, e));
+    return unread("fills");
   }
   if (fillsMemo.size > 64) {
     const oldest = [...fillsMemo.entries()].sort((a, b) => a[1].at - b[1].at)[0];
     if (oldest) fillsMemo.delete(oldest[0]);
   }
   fillsMemo.set(key, { at: Date.now(), data: rows });
-  return rows;
+  return ok(rows);
 }
 
 /** Read the whole venue — desks per index plus the recent fill tape — straight
