@@ -72,11 +72,18 @@ _MARGIN_ABI = [{"type": "function", "name": "MARGIN_BPS", "stateMutability": "vi
 
 
 def reader_trade_size(mark: float, multiplier: int, margin_bps: int) -> float:
-    """The largest trade a faucet-funded reader can put on — the unit this
-    script counts in. Derived from the desk's own margin arithmetic so the
-    number means the same thing here as it does on ``/desk/limits``."""
+    """The largest trade a faucet-funded reader can actually put on.
+
+    CLAMPED at MAX_QTY, because that is what the desk enforces. Unclamped, a
+    cheap index made the unit absurd: on ACR-GPU a 0.50 drip covers ~20
+    contracts of margin, so a fully saturated book reported "0.0 reader-sized
+    trades a side" — a healthy venue described as a dead one, by a script whose
+    whole job is to say whether the book is deep enough.
+    """
     per_contract = mark * multiplier * (margin_bps / 10_000)
-    return (MARGIN_SAFETY * FAUCET_USDC / per_contract) if per_contract > 0 else 0.0
+    if per_contract <= 0:
+        return 0.0
+    return min(MARGIN_SAFETY * FAUCET_USDC / per_contract, MAX_QTY)
 
 
 def headroom(mark: float, multiplier: int, margin_bps: int,

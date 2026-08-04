@@ -86,11 +86,24 @@ def main() -> None:
     owner_key = (
         os.environ.get("VENUE_OWNER_PRIVATE_KEY", "")
         or os.environ.get("MAKER_PRIVATE_KEY", "")
-        or (s.poster_private_key or "")
     )
     owner_signer = build_role_signer("owner", s, private_key=owner_key or None)
     if owner_signer is None:
-        print("no owner signer — set VENUE_OWNER_PRIVATE_KEY or ACR_CIRCLE_OWNER_WALLET_ID")
+        # Ownership migrated from the deploy EOA to the MAKER's Circle wallet on
+        # 2026-08-03 — that is what lets the keeper roll unattended, and
+        # keeper.py already opens with one maker signer. So the maker is the
+        # right fallback.
+        #
+        # It used to fall back to `s.poster_private_key`, a RAW key for the
+        # retired deploy EOA. That is no longer the owner, so `openSeries`
+        # reverted with "not owner" — and the failure was the good outcome: the
+        # bad one is a venue operation signed by the very key the migration
+        # existed to retire.
+        owner_signer = build_role_signer("maker", s)
+        if owner_signer is not None:
+            print("  · no owner role configured — signing as the maker, which owns the venue")
+    if owner_signer is None:
+        print("no owner signer — set ACR_CIRCLE_OWNER_WALLET_ID (or ACR_CIRCLE_MAKER_WALLET_ID)")
         sys.exit(1)
 
     from web3 import Web3
@@ -109,6 +122,35 @@ def main() -> None:
 
     def _how(sg) -> str:
         return "Circle custody" if type(sg).__name__ == "CircleWalletSigner" else "local key"
+
+    # ASK THE CHAIN who owns the venue, rather than trusting the role that
+    # claims to. `build_role_signer("owner", …)` falls back to the ambient
+    # poster key when no owner wallet is configured — correct before the
+    # 2026-08-03 handover, and silently wrong after it, because that key is the
+    # retired deploy EOA. The symptom was `openSeries` reverting "not owner"
+    # after the budget guard had already passed. Ownership is a fact on-chain;
+    # read it and pick the signer that matches.
+    _OWNER_ABI = [{"type": "function", "name": "owner", "stateMutability": "view",
+                   "inputs": [], "outputs": [{"name": "", "type": "address"}]}]
+    try:
+        on_chain_owner = _rpc_retry(
+            w3.eth.contract(
+                address=Web3.to_checksum_address(s.futures_address), abi=_OWNER_ABI
+            ).functions.owner().call
+        )
+        if str(on_chain_owner).lower() != owner_signer.address.lower():
+            if str(on_chain_owner).lower() == maker_address.lower():
+                owner_signer = signer  # the maker owns it — sign with the maker
+                owner_fc = fc
+                print("  · the venue is owned by the MAKER — signing openSeries as the maker")
+            else:
+                print(f"  ✗ the venue is owned by {on_chain_owner}, and no configured "
+                      "signer holds it — set ACR_CIRCLE_OWNER_WALLET_ID")
+                sys.exit(1)
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
+        print(f"  ! could not read the venue owner ({str(exc)[:60]}) — continuing")
 
     print(f"  · venue {s.futures_address}")
     print(f"  · maker {maker_address} ({_how(signer)})")

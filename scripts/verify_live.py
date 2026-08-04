@@ -227,11 +227,16 @@ def verify_venue(w3, settings) -> dict | None:
     # the verifier announce an uncollateralized venue whenever Arc was busy —
     # crying outage over RPC weather.
     maker_addr = w3.to_checksum_address(s["maker"])
-    maker = collateral_or_none(fc, s["series_id"], maker_addr)
-    if maker is None:
-        check(False, "maker collateral: the chain would not say", warn_only=True)
-    else:
-        check(maker > 0, f"maker is collateralized ({maker:.2f} USDC) — it is the counterparty")
+    maker = None
+    for idx in sorted(by_index):
+        row = by_index[idx]
+        c = collateral_or_none(fc, row["series_id"], w3.to_checksum_address(row["maker"]))
+        if row["series_id"] == s["series_id"]:
+            maker = c  # the primary, reused by the headroom check below
+        if c is None:
+            check(False, f"{idx}: maker collateral — the chain would not say", warn_only=True)
+        else:
+            check(c > 0, f"{idx}: maker is collateralized ({c:.2f} USDC) — it is the counterparty")
 
     # Collateral is PER SERIES, and a roll posts a fresh stake without reclaiming
     # the old one — so every roll silently leaves the maker's money on a series
@@ -239,10 +244,16 @@ def verify_venue(w3, settings) -> dict | None:
     # quoted series 2 off 1.50, and since `feasible_qty` clamps a reader's size
     # by the maker's stake, the public book was a quarter of the depth the
     # project had already paid for. Nothing was broken, so nothing complained.
+    # EVERY live book's series is legitimately funded, not just the newest one.
+    # Excluding only `s` was right while the venue had one book; with three it
+    # reported the maker's real stake on the other two as stranded — a false
+    # alarm, which is worse than no check, because a warning that is wrong is a
+    # warning people learn to scroll past.
+    funded_ids = {row["series_id"] for row in by_index.values()}
     stranded = 0.0
     unreadable = 0
     for other in fc.read_all_series():
-        if other["series_id"] == s["series_id"]:
+        if other["series_id"] in funded_ids:
             continue
         c = collateral_or_none(fc, other["series_id"], maker_addr, tries=2)
         if c is None:
@@ -259,7 +270,7 @@ def verify_venue(w3, settings) -> dict | None:
     # nothing has told you something false in the course of being helpful.
     check(
         stranded == 0.0,
-        "no maker collateral sitting off the traded series"
+        "no maker collateral sitting off a traded series"
         + (
             f" (found {stranded:.2f} USDC on other series — run "
             "`make futures-withdraw` with WITHDRAW_DRY_RUN=1 to see how much "
@@ -307,7 +318,12 @@ def verify_venue(w3, settings) -> dict | None:
             per_contract = mark * desk["multiplier"] * (
                 _margin_bps_or_default(w3, settings) / 10_000
             )
-            unit = (MARGIN_SAFETY * FAUCET_USDC / per_contract) if per_contract > 0 else 0.0
+            # CLAMPED at MAX_QTY, because that is the largest trade the desk
+            # will quote. Unclamped, a cheap index (ACR-DATA at 0.002) made a
+            # 0.50 drip cover ~100 contracts, so a saturated book reported
+            # "0.0 reader-sized trades" — a healthy venue described as a dead
+            # one by the very line that exists to say whether it is healthy.
+            unit = min(MARGIN_SAFETY * FAUCET_USDC / per_contract, MAX_QTY) if per_contract > 0 else 0.0
             check(
                 room >= floor,
                 f"headroom {room:.2f} of the {floor:.2f} the desk may quote"
@@ -383,9 +399,14 @@ def verify_venue(w3, settings) -> dict | None:
     # A venue with a live series but no taker stake is a book nobody can trade
     # into: every desk fill mirrors onto the maker, but the heartbeat's own
     # trades need its stake to still be on THIS series after a roll.
-    n = int(_rpc_retry(fc._contract().functions.traderCount(s["series_id"]).call))
-    check(n >= 1, f"{n} trader(s) posted on the live series")
-    return s
+    for idx in sorted(by_index):
+        row = by_index[idx]
+        n = int(_rpc_retry(fc._contract().functions.traderCount(row["series_id"]).call))
+        check(n >= 1, f"{idx}: {n} trader(s) posted on series {row['series_id']}")
+    # The DESK's index, not the newest series venue-wide — verify_desk quotes
+    # /desk/limits for ACR-INF, and handing it series 5 (ACR-DATA) made it call
+    # a correct desk broken the moment a second book opened.
+    return by_index.get("ACR-INF") or s
 
 
 def verify_tape(settings) -> None:
@@ -461,11 +482,15 @@ def verify_desk(live_series: dict | None) -> None:
     ok = status == 200 and isinstance(body, dict) and body.get("mark", 0) > 0
     check(ok, f"/desk/limits -> {status}" + (f", mark {body.get('mark'):.5f}" if ok else ""))
     if ok and live_series is not None:
-        # The desk must quote the series the CHAIN says is live. Quoting a
-        # settled one is how a reader ends up authorizing a doomed trade.
+        # The desk must quote the series the CHAIN says is live FOR THIS INDEX.
+        # Comparing against the newest series venue-wide was right with one
+        # book and wrong the moment a second opened: the desk correctly quoted
+        # ACR-INF's series 3 while ACR-DATA's series 5 was the newest anywhere,
+        # and the check called a correct desk broken. Quoting a settled series
+        # is the real failure — that is how a reader authorizes a doomed trade.
         check(
             body.get("series_id") == live_series["series_id"],
-            f"desk quotes series {body.get('series_id')} == live series "
+            f"desk quotes series {body.get('series_id')} == live ACR-INF series "
             f"{live_series['series_id']}",
         )
 
