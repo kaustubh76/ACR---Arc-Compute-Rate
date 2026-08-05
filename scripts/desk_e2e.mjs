@@ -94,9 +94,17 @@ async function typePin(page, f) {
   const inputs = f.locator("input[type='password']");
   if ((await inputs.count().catch(() => 0)) < PIN.length) return false;
   await inputs.first().click({ timeout: 5000 }).catch(() => {});
+  // Let focus settle before the first keystroke. A keypress fired into a
+  // still-animating screen drops, the SDK auto-fills from the first EMPTY box,
+  // and every later digit lands one place off — the submission at digit six is
+  // then a real, attempts-limited wrong guess (a run got to "1 attempt left"
+  // this way before anything noticed).
+  await sleep(400);
+  // Clear stale digits from any prior partial entry for the same reason.
+  for (let i = 0; i < PIN.length + 2; i++) await page.keyboard.press("Backspace");
   for (const d of PIN) {
     await page.keyboard.press(`Digit${d}`);
-    await sleep(80);
+    await sleep(120);
   }
   return true;
 }
@@ -160,6 +168,18 @@ async function driveCircle(page, done, budgetMs, label) {
           await clickFooter(f, label);
           await sleep(2000);
           continue;
+        }
+        // A wrong PIN and a fresh PIN prompt share the same screen and the
+        // same testids; only this error line tells them apart. Retyping into
+        // it is not a retry, it is another wrong guess against a hard attempt
+        // limit — stop dead before the wallet (and its faucet drip) locks.
+        if (/incorrect[\s\S]{0,80}attempt/i.test(text)) {
+          await shot(page, "x-pin-incorrect");
+          throw new Error(
+            `${label}: Circle reports an incorrect PIN with limited attempts left — ` +
+              "aborting before the wallet locks. This wallet's PIN does not match " +
+              "DESK_PIN; abandon the profile and start a fresh one.",
+          );
         }
         if ((await f.locator("input[type='password']").count()) >= PIN.length) {
           // Type ONCE per screen instance. Circle's iframe sometimes lingers on
@@ -246,22 +266,54 @@ async function milestone(page, re, timeoutMs, what) {
 /** The wallet's collateral ON THE VENUE, straight from the desk's own quote —
  *  the number the contract will margin against, not a word on the page. Returns
  *  0 when the desk cannot answer, so callers can treat "unknown" as "not yet". */
-async function deskCollateral(page) {
+const ARC_RPC = process.env.ARC_RPC ?? "https://rpc.testnet.arc.network";
+let _collatCache = { at: 0, value: 0 };
+
+/** The trader's posted collateral, read from the CHAIN — `collateral(uint256,
+ *  address)`, selector a5858e60 — across every live series from /api/futures.
+ *
+ *  Two predecessors both lied. The first asked /api/desk/limits for ACR-INF
+ *  by name: the day the desk quoted ACR-GPU, collateral landed on series 4
+ *  while this polled series 3 forever. The second asked all three books but
+ *  still through /api/desk/limits — whose per-IP rate limiter the polling
+ *  itself then tripped, turning every later read into a 429 and a 429 into
+ *  "0 collateral". A failed read is not a state; the chain is the witness,
+ *  and it has no opinion about how often we've asked the desk. Throttled to
+ *  one sweep per 8s so the RPC's own limiter stays out of the story too. */
+async function deskCollateral() {
   if (!state.address) return 0;
-  return page.evaluate(async (addr) => {
-    try {
-      const r = await fetch("/api/desk/limits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: addr, index_id: "ACR-INF" }),
-      });
-      if (!r.ok) return 0;
-      const j = await r.json();
-      return typeof j.collateral_usdc === "number" ? j.collateral_usdc : 0;
-    } catch {
-      return 0;
+  if (Date.now() - _collatCache.at < 8_000) return _collatCache.value;
+  try {
+    const fut = await (await fetch(`${TERMINAL}/api/futures`)).json();
+    const venue = fut?.data?.venue;
+    const desks = Object.values(fut?.data?.desks ?? {});
+    if (!venue || !desks.length) return _collatCache.value;
+    let best = 0;
+    for (const d of desks) {
+      const data =
+        "0xa5858e60" +
+        BigInt(d.series_id).toString(16).padStart(64, "0") +
+        state.address.toLowerCase().replace("0x", "").padStart(64, "0");
+      const j = await (
+        await fetch(ARC_RPC, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "eth_call",
+            params: [{ to: venue, data }, "latest"],
+          }),
+        })
+      ).json();
+      const v = parseInt(j?.result ?? "0x0", 16) / 1e6;
+      if (Number.isFinite(v) && v > best) best = v;
     }
-  }, state.address);
+    _collatCache = { at: Date.now(), value: best };
+    return best;
+  } catch {
+    return _collatCache.value; // keep the last truth, never invent a zero
+  }
 }
 
 /** Poll a truth predicate to a deadline; returns the truthy value or null.
@@ -461,9 +513,9 @@ async function main() {
     // driving either PIN challenge. On chain the wallet held its 0.5 USDC
     // stake and the venue held nothing, and the desk was right to offer no
     // BUY button. The run reported "trading enabled" over an empty account.
-    await driveCircle(page, async () => (await deskCollateral(page)) > 0, 360_000, "collateral");
+    await driveCircle(page, async () => (await deskCollateral()) > 0, 360_000, "collateral");
   }
-  const posted = await waitFor(async () => (await deskCollateral(page)) > 0, 120_000);
+  const posted = await waitFor(async () => (await deskCollateral()) > 0, 120_000);
   if (!posted) {
     await shot(page, "x-no-collateral");
     throw new Error("collateral never landed on the venue — the desk has nothing to trade with");
