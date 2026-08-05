@@ -516,10 +516,14 @@ export function PublicDesk({
             <Ed x="The public desk" p="Trade it yourself" />
           </span>
         </div>
+        {/* WHY it is closed and WHAT happens next, not just that it is.
+            This line is most often seen by exactly the wrong audience — a
+            judge landing on a cold free-tier press — and the previous copy
+            told them nothing about the ~60s wake or that no click is needed. */}
         <p className="muted">
           <Ed
-            x="the public desk opens when the press is live — archived editions are read-only"
-            p="you can trade here once the live server is awake — the saved edition is read-only"
+            x="the desk needs a live press or a direct chain read to mint wallet challenges — archived editions are read-only. The free-tier press wakes on first visit (~60s); this page keeps retrying and the desk opens by itself."
+            p="trading needs our live server, which naps between visits to save money — it is waking up now (about a minute). Keep this page open: it retries on its own and the desk appears when the server answers."
           />
         </p>
       </section>

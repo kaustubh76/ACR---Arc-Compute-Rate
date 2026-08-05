@@ -85,7 +85,13 @@ That second property is reported **per print**, not asserted in the abstract:
 `acr_estimator/robustness.py` attaches to every print the single-cluster flip
 fraction \(c/(0.5(1-2\alpha))\) (< 1 ⇒ one capped cluster provably cannot move the
 print), the largest surviving community's share, and the empirical
-leave-one-community-out shift of the median in basis points.
+leave-one-community-out shift of the median in basis points. One caveat on the
+last of these: on a window where **all** surviving flow lands in a single
+community, `max_cluster_influence_bp` reads `0.0` by *absence of a comparison* —
+there is no second community to re-median against — not by demonstrated
+robustness. Read it alongside the sybil-zeroing stage, which is the
+load-bearing defense on such windows (see `IMPLEMENTATION_STATUS.md` on why the
+cap contributes ~0 to stability).
 
 Each print ships a **weighted-bootstrap confidence interval**: resample by weight,
 recompute the trimmed median, take empirical quantiles. The Pillar-1 smoother

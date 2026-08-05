@@ -507,11 +507,22 @@ per-feed economic-security parameters. The narrow claim is the defensible one.)
 
 ### C4. What does the bound *not* cover?
 
-- It is a **marginal lower bound**, cheapest near a dense median. The code says
-  resistance is superlinear in size — but the shipped numbers do not always
-  agree: on ACR-GPU and ACR-DATA, `cost_to_move_1pct` is *less* than 100× the
-  per-bp cost, i.e. sublinear. The two figures come from separate searches and
-  the divergence is unexplained. A quant will divide those columns immediately.
+- It is a **marginal lower bound**, cheapest near a dense median. A quant will
+  divide `cost_to_move_1pct` by `cost_per_bp` and get less than 100 on two
+  indices (measured on the press's own window, 2026-08-05: 171× ACR-INF,
+  111× ACR-GPU, **65× ACR-DATA**) — and the decomposition explains it rather
+  than excuses it. The 1bp price is dominated by a **fixed admission fee**:
+  one evasion-sized sybil cluster is 41 funded identities ≈ 0.0041 USDC of
+  flat transfers, which is 87% of INF's per-bp cost, 60% of GPU's, 37% of
+  DATA's. The 1% attack pays that floor roughly once more (clusters go 1→2,
+  not 1→100) while its cost turns ~98% proportional to wash notional. So the
+  per-bp figure is a *marginal* price that includes the whole admission fee
+  and the 1% figure is a *total* that amortizes it — expecting their ratio to
+  be 100 is comparing a marginal price to an average one. The **notional**
+  required is where superlinearity genuinely lives, and only near a dense
+  median: moving INF 100× further takes **1,626×** the mass; DATA, whose
+  median is far less dense, takes 102× — essentially linear. The attacker
+  never escapes the floor; they just don't pay it a hundred times.
 - It charges the attacker **only fees** — the wash notional itself is treated as
   free, because it round-trips inside their own identity set.
 - It prices no identity-acquisition cost, no KYC, no opportunity cost of funds,

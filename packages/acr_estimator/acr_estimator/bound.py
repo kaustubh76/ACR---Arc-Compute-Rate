@@ -42,7 +42,12 @@ from .cleaning import SYBIL_MAX_SIZE
 @dataclass
 class ManipulationBound:
     #: USDC to move the print by 1bp (min over up/down attacks). Marginal lower
-    #: bound — cheapest near a dense median; resistance is superlinear on size.
+    #: bound — cheapest near a dense median. NOTE: this price is dominated by a
+    #: fixed admission fee (one evasion-sized sybil cluster of funded
+    #: identities), so ``cost_to_move_1pct`` may be LESS than 100x this figure —
+    #: the floor is amortized at size, not escaped. Superlinearity lives in the
+    #: NOTIONAL required, and only near a dense median (measured: 1,626x mass
+    #: for a 100x move on a dense book, ~102x on a sparse one).
     cost_per_bp: float
     #: Minimal wash notional to move 1bp.
     notional_per_bp: float

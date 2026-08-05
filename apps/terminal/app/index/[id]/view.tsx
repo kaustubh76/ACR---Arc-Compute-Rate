@@ -278,10 +278,24 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                     <span className="fn-value">{(100 * r.max_cluster_share).toFixed(1)}%</span>
                   </li>
                   <li>
+                    {/* 0.0 needs its caveat INLINE: on a window where all
+                        surviving flow lands in one community there is nothing
+                        to compare against, so zero means "no comparison", not
+                        "proven immovable" — and read cold, it claims the
+                        stronger thing. Sybil-zeroing, not this cap, is the
+                        real resistance. */}
                     <Ed
                       className="fn-gloss"
-                      x="Influence of that cluster on the print if removed entirely."
-                      p="How far the rate would move if that whole group were deleted from the data."
+                      x={
+                        r.max_cluster_influence_bp === 0
+                          ? "Influence of that cluster on the print if removed entirely — 0.0 here means no second community to compare against this window, not proven immovability; the sybil-zeroing above is the load-bearing defense."
+                          : "Influence of that cluster on the print if removed entirely."
+                      }
+                      p={
+                        r.max_cluster_influence_bp === 0
+                          ? "How far the rate would move if that whole group were deleted — zero here means there was only one group to measure this hour, not that the rate cannot move; the fake-account filter above is the real defense."
+                          : "How far the rate would move if that whole group were deleted from the data."
+                      }
                     />
                     <span className="fn-value">{r.max_cluster_influence_bp.toFixed(1)} bp</span>
                   </li>
