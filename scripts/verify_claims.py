@@ -31,6 +31,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
 STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
+#: The gap-analysis doc drifted furthest of all — 230/50/60 against a suite of
+#: 303/60/91, "~49 commits" against 170 — because it was the one judge-facing
+#: doc this file never count-checked. Phrase checks alone let every number rot.
+MVP = ROOT / "docs" / "MVP_STATUS.md"
 #: The deck is the artefact a judge actually reads, and it was the most
 #: drifted: it claimed 230 py / 332 glossary / 50 terminal against a suite of
 #: 273 / 386 / 55, and narrated a series that had already been rolled twice.
@@ -120,6 +124,7 @@ def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)
     sub = SUBMISSION.read_text()
     status = STATUS.read_text()
+    mvp = MVP.read_text() if MVP.exists() else ""
     deck = DECK.read_text() if DECK.exists() else ""
 
     print("ACR claim audit — do the docs still tell the truth?")
@@ -137,23 +142,31 @@ def main() -> None:
     # that would have caught it was the one FAST turned off. Only `forge test`
     # and `npm test`, which genuinely re-run suites other CI jobs already ran,
     # are worth skipping.
+    # Every doc that states the number is held to it individually. The first
+    # version of this loop took the FIRST doc that made a claim and stopped —
+    # so with SUBMISSION correct at 303, MVP_STATUS sat at 230 for a week and
+    # the check that existed to catch exactly that passed green.
     for label, pattern, measure, texts, costly in (
-        ("python suite", r"\*\*(\d+) passed\*\*", measured_pytest, (sub, status), False),
-        ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge, (sub,), True),
-        ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal, (sub,), True),
+        ("python suite", r"\*\*(\d+) passed\*\*", measured_pytest,
+         (("SUBMISSION", sub), ("STATUS", status), ("MVP_STATUS", mvp)), False),
+        ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge,
+         (("SUBMISSION", sub),), True),
+        ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal,
+         (("SUBMISSION", sub),), True),
     ):
-        stated = next((c for c in (claim(t, pattern) for t in texts) if c), None)
-        if stated is None:
+        stated = [(name, c) for name, t in texts if (c := claim(t, pattern)) is not None]
+        if not stated:
             check(False, f"{label}: no claim found in the docs — has it been reworded?")
             continue
         if FAST and costly:
-            print(f"  · {label}: claims {stated} (not measured)")
+            print(f"  · {label}: claims {stated[0][1]} (not measured)")
             continue
         actual = measure()
         if actual is None:
             check(False, f"{label}: could not measure (toolchain missing?)")
             continue
-        check(actual == stated, f"{label}: docs say {stated}, measured {actual}")
+        for name, val in stated:
+            check(actual == val, f"{label}: {name} says {val}, measured {actual}")
 
     # The deck states the same suite sizes in its own phrasing ("**273 py** ·
     # **50 forge** · **55 terminal** … glossary **386/386**). It is a separate
@@ -246,6 +259,21 @@ def main() -> None:
     check(
         "never folded in" not in status,
         "STATUS no longer says the real Gateway receipts were never folded into the bundle",
+    )
+    # MVP_STATUS's own retired sentences. Each was accurate the day it was
+    # written and quietly became a lie: the .env is real now, the instrument
+    # layer trades hourly, the Marketplace form went in on 2026-08-04, and the
+    # commit count was off by 3.5x. The phrase is the tombstone; if it comes
+    # back, so has the lie.
+    for phrase, why in (
+        ("broken placeholder values", "the repo .env is real now"),
+        ("half-built", "the instrument layer trades hourly across three books"),
+        ("not yet done", "the Marketplace form was submitted 2026-08-04"),
+    ):
+        check(phrase not in mvp, f"MVP_STATUS no longer says '{phrase}' — {why}")
+    check(
+        re.search(r"~?\d+ commits", mvp) is None,
+        "MVP_STATUS states no commit count — it drifts daily and nothing measures it",
     )
 
     # The venue's SHAPE. Every number above is checked by measurement, and the

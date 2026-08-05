@@ -19,6 +19,10 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   ["/exchange", "Exchange", "The Shop Floor"],
   ["/sellers", "Registry", "Sellers"],
   ["/developers", "Developers", "For Coders"],
+  // The reader's primer. It existed for a week reachable only from the footer
+  // and the 404 page — the one page written for a first-time reader was the
+  // one no first-time reader could find.
+  ["/companion", "Companion", "Start Here"],
 ];
 
 function isActive(pathname: string, href: string): boolean {
