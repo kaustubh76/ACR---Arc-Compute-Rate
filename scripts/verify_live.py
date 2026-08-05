@@ -558,7 +558,18 @@ def verify_hedger() -> None:
         warn_only=True,
     )
     fills = body.get("fills") or []
-    check(len(fills) > 0, f"{len(fills)} on-chain fill(s) by the agent", warn_only=True)
+    # An agent AT its mandate stops trading, so its fills age out of the press's
+    # paged log reach — while its position, which only fills can build, persists
+    # in contract state. Either witness proves it traded; demanding a *recent*
+    # fill from an agent whose success condition is "stop trading" turns
+    # reaching the mandate into a failure (it did, on the first strict run).
+    pos_witness = body.get("position_contracts") or 0.0
+    check(
+        len(fills) > 0 or abs(pos_witness) > 1e-9,
+        f"{len(fills)} on-chain fill(s) in log reach"
+        + (f" — position {pos_witness:+.2f} is the durable witness" if pos_witness else ""),
+        warn_only=True,
+    )
     paid = body.get("paid_queries")
     check(
         bool(paid),

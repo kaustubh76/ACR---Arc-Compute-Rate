@@ -194,14 +194,21 @@ def embed_bundle_sections(payload: dict) -> dict:
 def capture_hedger_state() -> dict:
     """The autonomous hedger's live standing for the offline bundle."""
     from index_api.hedger import build_hedger_state
-    from index_api.marketplace import build_receipts
     from index_api.onchain import get_futures
-    from index_api.x402 import DevFacilitator
 
     try:
-        # The sim ledger stands in for spend here: the bundle must never carry
-        # the live facilitator's real counters under an "archived" label.
-        return build_hedger_state(get_futures(), build_receipts(DevFacilitator()))
+        # Spend comes from the DURABLE receipts archive — the same committed
+        # file SUBMISSION.md cites — never the live facilitator's counters
+        # (ephemeral under an "archived" label) and never the sim ledger,
+        # which knows no real payer and turned the agent's 4 real settlements
+        # into a confident "paid 0". An archive the repo already version-
+        # controls is exactly what an archived edition should carry.
+        arch = Path("services/index_api/index_api/receipts_live.jsonl")
+        rows = []
+        if arch.exists():
+            rows = [json.loads(ln) for ln in arch.read_text().splitlines() if ln.strip()]
+        receipts = {"receipts": rows} if rows else None  # None → unknown, not 0
+        return build_hedger_state(get_futures(), receipts)
     except Exception:  # pragma: no cover - a dead RPC must not fail the snapshot
         return {"configured": False, "agent": None, "payer": None,
                 "index_id": "ACR-INF", "target_contracts": 0.0, "venue": None,

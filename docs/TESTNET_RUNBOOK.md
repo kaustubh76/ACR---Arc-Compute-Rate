@@ -26,7 +26,9 @@ Chain facts this runbook is built on:
 | x402 facilitator (testnet) | `https://gateway-api-testnet.circle.com` |
 
 Related: [`docs/agent-runbook.md`](agent-runbook.md) (the buyer-agent detail
-this runbook's step 5 condenses), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+this runbook's step 5 condenses), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md),
+[`docs/SHIP-CHECKLIST.md`](SHIP-CHECKLIST.md) (the submission-morning ritual and
+the deadline's open items).
 
 ---
 
