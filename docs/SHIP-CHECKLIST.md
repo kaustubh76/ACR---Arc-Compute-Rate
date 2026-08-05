@@ -61,14 +61,15 @@ dead series.
 
 ## Open items being tracked to the deadline
 
-- [ ] **INF top-up (operator, real USDC):** `COLLATERALIZE_DRY_RUN=0
-      COLLATERALIZE_INDEX=ACR-INF uv run python scripts/futures_collateralize.py`
-      — 0.04 USDC clears the one remaining `VERIFY_STRICT` failure
-      (headroom 1.96 → 2.00).
-- [ ] **Desk E2E re-proof (operator green-light, burns one 0.50 drip):**
-      `make desk-preflight` → `make desk-e2e PLAYWRIGHT_DIR=…` →
-      `make desk-evidence` — first clean run since the milestone predicate
-      began asserting on the SCA address instead of page copy.
+- [x] **INF top-up — DONE 2026-08-05** (operator, 0.07 USDC, tx
+      `0x96d10f56…`, all witnesses agreeing): headroom 2.00 both sides, and
+      `VERIFY_STRICT=1 make verify-live` now exits 0 — **ALL PILLARS LIVE**,
+      recorded in `SUBMISSION.md` §5.
+- [x] **Desk E2E re-proof — DONE 2026-08-05 against production**, on the
+      ACR-GPU book: long 2.00 @ 0.01083 (`0x40e0c510…`), withdraw confirmed,
+      `make desk-evidence` → CONFIRMED ON-CHAIN with Gas Station sponsorship.
+      Found and fixed a judge-facing resume bug on small books along the way
+      (`48aed53`); full account in `TESTNET_RUNBOOK.md` §2026-08-05.
 - [ ] **Public Desk browser walkthrough** on ACR-GPU against production —
       PIN ceremony and all; time it (the "trading in under N minutes" number
       belongs in the pitch).

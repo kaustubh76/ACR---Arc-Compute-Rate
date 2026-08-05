@@ -409,6 +409,33 @@ three ways that look alike and are not:
 - **Faucet rate limits**: the Circle faucet caps requests per address per day;
   fund both the poster and the buyer early.
 
+### The ceremony on a SMALL book, proven on production — 2026-08-05, series 4 (ACR-GPU)
+
+Wallet `0x86904D879e12e79187a8671A202ADd6b3bDc7bA5` (Circle user
+`acr-desk-bbcb1779…`), driven against the **live production site** — the first
+clean run since the milestone predicates began asserting chain state instead
+of page copy:
+
+| Step | Result |
+|---|---|
+| PIN ceremony | SCA created through Circle's hosted UI |
+| faucet | 0.5 USDC from custody |
+| `approve` + `postCollateral` | 0.05-sized GPU stakes on series 4 (per-book reader sizing) |
+| `trade` | **long 2.00 @ 0.01083** — [`0x40e0c510…`](https://testnet.arcscan.app/tx/0x40e0c5103daec78b05103dfbeca6e8ba56e8a49b9f8f7d9222bba7d6e62f5da9) |
+| `withdrawCollateral` | free 0.0538 → 0.0027 — [`0xcd8ef4f1…`](https://testnet.arcscan.app/tx/0xcd8ef4f1808e0078df3c5ec3213b1ebeb1a5cdc1de22a873a17cd1e27078bbaa) |
+| evidence | `make desk-evidence` → **CONFIRMED ON-CHAIN**: `positionOf(4)` = 2.0 @ 0.010831, Circle ledger 8 COMPLETE ops, Gas Station paymaster `0x7cea357b…` paid |
+
+**The bug this run found — judge-facing, invisible on the big book:** the
+resume path only asked the venue about posted collateral when the wallet was
+*empty*, which is only true on ACR-INF (the whole 0.50 converts). On ACR-GPU a
+reader posts 0.05 and keeps 0.45 — so a returning GPU reader was re-offered
+"post collateral", and a second click posts a second stake. Fixed (the venue
+check now runs whenever localStorage doesn't say collateralized) and deployed.
+The harness itself had three lies of its own fixed the same afternoon —
+mangled PIN entry burning real attempts, a hardcoded ACR-INF collateral read,
+and a poll that turned its own rate-limiting into "0 collateral"; see
+`scripts/desk_e2e.mjs`'s comments.
+
 ### The full ceremony, proven on production — 2026-08-02
 
 Wallet `0xdd2112121d004c780d714d59736db13b663b31e0` (Circle user
