@@ -113,6 +113,7 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient` — re-run 2026-07-31 against the **deployed** gate) |
 | On-chain read | `make verify-testnet` | ✅ chain id + contracts' bytecode + 3 live prints read from Arc (+ `cast code` shows bytecode at ACRFutures) |
 | Press cadence | `GAP_PAGES=24 make print-gaps` (2026-08-05, read off the chain, not the API) | ✅ **18.8 h window, 19 consecutive press runs: median gap 60.4 min, max 60.6, zero over the 120-min settle window**, all three indices on every run — the free-tier self-ping's claim, measured rather than asserted (the pre-fix tape held gaps up to 216 min) |
+| Strict liveness | `VERIFY_STRICT=1 make verify-live` (2026-08-05 — strict mode also fails on funding runway and book capacity, not just outages) | ✅ **ALL PILLARS LIVE** — oracle, venue (three books, each 2.00 contracts of headroom a side), tape, seller, x402, public desk, hedger (at mandate +2.00, 4 paid settlements), terminal, funding (custody 19 days of runway; maker and taker above their floors), keeper traded within the hour |
 | GitHub CI | push to `main` | ✅ 4/4 jobs green |
 
 **The headline claim — manipulation resistance** (`make demo`, $8,000 wash-attack budget, 36,000 adversarial authorizations, attacker burned **$147.60**):
