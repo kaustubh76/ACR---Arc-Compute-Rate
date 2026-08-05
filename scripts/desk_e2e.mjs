@@ -515,7 +515,9 @@ async function main() {
     // BUY button. The run reported "trading enabled" over an empty account.
     await driveCircle(page, async () => (await deskCollateral()) > 0, 360_000, "collateral");
   }
-  const posted = await waitFor(async () => (await deskCollateral()) > 0, 120_000);
+  // The predicate returns the AMOUNT (truthy when > 0), so the log below can
+  // print real USDC instead of the literal "true" it printed once.
+  const posted = await waitFor(async () => (await deskCollateral()) || null, 120_000);
   if (!posted) {
     await shot(page, "x-no-collateral");
     throw new Error("collateral never landed on the venue — the desk has nothing to trade with");

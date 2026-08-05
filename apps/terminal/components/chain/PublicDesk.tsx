@@ -219,8 +219,13 @@ export function PublicDesk({
       setPhase(deskPhase({ usdc: w.usdc, collateralized }));
       // If localStorage was cleared (or this is a different browser), ask the
       // venue rather than stranding a reader whose money is demonstrably
-      // posted.
-      if (!(w.usdc && w.usdc > 0) && !collateralized) {
+      // posted. This must run for FUNDED wallets too, not only empty ones:
+      // on the smaller books a stake only partly converts (ACR-GPU posts
+      // 0.05 of the 0.50 drip), so a returning reader holds BOTH a balance
+      // and posted collateral — the old empty-wallet-only gate re-offered
+      // "post collateral" to exactly that reader, and a second click posts
+      // a second, needless stake.
+      if (!collateralized) {
         const live = await api<Limits>("/api/desk/limits", {
           address,
           index_id: indexRef.current,
