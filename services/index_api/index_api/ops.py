@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import os
+import statistics
 import time
 
 log = logging.getLogger("acr.ops")
@@ -174,6 +175,91 @@ def _press(rec: Recorder) -> None:
     if newest:
         rec.check(True, f"last tx {str(newest.get('tx'))[:18]}…",
                   detail=f"{(time.time() - float(newest.get('at_wall') or 0)) / 60:.0f} min ago")
+
+
+#: How far back the cadence check reaches. 16 pages × 14000 blocks ≈ 32h at
+#: Arc's measured 0.510s block time — matching scripts/print_gaps.py's own
+#: default. Deliberately larger than ACR_TAPE_PAGES (4): the tape wants the
+#: last few hours cheaply, this wants the worst hole in a day, and one hole is
+#: the whole point. Measured cost at 24 pages was ~115s of the sweep; 16 keeps
+#: a full day of reach without making the first pass after boot a two-minute
+#: wait.
+GAP_PAGES = int(os.environ.get("ACR_OPS_GAP_PAGES", "16"))
+GAP_LIMIT = int(os.environ.get("ACR_OPS_GAP_LIMIT", "400"))
+
+
+def _cadence(rec: Recorder) -> None:
+    """The gap between press runs — the TAIL, not the average.
+
+    ``make print-gaps`` measures this from a laptop and its result is a claim in
+    SUBMISSION.md §5; this is the same measurement standing up on the page.
+
+    It reports what that script reports — n / median / max / over-window —
+    rather than a histogram, because ``summarize()`` has no buckets and any bin
+    edges invented here would be invented evidence. The only two thresholds
+    that exist in this codebase are the ones above: 90 minutes means a slot was
+    missed, 120 means the venue cannot settle against the print at all.
+
+    The average is deliberately not the check. One 216-minute hole left the
+    venue unsettleable for an hour, and a healthy-looking 70-minute mean hid it
+    completely — which is why the count over the window is what fails.
+    """
+    from acr_oracle_client.cadence import index_gaps_min, press_runs
+
+    from .onchain import get_reader
+
+    reader = get_reader()
+    if not reader.configured:
+        rec.unknown("press cadence", "no ACR_ORACLE_ADDRESS set")
+        return
+    # recent_posts() returns [] for BOTH "nothing on chain" and "the RPC
+    # refused us". Those are different verdicts and collapsing them would let a
+    # throttled read render as a clean cadence — the exact failure this module
+    # exists to refuse.
+    posts = reader._client.recent_posts(limit=GAP_LIMIT, pages=GAP_PAGES)
+    if len(posts) < 2:
+        rec.unknown("press cadence", f"fewer than two prints in reach ({len(posts)})")
+        return
+
+    runs = press_runs(posts)
+    if len(runs) < 2:
+        rec.unknown("press cadence", f"only {len(runs)} press run in reach")
+        return
+    gaps = [(runs[i][0] - runs[i - 1][0]) / 60 for i in range(1, len(runs))]
+    span_h = (runs[-1][0] - runs[0][0]) / 3600
+    over = [g for g in gaps if g > PRINT_MAX_AGE_S / 60]
+    worst = max(gaps)
+
+    # warn_only, deliberately. A breach that has already recovered is HISTORY,
+    # and this page reports what is true now; `_oracle` above is what fails
+    # when the CURRENT print is too old to settle against. Conflating them
+    # would leave the headline stuck on "failed" for a day and a half after a
+    # single hole, which trains an operator to ignore it. `make print-gaps` is
+    # the gate and still exits 1 — a gate should be louder than a dashboard.
+    rec.check(
+        not over,
+        f"press runs: {len(runs)} over {span_h:.1f}h, worst gap {worst:.0f} min",
+        warn_only=True,
+        detail=(
+            f"{len(over)} gap(s) past the {PRINT_MAX_AGE_S / 60:.0f}-min settle window "
+            f"— the venue could not have settled then"
+            if over
+            else f"median {statistics.median(gaps):.0f} min"
+        ),
+    )
+    # Per index, because a series settles against ITS index: one pressed every
+    # third run is staler than the run cadence implies.
+    for iid in sorted({str(p["index_id"]) for p in posts}):
+        g = index_gaps_min(posts, iid)
+        if not g:
+            continue
+        iid_over = [x for x in g if x > PRINT_MAX_AGE_S / 60]
+        rec.check(
+            not iid_over,
+            f"{iid}: worst gap {max(g):.0f} min",
+            warn_only=True,
+            detail=f"{len(iid_over)} past the settle window" if iid_over else None,
+        )
 
 
 def _keeper(rec: Recorder) -> None:
@@ -332,6 +418,7 @@ def _funding(rec: Recorder) -> None:
 SECTIONS = [
     ("oracle", "The oracle", _oracle),
     ("press", "The press", _press),
+    ("cadence", "Press cadence", _cadence),
     ("keeper", "The keeper", _keeper),
     ("venue", "The venue", _venue),
     ("tape", "The tape", _tape),

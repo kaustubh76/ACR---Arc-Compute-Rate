@@ -18,8 +18,12 @@ staging.
   against a cold press — warm it first and wait for `/health` to answer.
 - The keepalive cron is real but lossy (GitHub fires a fraction of its slots);
   liveness rides on the press's in-process keeper + self-ping. The measured
-  proof (18.8 h, max gap 60.6 min, 0 settle-window breaches) is in
-  `SUBMISSION.md` §5 — re-confirm it in step 6 rather than re-asserting it.
+  proof is in `SUBMISSION.md` §5 — re-confirm it in step 6 rather than
+  re-asserting it. **Re-measured 2026-08-06: 37.2 h, 48 runs, median 60.3 min,
+  max 153.3 — ONE breach of the settle window** (08-05 18:38 → 21:11). The
+  08-05 reading (18.8 h, max 60.6, zero breaches) was true when taken; the miss
+  came after it. Do not re-scope the window to hide it — `/ops` now reports
+  this continuously, so a judge can see the same number we do.
 
 ## The judge's first two minutes (rehearse this path)
 

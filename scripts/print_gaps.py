@@ -49,6 +49,7 @@ import time
 from datetime import UTC, datetime
 
 from acr_oracle_client import OracleClient
+from acr_oracle_client.cadence import index_gaps_min, press_runs
 
 #: ACRFutures.MAX_SETTLE_AGE — a print older than this cannot settle a series.
 MAX_SETTLE_AGE_MIN = 120.0
@@ -118,17 +119,9 @@ def main() -> None:
 
     # One PricePosted per index per run, so several events share a wall clock.
     # Collapse to distinct PRESS RUNS: that is the poster's actual cadence.
-    by_wall: dict[float, set[str]] = {}
-    for p in posts:
-        by_wall.setdefault(p["at_wall"], set()).add(p["index_id"])
-    # Runs land a few seconds apart across indices; treat anything inside a
-    # minute as one run rather than reporting a pile of 0.1-minute "gaps".
-    runs: list[tuple[float, set[str]]] = []
-    for w in sorted(by_wall):
-        if runs and w - runs[-1][0] < 60:
-            runs[-1][1].update(by_wall[w])
-        else:
-            runs.append((w, set(by_wall[w])))
+    # Shared with the Terminal's systems ledger (acr_oracle_client.cadence) so
+    # this script and the dashboard cannot drift about what a "gap" is.
+    runs = press_runs(posts)
 
     span_h = (runs[-1][0] - runs[0][0]) / 3600
     print(f"window  {fmt(runs[0][0])} → {fmt(runs[-1][0])} UTC  ({span_h:.1f}h)")
@@ -156,9 +149,7 @@ def main() -> None:
     # run is staler than the press cadence implies.
     print("\nper index (what a settlement is actually checked against):")
     for iid in sorted({p["index_id"] for p in posts}):
-        ts = sorted({p["at_wall"] for p in posts if p["index_id"] == iid})
-        g = [(ts[i] - ts[i - 1]) / 60 for i in range(1, len(ts)) if ts[i] >= since]
-        breaches = max(breaches, summarize(iid, g))
+        breaches = max(breaches, summarize(iid, index_gaps_min(posts, iid, since)))
 
     age = (time.time() - runs[-1][0]) / 60
     stale = age > MAX_SETTLE_AGE_MIN
