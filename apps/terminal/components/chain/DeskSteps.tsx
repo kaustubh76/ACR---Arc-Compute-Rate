@@ -39,6 +39,13 @@ export function DeskSteps({ phase, elapsedS }: { phase: DeskPhase; elapsedS?: nu
                 {now ? <i className="dot breathe" aria-hidden /> : null}
                 {done ? <span aria-hidden>✓ </span> : null}
                 <Ed x={label.x} p={label.p} />
+                {/* The tick is aria-hidden and everything else about done-vs-
+                    to-do is colour, so a screen reader heard the identical five
+                    words at step 1 and at step 4. Clipped, not hidden — this
+                    has to stay in the accessibility tree. */}
+                <span className="sr-only">
+                  {done ? " — done" : now ? " — you are here" : " — not started"}
+                </span>
               </span>
             </li>
           );

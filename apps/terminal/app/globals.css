@@ -465,6 +465,12 @@ a.chip:hover,
   flex-wrap: wrap;
   padding: 9px 0;
 }
+/* Transparent above 640px: the links stay direct flex children of .nav, so
+   this wrapper costs the desktop layout nothing. It exists only so a phone
+   can scroll the seven of them as one strip (see the 640px block). */
+.nav-links {
+  display: contents;
+}
 .nav a {
   font-family: var(--eyebrow);
   font-size: 11px;
@@ -1200,6 +1206,75 @@ table.sheet .row-link:focus-visible {
     width: 8px;
     margin-right: 4px;
   }
+
+  /* The masthead, on a phone.
+     Seven uppercase links need ~557px; a 375px screen offers ~327px. Wrapping
+     cannot get below two rows and in practice took three, so the sticky header
+     ate ~200px — near a third of an iPhone SE, on every page, forever. Scroll
+     the links instead and keep the two CONTROLS pinned: the edition toggle and
+     the status pill are things a reader uses, not decoration to push offscreen. */
+  .nav {
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+  .nav-links {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 16px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    /* bleed to the container edge so a cut-off link reads as "there is more" */
+    margin-left: -24px;
+    padding: 0 8px 0 24px;
+    -webkit-mask-image: linear-gradient(90deg, #000 0 88%, transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0 88%, transparent 100%);
+  }
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-links a {
+    flex: 0 0 auto;
+  }
+  .nav-right {
+    margin-left: 8px;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  /* The header is shorter here than on desktop, and the desktop value would
+     drop a deep link (the hero's own "Open the desk →") underneath it. */
+  .anchor-target {
+    scroll-margin-top: 96px;
+  }
+
+  /* Two doors and a cue. At this width the row holds exactly one button, so
+     let it hold one deliberately: full-width pills of equal height, and the
+     scroll cue attached to the pair rather than stranded below them looking
+     like a third, dead button. Full width also stops the longer plain-edition
+     labels from wrapping INSIDE a pill and mismatching the two heights. */
+  .home-hero-cta {
+    width: 100%;
+    gap: 10px;
+  }
+  .home-hero-cta .btn {
+    flex: 1 1 100%;
+    text-align: center;
+  }
+  .home-hero-scroll {
+    flex: 1 1 100%;
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* The check label is prose too, not just the detail column. Leaving it
+     nowrap kept the row scrolling sideways and carried the status glyph out
+     of view — the exact failure `td.wrap` was added to prevent. */
+  .sheet td.mono {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 /* ---------- disclosure ---------- */
@@ -1875,6 +1950,13 @@ details.disclosure .disclosure-body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* The dawn hero was the one place this block did not reach, and it holds the
+     only two INFINITE loops on the site: the sun's 9s pulse and the scroll
+     cue's 2.4s fade. Infinite is what makes them different in kind — a reader
+     cannot wait them out, and on the landing page they cannot avoid them. */
+  .home-hero-sky .hh-sun,
+  .home-hero-scroll,
+  .home-hero-inner,
   .pulse-dot,
   .digit-in,
   .tick-flash,
@@ -1889,6 +1971,21 @@ details.disclosure .disclosure-body {
   /* dawn band stills to exactly the static composition */
   .arc-horizon .sun,
   .arc-horizon .ring {
+    transform: none !important;
+  }
+  /* Pin the hero's end state explicitly. `animation: none` above already drops
+     the fill mode, so these are belt-and-braces rather than load-bearing — but
+     `hero-reveal` animates FROM opacity 0, and a future edit that reaches for
+     `animation-play-state` or a delay instead would strand the whole hero
+     invisible. Cheap insurance on the first thing anyone sees. */
+  .home-hero-inner {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .home-hero-scroll {
+    opacity: 1 !important;
+  }
+  .home-hero-sky .hh-sun {
     transform: none !important;
   }
   /* funky reveals off — show the fully-drawn end state immediately */
@@ -1920,6 +2017,26 @@ details.disclosure .disclosure-body {
   .rate-block:hover {
     transform: none;
   }
+}
+
+/* Read aloud, never set in type.
+   The paper hides a string from sight in exactly one other place — `.ed-p`,
+   just below — and that one uses `display: none` precisely SO IT LEAVES the
+   accessibility tree. This is the opposite case: state that is obvious to the
+   eye (a tick, a colour) and invisible to a screen reader, so it must stay in
+   the tree and is clipped rather than un-rendered. Do not "simplify" one into
+   the other; they exist for opposite reasons. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ---------- editions: the plain edition ----------

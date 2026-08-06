@@ -76,11 +76,17 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             <div className="label" style={{ marginBottom: 10 }}>
               <Ed x="The adversary — budget" p="The cheat’s budget" />
             </div>
-            <div className="lab-presets">
+            {/* Selection was border+text colour only, at 12px, in --breach —
+                which a red-green deficiency will not resolve, on the control
+                that arms the headline demo. aria-pressed says it outright.
+                type="button" because the default is submit. */}
+            <div className="lab-presets" role="group" aria-label="adversary budget">
               {BUDGETS.map((b) => (
                 <button
                   key={b}
+                  type="button"
                   className={b === budget ? "on" : ""}
+                  aria-pressed={b === budget}
                   onClick={() => setBudget(b)}
                   disabled={running}
                 >
@@ -99,11 +105,13 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 <div className="label" style={{ marginBottom: 8 }}>
                   <Ed x="Target multiplier" p="How far above the real price it aims" />
                 </div>
-                <div className="lab-presets">
+                <div className="lab-presets" role="group" aria-label="target multiplier">
                   {MULTS.map((m) => (
                     <button
                       key={m}
+                      type="button"
                       className={m === mult ? "on" : ""}
+                      aria-pressed={m === mult}
                       onClick={() => setMult(m)}
                       disabled={running}
                     >
@@ -180,7 +188,11 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               />
             </div>
           )}
-          {startErr && <div className="label vermilion">{startErr}</div>}
+          {startErr && (
+            <div className="label vermilion" role="alert">
+              {startErr}
+            </div>
+          )}
           {errored && <div className="label vermilion">The run failed: {st?.error}</div>}
 
           <Ed

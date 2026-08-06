@@ -198,14 +198,30 @@ export function OpsView() {
               ) : (
                 <div className="table-scroll">
                   <table className="sheet">
+                    <caption className="sr-only">{s.title} — checks</caption>
+                    {/* Three unlabelled columns read as "✓, oracle configured,
+                        no address set" with no clue what the first cell is.
+                        `.sheet th` is already styled, so this costs no CSS. */}
+                    <thead className="sr-only">
+                      <tr>
+                        <th scope="col">status</th>
+                        <th scope="col">check</th>
+                        <th scope="col">detail</th>
+                      </tr>
+                    </thead>
                     <tbody>
                       {s.checks.map((c, i) => {
                         const m = mark(c);
                         return (
                           <tr key={`${s.name}-${i}`}>
                             <td style={{ width: 44 }}>
-                              <span className={m.cls} title={m.label} aria-label={m.label}>
-                                {m.glyph}
+                              {/* aria-label on a bare <span> is role=generic,
+                                  where ARIA prohibits naming — the verdict was
+                                  liable to be read as a raw glyph or skipped
+                                  entirely. Hide the mark, speak the word. */}
+                              <span className={m.cls} title={m.label}>
+                                <span aria-hidden>{m.glyph}</span>
+                                <span className="sr-only">{m.label}</span>
                               </span>
                             </td>
                             {/* Check labels are DATA from the press, set in

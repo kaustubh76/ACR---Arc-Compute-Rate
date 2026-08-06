@@ -415,7 +415,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           </p>
         ) : null}
         {releaseError ? (
-          <p className="mono vermilion" style={{ fontSize: 13, marginTop: 0 }}>
+          <p className="mono vermilion" style={{ fontSize: 13, marginTop: 0 }} role="alert">
             {releaseError}
           </p>
         ) : null}
