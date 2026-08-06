@@ -106,6 +106,36 @@ dead series.
    visible on `/curve`.
 10. Submit. Record the submitted commit hash here: `____________`
 
+## Deployed 2026-08-06
+
+PR #18 merged to `main` (`ca32650`) and **both surfaces shipped**, press first —
+the diff touched `services/` as well as the terminal, so a terminal-only deploy
+would have published an `/ops` page whose proxy 404s upstream.
+
+- **Press** — `deploy/redeploy-render.sh`, image tag `2026-08-06-1105`, deploy
+  `dep-d9q701u7bikc738jke70`. `/health` now carries `keeper` and
+  `attestor_address`; `/ops/verify` and `/ops/actions` are live.
+- **Terminal** — `npx vercel --prod`. `/ops` was a 404 in production before
+  this and is now 200.
+- **Two env vars were set on Render** (single-key PUT, so none of the other 28
+  were touched): `ACR_OPS_TOKEN` (generated `openssl rand -hex 32` — hex, not
+  base64: the terminal proxy's charset rejects `+/=`) and
+  `ACR_ATTESTOR_ADDRESS`, which was only ever in the local `.env`, so
+  production reported the fourth contract as absent until now.
+  **A Render env change does not restart the service** — it needed a second
+  `SKIP_BUILD=1 ./deploy/redeploy-render.sh` before the values took.
+
+Verified against the deployed product: all 8 routes 200; `/ops/actions` 401
+without a token and 200 with it; `venue/pause` **dry run** names the maker
+wallet and matches the on-chain owner; `make interop` **12/12**;
+`make verify-live` **ALL PILLARS LIVE**.
+
+**Open, and a funding call rather than a code one:** `VERIFY_STRICT=1` still
+fails on ACR-GPU book depth (~3.2 reader trades from freezing). The console can
+deepen it — `venue/collateralize` dry-runs cleanly — but the maker sits at
+2.516 USDC against its own 2.50 floor, so topping the book up starves the next
+roll. It needs money from outside, not a command.
+
 ## Open items being tracked to the deadline
 
 - [x] **INF top-up — DONE 2026-08-05** (operator, 0.07 USDC, tx
