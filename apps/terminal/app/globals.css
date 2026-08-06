@@ -552,6 +552,11 @@ a.chip:hover,
 .section {
   margin-top: 56px;
 }
+/* Deep links (/curve#desk) must clear the sticky masthead + chain strip,
+   otherwise the section head they were aimed at lands underneath it. */
+.anchor-target {
+  scroll-margin-top: 120px;
+}
 .section-head {
   border-top: 1px solid var(--hairline);
   padding-top: 12px;
@@ -1132,6 +1137,69 @@ table.sheet .row-link:focus-visible {
 .segmented button.on {
   background: var(--protocol);
   color: var(--sand);
+}
+
+/* Prose in a table cell. `table.sheet td` is nowrap by default, which is right
+   for figures and addresses and wrong for a sentence: on a phone the row
+   scrolls sideways and the status glyph in the first column scrolls out of
+   view, so you lose the verdict while reading its reason. */
+.sheet td.wrap {
+  white-space: normal;
+  min-width: 20ch;
+}
+
+/* ---------- the public desk's step rail ----------
+   Five chips, one lit. Built from the chip vocabulary rather than a new one so
+   a done/current/pending step reads with the same colours as every other state
+   in the paper: teal settled, gold in hand, bare still to come. */
+.desk-steps-wrap {
+  margin: 14px 0 18px;
+}
+.desk-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+}
+.desk-steps li {
+  counter-increment: step;
+  display: flex;
+  align-items: center;
+}
+/* The ordinal, actually rendered. `counter-reset`/`counter-increment` were
+   set up and then never printed, so the rail carried a dead counter and the
+   caption's "step 3 of 5" was the only ordinal a reader got. */
+.desk-steps .chip::before {
+  content: counter(step) " ";
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+/* the hairline between steps reads as the walk, not as a border box */
+.desk-steps li + li::before {
+  content: "";
+  width: 14px;
+  height: 1px;
+  background: var(--hairline);
+  margin-right: 8px;
+}
+.desk-steps li.todo .chip {
+  color: var(--ether-45);
+  border-color: var(--hairline);
+}
+.desk-steps-cap {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin: 8px 0 0;
+}
+@media (max-width: 640px) {
+  .desk-steps li + li::before {
+    width: 8px;
+    margin-right: 4px;
+  }
 }
 
 /* ---------- disclosure ---------- */
@@ -1989,10 +2057,13 @@ html[data-edition-turn] .plain-only {
   margin-bottom: 4px;
 }
 
-/* "this paper in one minute" — the plain-only rail on the front page */
+/* "this paper in one minute" — the plain-only rail on the front page.
+   Three columns, not five: there are six beats (glossary.test.ts asserts it),
+   and a five-wide grid stranded the sixth — the one that tells a reader they
+   can place a trade — alone on a second row. */
 .primer-rail {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);

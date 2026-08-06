@@ -213,8 +213,8 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
               "Awaiting seller verdicts —"
             ) : (
               <Ed
-                x="The registry requires the live index API — run `make api`."
-                p="The register needs our live server — start it with `make api`."
+                x="The registry opens when the press answers — it wakes on first visit (~60s) and this page retries by itself."
+                p="This list needs our server, which naps between visits — it is waking now, and this page keeps trying on its own."
               />
             )}
           </div>

@@ -115,8 +115,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-sim nav-pulse"
           title={
             plain
-              ? "a saved snapshot — run `make api` to go live"
-              : "bundled snapshot — run `make api` to go live"
+              ? "a saved snapshot — the live server is not answering"
+              : "bundled snapshot — the press is not answering"
           }
         >
           <Ed x="sim · archived" p="simulation · saved copy" />
