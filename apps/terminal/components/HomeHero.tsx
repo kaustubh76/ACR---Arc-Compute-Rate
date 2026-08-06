@@ -22,10 +22,20 @@ function resistanceRatio(data: TerminalData): number | null {
         Math.abs(b.vwap_swing_pct) > Math.abs(a.vwap_swing_pct) ? b : a,
       )
     : null;
-  if (worst) return Math.abs(worst.vwap_swing_pct) / Math.max(0.01, Math.abs(worst.acr_swing_pct));
-  const peakVwap = Math.max(...atk.series.map((s) => s.vwap_err_bp));
-  const peakAcr = Math.max(...atk.series.map((s) => s.acr_err_bp));
-  return peakVwap / Math.max(0.01, peakAcr);
+  const r = worst
+    ? Math.abs(worst.vwap_swing_pct) / Math.max(0.01, Math.abs(worst.acr_swing_pct))
+    : Math.max(...atk.series.map((s) => s.vwap_err_bp)) /
+      Math.max(0.01, Math.max(...atk.series.map((s) => s.acr_err_bp)));
+  /* Below 1× the sentence stops being true — "0× more manipulation-resistant
+     than naive VWAP" is the headline claim inverted, and `fmtInt` rounds
+     anything under 0.5 to exactly that. A run where the naive statistic
+     happened not to move is not evidence against the index; it is a run with
+     nothing to say. Say nothing: the caller hides the stat when this is null. */
+  return finite(r) && r >= 1 ? r : null;
+}
+
+function finite(n: number): boolean {
+  return Number.isFinite(n);
 }
 
 function HeroBadge({
@@ -165,9 +175,15 @@ export function HomeHero({
               />
             </div>
           ) : null}
+          {/* Two doors, not one. The attack lab is a thing to watch; the desk
+              is the thing a reader can DO, and until now the only route to it
+              was a teaser link that disappeared whenever the press was cold. */}
           <div className="home-hero-cta">
             <Link href="/attack" className="btn">
               <Ed x="Watch the attack →" p="Watch someone try to cheat it →" />
+            </Link>
+            <Link href="/curve#desk" className="btn">
+              <Ed x="Open the desk →" p="Place a real trade →" />
             </Link>
             <span className="home-hero-scroll" aria-hidden>
               <Ed x="today’s fixing ↓" p="today’s rates ↓" />

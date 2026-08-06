@@ -9,7 +9,9 @@ import { fmt } from "@/lib/format";
 import { formatQty, headroomBar, newestFillSince } from "@/lib/futuresBook";
 import type { FuturesDeskRow, FuturesTradeRow } from "@/lib/types";
 import { deskPhase, type DeskPhase } from "@/lib/deskPhase";
+import { DeskSteps } from "./DeskSteps";
 import { DESK_ADDRESS_KEY } from "@/lib/useDeskAddress";
+import { useNow } from "@/lib/useNow";
 
 /* The Public Desk — the reader takes a REAL position on ACRFutures with a
    Circle user-controlled wallet (SCA on Arc, PIN-secured in Circle's hosted
@@ -117,10 +119,18 @@ export function PublicDesk({
   desks,
   live,
   explorer,
+  wakeRemainingS,
 }: {
   desks?: Record<string, FuturesDeskRow>;
   live: boolean;
   explorer?: string;
+  /** Seconds left on the wake estimate, passed down from the page that already
+   *  owns the connection ladder. A prop rather than a useConnection() call in
+   *  here: this component renders inside a page whose envelope arrives from the
+   *  server, and calling the hook without that initial envelope returns
+   *  undefined during SSR — which crashed /curve outright. One owner of the
+   *  ladder per page. */
+  wakeRemainingS?: number | null;
 }) {
   const [phase, setPhase] = useState<Phase>("closed");
   const [session, setSession] = useState<Session | null>(null);
@@ -137,7 +147,11 @@ export function PublicDesk({
   const toastSeq = useRef(0);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // When the current step went in flight, so the rail can narrate a slow
+  // ceremony instead of leaving a disabled button and no explanation.
+  const [busySince, setBusySince] = useState<number | null>(null);
   const sdkRef = useRef<{ setAuthentication: (a: object) => void; execute: (id: string, cb: (e: unknown) => void) => void } | null>(null);
+  const nowS = useNow();
 
   const tradable = Object.keys(desks ?? {});
   const desk = (desks ?? {})[indexId];
@@ -243,6 +257,7 @@ export function PublicDesk({
   const step = useCallback(
     async (fn: () => Promise<void>) => {
       setBusy(true);
+      setBusySince(Math.floor(Date.now() / 1000));
       setNote(null);
       try {
         await fn();
@@ -250,6 +265,7 @@ export function PublicDesk({
         setNote(e instanceof Error ? e.message : "something went wrong — try again");
       } finally {
         setBusy(false);
+        setBusySince(null);
       }
     },
     [],
@@ -438,6 +454,38 @@ export function PublicDesk({
   /** Take collateral back out of one series. Works on a settled or expired
    *  series too — that is the whole point, so it is deliberately not gated on
    *  `phase`. */
+  /* Ring the bell yourself.
+     ACRFutures.settle is permissionless — anyone may close the books once a
+     series has expired and there is a fresh enough price to close them
+     against. It had only ever been reached by a cron, so a reader whose series
+     expired found a shut exit and no way to open it. Now their own wallet can,
+     and the gas is theirs (a few tenths of a cent on Arc).
+     Every reason this could revert is checked server-side before the challenge
+     is minted, so a PIN is never spent on a doomed transaction. */
+  const settle = (row: ExitRow) =>
+    step(async () => {
+      if (!session?.wallet) return;
+      const { address } = session.wallet;
+      const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
+        user_token: session.user_token,
+        wallet_id: session.wallet.wallet_id,
+        action: "settle",
+        index_id: row.index_id,
+        series_id: row.series_id,
+        address,
+      });
+      await executeChallenge(session, ch.challenge_id);
+      // The chain decides, not the SDK callback — the same rule every other
+      // step here follows. Settlement clears every trader's position at once,
+      // so watch for the row to flip settled rather than for a balance.
+      for (let i = 0; i < 12; i++) {
+        const after = await refreshExit(address);
+        if (after?.series.find((r) => r.series_id === row.series_id)?.settled) return;
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+      setNote("the settlement is still confirming — this page will catch up on its own");
+    });
+
   const withdraw = (row: ExitRow) =>
     step(async () => {
       if (!session?.wallet) return;
@@ -521,6 +569,25 @@ export function PublicDesk({
             <Ed x="The public desk" p="Trade it yourself" />
           </span>
         </div>
+        {/* The rail renders here too. A reader arriving from "Open the desk →"
+            on a cold press should see the walk they are about to take, not an
+            apology with no shape to it. */}
+        <DeskSteps phase="closed" />
+        {/* A LIVE countdown, not a static "~60s". The wake tier persists for
+            120s while the estimate is 60, so a fixed number quietly becomes a
+            lie for the reader who waits longest — exactly the one who needs
+            this line. When the ladder isn't counting, say nothing numeric. */}
+        {wakeRemainingS != null ? (
+          <p className="mono">
+            <span className="chip chip-gold">
+              <i className="dot breathe" aria-hidden />
+              <Ed
+                x={`waking the press · ~${wakeRemainingS}s`}
+                p={`waking our server · about ${wakeRemainingS}s`}
+              />
+            </span>
+          </p>
+        ) : null}
         {/* WHY it is closed and WHAT happens next, not just that it is.
             This line is most often seen by exactly the wrong audience — a
             judge landing on a cold free-tier press — and the previous copy
@@ -564,6 +631,14 @@ export function PublicDesk({
           p="To be straight: the 50 cents is ours and so is the trader on the other side — but only your PIN moves your money, and the trades are real."
         />
       </p>
+
+      {/* Where the reader is in the walk, always — the desk shows one button at
+          a time and three of the five steps hand off to Circle's PIN window,
+          so "did that work?" needs an answer that outlives a single note. */}
+      <DeskSteps
+        phase={phase}
+        elapsedS={busySince != null && nowS > 0 ? nowS - busySince : null}
+      />
 
       {phase === "closed" || phase === "opening" ? (
         <button className="btn" onClick={open} disabled={busy}>
@@ -811,8 +886,8 @@ export function PublicDesk({
                 />
               ) : row.expired ? (
                 <Ed
-                  x={`${row.index_id} series ${row.series_id} expired — awaiting settlement`}
-                  p="this market has closed — waiting for the final price"
+                  x={`${row.index_id} series ${row.series_id} expired — settle it below to free your balance`}
+                  p="this market has closed — close the books below and your money is free"
                 />
               ) : (
                 <Ed
@@ -831,6 +906,33 @@ export function PublicDesk({
           </p>
         ) : null,
       )}
+
+      {/* Ring the bell. Rendered for every expired-but-unsettled series the
+          reader holds, and separately from the exit rows above because it
+          applies to BOTH shapes of stuck money: free margin they cannot take
+          out yet, and collateral still backing a position that settlement will
+          close. Until now this was a cron's job and a reader could only wait. */}
+      {exit?.series
+        .filter((row) => row.expired && !row.settled)
+        .map((row) => (
+          <p
+            key={`settle-${row.series_id}`}
+            style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <button className="btn" onClick={() => settle(row)} disabled={busy}>
+              <Ed
+                x={busy ? "settling…" : `settle ${row.index_id} series ${row.series_id}`}
+                p={busy ? "closing the books…" : "close the books on this market"}
+              />
+            </button>
+            <span className="muted">
+              <Ed
+                x="settling is permissionless — anyone may call it, you pay the gas, and it clears every trader's position at the final price"
+                p="anyone is allowed to do this, not just us. You pay a fraction of a cent in fees, and it finishes the market for everybody at the official closing price."
+              />
+            </span>
+          </p>
+        ))}
 
       {note && <p className="muted vermilion">{note}</p>}
       <FillToast payload={fillToast} explorer={explorer} />
