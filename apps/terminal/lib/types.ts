@@ -102,6 +102,9 @@ export interface ChainFactsData {
   oracle_address: string | null;
   registry_address: string | null;
   futures_address: string | null;
+  /** FeedAccessAttestor — null until deployed/configured, so the chip stays
+   *  off rather than rendering a zero address. */
+  attestor_address?: string | null;
   gate: "dev" | "circle";
   tape_source: string;
   signer: string | null;
@@ -450,5 +453,62 @@ export interface HealthData {
   facilitator_host?: string | null;
   tape_source?: string;
   poster_last_tx?: string | null;
+  attestor_address?: string | null;
+  keeper?: KeeperStatus | null;
   [k: string]: unknown;
+}
+
+/** One check in the systems ledger.
+ *
+ *  `ok: null` is a first-class verdict — "could not read this" is a different
+ *  fact from "this is wrong", and rendering the two the same is how a
+ *  dashboard starts lying. */
+export interface OpsCheck {
+  ok: boolean | null;
+  label: string;
+  detail?: string | null;
+  warn?: boolean;
+}
+
+export interface OpsSection {
+  name: string;
+  title: string;
+  checks: OpsCheck[];
+}
+
+export interface OpsLedger {
+  status?: "ok" | "pending" | string;
+  /** epoch seconds of the pass that produced this */
+  at?: number;
+  duration_s?: number;
+  sections: OpsSection[];
+  failures?: number;
+  warnings?: number;
+  unknowns?: number;
+  verdict?: "live" | "degraded" | "failed" | "unread" | string;
+}
+
+/** One keeper chore's standing.
+ *
+ *  `checked_*` is when the chore last RAN; `last_fire_*` is when it last did
+ *  work. They differ by design — both chores stand down on cooldown, which is
+ *  the healthy majority of ticks — and conflating them would make a keeper
+ *  doing its job look like one that died an hour ago. Nulls mean never seen
+ *  and must render as such, never as zero. */
+export interface KeeperChore {
+  checked_at: number | null;
+  checked_age_s: number | null;
+  verdict: string | null;
+  last_fire_at: number | null;
+  last_fire_age_s: number | null;
+  every_s: number;
+  next_due_s: number;
+}
+
+/** `enabled: false` is a deliberate configuration; `null` means the press
+ *  could not answer for itself. Neither is "stalled". */
+export interface KeeperStatus {
+  enabled: boolean | null;
+  heartbeat?: KeeperChore;
+  roll?: KeeperChore;
 }

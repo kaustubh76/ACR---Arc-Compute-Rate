@@ -5,7 +5,7 @@ import { deskTier, formatOi } from "@/lib/futuresBook";
 import { editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
-import { useFutures } from "@/lib/useLive";
+import { useFutures, useHealth } from "@/lib/useLive";
 import { AddressChip } from "./chain/AddressChip";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -48,7 +48,7 @@ const TIER_CHIP: Record<
   archived: {
     cls: "chip-sim",
     word: "sim",
-    title: "bundled snapshot — run `make api` to go live",
+    title: "bundled snapshot — the press is not answering",
     plainWord: "saved copy",
     plainTitle: "a saved snapshot — start the live server for fresh numbers",
   },
@@ -58,8 +58,20 @@ const TIER_CHIP: Record<
    renders the network identity (offline included; the tier chip marks the
    rung of the connection ladder instead of hiding the chain). This line is
    why no page can ever read as a plain white page again. */
+/** A chore's age in words. Never invents a number for a chore that has not
+ *  reported: "not yet" is the honest reading, and "0s ago" would be the exact
+ *  inversion of it. */
+function keeperAge(ageS: number | null, plain: boolean): string {
+  if (ageS == null) return plain ? "not yet" : "unread";
+  if (ageS < 90) return plain ? "just now" : "just now";
+  const m = Math.round(ageS / 60);
+  if (m < 90) return plain ? `${m} min ago` : `${m}m ago`;
+  return plain ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 60)}h ago`;
+}
+
 export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
+  const health = useHealth();
   const env = conn.env;
   const c = chainFacts(env.data.chain);
   const prints = Object.values(env.data.prints);
@@ -152,6 +164,30 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
           : `index computed from the ${c.tapeSource} tape`
       }>
         <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>
+      </span>,
+    );
+  }
+  // Is anything still minding the book? The keeper's heartbeat and roll
+  // verdicts went only to the server log, so a reader watching a live tape had
+  // no way to tell an attended venue from an abandoned one. Rendered only when
+  // the press answers AND the keeper says it is on: an unreachable press must
+  // omit this line rather than report a keeper that is merely unread as dead.
+  const keeper = health?.live ? health.data?.keeper : null;
+  if (keeper?.enabled === true) {
+    const hb = keeper.heartbeat;
+    const age = hb?.checked_age_s ?? null;
+    parts.push(
+      <span
+        key="keeper"
+        className="chip chip-teal"
+        title={
+          plain
+            ? `the shopkeeper's rounds — last check ${keeperAge(age, true)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+            : `venue keeper — heartbeat checked ${keeperAge(age, false)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+        }
+      >
+        <span className="dot breathe" aria-hidden />
+        <Ed x="keeper" p="minded" /> · {keeperAge(age, plain)}
       </span>,
     );
   }

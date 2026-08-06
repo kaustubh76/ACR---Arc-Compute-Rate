@@ -19,7 +19,11 @@ const USER_ID_RE = /^[A-Za-z0-9._-]{5,64}$/;
 // Circle userTokens are JWTs; bound charset+length, never interpolated in URLs.
 const TOKEN_RE = /^[A-Za-z0-9._-]{16,4096}$/;
 const WALLET_ID_RE = /^[a-f0-9-]{8,64}$/i;
-const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw"]);
+// `settle` is here because ACRFutures.settle is PERMISSIONLESS — the reader's
+// own wallet pays the gas and rings the bell. Every refusal (not expired, no
+// fresh print, already settled) is made server-side before a challenge is
+// minted, so a PIN is never spent on a transaction that would revert.
+const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw", "settle"]);
 
 /* 28s, just inside maxDuration. The read endpoints (`limits`, `withdrawable`)
    make sequential Arc RPC calls whose retry backoff alone can approach 15s on a
