@@ -22,6 +22,31 @@ export function fmt(n: number, dp = 5): string {
   return n.toLocaleString(LOCALE, { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
 
+/** A price, at constant SIGNIFICANT figures rather than constant decimals.
+ *
+ *  `fmt` is fixed at 5 decimal places, which is five significant figures for
+ *  ACR-INF (~0.49) and **two** for ACR-DATA (~0.0021). A 50bp spread on 0.0021
+ *  is ±5.3e-6 — below the 1e-5 quantum five decimals can resolve — so the quote
+ *  corridor rendered ACR-DATA's mid AND ask as the identical string "0.00210",
+ *  and its bid/mid/ask read as two numbers instead of three.
+ *
+ *  Deriving the decimals from the magnitude gives every index the same
+ *  resolution regardless of the unit it happens to be quoted in. ACR-INF is
+ *  byte-identical to `fmt` at the default (log10(0.49) floors to -1 → 5 dp), so
+ *  nothing already published moves; the smaller indices gain exactly the digits
+ *  they were missing.
+ *
+ *  Deliberately NOT `fmt`'s new default: `fmt` renders nearly every number on
+ *  the site, including ones tests and the snapshot pin. This is for prices. */
+export function fmtPrice(n: number, sig = 5): string {
+  if (!finite(n)) return NOT_A_NUMBER;
+  // log10(0) is -Infinity and log10 of a negative is NaN — both would poison
+  // the clamp, and neither is a price. Fall back to the fixed-decimal default.
+  if (n === 0) return fmt(n);
+  const dp = Math.min(9, Math.max(2, sig - 1 - Math.floor(Math.log10(Math.abs(n)))));
+  return n.toLocaleString(LOCALE, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
 export function fmtInt(n: number): string {
   if (!finite(n)) return NOT_A_NUMBER;
   return Math.round(n).toLocaleString(LOCALE);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { editionLabel, fmt } from "@/lib/format";
+import { editionLabel, fmtPrice } from "@/lib/format";
 import { useEdition } from "@/lib/useEdition";
 import { bandPath, extent, linear, linePath } from "./scale";
 import { GlowPath } from "./GlowPath";
@@ -49,7 +49,7 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
         <span className="gold">— print</span>
         <span className="muted">▮ 95% CI</span>
         <span>
-          {editionLabel(pick.ts)} · {fmt(pick.value)} · ±{pickHalfBp.toFixed(1)} bp
+          {editionLabel(pick.ts)} · {fmtPrice(pick.value)} · ±{pickHalfBp.toFixed(1)} bp
         </span>
       </div>
       <svg
@@ -69,11 +69,14 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
       >
         <line x1={M.left} y1={H - M.bottom} x2={W - M.right} y2={H - M.bottom} stroke="var(--rule)" />
         <line x1={M.left} y1={M.top} x2={M.left} y2={H - M.bottom} stroke="var(--rule)" />
+        {/* The value axis is a PRICE, so it needs price resolution: at
+            ACR-DATA's level five fixed decimals left only three
+            distinguishable gridline values across the whole domain. */}
         <text x={M.left - 8} y={y(dLo) + 4} textAnchor="end">
-          {fmt(dLo)}
+          {fmtPrice(dLo)}
         </text>
         <text x={M.left - 8} y={y(dHi) + 4} textAnchor="end">
-          {fmt(dHi)}
+          {fmtPrice(dHi)}
         </text>
         <text x={xs[0]} y={H - 8} textAnchor="start">
           {editionLabel(history[0].ts)}

@@ -15,7 +15,7 @@ import { useFutures, useHedger } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useDeskAddress } from "@/lib/useDeskAddress";
 import { contractNotional } from "@/lib/futuresBook";
-import { fmt, heroFigure, money, serviceName } from "@/lib/format";
+import { fmt, fmtPrice, heroFigure, money, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 /* Curve data is maker quotes the oracle does NOT publish — there is no
@@ -249,9 +249,11 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
                       {p.index_id} <span className="muted">· {serviceName(p.index_id)}</span>
                     </td>
                     <td>{c.tenor_weeks}W</td>
-                    <td>{fmt(c.bid)}</td>
-                    <td style={{ fontWeight: 600 }}>{fmt(c.mid)}</td>
-                    <td>{fmt(c.ask)}</td>
+                    {/* fmtPrice, not fmt: at ACR-DATA's level five fixed
+                        decimals rendered mid and ask as the same string. */}
+                    <td>{fmtPrice(c.bid)}</td>
+                    <td style={{ fontWeight: 600 }}>{fmtPrice(c.mid)}</td>
+                    <td>{fmtPrice(c.ask)}</td>
                     <td className="muted">{c.spread_bp.toFixed(1)}</td>
                   </tr>
                 )),
