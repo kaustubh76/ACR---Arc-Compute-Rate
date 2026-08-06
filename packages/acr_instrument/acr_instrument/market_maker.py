@@ -46,7 +46,24 @@ class AvellanedaStoikovMM:
         return max(0.0, (self.expiry_ts - now) / total) * self.p.horizon
 
     def reservation_price(self, mid: float, inventory: float, tau: float) -> float:
-        return mid - inventory * self.p.gamma * self.p.sigma**2 * tau
+        """Avellaneda-Stoikov's inventory lean, in the price's own units.
+
+        The canonical form is ``r = s - q·γ·σ²·(T-t)`` with σ an ABSOLUTE price
+        volatility. ``sigma`` here is fractional (0.02 = 2%), and
+        ``optimal_half_spread`` is duly converted at the call site
+        (``half * mid``) — but this term was not, so the lean came out as a
+        fixed number of dollars applied to a family of indices spanning two
+        orders of magnitude.
+
+        Measured on the live book before the fix: the SAME inventory moved
+        ACR-INF (level 0.49) by 2.7 bp and ACR-GPU (level 0.011) by 71.9 bp —
+        wider than GPU's entire 50 bp spread, so spot fell outside the quoted
+        corridor entirely and the /curve page looked broken. Scaling by ``mid``
+        makes the lean ~0.4 bp per contract on every index, which is what
+        "the same book leans the same way" has to mean for a family quoted in
+        $/1k-tokens, $/GPU-sec and $/MB at once.
+        """
+        return mid - inventory * self.p.gamma * self.p.sigma**2 * tau * mid
 
     def optimal_half_spread(self, tau: float) -> float:
         inv_risk = self.p.gamma * self.p.sigma**2 * tau

@@ -49,3 +49,49 @@ def test_as_quote_survives_extreme_inventory():
     q = mm.quote(0.50, Position(contracts=1e6), now=0.0, start=0.0)
     assert q.bid > 0 and q.ask > 0
     assert q.ask >= q.bid
+
+
+def test_the_same_book_leans_the_same_way_at_every_price_level():
+    """The bug /curve exposed: the lean was absolute, the spread relative.
+
+    ACR-INF quotes in $/1k-tokens (~0.49), ACR-GPU in $/GPU-sec (~0.011),
+    ACR-DATA in $/MB (~0.0021) — two orders of magnitude apart. A reservation
+    price that subtracts a fixed number of DOLLARS therefore leaned ACR-INF by
+    2.7 bp and ACR-GPU by 71.9 bp for the same book; GPU's lean exceeded its
+    own 50 bp spread, so spot fell outside the quoted corridor and the page
+    looked broken. In bp, the lean must not depend on the unit.
+    """
+    mm = AvellanedaStoikovMM("ACR-INF", expiry_ts=100.0, params=ASParams(gamma=0.1, sigma=0.02))
+    pos = Position(contracts=-3.0)  # short: the maker leans its quotes up
+    leans_bp = []
+    for level in (0.49, 0.011, 0.0021):
+        q = mm.quote(level, pos, now=0.0, start=0.0)
+        leans_bp.append(10000 * (q.mid - level) / level)
+    assert max(leans_bp) - min(leans_bp) < 1e-6, f"lean differs by price level: {leans_bp}"
+    assert all(b > 0 for b in leans_bp), "a short book must lean the mid UP"
+
+
+def test_spot_stays_inside_the_corridor_at_a_realistic_book():
+    """What a reader actually sees: the dashed spot rule inside the bid-ask
+    band. It stopped being true for ACR-GPU, which is what "the corridor is
+    unaligned" meant."""
+    mm = AvellanedaStoikovMM("ACR-GPU", expiry_ts=100.0, params=ASParams(gamma=0.1, sigma=0.02))
+    for level in (0.49, 0.011, 0.0021):
+        q = mm.quote(level, Position(contracts=-3.25), now=0.0, start=0.0)
+        assert q.bid <= level <= q.ask, f"spot {level} outside [{q.bid}, {q.ask}]"
+
+
+def test_the_spread_is_still_relative_and_unchanged():
+    """The lean moved to relative units; the spread was ALREADY relative and
+    must stay put — docs quote ~50 bp for all three indices."""
+    # kappa=400 is the deployed value (acr_core config as_kappa); ASParams'
+    # own default is 1.5, which prices a ~12900 bp book — not what ships.
+    mm = AvellanedaStoikovMM(
+        "ACR-INF", expiry_ts=100.0, params=ASParams(gamma=0.1, sigma=0.02, kappa=400.0)
+    )
+    spreads = [
+        mm.quote(level, Position(contracts=0.0), now=0.0, start=0.0).spread_bp
+        for level in (0.49, 0.011, 0.0021)
+    ]
+    assert max(spreads) - min(spreads) < 1e-6, spreads
+    assert 50.0 < spreads[0] < 50.8, spreads[0]
