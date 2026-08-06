@@ -585,3 +585,107 @@ def test_a_stake_too_small_to_trade_is_not_posted_as_dust():
 def test_no_mark_falls_back_rather_than_posting_zero():
     """A throttled oracle read must not silently post nothing."""
     assert reader_stake_for(0.0, _MULT, _BPS, FAUCET_USDC) > 0
+
+
+# --- settling from a reader's own wallet ------------------------------------
+#
+# ACRFutures.settle is permissionless, but until now only a cron ever called
+# it, so a reader whose series expired found a shut exit. These tests guard the
+# refusals: every one of them is a revert the contract would ALSO make — but it
+# would make it after the PIN ceremony, as a failed transaction the reader paid
+# for and cannot interpret.
+
+
+class _Futures:
+    configured = True
+
+    def __init__(self, series):
+        self._series = series
+
+    def all_series(self):
+        return list(self._series)
+
+
+class _Reader:
+    def __init__(self, prints):
+        self._prints = prints
+
+    def read_all(self):
+        return dict(self._prints)
+
+    def read(self, iid):
+        return self._prints.get(iid)
+
+
+def _wire(monkeypatch, series, prints):
+    import index_api.onchain as onchain
+
+    monkeypatch.setattr(onchain, "get_futures", lambda: _Futures(series))
+    monkeypatch.setattr(onchain, "get_reader", lambda: _Reader(prints))
+    monkeypatch.setattr(desk, "_max_settle_age", lambda: 7200)
+
+
+def _settle_series(sid=1, iid="ACR-INF", *, settled=False, expiry_offset=-3600):
+    return {
+        "series_id": sid,
+        "index_id": iid,
+        "expiry_ts": time.time() + expiry_offset,
+        "settled": settled,
+        "multiplier": 10,
+    }
+
+
+def test_settle_accepts_an_expired_series_with_a_fresh_price(monkeypatch):
+    _wire(monkeypatch, [_settle_series()], {"ACR-INF": {"posted_at": time.time() - 600}})
+    sid, age, max_age = desk._settle_precheck(1)
+    assert sid == 1
+    assert age < 700
+    assert max_age == 7200
+
+
+def test_settle_refuses_a_stale_price_and_says_when_the_window_reopens(monkeypatch):
+    # The refusal that actually bites, and the one that is not the reader's
+    # fault: the contract reverts "stale print" and there is nothing they can
+    # do but wait, so the message has to say what they are waiting for.
+    _wire(monkeypatch, [_settle_series()], {"ACR-INF": {"posted_at": time.time() - 9000}})
+    with pytest.raises(DeskError) as e:
+        desk._settle_precheck(1)
+    assert e.value.status == 409
+    assert "150 minutes old" in str(e.value)
+    assert "next price" in str(e.value)
+
+
+def test_settle_refuses_a_series_that_has_not_expired(monkeypatch):
+    _wire(
+        monkeypatch,
+        [_settle_series(expiry_offset=7200)],
+        {"ACR-INF": {"posted_at": time.time()}},
+    )
+    with pytest.raises(DeskError) as e:
+        desk._settle_precheck(1)
+    assert e.value.status == 409
+    assert "not expired" in str(e.value)
+
+
+def test_settle_refuses_an_already_settled_series_and_points_at_the_exit(monkeypatch):
+    _wire(monkeypatch, [_settle_series(settled=True)], {"ACR-INF": {"posted_at": time.time()}})
+    with pytest.raises(DeskError) as e:
+        desk._settle_precheck(1)
+    assert e.value.status == 409
+    assert "withdraw" in str(e.value)
+
+
+def test_settle_refuses_an_unknown_series(monkeypatch):
+    _wire(monkeypatch, [_settle_series()], {"ACR-INF": {"posted_at": time.time()}})
+    with pytest.raises(DeskError) as e:
+        desk._settle_precheck(99)
+    assert e.value.status == 404
+
+
+def test_settle_treats_an_unreadable_price_as_retry_not_refusal(monkeypatch):
+    # No print is NOT "you may not settle" — it is "we could not tell". A 409
+    # would send the reader away; a 503 says it retries on its own.
+    _wire(monkeypatch, [_settle_series()], {})
+    with pytest.raises(DeskError) as e:
+        desk._settle_precheck(1)
+    assert e.value.status == 503
