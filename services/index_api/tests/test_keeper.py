@@ -244,3 +244,61 @@ def test_collateral_is_sized_to_the_index_not_to_a_constant():
     buy, sell = feasible_qty(0.0111, 10, 2000, gpu, 0.0, gpu, 0.0)
     assert buy >= MAX_QTY and sell >= MAX_QTY
     assert collateral_for_full_book(0.0, 10, 2000) == 0.0
+
+
+class TestStatus:
+    """What the Terminal is allowed to say about the keeper.
+
+    The verdicts used to go only to the server log, so a live venue could not
+    answer "is anything still minding this book?" on any surface. These tests
+    guard the two ways that answer could lie.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _clear(self, monkeypatch):
+        monkeypatch.setattr(keeper, "_last_run", {})
+
+    def test_a_disabled_keeper_says_off_not_zero(self, monkeypatch):
+        # "off" and "stalled" are different facts. Reporting a disabled keeper
+        # as a chore that has never run would make a deliberate configuration
+        # look like an outage on every surface that renders it.
+        monkeypatch.setenv("ACR_KEEPER", "0")
+        st = keeper.status()
+        assert st == {"enabled": False}
+
+    def test_an_enabled_keeper_reports_both_chores(self):
+        st = keeper.status()
+        assert st["enabled"] is True
+        assert set(st) == {"enabled", "heartbeat", "roll"}
+        for chore in ("heartbeat", "roll"):
+            assert set(st[chore]) == {
+                "checked_at",
+                "checked_age_s",
+                "verdict",
+                "last_fire_at",
+                "last_fire_age_s",
+                "every_s",
+                "next_due_s",
+            }
+
+    def test_a_cooldown_tick_still_counts_as_checked(self):
+        # Both chores return None while on cooldown — the healthy majority of
+        # ticks. If only verdicts were recorded, a keeper doing its job would
+        # be indistinguishable from one that died an hour ago.
+        keeper.record("heartbeat", None)
+        hb = keeper.status()["heartbeat"]
+        assert hb["checked_at"] is not None
+        assert hb["checked_age_s"] < 5
+        assert hb["verdict"] is None
+
+    def test_a_chore_never_seen_reports_nothing_rather_than_now(self):
+        # Unread must not render as fresh. An unrun chore reporting age 0 would
+        # read on the strip as "checked a moment ago" — the exact inversion.
+        hb = keeper.status()["heartbeat"]
+        assert hb["checked_at"] is None
+        assert hb["checked_age_s"] is None
+        assert hb["last_fire_age_s"] is None
+
+    def test_a_failure_is_recorded_as_a_verdict(self):
+        keeper.record("roll", "failed: boom")
+        assert keeper.status()["roll"]["verdict"] == "failed: boom"

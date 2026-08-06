@@ -115,8 +115,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-sim nav-pulse"
           title={
             plain
-              ? "a saved snapshot — run `make api` to go live"
-              : "bundled snapshot — run `make api` to go live"
+              ? "a saved snapshot — the live server is not answering"
+              : "bundled snapshot — the press is not answering"
           }
         >
           <Ed x="sim · archived" p="simulation · saved copy" />
@@ -152,11 +152,17 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
         </div>
         <div className="horizon-rule" />
         <nav className="nav">
-          {NAV.map(([href, label, plain]) => (
-            <Link key={href} href={href} className={isActive(pathname, href) ? "active" : ""}>
-              <Ed x={label} p={plain} />
-            </Link>
-          ))}
+          {/* The links are wrapped so a phone can scroll them sideways as one
+              strip. `.nav-links` is `display: contents` above 640px, so the
+              links remain direct flex children of `.nav` and the desktop
+              layout is byte-identical to before this element existed. */}
+          <span className="nav-links">
+            {NAV.map(([href, label, plain]) => (
+              <Link key={href} href={href} className={isActive(pathname, href) ? "active" : ""}>
+                <Ed x={label} p={plain} />
+              </Link>
+            ))}
+          </span>
           <span className="nav-right">
             <EditionToggle />
             <StatusPill conn={conn} />

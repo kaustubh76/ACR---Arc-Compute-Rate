@@ -851,6 +851,96 @@ def _live_mark(index_id: str) -> float:
     return float(print_["value"])
 
 
+#: Mirrors ACRFutures.MAX_SETTLE_AGE. Read from chain when possible; this is
+#: the deployed value and the fallback when the RPC is throttled.
+DEFAULT_MAX_SETTLE_AGE = 7200
+_MAX_SETTLE_AGE_ABI = [
+    {
+        "type": "function",
+        "name": "MAX_SETTLE_AGE",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint64"}],
+    }
+]
+_settle_age_memo: int | None = None
+
+
+def _max_settle_age() -> int:
+    """The venue's freshness window — immutable on-chain, so read once."""
+    global _settle_age_memo
+    if _settle_age_memo is None:
+        try:
+            from .onchain import get_futures
+
+            client = get_futures()._client
+            w3 = client._connect()
+            c = w3.eth.contract(
+                address=w3.to_checksum_address(client.futures_address),
+                abi=_MAX_SETTLE_AGE_ABI,
+            )
+            _settle_age_memo = int(c.functions.MAX_SETTLE_AGE().call())
+        except Exception:
+            # Do not memoize a throttled read as if it were the venue's value.
+            return DEFAULT_MAX_SETTLE_AGE
+    return _settle_age_memo
+
+
+def _settle_precheck(series_id: int) -> tuple[int, float, int]:
+    """Refuse a settle that would revert, BEFORE the reader enters their PIN.
+
+    Every refusal here is one the contract would also make — but it would make
+    it after the ceremony, as a reverted transaction the reader paid gas for
+    and cannot interpret. The freshness rule is the one that actually bites: a
+    print older than MAX_SETTLE_AGE reverts "stale print", and it is not the
+    reader's fault or anything they can fix, so the refusal has to say when the
+    window reopens rather than just saying no.
+
+    Ported from scripts/futures_settle.py, which is the only path that has ever
+    settled this venue; the two must not disagree about what is settleable.
+    """
+    from .onchain import get_futures, get_reader
+
+    futures = get_futures()
+    if not futures.configured:
+        raise DeskError(503, "no futures venue configured")
+    series = next(
+        (x for x in futures.all_series() if int(x["series_id"]) == int(series_id)), None
+    )
+    if series is None:
+        raise DeskError(404, f"no series #{series_id} on this venue")
+    if series["settled"]:
+        raise DeskError(409, "this series is already settled — your collateral is free to withdraw")
+    now = time.time()
+    if series["expiry_ts"] > now:
+        hrs = (series["expiry_ts"] - now) / 3600
+        raise DeskError(
+            409,
+            f"this series has not expired yet — it settles in {hrs:.1f}h, and until "
+            "then it is still trading",
+        )
+
+    iid = series["index_id"]
+    print_ = get_reader().read_all().get(iid) or get_reader().read(iid)
+    posted = float((print_ or {}).get("posted_at") or 0)
+    max_age = _max_settle_age()
+    if not posted:
+        raise DeskError(
+            503,
+            f"no {iid} print could be read just now — settling needs one, and this "
+            "retries on its own",
+        )
+    age = now - posted
+    if age > max_age:
+        raise DeskError(
+            409,
+            f"the {iid} price is {age / 60:.0f} minutes old and settling needs one "
+            f"under {max_age / 60:.0f} — the window reopens with the next price, "
+            "usually at the top of the hour",
+        )
+    return int(series_id), age, max_age
+
+
 _margin_memo: int | None = None
 _MARGIN_ABI = [
     {
@@ -995,6 +1085,16 @@ def build_challenge(
             "withdrawCollateral(uint256,uint256)",
             [str(w["series_id"]), str(w["free_units"])],
         )
+    elif action == "settle":
+        # settle() is PERMISSIONLESS on ACRFutures — anyone may ring the bell,
+        # and the caller pays the gas. It has nonetheless only ever been reached
+        # by a cron and a Makefile target, which meant a reader whose series had
+        # expired sat behind a shut exit waiting for an operator. Their own
+        # wallet can open it.
+        if series_id is None:
+            raise DeskError(400, "settle needs a series")
+        sid, age_s, max_age = _settle_precheck(int(series_id))
+        contract, sig, params = (venue, "settle(uint256)", [str(sid)])
     else:
         raise DeskError(400, f"unknown action {action!r}")
 

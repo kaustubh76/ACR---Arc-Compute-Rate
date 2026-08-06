@@ -5,19 +5,35 @@
 
 const LOCALE = "en-US";
 
+/** What a number that is not a number looks like on the page.
+ *
+ *  An em dash, because it is the same mark every other "we could not read
+ *  this" state uses here. A missing field used to reach `toLocaleString` and
+ *  render the literal string "NaN" — which is not a degradation, it is a
+ *  typo-shaped lie about a figure this paper's whole argument rests on. */
+const NOT_A_NUMBER = "—";
+
+function finite(n: number): boolean {
+  return typeof n === "number" && Number.isFinite(n);
+}
+
 export function fmt(n: number, dp = 5): string {
+  if (!finite(n)) return NOT_A_NUMBER;
   return n.toLocaleString(LOCALE, { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
 
 export function fmtInt(n: number): string {
+  if (!finite(n)) return NOT_A_NUMBER;
   return Math.round(n).toLocaleString(LOCALE);
 }
 
 export function money(n: number, dp = 2): string {
+  if (!finite(n)) return NOT_A_NUMBER;
   return "$" + n.toLocaleString(LOCALE, { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
 
 export function pct(n: number, dp = 1): string {
+  if (!finite(n)) return NOT_A_NUMBER;
   return `${n >= 0 ? "+" : ""}${n.toFixed(dp)}%`;
 }
 

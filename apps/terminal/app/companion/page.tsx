@@ -60,6 +60,18 @@ export default function CompanionPage() {
           The paper’s canonical glossary (<span className="mono">docs/GLOSSARY.md</span>) — flip
           the masthead to <b>plain</b> and every page gets this treatment, numbers identical.
         </p>
+        {/* This page is the plain edition's "Start Here", and its only exit
+            used to be back to the front page — a reader who had just learned
+            the vocabulary was returned to where they started, with nothing to
+            do. Send them to the two things they came to understand. */}
+        <p style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/attack" className="btn">
+            Watch someone try to cheat it →
+          </Link>
+          <Link href="/curve#desk" className="btn">
+            Place a real trade →
+          </Link>
+        </p>
         <p style={{ marginTop: 16 }}>
           <Link href="/" className="section-link">
             ← Back to the front page

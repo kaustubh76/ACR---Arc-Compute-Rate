@@ -287,6 +287,37 @@ async def _warm_chain(stop: asyncio.Event) -> None:
             log.exception("chain cache warm failed")
 
 
+#: The systems-ledger snapshot, recomputed on its own slow timer. None until
+#: the first pass lands — served as "pending", never as an empty dashboard.
+_ops_cache: dict | None = None
+
+
+async def _ops_loop(stop: asyncio.Event) -> None:
+    """Recompute the systems ledger on a slow timer.
+
+    Its OWN timer, not the 60s warm loop: a full pass reads the venue, the
+    prints and two wallet balances, and hanging that off the loop whose job is
+    keeping the press's caches hot would make the dashboard compete with the
+    product it reports on. Fifteen minutes is far inside the cadence of
+    anything it measures (hourly prints, half-hourly roll checks).
+
+    Wrapped like every other loop here: a checker that can take the press down
+    is worse than no checker.
+    """
+    from . import ops
+
+    global _ops_cache
+    while not stop.is_set():
+        try:
+            _ops_cache = await asyncio.to_thread(ops.run_all)
+        except Exception:  # pragma: no cover - the ledger must never cost a beat
+            log.exception("ops verify failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=ops.OPS_VERIFY_S)
+        except TimeoutError:
+            pass
+
+
 async def _run_keeper(futures) -> None:
     """The venue's chores, on the host that already holds the credentials.
 
@@ -304,9 +335,14 @@ async def _run_keeper(futures) -> None:
     for name, fn in (("heartbeat", keeper.heartbeat_once), ("roll", keeper.roll_if_needed)):
         try:
             verdict = await asyncio.to_thread(fn, futures)
+            # Record the tick even when the chore stood down: a cooldown is the
+            # healthy majority case, and a surface that only ever saw verdicts
+            # could not tell "nothing to do" from "nobody home".
+            keeper.record(name, verdict)
             if verdict:
                 log.info("keeper %s: %s", name, verdict)
-        except Exception:  # pragma: no cover - a chore must never cost a beat
+        except Exception as exc:  # pragma: no cover - a chore must never cost a beat
+            keeper.record(name, f"failed: {exc}")
             log.warning("keeper %s failed", name, exc_info=True)
 
 
@@ -399,7 +435,11 @@ async def _background(stop: asyncio.Event) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     stop = asyncio.Event()
-    tasks = [asyncio.create_task(_background(stop)), asyncio.create_task(_warm_chain(stop))]
+    tasks = [
+        asyncio.create_task(_background(stop)),
+        asyncio.create_task(_warm_chain(stop)),
+        asyncio.create_task(_ops_loop(stop)),
+    ]
     try:
         yield
     finally:
@@ -505,12 +545,101 @@ def health() -> dict:
         "chain_id": s.arc_chain_id,
         "oracle_address": s.oracle_address or None,
         "registry_address": s.registry_address or None,
+        # The fourth contract. It was deployed, exercised and then invisible on
+        # every surface — a reader could not tell it existed, let alone that a
+        # paid query buys a right that lives on-chain.
+        "attestor_address": s.attestor_address or None,
         "pay_to": _short_addr((s.x402_pay_to if circle else PAY_TO) or None),
         "facilitator_host": (urlparse(s.x402_facilitator_url).hostname
                              if s.x402_facilitator_url else None),
         "tape_source": s.tape_source,
         "poster_last_tx": poster_last_tx,
+        # Is anything still minding the book? Pure module-state read — no chain
+        # calls, no credentials — so it cannot slow the cheapest probe we have.
+        "keeper": _keeper_status(),
     }
+
+
+def _keeper_status() -> dict:
+    """The keeper's standing, or an honest silence.
+
+    /health is the probe everything else leans on. A keeper import that blew up
+    here would take down the liveness check for the whole product, so a failure
+    reports "unknown" rather than propagating.
+    """
+    try:
+        from . import keeper
+
+        return keeper.status()
+    except Exception:  # pragma: no cover - health must answer regardless
+        log.warning("keeper status unavailable", exc_info=True)
+        return {"enabled": None}
+
+
+@app.get("/ops/verify")
+def ops_verify() -> dict:
+    """The systems ledger — every pillar's standing, as the press sees it.
+
+    Serves the background snapshot; it does NOT compute on the request path.
+    A dashboard that runs a full venue scan per viewer is a self-inflicted
+    outage on a free-tier box, and the numbers move on the hour anyway.
+
+    Ungated and read-only. Before the first pass lands this says "pending" —
+    an empty ledger would render as a product with nothing running.
+    """
+    if _ops_cache is None:
+        return {"status": "pending", "sections": [], "verdict": "unread"}
+    return {"status": "ok", **_ops_cache}
+
+
+class OpsActionBody(BaseModel):
+    action: str
+    params: dict = {}
+    #: Dry by default. A missing field can therefore never spend money; only a
+    #: present `false` can. This is the single most important default here.
+    dry_run: bool = True
+
+
+def _ops_token(request: Request) -> str | None:
+    return request.headers.get("X-ACR-Ops-Token")
+
+
+@app.get("/ops/actions")
+def ops_actions_list(request: Request) -> dict:
+    """The action catalogue and the recent audit trail. Token-gated.
+
+    404s when no ACR_OPS_TOKEN is configured — an endpoint that admits it
+    exists is one worth guessing at, and most deployments want none of this.
+    """
+    from . import ops_actions
+
+    try:
+        ops_actions.authorize(_ops_token(request))
+    except ops_actions.ActionError as e:
+        raise HTTPException(e.status, str(e)) from e
+    return {
+        "actions": [
+            {"action": name, "description": desc}
+            for name, (_fn, desc) in ops_actions.ACTIONS.items()
+        ],
+        "caps": {
+            "collateralize_usdc": ops_actions.MAX_COLLATERALIZE_USDC,
+            "fund_usdc": ops_actions.MAX_FUND_USDC,
+        },
+        "recent": ops_actions.recent(50),
+    }
+
+
+@app.post("/ops/actions")
+def ops_action_run(body: OpsActionBody, request: Request) -> dict:
+    """Run one operator action. Token-gated, dry by default, always audited."""
+    from . import ops_actions
+
+    try:
+        ops_actions.authorize(_ops_token(request))
+        return ops_actions.run(body.action, body.params or {}, bool(body.dry_run))
+    except ops_actions.ActionError as e:
+        raise HTTPException(e.status, str(e)) from e
 
 
 @app.get("/x402/info")
@@ -811,6 +940,10 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             "oracle_address": settings.oracle_address or None,
             "registry_address": settings.registry_address or None,
             "futures_address": settings.futures_address or None,
+            # The fourth contract. Deployed and exercised, then invisible on
+            # every surface — so a reader could not tell that paying for data
+            # buys a right that lives on chain, not a row in our own files.
+            "attestor_address": settings.attestor_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,

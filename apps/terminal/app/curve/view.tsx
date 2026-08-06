@@ -198,11 +198,18 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           PRESS specifically used to hide the desk whenever Arc's RPC was slow
           enough for the roster to fall through to the chain tier, which is
           often. If the press really is unreachable, the desk's own calls say so. */}
-      <PublicDesk
-        desks={roster?.desks ?? env.data.futures}
-        live={futLive && roster?.source !== "bundle"}
-        explorer={explorer}
-      />
+      {/* The anchor the home page points at. It wraps BOTH of the desk's
+          branches — a reader sent here by "Open the desk →" while the press is
+          cold must still land on the desk telling them it is waking, not on
+          whatever section happens to sit at the top of the page. */}
+      <div id="desk" className="anchor-target">
+        <PublicDesk
+          desks={roster?.desks ?? env.data.futures}
+          live={futLive && roster?.source !== "bundle"}
+          explorer={explorer}
+          wakeRemainingS={conn.state === "waking" ? conn.wakeRemainingS : null}
+        />
+      </div>
 
       {/* The reader trades from their own wallet above; this is the machine
           doing the same thing unattended, one section down, so the comparison

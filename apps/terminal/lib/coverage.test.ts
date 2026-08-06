@@ -42,6 +42,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
+  "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
+  "app/ops/view.tsx": 10, // the ledger reads for operators AND for readers
+  "components/chain/OperatorConsole.tsx": 10, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
@@ -73,6 +76,7 @@ const EXEMPT: Record<string, string> = {
   "app/exchange/loading.tsx": "skeleton",
   "app/sellers/loading.tsx": "skeleton",
   "app/developers/loading.tsx": "skeleton",
+  "app/ops/loading.tsx": "skeleton",
   "app/index/[id]/loading.tsx": "skeleton",
   "app/page.tsx": "metadata only — SEO stays expert",
   "app/attack/page.tsx": "metadata only",
@@ -80,6 +84,7 @@ const EXEMPT: Record<string, string> = {
   "app/exchange/page.tsx": "metadata only",
   "app/sellers/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
+  "app/ops/page.tsx": "metadata only",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",

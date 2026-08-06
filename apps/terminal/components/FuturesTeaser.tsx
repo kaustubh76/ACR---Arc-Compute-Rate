@@ -114,8 +114,14 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
         }
       />
       {/* The teaser used to describe the desk as something to look at. A reader
-          can actually trade on it, and nothing on the home page said so. */}
-      {live && (
+          can actually trade on it, and nothing on the home page said so.
+
+          The invitation is no longer gated on `live`. Gating it meant the one
+          route to the desk vanished in exactly the tier a first visitor most
+          often lands in — a cold free-tier press — leaving the home page with
+          nothing to do. The LINK always renders; the SENTENCE tells the truth
+          about what will greet them, and the desk itself is the honest gate. */}
+      {live ? (
         <Ed
           as="p"
           className="muted"
@@ -123,13 +129,31 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           x={
             <>
               Take a side yourself — a Circle wallet behind your PIN, a $0.50 testnet stake, and
-              your fill lands on-chain. <Link href="/curve">Trade it →</Link>
+              your fill lands on-chain. <Link href="/curve#desk">Trade it →</Link>
             </>
           }
           p={
             <>
               You can try it yourself — make a wallet with a PIN, get 50 cents of test money,
-              and place a real trade. <Link href="/curve">Try it →</Link>
+              and place a real trade. <Link href="/curve#desk">Try it →</Link>
+            </>
+          }
+        />
+      ) : (
+        <Ed
+          as="p"
+          className="muted"
+          style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
+          x={
+            <>
+              The desk trades from your own PIN-secured Circle wallet — it opens as soon as the
+              press answers. <Link href="/curve#desk">See the desk →</Link>
+            </>
+          }
+          p={
+            <>
+              You can trade here yourself with a small wallet locked by your PIN — it opens once
+              our server wakes up. <Link href="/curve#desk">See the desk →</Link>
             </>
           }
         />

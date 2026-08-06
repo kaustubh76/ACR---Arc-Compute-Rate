@@ -21,6 +21,7 @@ import type {
   LiveBuyResponse,
   MarketReceiptsData,
   OnchainDirectRead,
+  OpsLedger,
   RevenueData,
   TerminalData,
   WebhookFeed,
@@ -222,4 +223,16 @@ export function useAttackRun() {
     ...RETRY,
   });
   return { status: data, refresh: mutate };
+}
+
+/** The systems ledger (/ops). Recomputes upstream every 15 minutes, so this
+ *  polls slowly — and carries no bundle tier by design: a stale VERDICT would
+ *  assert the health of a press that is, right then, not answering. */
+export function useOps() {
+  const { data, error, mutate } = useSWR<Envelope<OpsLedger | null>>("/api/ops", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: true,
+    ...RETRY,
+  });
+  return { ledger: data, error: error as Error | undefined, refresh: mutate };
 }

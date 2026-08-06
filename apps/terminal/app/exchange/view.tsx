@@ -93,7 +93,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       }
       await refreshBuyer();
     } catch {
-      setReleaseError("the floor requires the live index API (make api)");
+      setReleaseError("the floor needs the live press — it may still be waking");
     } finally {
       setReleasing(false);
     }
@@ -258,8 +258,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
               "Awaiting the catalog —"
             ) : (
               <Ed
-                x="The exchange opens with the live index API — run `make api`."
-                p="The shop opens when our live server starts — run `make api`."
+                x="The exchange opens when the press answers — the free-tier press wakes on first visit (~60s) and this page retries by itself."
+                p="The shop opens when our server wakes up — it naps between visits to save money, and this page keeps trying on its own."
               />
             )}
           </div>
@@ -311,19 +311,19 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                       ? "3 REAL payments through Circle — it signs a digital check and money actually moves"
                       : "3 REAL Circle Gateway settlements — signs EIP-3009 and settles on Arc"
                     : plain
-                      ? "add a funded buyer key (with an open Circle deposit) to enable"
-                      : "set a funded ACR_BUYER_PRIVATE_KEY (with an open Gateway deposit) to enable"
+                      ? "this copy of the site has no funded demo shopper"
+                      : "no funded demo buyer is configured on this deployment"
                 }
               >
                 {liveRunning ? (
-                  "settling… (real Circle)"
+                  <Ed x="settling… (real Circle)" p="paying… (really)" />
                 ) : buyerReady?.buyer_ready ? (
                   <Ed
                     x="Release the LIVE buyer — 3 real settlements"
                     p="Let the LIVE buyer loose — 3 real payments"
                   />
                 ) : (
-                  "LIVE buyer — needs a funded key"
+                  <Ed x="LIVE buyer — unavailable here" p="LIVE buyer — not available here" />
                 )}
               </button>
             ) : (
@@ -336,7 +336,9 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                     ? plain
                       ? "20 real pay-per-question round trips through the live paywall"
                       : "20 real x402 two-act exchanges through the live gate"
-                    : "needs the live dev gate (ACR_X402_MODE=dev make api)"
+                    : plain
+                    ? "the shop's till is asleep — this wakes with the server"
+                    : "the paid gate is not answering — this opens when the press does"
                 }
               >
                 {running ? (
@@ -351,6 +353,29 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
             )}
           </span>
         </div>
+
+        {/* Why the button above is grey, in words, on the page.
+            A `title` never fires on a phone, and a greyed-out invitation with
+            no visible reason reads as broken software. Two different causes,
+            two different sentences — and neither names a config variable at a
+            reader who cannot set one. Crucially, both say what is STILL true:
+            the tape below is the real record either way. */}
+        {gateIsCircle && !buyerReady?.buyer_ready ? (
+          <p className="muted" style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}>
+            <Ed
+              x="This deployment carries no funded demo buyer, so the button above is closed. Nothing else here is affected — the settlement tape below is the real, on-chain record of payments that already happened."
+              p="This copy of the site has no demo shopper with money in it, so that button is switched off. Everything else still works — the list of payments below really happened."
+            />
+          </p>
+        ) : null}
+        {!gateIsCircle && !gateIsDev ? (
+          <p className="muted" style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}>
+            <Ed
+              x="The paid gate is not answering yet, so the buyer cannot run. The free-tier press wakes on first visit (~60s) and this page retries by itself — the tape below is the archived record until it does."
+              p="Our server is still waking up (about a minute), so the robot shopper cannot go yet. Keep this page open — it retries on its own, and the payments listed below are real ones from before."
+            />
+          </p>
+        ) : null}
 
         {liveResult ? (
           <p className="mono" style={{ fontSize: 13, marginTop: 0 }}>
@@ -390,7 +415,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           </p>
         ) : null}
         {releaseError ? (
-          <p className="mono vermilion" style={{ fontSize: 13, marginTop: 0 }}>
+          <p className="mono vermilion" style={{ fontSize: 13, marginTop: 0 }} role="alert">
             {releaseError}
           </p>
         ) : null}

@@ -130,6 +130,16 @@ export const PLAIN_GLOSSARY = {
     gloss: "the public scoreboard contract that other programs read and trust to settle money",
     theme: "blockchain",
   },
+  keeper: {
+    term: "the keeper",
+    gloss: "our unattended bot that keeps the market open — it trades a little each hour and starts the next contract when one ends",
+    theme: "blockchain",
+  },
+  "feed-access": {
+    term: "feed access",
+    gloss: "paying for data buys you a right recorded on the public ledger, not just a note in our own files",
+    theme: "blockchain",
+  },
   finality: {
     term: "final in under a second",
     gloss: "confirmed for good in under a second — the whistle blows, the goal counts, no replays",

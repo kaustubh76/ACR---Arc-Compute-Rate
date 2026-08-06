@@ -62,6 +62,12 @@ class ACRSettings(BaseSettings):
     #: settles against ``ACROracle``. Empty → the futures desk stays off (the
     #: term structure still renders from the maker model; no live positions).
     futures_address: str = ""
+    #: Deployed ``FeedAccessAttestor`` — the contract that turns a paid x402
+    #: query into an on-chain feed-access right. Written only by
+    #: scripts/attest_feed_access.py; the service reads it so the Terminal can
+    #: name the fourth contract instead of pretending it does not exist.
+    #: Empty → the chip stays off rather than rendering a zero address.
+    attestor_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""

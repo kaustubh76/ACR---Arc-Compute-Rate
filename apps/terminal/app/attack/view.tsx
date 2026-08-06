@@ -5,7 +5,8 @@ import { AttackChart } from "@/components/charts/AttackChart";
 import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
-import { useAttackRun, useTerminal } from "@/lib/useLive";
+import { useAttackRun } from "@/lib/useLive";
+import { useConnection } from "@/lib/useConnection";
 import { fmt, fmtInt, money, pct } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
 
@@ -13,7 +14,11 @@ const BUDGETS = [2000, 8000, 20000];
 const MULTS = [1.5, 2.5, 4.0];
 
 export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
-  const env = useTerminal(initial);
+  // The ladder, not just the envelope: the cold-press copy below needs the wake
+  // countdown. Safe to call here because this page HAS a server-rendered
+  // initial envelope — useConnection without one returns undefined during SSR.
+  const conn = useConnection(initial);
+  const env = conn.env;
   const { status, refresh } = useAttackRun();
   const [budget, setBudget] = useState(8000);
   const [mult, setMult] = useState(2.5);
@@ -71,11 +76,17 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             <div className="label" style={{ marginBottom: 10 }}>
               <Ed x="The adversary — budget" p="The cheat’s budget" />
             </div>
-            <div className="lab-presets">
+            {/* Selection was border+text colour only, at 12px, in --breach —
+                which a red-green deficiency will not resolve, on the control
+                that arms the headline demo. aria-pressed says it outright.
+                type="button" because the default is submit. */}
+            <div className="lab-presets" role="group" aria-label="adversary budget">
               {BUDGETS.map((b) => (
                 <button
                   key={b}
+                  type="button"
                   className={b === budget ? "on" : ""}
+                  aria-pressed={b === budget}
                   onClick={() => setBudget(b)}
                   disabled={running}
                 >
@@ -94,11 +105,13 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 <div className="label" style={{ marginBottom: 8 }}>
                   <Ed x="Target multiplier" p="How far above the real price it aims" />
                 </div>
-                <div className="lab-presets">
+                <div className="lab-presets" role="group" aria-label="target multiplier">
                   {MULTS.map((m) => (
                     <button
                       key={m}
+                      type="button"
                       className={m === mult ? "on" : ""}
+                      aria-pressed={m === mult}
                       onClick={() => setMult(m)}
                       disabled={running}
                     >
@@ -137,23 +150,49 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             onClick={commence}
             disabled={!labLive || running || starting}
           >
-            {running ? (
-              "Attack in progress…"
+            {/* `starting` used to drive `disabled` and nothing else, so the
+                headline button greyed out and said the same words for up to
+                25 seconds — and the 25s budget exists precisely for the cold
+                press, i.e. the case where the silence is longest. */}
+            {starting ? (
+              <Ed x="Commencing…" p="Starting…" />
+            ) : running ? (
+              <Ed x="Attack in progress…" p="Attack under way…" />
             ) : done ? (
-              "Run it again"
+              <Ed x="Run it again" p="Run it again" />
             ) : (
               <Ed x="Commence attack" p="Launch the attack" />
             )}
           </button>
+          {/* A public visitor cannot "run make api". Say what is actually
+              happening and how long it takes, using the ladder's own estimate. */}
           {!labLive && (
             <div className="label">
+              <span className="chip chip-gold">
+                <i className="dot breathe" aria-hidden />
+                {conn.state === "waking" && conn.wakeRemainingS != null ? (
+                  <Ed
+                    x={`waking the press · ~${conn.wakeRemainingS}s`}
+                    p={`waking our server · about ${conn.wakeRemainingS}s`}
+                  />
+                ) : (
+                  <Ed x="the press is not answering" p="our server is not answering" />
+                )}
+              </span>
               <Ed
-                x="The lab requires the live index API — run `make api`."
-                p="The lab needs our live server — start it with `make api`."
+                as="p"
+                className="muted"
+                style={{ marginTop: 8, maxWidth: 68 * 9 }}
+                x="The lab runs on the live press, which sleeps between visits on the free tier. Keep this page open — it retries by itself and the button arms as soon as the press answers. The chart below is the recorded run in the meantime."
+                p="This demo runs on our server, which naps between visits to save money. Keep this page open — it retries on its own and the button switches on when the server wakes. The chart below is a real run we recorded earlier."
               />
             </div>
           )}
-          {startErr && <div className="label vermilion">{startErr}</div>}
+          {startErr && (
+            <div className="label vermilion" role="alert">
+              {startErr}
+            </div>
+          )}
           {errored && <div className="label vermilion">The run failed: {st?.error}</div>}
 
           <Ed

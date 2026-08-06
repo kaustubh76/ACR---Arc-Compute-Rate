@@ -77,6 +77,15 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             ACRFutures <AddressChip address={c.futures} explorer={c.explorer} copy={false} />
           </span>
         )}
+        {/* The fourth contract. It was deployed, exercised and then named
+            nowhere — so nothing on the site said that paying for data buys a
+            right recorded on chain rather than a row in our own files. */}
+        {c.attestor && (
+          <span className="chip" style={{ gap: 8 }}>
+            FeedAccessAttestor{" "}
+            <AddressChip address={c.attestor} explorer={c.explorer} copy={false} />
+          </span>
+        )}
         {/* All three Circle wallet models are in use here; the colophon named
             only the Gateway one. */}
         {c.futures && (
@@ -92,6 +101,13 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
         </a>
         <a className="chip" href="/companion" title="every term in one line, with an analogy">
           <Ed x="reader’s companion" p="what the words mean" />
+        </a>
+        {/* The operator's page, linked from the footer rather than the nav.
+            A reader who wants to know whether the thing is actually running
+            deserves a route to the answer; they do not deserve an eighth
+            masthead item to read past on every page. */}
+        <a className="chip" href="/ops" title="every pillar's standing, as the press reports it">
+          <Ed x="systems ledger" p="is it working?" />
         </a>
       </div>
 

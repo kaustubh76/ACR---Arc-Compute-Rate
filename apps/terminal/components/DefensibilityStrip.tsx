@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Ed } from "./Ed";
 import { Term } from "./Term";
-import { fmtInt, money } from "@/lib/format";
+import { fmt, fmtInt, money } from "@/lib/format";
 import type { TerminalData } from "@/lib/types";
 
 const HEAD = (
@@ -36,9 +36,12 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
         Math.abs(b.vwap_swing_pct) > Math.abs(a.vwap_swing_pct) ? b : a,
       )
     : null;
-  const resist = worst
+  const rawResist = worst
     ? Math.abs(worst.vwap_swing_pct) / Math.max(0.01, Math.abs(worst.acr_swing_pct))
     : peakVwap / Math.max(0.01, peakAcr);
+  // Same guard as HomeHero: under 1x the caption below states the opposite of
+  // what the number says, and fmtInt rounds anything under 0.5 to "0x".
+  const resist = Number.isFinite(rawResist) && rawResist >= 1 ? rawResist : null;
   const scale = Math.max(peakVwap, 1);
 
   return (
@@ -66,11 +69,14 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
                 style={{ width: `${Math.max(0.75, (100 * peakAcr) / scale)}%` }}
               />
             </span>
-            <span className="num">{fmtInt(peakAcr)} bp</span>
+            {/* fmt(…, 1), not fmtInt: /attack prints this same quantity to one
+                decimal, and a sub-1bp error rounded to "0 bp" beside a drawn bar
+                reads as missing data rather than as "essentially perfect". */}
+            <span className="num">{fmt(peakAcr, 1)} bp</span>
           </div>
         </div>
         <div className="defense-verdict">
-          <div className="defense-ratio">{fmtInt(resist)}×</div>
+          <div className="defense-ratio">{resist == null ? "—" : `${fmtInt(resist)}×`}</div>
           <div className="defense-caption">
             <Ed
               x={

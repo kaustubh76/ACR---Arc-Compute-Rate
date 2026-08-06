@@ -105,8 +105,8 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
           ) : (
             data?.note ?? (
               <Ed
-                x="Connect a funded buyer (ACR_BUYER_PRIVATE_KEY) to watch the Gateway deposit draw down live."
-                p="Add a funded buyer key (ACR_BUYER_PRIVATE_KEY) to watch its Circle deposit draw down live."
+                x="This deployment carries no funded demo buyer, so there is no deposit to watch draw down. The balances above are real."
+                p="This copy of the site has no demo shopper with money in it, so there is nothing to watch spend. The amounts above are real."
               />
             )
           )}

@@ -27,3 +27,35 @@ export function deskPhase({ usdc, collateralized }: WalletState): DeskPhase {
   if (collateralized) return "trading";
   return usdc !== null && usdc > 0 ? "collateral" : "unfunded";
 }
+
+/** The five steps a reader walks to their first fill.
+ *
+ *  The desk shows one button at a time, and the walk costs three PIN
+ *  ceremonies and up to a few minutes of polling. Without a rail a reader has
+ *  no idea whether they are nearly done or nearly nowhere, and the only signal
+ *  the desk ever gave them was a single `note` string. These names are the
+ *  reader's vocabulary, not the machine's — see DeskSteps for the copy. */
+export const DESK_STEPS = ["session", "pin", "stake", "post", "trade"] as const;
+
+export type DeskStep = (typeof DESK_STEPS)[number];
+
+/** Which step (0-based) a phase belongs to.
+ *
+ *  `closed` and `opening` share step 0: opening is that same step in flight,
+ *  not a step of its own — a five-item rail whose first item disappeared the
+ *  moment you clicked it would renumber the walk underneath the reader. */
+export function deskStep(phase: DeskPhase): number {
+  switch (phase) {
+    case "closed":
+    case "opening":
+      return 0;
+    case "pin":
+      return 1;
+    case "unfunded":
+      return 2;
+    case "collateral":
+      return 3;
+    case "trading":
+      return 4;
+  }
+}

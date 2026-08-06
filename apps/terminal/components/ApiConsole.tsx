@@ -435,21 +435,13 @@ export function ApiConsole({
                   )
                 ) : (
                   <div className="lab-note" style={{ marginTop: 4 }}>
+                    {/* A dead button explains itself in words, not in the name
+                        of a variable the reader cannot set. The console still
+                        works — only the REAL settlement is closed here — and
+                        saying that is more useful than naming the key. */}
                     <Ed
-                      x={
-                        <>
-                          Real settlement needs a funded buyer — set{" "}
-                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span>, or run the mock gate
-                          with <span className="mono">ACR_X402_MODE=dev make api</span>.
-                        </>
-                      }
-                      p={
-                        <>
-                          Real payment needs a funded buyer — set{" "}
-                          <span className="mono">ACR_BUYER_PRIVATE_KEY</span>, or use the practice
-                          paywall with <span className="mono">ACR_X402_MODE=dev make api</span>.
-                        </>
-                      }
+                      x="This deployment carries no funded buyer, so real settlement is closed. The console still runs every query against the live gate; only the paying half is unavailable here."
+                      p="This copy of the site has no shopper with money in it, so it cannot pay for real. Everything else in this console still works — you just get the practice version."
                     />
                   </div>
                 )}
