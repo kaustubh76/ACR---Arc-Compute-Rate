@@ -39,6 +39,10 @@ client = TestClient(app)
 CHAIN_KEYS = {
     "name", "chain_id", "caip2", "rpc_url", "explorer_base", "usdc_address",
     "gateway_wallet", "oracle_address", "registry_address", "futures_address",
+    # The fourth contract. Deployed and exercised long before anything named
+    # it, which is exactly why this set is frozen: a card that quietly grows
+    # or shrinks is a frontend contract nobody is holding.
+    "attestor_address",
     "gate", "tape_source", "signer", "poster",
 }
 

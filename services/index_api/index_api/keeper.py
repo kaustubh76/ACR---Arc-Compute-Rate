@@ -78,9 +78,59 @@ _last_heartbeat = 0.0
 _hb_cursor = 0
 _last_roll_check = 0.0
 
+#: Last observed outcome per chore, for the Terminal. The keeper's verdicts
+#: went only to the server log, so the one question a reader of a live venue
+#: actually has — "is anything still minding this book?" — had no answer on
+#: any surface. Shape per chore: {"at": epoch, "verdict": str|None}.
+_last_run: dict[str, dict[str, object]] = {}
+
 
 def enabled() -> bool:
     return os.environ.get("ACR_KEEPER", "1") not in ("0", "false", "no")
+
+
+def record(chore: str, verdict: str | None) -> None:
+    """Note that ``chore`` ran, whatever it decided.
+
+    Recording the tick and not just the verdict is the point. Both chores
+    return None while on cooldown, which is the healthy majority of ticks; if
+    only verdicts were kept, a keeper doing exactly its job would look
+    indistinguishable from one that had died an hour ago.
+    """
+    _last_run[chore] = {"at": time.time(), "verdict": verdict}
+
+
+def _chore_status(chore: str, every_s: float, last_fire: float) -> dict[str, object]:
+    now = time.time()
+    seen = _last_run.get(chore)
+    #: `last_fire` is when the chore last did work; `seen["at"]` is when it was
+    #: last CHECKED. They differ by design and a reader is owed both.
+    return {
+        "checked_at": seen["at"] if seen else None,
+        "checked_age_s": round(now - float(seen["at"]), 1) if seen else None,  # type: ignore[arg-type]
+        "verdict": seen["verdict"] if seen else None,
+        "last_fire_at": last_fire or None,
+        "last_fire_age_s": round(now - last_fire, 1) if last_fire else None,
+        "every_s": every_s,
+        "next_due_s": max(0.0, round(every_s - (now - last_fire), 1)) if last_fire else 0.0,
+    }
+
+
+def status() -> dict[str, object]:
+    """What the keeper has been doing, for /health.
+
+    Read-only over module state — no chain calls, no credentials touched. A
+    disabled keeper says so rather than reporting zeros, because "off" and
+    "stalled" are different facts and the Terminal must not render one as the
+    other.
+    """
+    if not enabled():
+        return {"enabled": False}
+    return {
+        "enabled": True,
+        "heartbeat": _chore_status("heartbeat", HEARTBEAT_EVERY_S, _last_heartbeat),
+        "roll": _chore_status("roll", ROLL_CHECK_EVERY_S, _last_roll_check),
+    }
 
 
 
