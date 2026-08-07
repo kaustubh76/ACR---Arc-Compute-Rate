@@ -51,6 +51,8 @@ help:
 	@echo "  make circle-fund     ADDR=0x… — testnet faucet into the wallet"
 	@echo "  make circle-deposit  ADDR=0x… — deposit USDC into Gateway (min 0.5)"
 	@echo "  make circle-balance  ADDR=0x… — wallet + Gateway balances"
+	@echo "  make gateway-deposit AMOUNT=0.5 — same deposit via SDK, no OTP session (needs AGENT_PRIVATE_KEY)"
+	@echo "  make gateway-balance read the unified balance (needs AGENT_PRIVATE_KEY)"
 	@echo "  make skills-install  install Circle Skills into .claude/skills"
 
 setup:
@@ -301,11 +303,11 @@ circle-balance: circle-check
 # AGENT_PRIVATE_KEY (no CLI session, no kit key). `make circle-deposit` stays
 # as the CLI/operator route; this one is the programmatic route an agent runs.
 gateway-deposit:
-	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-deposit needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md)"; exit 1; }
+	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-deposit needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md §2b)"; exit 1; }
 	cd apps/agent && npm run deposit -- --amount $(AMOUNT)
 
 gateway-balance:
-	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-balance needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md)"; exit 1; }
+	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-balance needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md §2b)"; exit 1; }
 	cd apps/agent && npm run deposit -- --balances
 
 skills-install: circle-check

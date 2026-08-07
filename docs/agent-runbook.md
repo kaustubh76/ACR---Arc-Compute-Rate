@@ -59,6 +59,51 @@ it (`make circle-deposit ADDR=… METHOD=direct`; `eco` is BASE-sources-only,
 `direct` covers ARC-TESTNET). The target passes `--method` only when `METHOD=`
 is set. Override the size with `AMOUNT=`.
 
+### 2b. The same deposit, without a human: `make gateway-deposit`
+
+The CLI route above needs an interactive email-OTP session, so an agent cannot
+top itself up. The SDK route can:
+
+```sh
+export AGENT_PRIVATE_KEY=0x<64 hex>   # the buyer EOA, never an argv (it would show in `ps`)
+make gateway-balance                  # read-only: wallet + unified balance
+make gateway-deposit AMOUNT=0.5       # deposit into Gateway via Unified Balance Kit
+```
+
+[`apps/agent/src/deposit.ts`](../apps/agent/src/deposit.ts) uses
+`@circle-fin/unified-balance-kit` with the viem adapter. No kit key is needed
+for unified-balance operations. Proven on Arc:
+[`0xd6bab6ee…`](https://testnet.arcscan.app/tx/0xd6bab6eeba29b69fe1d6ca47ac98b3f5c507053fa3eb315a7a582dbdadd38858)
+moved 0.5 USDC, block 55751879.
+
+**The gotcha that made a good deposit look stranded:** `getBalances()` without a
+`chains` scope walks a default chain set that does not include Arc Testnet and
+returns `0.000000` for a balance that exists. Scope every read
+(`sources: { adapter, chains: "Arc_Testnet" }`).
+
+### 2c. `npm install` in `apps/agent` must run on Node 20
+
+`npm ci` is safe on any Node. **`npm install` is not**, and the failure is
+silent locally and loud in CI.
+
+Circle's `@circle-fin/adapter-viem-v2` depends on `@solana/web3.js`, which pulls
+`jayson`, whose copy of `ws` asks for `utf-8-validate@^5` while the root of the
+tree resolves `^6`. npm 11 hoists that to a single `6.0.6` and drops the nested
+`5.0.10`; npm 10 — which Node 20 ships, and Node 20 is what `.github/workflows/ci.yml`
+pins — requires both. So a lock written by npm 11 installs perfectly here and
+fails `npm ci` in CI with `Missing: utf-8-validate@5.0.10 from lock file`.
+Measured: the rewrite is 15 lines, and nothing local complains.
+
+The repo carries `.nvmrc` (20) and `apps/agent/package.json` declares
+`engines`, so npm prints `EBADENGINE` on a newer Node rather than failing —
+a nudge, not a wall. If you add or bump a dependency here:
+
+```sh
+nvm use            # picks up .nvmrc → Node 20
+cd apps/agent && rm -rf node_modules && npm install
+rm -rf node_modules && npm ci      # prove the lock in a clean room before pushing
+```
+
 ## 3. The seller side (this repo)
 
 1. **Fresh `.env`** — copy from `.env.example` and fill. Do **not** reuse an

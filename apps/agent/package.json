@@ -2,8 +2,12 @@
   "name": "acr-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "ACR buyer agent — discovers ACR listings and pays per query via Circle Nanopayments (x402 on Arc)",
+  "description": "ACR buyer agent \u2014 discovers ACR listings and pays per query via Circle Nanopayments (x402 on Arc)",
   "type": "module",
+  "engines": {
+    "node": "20.x",
+    "npm": "^10"
+  },
   "scripts": {
     "start": "tsx src/main.ts",
     "deposit": "tsx src/deposit.ts",
