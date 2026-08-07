@@ -18,34 +18,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.4889383036905617,
-          "bid": 0.48770647975189285,
-          "ask": 0.4901701276292305,
-          "spread_bp": 50.38770451694553
+          "mid": 0.488943192486943,
+          "bid": 0.4877113685482742,
+          "ask": 0.49017501642561184,
+          "spread_bp": 50.38720070539587
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.4889383036905617,
-          "bid": 0.48770647975189285,
-          "ask": 0.4901701276292305,
-          "spread_bp": 50.38770451694553
+          "mid": 0.488943192486943,
+          "bid": 0.4877113685482742,
+          "ask": 0.49017501642561184,
+          "spread_bp": 50.38720070539587
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.4889383036905617,
-          "bid": 0.48770647975189285,
-          "ask": 0.4901701276292305,
-          "spread_bp": 50.38770451694553
+          "mid": 0.488943192486943,
+          "bid": 0.4877113685482742,
+          "ask": 0.49017501642561184,
+          "spread_bp": 50.38720070539587
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.4889383036905617,
-          "bid": 0.48770647975189285,
-          "ask": 0.4901701276292305,
-          "spread_bp": 50.38770451694553
+          "mid": 0.488943192486943,
+          "bid": 0.4877113685482742,
+          "ask": 0.49017501642561184,
+          "spread_bp": 50.38720070539587
         }
       ],
       "robustness": {
@@ -57,12 +57,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.4923551190903513,
-        "ci_lo": 0.48981011921009515,
-        "ci_hi": 0.4933476790459626,
-        "attack_cost_per_bp": 0.009397,
-        "timestamp": 4428000,
-        "posted_at": 1786030395
+        "value": 0.49112046961935424,
+        "ci_lo": 0.4884496644258893,
+        "ci_hi": 0.49475541139948975,
+        "attack_cost_per_bp": 0.005494,
+        "timestamp": 4507200,
+        "posted_at": 1786083544
       }
     },
     "ACR-GPU": {
@@ -83,34 +83,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         }
       ],
       "robustness": {
@@ -122,12 +122,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.011100978452646001,
-        "ci_lo": 0.01094206414922481,
-        "ci_hi": 0.011119543300974892,
-        "attack_cost_per_bp": 0.008533,
-        "timestamp": 4428000,
-        "posted_at": 1786030398
+        "value": 0.010831107596982992,
+        "ci_lo": 0.010774606173239344,
+        "ci_hi": 0.010912241681289176,
+        "attack_cost_per_bp": 0.006295,
+        "timestamp": 4507200,
+        "posted_at": 1786083548
       }
     },
     "ACR-DATA": {
@@ -187,12 +187,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.002087878893650796,
-        "ci_lo": 0.002084184784945665,
-        "ci_hi": 0.002098916391787599,
-        "attack_cost_per_bp": 0.013424,
-        "timestamp": 4428000,
-        "posted_at": 1786030404
+        "value": 0.002028640876594722,
+        "ci_lo": 0.002008334168303839,
+        "ci_hi": 0.00204239180371302,
+        "attack_cost_per_bp": 0.008887,
+        "timestamp": 4507200,
+        "posted_at": 1786083553
       }
     }
   },
@@ -1506,11 +1506,11 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": -3.0,
-      "maker_avg_price": 0.4932547446061697,
-      "maker_realized_usdc": 0.056490120272854286,
-      "maker_unrealized_usdc": 0.083478,
-      "open_interest": 3.0,
+      "maker_inventory": -3.25,
+      "maker_avg_price": 0.4935566796737538,
+      "maker_realized_usdc": 0.0684075144286157,
+      "maker_unrealized_usdc": 0.147584,
+      "open_interest": 3.25,
       "trader_count": 4
     },
     "ACR-GPU": {
@@ -1522,11 +1522,11 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": -2.25,
-      "maker_avg_price": 0.010942262583132628,
-      "maker_realized_usdc": -0.0007593921498920501,
-      "maker_unrealized_usdc": -0.00433,
-      "open_interest": 2.25,
+      "maker_inventory": -2.0,
+      "maker_avg_price": 0.010941705883442277,
+      "maker_realized_usdc": -0.0011450478298684701,
+      "maker_unrealized_usdc": 0.001066,
+      "open_interest": 2.0,
       "trader_count": 3
     },
     "ACR-DATA": {
@@ -1540,8 +1540,8 @@
       "settlement_price": 0.0,
       "maker_inventory": 0.0,
       "maker_avg_price": 0.0,
-      "maker_realized_usdc": -7.59248382817e-05,
-      "maker_unrealized_usdc": -7.5e-05,
+      "maker_realized_usdc": -0.00013946893201392,
+      "maker_unrealized_usdc": -0.000139,
       "open_interest": 0.0,
       "trader_count": 2
     }
@@ -1587,7 +1587,14 @@
         "vwap": 0.4782473327665925,
         "acr_err_bp": 140.4638502062583,
         "vwap_err_bp": 435.0533446681504,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.4853236856044215,
+        "acr_ci_hi": 0.4930323744149893,
+        "attack_cost_per_bp": 0.013180994212447875,
+        "n_raw": 1944,
+        "n_obs": 1944,
+        "cleaned_pct": 62.70731811727476,
+        "sybil_clusters": 0
       },
       {
         "hour": 1,
@@ -1596,7 +1603,14 @@
         "vwap": 0.46799885065635555,
         "acr_err_bp": 115.46067165123964,
         "vwap_err_bp": 640.0229868728891,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.4924874750918321,
+        "acr_ci_hi": 0.4942992855155999,
+        "attack_cost_per_bp": 0.011838264775344772,
+        "n_raw": 1990,
+        "n_obs": 1990,
+        "cleaned_pct": 61.58738964324273,
+        "sybil_clusters": 0
       },
       {
         "hour": 2,
@@ -1605,7 +1619,14 @@
         "vwap": 0.47581864837863164,
         "acr_err_bp": 45.33631892326362,
         "vwap_err_bp": 483.6270324273673,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.502240611282461,
+        "acr_ci_hi": 0.5063429407866133,
+        "attack_cost_per_bp": 0.026404354818790124,
+        "n_raw": 2010,
+        "n_obs": 2010,
+        "cleaned_pct": 59.129647231330196,
+        "sybil_clusters": 0
       },
       {
         "hour": 3,
@@ -1614,7 +1635,14 @@
         "vwap": 0.4623867730823281,
         "acr_err_bp": 153.0268264487844,
         "vwap_err_bp": 752.2645383534376,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.4923156606925238,
+        "acr_ci_hi": 0.49618098597959415,
+        "attack_cost_per_bp": 0.020667546131062735,
+        "n_raw": 1989,
+        "n_obs": 1989,
+        "cleaned_pct": 62.34234448860776,
+        "sybil_clusters": 0
       },
       {
         "hour": 4,
@@ -1623,7 +1651,14 @@
         "vwap": 0.8331038835654038,
         "acr_err_bp": 0.902282740096183,
         "vwap_err_bp": 6662.077671308075,
-        "attack": true
+        "attack": true,
+        "acr_ci_lo": 0.49852864564940963,
+        "acr_ci_hi": 0.5009954917885534,
+        "attack_cost_per_bp": 0.008677642282915008,
+        "n_raw": 5054,
+        "n_obs": 2021,
+        "cleaned_pct": 95.0,
+        "sybil_clusters": 2
       },
       {
         "hour": 5,
@@ -1632,7 +1667,14 @@
         "vwap": 0.8133812610833774,
         "acr_err_bp": 43.70508623744107,
         "vwap_err_bp": 6267.6252216675475,
-        "attack": true
+        "attack": true,
+        "acr_ci_lo": 0.49585515539112734,
+        "acr_ci_hi": 0.4991409999137495,
+        "attack_cost_per_bp": 0.008637771676979392,
+        "n_raw": 5053,
+        "n_obs": 2078,
+        "cleaned_pct": 95.0,
+        "sybil_clusters": 2
       },
       {
         "hour": 6,
@@ -1641,7 +1683,14 @@
         "vwap": 0.8114845927842826,
         "acr_err_bp": 198.6822208425587,
         "vwap_err_bp": 6229.691855685653,
-        "attack": true
+        "attack": true,
+        "acr_ci_lo": 0.4886392585141753,
+        "acr_ci_hi": 0.4921812142549293,
+        "attack_cost_per_bp": 0.008025535533670131,
+        "n_raw": 5018,
+        "n_obs": 2026,
+        "cleaned_pct": 95.0,
+        "sybil_clusters": 2
       },
       {
         "hour": 7,
@@ -1650,7 +1699,14 @@
         "vwap": 0.8375952581826909,
         "acr_err_bp": 68.77745356506537,
         "vwap_err_bp": 6751.905163653817,
-        "attack": true
+        "attack": true,
+        "acr_ci_lo": 0.5017233491654189,
+        "acr_ci_hi": 0.5041233807351935,
+        "attack_cost_per_bp": 0.014232431523302766,
+        "n_raw": 4992,
+        "n_obs": 1992,
+        "cleaned_pct": 95.0,
+        "sybil_clusters": 2
       },
       {
         "hour": 8,
@@ -1659,7 +1715,14 @@
         "vwap": 0.48536826262198657,
         "acr_err_bp": 29.961633550907862,
         "vwap_err_bp": 292.63474756026864,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.4982026600320239,
+        "acr_ci_hi": 0.5016243821166539,
+        "attack_cost_per_bp": 0.010943505281071662,
+        "n_raw": 2007,
+        "n_obs": 2007,
+        "cleaned_pct": 61.823964522063804,
+        "sybil_clusters": 0
       },
       {
         "hour": 9,
@@ -1668,7 +1731,14 @@
         "vwap": 0.4693042365107813,
         "acr_err_bp": 39.66840641805636,
         "vwap_err_bp": 613.9152697843741,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.49541510277918127,
+        "acr_ci_hi": 0.4982329991918384,
+        "attack_cost_per_bp": 0.007087197536992742,
+        "n_raw": 2054,
+        "n_obs": 2054,
+        "cleaned_pct": 65.09814351282247,
+        "sybil_clusters": 0
       },
       {
         "hour": 10,
@@ -1677,7 +1747,14 @@
         "vwap": 0.4731274399224247,
         "acr_err_bp": 26.85806060634066,
         "vwap_err_bp": 537.4512015515065,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.4991338913675676,
+        "acr_ci_hi": 0.5014796850008805,
+        "attack_cost_per_bp": 0.02382647379716396,
+        "n_raw": 1994,
+        "n_obs": 1994,
+        "cleaned_pct": 61.61004671371724,
+        "sybil_clusters": 0
       },
       {
         "hour": 11,
@@ -1686,7 +1763,14 @@
         "vwap": 0.4750480180387508,
         "acr_err_bp": 80.98728989646698,
         "vwap_err_bp": 499.03963922498406,
-        "attack": false
+        "attack": false,
+        "acr_ci_lo": 0.493415893842776,
+        "acr_ci_hi": 0.49713041242731537,
+        "attack_cost_per_bp": 0.004434315996037534,
+        "n_raw": 1921,
+        "n_obs": 1921,
+        "cleaned_pct": 64.30149241301973,
+        "sybil_clusters": 0
       }
     ],
     "usdc_burned": 147.60000000002378,
@@ -1709,22 +1793,22 @@
     "tape_source": "sim",
     "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
     "poster": {
-      "posts": 27,
+      "posts": 30,
       "last": {
         "ACR-INF": {
-          "tx": "0xc22b1eadccd52e0564b1c34764956c81f0ff1e2154ba5884ca3a29ce459d8789",
-          "block": 55629858,
-          "at_wall": 1786030395.0
+          "tx": "0xc0e4dc56304f34bf4d5aa3bf8831be3a953b053ab7139dc8f506da407066a461",
+          "block": 55732813,
+          "at_wall": 1786083544.0
         },
         "ACR-GPU": {
-          "tx": "0x3da383426e317be4ff8e98fe7a00ab87a1683c7c553286b451a4cd7ca12832d9",
-          "block": 55629864,
-          "at_wall": 1786030398.0
+          "tx": "0xff92b6b013e191b2ba75f70919844b2014997f3cae52370840606800a326b6fe",
+          "block": 55732820,
+          "at_wall": 1786083548.0
         },
         "ACR-DATA": {
-          "tx": "0x2455e840dea26831125dbb376b248232be2421053474f0c06eede37a7e28c421",
-          "block": 55629875,
-          "at_wall": 1786030404.0
+          "tx": "0x5e8a106836e4e3580319517337d7234e74e2d0299e96d08f43fd1422071f4e55",
+          "block": 55732829,
+          "at_wall": 1786083553.0
         }
       }
     }
@@ -1768,7 +1852,7 @@
           "resource": "/prints",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1878,7 +1962,7 @@
           "resource": "/prints/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1993,7 +2077,7 @@
           "resource": "/prints/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2108,7 +2192,7 @@
           "resource": "/prints/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2223,7 +2307,7 @@
           "resource": "/curve/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2339,7 +2423,7 @@
           "resource": "/curve/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2455,7 +2539,7 @@
           "resource": "/curve/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2571,7 +2655,7 @@
           "resource": "/vol/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2664,7 +2748,7 @@
           "resource": "/vol/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2757,7 +2841,7 @@
           "resource": "/vol/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2850,7 +2934,7 @@
           "resource": "/seller-scores/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2963,7 +3047,7 @@
           "resource": "/seller-scores/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3076,7 +3160,7 @@
           "resource": "/seller-scores/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-06T16:03:38.782Z",
+          "lastUpdated": "2026-08-07T06:34:18.608Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3545,104 +3629,94 @@
   },
   "futures_trades": [
     {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.002028640876594722,
+      "block": 55734053,
+      "tx": "0x28789c1dbc92b2af4206d65a410ce11c5c97ea12ab7b46aadbd571fc9e7651f4",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 4,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.010831107596982992,
+      "block": 55733005,
+      "tx": "0xc1db6c08c1a7f2a972458f95ac6b4ccd8894b50c5141767da5924dd8152e5f7d",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.002062461256157907,
+      "block": 55726136,
+      "tx": "0x9b86121113e6ee17896f6600630c290b696254e286231ae76bd8ba229fcc5574",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 3,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.4953335241916736,
+      "block": 55719198,
+      "tx": "0x7fc0f49c6becebbbcc2e2617b581a49ac8aeb8e8d8736c57ca23b32a4691df2f",
+      "seen_at": 1786084808.5369868
+    },
+    {
       "series_id": 4,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": 0.25,
       "side": "buy",
-      "mark": 0.011100978452646001,
-      "block": 55629935,
-      "tx": "0xc6234d5708b8a4c712ba43208724069d8a98043f677ef8aea46ff64aa28c12ec",
-      "seen_at": 1786032906.029255
+      "mark": 0.010831107596982992,
+      "block": 55712183,
+      "tx": "0xd75664732b9434e1a1e18b0a67a0553f7090ff8bcc37df5a09b410108d389499",
+      "seen_at": 1786084808.5369868
     },
     {
       "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": -0.25,
       "side": "sell",
+      "mark": 0.002087878893650796,
+      "block": 55705101,
+      "tx": "0x7f8285047016cf239ed4392a598d30870e0c78952f0c2857cfadd7029bc321e2",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 3,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.49112046961935424,
+      "block": 55698109,
+      "tx": "0x88e79b95bc9c649ed1080ed4efd279a4bc2c1de5ba5667f80e9fa7b3007a1856",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 4,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.011061675358186168,
+      "block": 55691009,
+      "tx": "0x141fb76414762c46a6697cf7fbba469b884442b9e27cc95cf1db9dd6dc3ef344",
+      "seen_at": 1786084808.5369868
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
       "mark": 0.00204800261417756,
-      "block": 55622882,
-      "tx": "0x89435f47c426a97f592922c55457c425511760796b4d998c7788229d3491ad8b",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 3,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.49773380357474806,
-      "block": 55615761,
-      "tx": "0xfec4705d8b681daf160b38b52763e6b748fced50a30ebd4a59a8a04ba2db749d",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.011027025952822034,
-      "block": 55608574,
-      "tx": "0xf219e80fdc750f6875ee9c3d591ebecc0d2f37516816bc7b17635d01ee64cc13",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.002028640876594722,
-      "block": 55601437,
-      "tx": "0x4c7054bcb2521e3ecc6930da29eaeb31f19bc7b096a6c9f69b57423823d7a6dc",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.002028640876594722,
-      "block": 55599998,
-      "tx": "0x35ff03d831636a190760ec2835b0656205b0a62a848546f550cc80e433626584",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.002062461256157907,
-      "block": 55597801,
-      "tx": "0x3f367dba5ced33fbea7221334c75e9c5fe2ef9b41182d8da1bc41e71531092ba",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.002062461256157907,
-      "block": 55593487,
-      "tx": "0xd9e80d0b96abcf5d5918e727310fbb0f9d6dbd9074293aebe8bdfd7419a10afd",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 3,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.4923551190903513,
-      "block": 55586441,
-      "tx": "0xa1b81fd849deed6df1f6e8194de71e8e4bca8515223f6d671e0166080b0a490e",
-      "seen_at": 1786032906.029255
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.011027025952822034,
-      "block": 55579378,
-      "tx": "0x99dd7cf893a2bc1e26bb8de377def74f590a370b0daec7d08182b9a7dc6e2a4a",
-      "seen_at": 1786032906.029255
+      "block": 55684002,
+      "tx": "0x0ab9e93c908d4c0d8aa40c0aec1e8a3a88a6b05890aff7ad0ca2264f3ce5b4d7",
+      "seen_at": 1786084808.5369868
     }
   ],
   "hedger": {

@@ -78,6 +78,23 @@ export interface SeriesPoint {
   acr_err_bp: number;
   vwap_err_bp: number;
   attack: boolean;
+  /* What the estimator actually DID this hour. Optional because the archived
+     bundle predates them — an old snapshot must still render, just with less
+     to say. Same names as scripts/eval.py so the live run and the CI eval
+     cannot drift. */
+  acr_ci_lo?: number;
+  acr_ci_hi?: number;
+  attack_cost_per_bp?: number;
+  /** Observations the hour delivered, before cleaning. */
+  n_raw?: number;
+  /** Observations that survived cleaning and reached the estimate. */
+  n_obs?: number;
+  /** How much of the hour the cleaner removed. ~56% quiet, ~95% under attack —
+   *  the defence biting, as a number a reader can watch. */
+  cleaned_pct?: number;
+  sybil_clusters?: number;
+  /** Real estimator time for the hour, excluding the loop's own pacing. */
+  step_ms?: number | null;
 }
 
 /** One oracle post's provenance: the postPrint tx + block, per index. */
@@ -256,6 +273,18 @@ export interface AttackStatus {
   n_adversarial: number;
   verdict?: AttackVerdict | null;
   error?: string | null;
+  /** idle | simulating | estimating | done. `simulating` is the blocking tape
+   *  build that runs BEFORE hour 0 and used to look like a hang. */
+  phase?: string;
+  started_at?: number | null;
+  elapsed_s?: number | null;
+  /** Known before the first hour, so counters can be a fraction of a whole. */
+  n_adversarial_total?: number | null;
+  usdc_total?: number | null;
+  /** Why the budget knob does not move the outcome: the cap binds. */
+  trade_cap?: number | null;
+  budget_affords?: number | null;
+  pace_s?: number;
 }
 
 export interface RevenueReceipt {

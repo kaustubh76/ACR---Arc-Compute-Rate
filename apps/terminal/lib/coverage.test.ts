@@ -42,6 +42,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
+  "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
   "app/ops/view.tsx": 10, // the ledger reads for operators AND for readers
   "components/chain/OperatorConsole.tsx": 10, // the locked + unlocked states both speak

@@ -215,10 +215,18 @@ export function useBalances() {
   return { balances: data, error: error as Error | undefined, refresh: mutate };
 }
 
-/** Polls fast only while a run is in flight; the chart is the progress bar. */
+/** Fast while a run is in flight; a slow heartbeat otherwise.
+ *
+ *  The idle interval used to be `0`, which SWR reads as "never poll again" —
+ *  so after one request on mount the Attack Lab went permanently silent. Every
+ *  live thing on that page (the press chip, the last-run age, the resting
+ *  counters) is downstream of this number; at 0 none of them could ever
+ *  update, which is precisely why the page read as a static picture. 20s is
+ *  the `useHedger` cadence: enough to prove the page is connected, cheap
+ *  enough for a free-tier press. */
 export function useAttackRun() {
   const { data, mutate } = useSWR<Envelope<AttackStatus>>("/api/attack/status", fetcher, {
-    refreshInterval: (latest) => (latest?.data?.state === "running" ? 700 : 0),
+    refreshInterval: (latest) => (latest?.data?.state === "running" ? 700 : 20_000),
     revalidateOnFocus: true,
     ...RETRY,
   });

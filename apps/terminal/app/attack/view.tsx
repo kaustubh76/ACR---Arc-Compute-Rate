@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { AttackChart } from "@/components/charts/AttackChart";
+import { AttackTape } from "@/components/chain/AttackTape";
 import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { useAttackRun } from "@/lib/useLive";
 import { useConnection } from "@/lib/useConnection";
 import { fmt, fmtInt, money, pct } from "@/lib/format";
+import { useNow } from "@/lib/useNow";
+import { useEdition } from "@/lib/useEdition";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 const BUDGETS = [2000, 8000, 20000];
@@ -18,6 +21,8 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
   // countdown. Safe to call here because this page HAS a server-rendered
   // initial envelope — useConnection without one returns undefined during SSR.
   const conn = useConnection(initial);
+  const nowS = useNow();
+  const plain = useEdition() === "plain";
   const env = conn.env;
   const { status, refresh } = useAttackRun();
   const [budget, setBudget] = useState(8000);
@@ -34,6 +39,57 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
   // `run` is the narrowed handle for every stage read below — non-null exactly
   // when there is a run worth drawing (no `!` assertions on a polled payload).
   const run = st && (running || done || (errored && st.series.length > 0)) ? st : null;
+
+  /* What the counters read when nothing is running. The archived exercise is
+     fetched on every page load and was never rendered; resting on it beats
+     showing three empty slots, and it keeps the row's shape stable when a run
+     starts. */
+  const archived = env.data.attack;
+  const shown = run
+    ? {
+        usdc_burned: run.usdc_burned,
+        usdc_total: run.usdc_total ?? null,
+        n_adversarial: run.n_adversarial,
+        n_adversarial_total: run.n_adversarial_total ?? null,
+        hour: run.hour,
+        hours_total: run.hours_total,
+      }
+    : {
+        usdc_burned: archived.usdc_burned,
+        usdc_total: null,
+        n_adversarial: archived.n_adversarial,
+        n_adversarial_total: null,
+        hour: archived.series.length,
+        hours_total: archived.series.length,
+      };
+
+  // Ticks during the run — `verdict` is now recomputed every step server-side.
+  const resistance = run?.verdict?.resistance ?? null;
+
+  /* Provenance for every figure above: when they last moved, and what moved
+     them. A live run names its seed so the reader can reproduce it — the seed
+     is generated server-side when the box is left blank, so without this the
+     run they just watched was unrepeatable. */
+  const lastMoved = (() => {
+    if (run?.params) {
+      const age = run.started_at && nowS > 0 ? Math.max(0, nowS - Math.round(run.started_at)) : null;
+      const when = age == null ? "" : age < 90 ? " · just now" : ` · ${Math.round(age / 60)} min ago`;
+      const el = run.elapsed_s != null ? ` · ${run.elapsed_s.toFixed(0)}s of work` : "";
+      return `run ${run.params.seed} · budget ${money(run.params.budget_usdc, 0)} · ×${run.params.target_multiplier}${el}${when}`;
+    }
+    return plain
+      ? "a run we recorded earlier — press the button for a fresh one"
+      : "the archived exercise — commence a run for live figures";
+  })();
+
+  /* Why the budget preset does not change the outcome. `generate_wash_flow`
+     takes min(trade cap, budget / fee), and at a 0.0041 fee every budget on
+     offer affords millions of trades — so the 12,000 cap always binds and all
+     three presets produce an identical run. Saying so turns a control that
+     looks broken into one that explains the model. */
+  const capNote = run?.trade_cap && run.budget_affords
+    ? `${money(run.params?.budget_usdc ?? budget, 0)} offered · buys ${fmtInt(run.budget_affords)} wash trades · capped at ${fmtInt(run.trade_cap)} per service`
+    : null;
 
   async function commence() {
     setStarting(true);
@@ -94,6 +150,19 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 </button>
               ))}
             </div>
+            {/* The knob is honest about being blunt: the attacker's spend is
+                bounded by a per-service trade cap long before the budget runs
+                out, so every preset buys the same attack. Better to say that
+                than to let a reader change it, see no difference, and wonder
+                what else on this page is decorative. */}
+            <p className="mono muted" style={{ fontSize: 11.5, marginTop: 8, lineHeight: 1.5 }}>
+              {capNote ?? (
+                <Ed
+                  x="the trade cap binds before the budget does — every preset buys the same attack"
+                  p="the cheat runs out of allowed trades long before it runs out of money, so all three budgets buy the same attack"
+                />
+              )}
+            </p>
           </div>
 
           <details className="disclosure">
@@ -156,6 +225,12 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 press, i.e. the case where the silence is longest. */}
             {starting ? (
               <Ed x="Commencing…" p="Starting…" />
+            ) : running && st?.phase === "simulating" ? (
+              /* The blocking tape build, which runs BEFORE hour 0 and can take
+                 tens of seconds on a free-tier box with the hour counter stuck
+                 at zero. It was the longest silence on the site and looked
+                 exactly like a hang. */
+              <Ed x="Building the tape…" p="Making the fake trades…" />
             ) : running ? (
               <Ed x="Attack in progress…" p="Attack under way…" />
             ) : done ? (
@@ -188,6 +263,20 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               />
             </div>
           )}
+          {/* The page only ever showed a chip when it was BROKEN. Saying so
+              when it is fine is what makes the broken case believable — and
+              the age proves the poll is alive rather than merely configured. */}
+          {labLive && (
+            <div className="label">
+              <span className="chip chip-teal">
+                <i className="dot breathe" aria-hidden />
+                <Ed x="press live" p="server awake" />
+                {status && nowS > 0 ? (
+                  <> · {Math.max(0, nowS - Math.floor(status.fetchedAt / 1000))}s ago</>
+                ) : null}
+              </span>
+            </div>
+          )}
           {startErr && (
             <div className="label vermilion" role="alert">
               {startErr}
@@ -209,34 +298,63 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
         </div>
 
         <div className="lab-stage">
-          {run ? (
-            <>
-              <div className="lab-counters">
-                <div>
-                  <div className="counter-value vermilion">
-                    <TickerNumber text={money(run.usdc_burned, 0)} />
-                  </div>
-                  <div className="counter-label label">
-                    <Ed x="USDC burned" p="Dollars burned" />
-                  </div>
-                </div>
-                <div>
-                  <div className="counter-value">
-                    <TickerNumber text={fmtInt(run.n_adversarial)} />
-                  </div>
-                  <div className="counter-label label">
-                    <Ed x="Wash prints" p="Fake trades" />
-                  </div>
-                </div>
-                <div>
-                  <div className="counter-value">
-                    <TickerNumber text={`${run.hour}/${run.hours_total}`} />
-                  </div>
-                  <div className="counter-label label">Hour</div>
-                </div>
+          {/* The counters REST rather than vanish. They used to live inside
+              the `run ?` branch, so before the first click this page showed a
+              faded chart and not one number — which is most of why it read as
+              a picture rather than an instrument. Idle, they carry the
+              archived exercise's figures and say so. */}
+          <div className="lab-counters">
+            <div>
+              <div className="counter-value vermilion">
+                <TickerNumber text={money(shown.usdc_burned, 0)} />
               </div>
-              <AttackChart series={run.series} hoursTotal={run.hours_total} />
-            </>
+              <div className="counter-label label">
+                <Ed x="USDC burned" p="Dollars burned" />
+                {shown.usdc_total ? (
+                  <span className="muted"> / {money(shown.usdc_total, 0)}</span>
+                ) : null}
+              </div>
+            </div>
+            <div>
+              <div className="counter-value">
+                <TickerNumber text={fmtInt(shown.n_adversarial)} />
+              </div>
+              <div className="counter-label label">
+                <Ed x="Wash prints" p="Fake trades" />
+                {shown.n_adversarial_total ? (
+                  <span className="muted"> / {fmtInt(shown.n_adversarial_total)}</span>
+                ) : null}
+              </div>
+            </div>
+            <div>
+              <div className="counter-value">
+                <TickerNumber text={`${shown.hour}/${shown.hours_total}`} />
+              </div>
+              <div className="counter-label label">
+                <Ed x="Hour" p="Hour" />
+              </div>
+            </div>
+            <div>
+              <div className={`counter-value ${resistance != null ? "gold" : "muted"}`}>
+                <TickerNumber text={resistance != null ? `${fmtInt(resistance)}×` : "—"} />
+              </div>
+              <div className="counter-label label">
+                {/* Ticks as the run goes now — the verdict is a pure function
+                    of the series, so withholding it until the end was a
+                    choice, not a constraint. */}
+                <Ed x="Resistance vs VWAP" p="Harder to fake than a plain average" />
+              </div>
+            </div>
+          </div>
+
+          {/* When these figures last actually moved, and what moved them. A
+              number with no provenance is indistinguishable from a decoration. */}
+          <p className="mono muted" style={{ fontSize: 12, marginTop: -12, marginBottom: 20 }}>
+            {lastMoved}
+          </p>
+
+          {run ? (
+            <AttackChart series={run.series} hoursTotal={run.hours_total} />
           ) : (
             <>
               <div className="label" style={{ marginBottom: 12 }}>
@@ -245,6 +363,15 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               <AttackChart series={stageSeries} faded />
             </>
           )}
+
+          {/* The estimator's work, hour by hour. */}
+          <div style={{ marginTop: 28 }}>
+            <AttackTape
+              series={run ? run.series : stageSeries}
+              live={Boolean(run)}
+              hoursTotal={run ? run.hours_total : stageSeries.length}
+            />
+          </div>
 
           {run && done && run.verdict && (
             <div className="section" style={{ marginTop: 40 }}>
