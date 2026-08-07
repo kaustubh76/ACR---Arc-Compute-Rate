@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(await res.json(), { status: res.status });
   } catch {
     return NextResponse.json(
-      { detail: "the press is still waking — give it a minute and release again" },
+      { detail: "the press is still waking; give it a minute and release again" },
       { status: 503 },
     );
   }

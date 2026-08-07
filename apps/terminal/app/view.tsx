@@ -27,7 +27,7 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
   if (!prints.length) {
     return (
       <div className="awaiting">
-        <Ed x="Awaiting print —" p="Waiting for the first rate —" />
+        <Ed x="Awaiting the first print" p="Waiting for the first rate" />
       </div>
     );
   }
@@ -44,8 +44,8 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <Ed
-            x="Today’s fixing — all three indices"
-            p="Today’s official rates — all three services"
+            x="Today’s fixing · all three indices"
+            p="Today’s official rates · all three services"
             className="label"
           />
         </div>
@@ -68,7 +68,7 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
 
       <section className="section">
         <div className="section-head">
-          <span className="label">Today’s prints — settlement grade</span>
+          <span className="label">Today’s prints · settlement grade</span>
         </div>
         <PrintsTable prints={prints} live={env.live} direct={directLive} />
       </section>

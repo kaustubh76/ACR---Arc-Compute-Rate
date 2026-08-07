@@ -11,21 +11,21 @@ import type { Envelope, TerminalData } from "@/lib/types";
 /* The edition line follows the connection ladder, not a live/sim binary. */
 const EDITION_LINE: Record<string, string> = {
   live: "LIVE EDITION",
-  linking: "FIRST EDITION — LINKING",
-  stale: "LIVE EDITION — PRESS RETRYING",
-  waking: "EDITION IN PRESS — WAKING",
-  "onchain-only": "ON-CHAIN EDITION — DIRECT ORACLE READS",
-  archived: "ARCHIVED EDITION — START THE INDEX API FOR LIVE DATA",
+  linking: "FIRST EDITION · LINKING",
+  stale: "LIVE EDITION · PRESS RETRYING",
+  waking: "EDITION IN PRESS · WAKING",
+  "onchain-only": "ON-CHAIN EDITION · DIRECT ORACLE READS",
+  archived: "ARCHIVED EDITION · START THE INDEX API FOR LIVE DATA",
 };
 
 /* The same line, set in plain type. */
 const PLAIN_EDITION_LINE: Record<string, string> = {
   live: "LIVE EDITION",
-  linking: "FIRST EDITION — CONNECTING",
-  stale: "LIVE EDITION — RECONNECTING TO OUR SERVER",
-  waking: "EDITION IN PRESS — OUR SERVER IS WAKING UP",
-  "onchain-only": "BLOCKCHAIN EDITION — READ STRAIGHT OFF THE PUBLIC RECORD",
-  archived: "SAVED COPY — THE LIVE SERVER IS OFF",
+  linking: "FIRST EDITION · CONNECTING",
+  stale: "LIVE EDITION · RECONNECTING TO OUR SERVER",
+  waking: "EDITION IN PRESS · OUR SERVER IS WAKING UP",
+  "onchain-only": "BLOCKCHAIN EDITION · READ STRAIGHT OFF THE PUBLIC RECORD",
+  archived: "SAVED COPY · THE LIVE SERVER IS OFF",
 };
 
 export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
@@ -39,11 +39,11 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
       <Ed
         as="p"
         style={{ margin: 0 }}
-        x="Prints are hourly, each with its confidence interval and its attack-cost-per-bp — a bound only Arc’s deterministic USDC fees make a number."
+        x="Prints are hourly, each with its confidence interval and its attack-cost-per-bp: a bound only Arc’s deterministic USDC fees make a number."
         p={
           <>
             A fresh rate every hour, each with its honest give-or-take and{" "}
-            <Term k="attack-cost">the bill for bending it</Term> — only possible on Arc, where
+            <Term k="attack-cost">the bill for bending it</Term>. Only possible on Arc, where
             fees are fixed dollars.
           </>
         }
@@ -52,7 +52,7 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
       <div className="colophon-facts">
         <span className="chip chip-sky">{c.caip2}</span>
         <a className="chip" href={tokenUrl(c.usdc, c.explorer)} target="_blank" rel="noreferrer">
-          <Ed x="USDC · gas token" p="USDC — the dollars that also pay the fees" />
+          <Ed x="USDC · gas token" p="USDC · the dollars that also pay the fees" />
         </a>
         <a
           className="chip"
@@ -91,7 +91,7 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
         {c.futures && (
           <span
             className="chip"
-            title="readers trade from Circle user-controlled wallets — the key lives behind their PIN, never with us"
+            title="readers trade from Circle user-controlled wallets: the key lives behind their PIN, never with us"
           >
             <Ed x="wallets custody · EOA · user-controlled" p="wallets: ours, yours, and the shop's" />
           </span>

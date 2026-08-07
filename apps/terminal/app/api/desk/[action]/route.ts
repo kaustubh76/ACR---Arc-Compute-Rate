@@ -49,8 +49,8 @@ async function forward(path: string, init: RequestInit): Promise<NextResponse> {
     return NextResponse.json(
       {
         detail: timedOut
-          ? "the desk is reading the chain and it is slow right now — this retries on its own"
-          : "the press is unreachable — the desk needs the live press",
+          ? "the desk is reading the chain and it is slow right now; this retries on its own"
+          : "the press is unreachable: the desk needs the live press",
       },
       { status: 503 },
     );

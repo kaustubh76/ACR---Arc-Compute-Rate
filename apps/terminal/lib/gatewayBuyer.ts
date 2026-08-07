@@ -61,7 +61,7 @@ let cached: GatewayClientLike | null = null;
 export async function getGatewayClient(): Promise<GatewayClientLike> {
   if (cached) return cached;
   const key = readKey();
-  if (!key) throw new Error("no buyer key — set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)");
+  if (!key) throw new Error("no buyer key: set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)");
   const { GatewayClient } = (await import("@circle-fin/x402-batching/client")) as {
     GatewayClient: new (cfg: { chain: string; privateKey: `0x${string}` }) => GatewayClientLike;
   };

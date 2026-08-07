@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OpsView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Systems ledger — ACR",
+  title: "Systems ledger · ACR",
   description: "Every pillar's standing, as the press itself reports it.",
 };
 

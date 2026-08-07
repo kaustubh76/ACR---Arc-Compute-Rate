@@ -78,8 +78,8 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
       return `run ${run.params.seed} · budget ${money(run.params.budget_usdc, 0)} · ×${run.params.target_multiplier}${el}${when}`;
     }
     return plain
-      ? "a run we recorded earlier — press the button for a fresh one"
-      : "the archived exercise — commence a run for live figures";
+      ? "a run we recorded earlier · press the button for a fresh one"
+      : "the archived exercise · commence a run for live figures";
   })();
 
   /* Why the budget preset does not change the outcome. `generate_wash_flow`
@@ -121,8 +121,8 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Try to move my number — here’s the bill. Fund a wash bot and watch each statistic eat the poison."
-          p="Try to move my number — here’s the bill. Give a cheating bot a budget and watch who bends."
+          x="Try to move my number. Here’s the bill. Fund a wash bot and watch each statistic eat the poison."
+          p="Try to move my number. Here’s the bill. Give a cheating bot a budget and watch who bends."
         />
       </div>
 
@@ -130,7 +130,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
         <div className="lab-controls">
           <div>
             <div className="label" style={{ marginBottom: 10 }}>
-              <Ed x="The adversary — budget" p="The cheat’s budget" />
+              <Ed x="The adversary · budget" p="The cheat’s budget" />
             </div>
             {/* Selection was border+text colour only, at 12px, in --breach —
                 which a red-green deficiency will not resolve, on the control
@@ -158,7 +158,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             <p className="mono muted" style={{ fontSize: 11.5, marginTop: 8, lineHeight: 1.5 }}>
               {capNote ?? (
                 <Ed
-                  x="the trade cap binds before the budget does — every preset buys the same attack"
+                  x="the trade cap binds before the budget does. Every preset buys the same attack"
                   p="the cheat runs out of allowed trades long before it runs out of money, so all three budgets buy the same attack"
                 />
               )}
@@ -191,7 +191,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               </div>
               <div>
                 <div className="label" style={{ marginBottom: 8 }}>
-                  <Ed x="Seed (optional)" p="Dice roll (optional — same seed, same run)" />
+                  <Ed x="Seed (optional)" p="Dice roll (optional: same seed, same run)" />
                 </div>
                 <input
                   className="mono"
@@ -258,8 +258,8 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 as="p"
                 className="muted"
                 style={{ marginTop: 8, maxWidth: 68 * 9 }}
-                x="The lab runs on the live press, which sleeps between visits on the free tier. Keep this page open — it retries by itself and the button arms as soon as the press answers. The chart below is the recorded run in the meantime."
-                p="This demo runs on our server, which naps between visits to save money. Keep this page open — it retries on its own and the button switches on when the server wakes. The chart below is a real run we recorded earlier."
+                x="The lab runs on the live press, which sleeps between visits on the free tier. Keep this page open: it retries by itself and the button arms as soon as the press answers. The chart below is the recorded run in the meantime."
+                p="Our server naps between visits and wakes on its own, so keep this page open; the chart below is a run we recorded earlier, not live."
               />
             </div>
           )}
@@ -287,11 +287,11 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           <Ed
             as="p"
             className="lab-note"
-            x="The bot buys wash prints between sybil identities; VWAP swallows them — ACR deconvolves, traces funding, and trims."
+            x="The bot buys wash prints between sybil identities; VWAP swallows them. ACR deconvolves, traces funding, and trims."
             p={
               <>
                 The bot floods the market with <Term k="wash-trade">fake trades</Term> between its
-                own accounts — a plain average swallows them; ACR traces who funds whom and trims.
+                own accounts. A plain average swallows them; ACR traces who funds whom and trims.
               </>
             }
           />
@@ -336,7 +336,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
             </div>
             <div>
               <div className={`counter-value ${resistance != null ? "gold" : "muted"}`}>
-                <TickerNumber text={resistance != null ? `${fmtInt(resistance)}×` : "—"} />
+                <TickerNumber text={resistance != null ? `${fmtInt(resistance)}×` : "…"} />
               </div>
               <div className="counter-label label">
                 {/* Ticks as the run goes now — the verdict is a pure function
@@ -358,7 +358,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           ) : (
             <>
               <div className="label" style={{ marginBottom: 12 }}>
-                <Ed x="Previous exercise — bundled" p="A previous run — saved copy" />
+                <Ed x="Previous exercise · bundled" p="A previous run · saved copy" />
               </div>
               <AttackChart series={stageSeries} faded />
             </>
@@ -385,7 +385,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                 x={
                   <>
                     VWAP dragged <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>;
-                    ACR moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b> —{" "}
+                    ACR moved <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. That cost{" "}
                     <b>{money(run.usdc_burned, 0)}</b> across{" "}
                     <b>{fmtInt(run.n_adversarial)}</b> wash prints,{" "}
                     <b>{fmtInt(run.verdict.resistance)}×</b> the resistance.
@@ -395,7 +395,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                   <>
                     The plain average bent{" "}
                     <b className="vermilion">{pct(run.verdict.vwap_swing_pct, 0)}</b>; ACR moved{" "}
-                    <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b> —{" "}
+                    <b className="gold">{pct(run.verdict.acr_swing_pct, 2)}</b>. That took{" "}
                     <b>{money(run.usdc_burned, 0)}</b> on <b>{fmtInt(run.n_adversarial)}</b> fake
                     trades, and ACR held <b>{fmtInt(run.verdict.resistance)}×</b> firmer.
                   </>

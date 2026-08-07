@@ -3,7 +3,7 @@ import { loadTerminal } from "@/lib/api";
 import { DevelopersView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Developers — ACR",
+  title: "Developers · ACR",
   description: "Machines pay a sub-cent nanopayment per query for the rate, over x402 on Arc.",
 };
 

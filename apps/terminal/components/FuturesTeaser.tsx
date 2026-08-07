@@ -16,8 +16,8 @@ import type { TerminalData } from "@/lib/types";
    Renders only when a venue is deployed (else the home page stays clean). */
 const HEAD = (
   <Ed
-    x="The desk — machine commerce, trading forward"
-    p="The trading desk — buying and selling future prices"
+    x="The desk · machine commerce, trading forward"
+    p="The trading desk · buying and selling future prices"
     className="label"
   />
 );
@@ -104,10 +104,10 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}
-        x={`A cash-settled future${phrase ? " " + phrase : ""}, settling against the same on-chain oracle as the spot rate — the fills above are real.`}
+        x={`A cash-settled future${phrase ? " " + phrase : ""}, settling against the same on-chain oracle as the spot rate. The fills above are real.`}
         p={
           <>
-            You can lock in a future price of machine work{phrase ? ` ${phrase}` : ""} — each contract{" "}
+            You can lock in a future price of machine work{phrase ? ` ${phrase}` : ""}. Each contract{" "}
             <Term k="cash-settled">pays out</Term> against the official on-chain rate, and the
             trades above are real.
           </>
@@ -128,13 +128,13 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
           x={
             <>
-              Take a side yourself — a Circle wallet behind your PIN, a $0.50 testnet stake, and
+              Take a side yourself: a Circle wallet behind your PIN, a $0.50 testnet stake, and
               your fill lands on-chain. <Link href="/curve#desk">Trade it →</Link>
             </>
           }
           p={
             <>
-              You can try it yourself — make a wallet with a PIN, get 50 cents of test money,
+              You can try it yourself: make a wallet with a PIN, get 50 cents of test money,
               and place a real trade. <Link href="/curve#desk">Try it →</Link>
             </>
           }
@@ -146,13 +146,13 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
           x={
             <>
-              The desk trades from your own PIN-secured Circle wallet — it opens as soon as the
+              The desk trades from your own PIN-secured Circle wallet. It opens as soon as the
               press answers. <Link href="/curve#desk">See the desk →</Link>
             </>
           }
           p={
             <>
-              You can trade here yourself with a small wallet locked by your PIN — it opens once
+              You can trade here yourself with a small wallet locked by your PIN. It opens once
               our server wakes up. <Link href="/curve#desk">See the desk →</Link>
             </>
           }

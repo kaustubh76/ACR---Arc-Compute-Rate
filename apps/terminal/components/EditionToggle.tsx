@@ -16,7 +16,7 @@ export function EditionToggle() {
         type="button"
         className="seg-word on-x"
         aria-pressed={edition === "expert"}
-        title="the full paper — every term of art"
+        title="the full paper · every term of art"
         onClick={() => setEdition("expert")}
       >
         expert
@@ -25,7 +25,7 @@ export function EditionToggle() {
         type="button"
         className="seg-word on-p"
         aria-pressed={edition === "plain"}
-        title="the same paper set in plain language — every number identical"
+        title="the same paper set in plain language · every number identical"
         onClick={() => setEdition("plain")}
       >
         plain

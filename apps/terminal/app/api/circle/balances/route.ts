@@ -65,6 +65,6 @@ export async function GET() {
     };
     return NextResponse.json(env);
   } catch (e) {
-    return off(`balance read failed — ${String((e as Error).message).slice(0, 160)}`);
+    return off(`balance read failed: ${String((e as Error).message).slice(0, 160)}`);
   }
 }

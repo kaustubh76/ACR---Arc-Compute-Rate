@@ -57,12 +57,12 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
               title={
                 directLive
                   ? plain
-                    ? "read straight off the blockchain scoreboard by this page — our server is down, the record is not"
-                    : "read straight from ACROracle by this terminal — the press is down, the record is not"
+                    ? "read straight off the blockchain scoreboard by this page. Our server is down, the record is not"
+                    : "read straight from ACROracle by this terminal. The press is down, the record is not"
                   : env.live
                     ? plain
-                      ? "read live from the public scoreboard — the record real money settles against"
-                      : "read live from ACROracle — the record contracts settle against"
+                      ? "read live from the public scoreboard: the record real money settles against"
+                      : "read live from ACROracle: the record contracts settle against"
                     : plain
                       ? "the last recorded rate (saved copy)"
                       : "last on-chain print (archived snapshot)"
@@ -97,12 +97,12 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             x={
               <>
                 bp <span className="muted">(95%)</span> ·{" "}
-                <span className="vermilion">cost to move 1% — {money(p.cost_to_move_1pct)}</span>
+                <span className="vermilion">cost to move 1% · {money(p.cost_to_move_1pct)}</span>
               </>
             }
             p={
               <>
-                bp <span className="muted">— honest wiggle room, 95% sure</span> ·{" "}
+                bp <span className="muted">(honest wiggle room, 95% sure)</span> ·{" "}
                 <span className="vermilion">
                   to bend this 1%, a cheat must burn {money(p.cost_to_move_1pct)}
                 </span>
@@ -120,14 +120,14 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
 
       <section className="section">
         <div className="section-head">
-          <Ed x="The record — recent prints" p="The history — recent official rates" className="label" />
+          <Ed x="The record · recent prints" p="The history · recent official rates" className="label" />
           {directHistory ? (
             <span
               className="chip chip-teal"
               title={
                 plain
-                  ? "our server is down — these points were read one by one from the blockchain's history"
-                  : "the press is down — these points were read row-by-row from ACROracle's on-chain history"
+                  ? "our server is down. These points were read one by one from the blockchain's history"
+                  : "the press is down. These points were read row-by-row from ACROracle's on-chain history"
               }
             >
               <Ed
@@ -177,8 +177,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
       <section className="section">
         <div className="section-head">
           <Ed
-            x="Provenance — the settlement-grade record"
-            p="Proof — the official on-chain copy"
+            x="Provenance · the settlement-grade record"
+            p="Proof · the official on-chain copy"
             className="label"
           />
         </div>
@@ -190,8 +190,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             <>
               Contracts settle against the on-chain record, not this page
               {p.onchain
-                ? " — the rate above is that record; “est.” is what the oracle posts each hour."
-                : " — deploy the oracle to put this fixing on-chain."}
+                ? ". The rate above is that record; “est.” is what the oracle posts each hour."
+                : ". Deploy the oracle to put this fixing on-chain."}
             </>
           }
           p={
@@ -199,11 +199,10 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
               The number that counts lives on the blockchain, not on this page
               {p.onchain ? (
                 <>
-                  {" "}
-                  — the rate above is that record, read from an <Term k="oracle">oracle</Term>.
+                  . The rate above is that record, read from an <Term k="oracle">oracle</Term>.
                 </>
               ) : (
-                <> — simulation-only until the scoreboard contract is deployed.</>
+                <>. Simulation-only until the scoreboard contract is deployed.</>
               )}
             </>
           }
@@ -219,8 +218,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
         <details className="disclosure">
           <summary>
             <Ed
-              x="Construction — how this number defends itself"
-              p="Under the hood — why this number is hard to fake"
+              x="Construction · how this number defends itself"
+              p="Under the hood · why this number is hard to fake"
             />
           </summary>
           <div className="disclosure-body">
@@ -231,7 +230,7 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                   x="Share of tape volume removed by funding-graph cleaning and Louvain sybil detection before estimation."
                   p={
                     <>
-                      Money we threw out as fake — self-deals and rings of{" "}
+                      Money we threw out as fake: self-deals and rings of{" "}
                       <Term k="sybil">sock-puppet accounts</Term>, caught by tracing who funds whom.
                     </>
                   }
@@ -242,10 +241,10 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                 <li>
                   <Ed
                     className="fn-gloss"
-                    x="Trim level α of the volume-time weighted median — the mass an attacker must outweigh on each side."
+                    x="Trim level α of the volume-time weighted median: the mass an attacker must outweigh on each side."
                     p={
                       <>
-                        How much of the wildest prices we ignore on each side —{" "}
+                        How much of the wildest prices we ignore on each side, like{" "}
                         <Term k="trimmed-median">Olympic scoring</Term>: the extreme judges don’t
                         count.
                       </>
@@ -272,8 +271,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                   <li>
                     <Ed
                       className="fn-gloss"
-                      x="Largest single funding cluster’s share of post-cleaning volume — no one identity group dominates the print."
-                      p="The biggest single group of connected accounts still only owns this slice of the surviving volume — nobody dominates."
+                      x="Largest single funding cluster’s share of post-cleaning volume. No one identity group dominates the print."
+                      p="The biggest single group of connected accounts still only owns this slice of the surviving volume. Nobody dominates."
                     />
                     <span className="fn-value">{(100 * r.max_cluster_share).toFixed(1)}%</span>
                   </li>
@@ -288,12 +287,12 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                       className="fn-gloss"
                       x={
                         r.max_cluster_influence_bp === 0
-                          ? "Influence of that cluster on the print if removed entirely — 0.0 here means no second community to compare against this window, not proven immovability; the sybil-zeroing above is the load-bearing defense."
+                          ? "Influence of that cluster on the print if removed entirely. 0.0 here means no second community to compare against this window, not proven immovability; the sybil-zeroing above is the load-bearing defense."
                           : "Influence of that cluster on the print if removed entirely."
                       }
                       p={
                         r.max_cluster_influence_bp === 0
-                          ? "How far the rate would move if that whole group were deleted — zero here means there was only one group to measure this hour, not that the rate cannot move; the fake-account filter above is the real defense."
+                          ? "How far the rate would move if that whole group were deleted; zero means only one group existed this hour, not that the rate cannot move."
                           : "How far the rate would move if that whole group were deleted from the data."
                       }
                     />
@@ -325,8 +324,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
       <section className="section">
         <div className="section-head">
           <Ed
-            x={<>Quote corridor — {p.index_id}</>}
-            p={<>Forward prices — where dealers quote {p.index_id}</>}
+            x={<>Quote corridor · {p.index_id}</>}
+            p={<>Forward prices · where dealers quote {p.index_id}</>}
             className="label"
           />
         </div>
@@ -347,8 +346,8 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             <div className="section-head">
               <span className="label">
                 <Ed
-                  x={<>Fills against the oracle — {p.index_id}</>}
-                  p={<>Trades against the official rate — {p.index_id}</>}
+                  x={<>Fills against the oracle · {p.index_id}</>}
+                  p={<>Trades against the official rate · {p.index_id}</>}
                 />
               </span>
             </div>

@@ -8,8 +8,8 @@ import type { TerminalData } from "@/lib/types";
 
 const HEAD = (
   <Ed
-    x="Defensibility — peak error under an identical attack"
-    p="Stress test — the same attack, thrown at us and at a plain average"
+    x="Defensibility · peak error under an identical attack"
+    p="Stress test · the same attack, thrown at us and at a plain average"
     className="label"
   />
 );
@@ -76,18 +76,18 @@ export function DefensibilityStrip({ data }: { data: TerminalData }) {
           </div>
         </div>
         <div className="defense-verdict">
-          <div className="defense-ratio">{resist == null ? "—" : `${fmtInt(resist)}×`}</div>
+          <div className="defense-ratio">{resist == null ? "…" : `${fmtInt(resist)}×`}</div>
           <div className="defense-caption">
             <Ed
               x={
                 <>
-                  more resistant than naive VWAP — the attacker burned {money(atk.usdc_burned, 0)}{" "}
+                  more resistant than naive VWAP. The attacker burned {money(atk.usdc_burned, 0)}{" "}
                   across {fmtInt(atk.n_adversarial)} wash prints trying.
                 </>
               }
               p={
                 <>
-                  sturdier than a plain average — the attacker spent {money(atk.usdc_burned, 0)} on{" "}
+                  sturdier than a plain average. The attacker spent {money(atk.usdc_burned, 0)} on{" "}
                   {fmtInt(atk.n_adversarial)} <Term k="wash-trade">fake trades</Term> and barely
                   moved this number.
                 </>

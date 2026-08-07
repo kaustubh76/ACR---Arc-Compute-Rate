@@ -4,8 +4,8 @@ import { loadTerminal } from "@/lib/api";
 import { AttackView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Attack Lab — ACR",
-  description: "Try to move the number — here's the bill. A live wash-flow attack on the index.",
+  title: "Attack Lab · ACR",
+  description: "Try to move the number: here's the bill. A live wash-flow attack on the index.",
 };
 
 export const dynamic = "force-dynamic";

@@ -91,7 +91,7 @@ export function HomeHero({
   const resist = resistanceRatio(data);
 
   return (
-    <section className="home-hero" aria-label="Arc Compute Rate — live fixing">
+    <section className="home-hero" aria-label="Arc Compute Rate · live fixing">
       {/* the dawn field: rising sun + concentric arcs of light over the horizon */}
       <div className="home-hero-sky" aria-hidden>
         <svg viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice">
@@ -151,14 +151,14 @@ export function HomeHero({
           <Ed
             x={
               <>
-                Machine commerce just got its SOFR —{" "}
-                <span className="gold">and it prints its own attack cost.</span>
+                Machine commerce just got its SOFR:{" "}
+                <span className="gold">it prints its own attack cost.</span>
               </>
             }
             p={
               <>
-                Machines buying from machines finally have an official price —{" "}
-                <span className="gold">and it publishes the cost of faking it.</span>
+                Machines buying from machines finally have an official price:{" "}
+                <span className="gold">it publishes the cost of faking it.</span>
               </>
             }
           />

@@ -47,7 +47,7 @@ async function forward(init: RequestInit, path: string): Promise<NextResponse> {
   } catch {
     // Distinguish "slow" from "gone" the way the desk proxy does — an operator
     // deciding whether to retry needs to know which one they are looking at.
-    return bad(504, "the press did not answer in time — it may be waking, or it may be down");
+    return bad(504, "the press did not answer in time; it may be waking, or it may be down");
   }
 }
 

@@ -3,7 +3,7 @@ import { loadTerminal } from "@/lib/api";
 import { CurveView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Term Structure — ACR",
+  title: "Term Structure · ACR",
   description: "The forward curve for machine commerce: weekly tenors on every ACR index.",
 };
 
