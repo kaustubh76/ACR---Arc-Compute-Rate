@@ -62,8 +62,8 @@ export function FuturesMarkChart({
     return (
       <div className="awaiting">
         <Ed
-          x="No fills on this series yet — the first one prints here."
-          p="No trades on this round yet — the first one appears here."
+          x="No fills on this series yet. The first one prints here."
+          p="No trades on this round yet. The first one appears here."
         />
       </div>
     );
@@ -85,11 +85,13 @@ export function FuturesMarkChart({
     <div>
       <div className="reading" aria-live="polite">
         <span className="gold">
-          <Ed x="— fills" p="— trades" />
+          <i className="key-swatch" />
+          <Ed x="fills" p="trades" />
         </span>
         {oracle != null ? (
           <span className="muted">
-            <Ed x="▮ oracle" p="▮ official rate" />
+            <i className="key-band" />
+            <Ed x="oracle" p="official rate" />
           </span>
         ) : null}
         <span>
@@ -106,8 +108,8 @@ export function FuturesMarkChart({
         role="img"
         aria-label={
           plain
-            ? "real trades against the official rate — arrow keys move the reading line"
-            : "on-chain fills against the oracle mark — arrow keys move the reading line"
+            ? "real trades against the official rate; arrow keys move the reading line"
+            : "on-chain fills against the oracle mark; arrow keys move the reading line"
         }
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}

@@ -1723,6 +1723,44 @@ details.disclosure .disclosure-body {
   align-items: baseline;
   white-space: nowrap;
   overflow: hidden;
+  /* Stop 12/760 short of the container, because that is where the chart's ink
+     stops (every chart is viewBox 760 with M.right = 12, stretched to 100%).
+     A caption flush to the container overhangs the plot it describes by ~19px
+     — about one monospace character, which is exactly the "everything is
+     shifted by a space" the eye picks up when scrolling past two charts. */
+  padding-right: 1.579%;
+}
+
+/* The free shape of whatever endpoint the console has selected, above the paid
+   exchange. Set apart from the request line so it reads as a specimen of the
+   goods rather than as a result already returned. */
+.console-preview {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+/* A legend key for a LINE series. Was an em dash: a typographic mark standing
+   in for a sample of the line, at whatever weight and length the font felt
+   like. This is the actual line — 2px, the series colour via currentColor from
+   the .gold/.vermilion parent. `.key-band` is its filled-area sibling, which
+   was the ▮ glyph and had the same problem. */
+.key-swatch,
+.key-band {
+  display: inline-block;
+  width: 14px;
+  background: currentColor;
+  vertical-align: middle;
+  margin-right: 3px;
+}
+.key-swatch {
+  height: 2px;
+  border-radius: 1px;
+}
+.key-band {
+  height: 9px;
+  border-radius: 2px;
+  opacity: 0.5;
 }
 
 /* the maker-inventory sparkline under the futures desk — the book "breathing" */
@@ -1730,10 +1768,18 @@ details.disclosure .disclosure-body {
   margin-top: 14px;
   display: grid;
   gap: 4px;
+  /* Sits between two viewBox-760 charts whose ink runs 72→748. The sparkline's
+     own viewBox is 260 wide with a 1-unit gutter, so stretched to 100% it ran
+     full-bleed while its neighbours were inset ~113px: the one graph on /curve
+     that visibly did not line up with the others. Inset it to the same edges. */
+  padding-left: 9.474%;
+  padding-right: 1.579%;
 }
 .desk-spark .reading {
   height: auto;
   color: var(--ether-45);
+  /* already inset by the wrapper above */
+  padding-right: 0;
 }
 
 /* ---------- provenance panel ---------- */

@@ -32,7 +32,7 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
   );
 
   if (n < 2) {
-    return <div className="awaiting">Awaiting print history — a point lands every refresh.</div>;
+    return <div className="awaiting">Awaiting print history: a point lands every refresh.</div>;
   }
 
   const lo = history.map((h) => h.ci_lo);
@@ -46,8 +46,14 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
   return (
     <div>
       <div className="reading" aria-live="polite">
-        <span className="gold">— print</span>
-        <span className="muted">▮ 95% CI</span>
+        <span className="gold">
+          <i className="key-swatch" />
+          print
+        </span>
+        <span className="muted">
+          <i className="key-band" />
+          95% CI
+        </span>
         <span>
           {editionLabel(pick.ts)} · {fmtPrice(pick.value)} · ±{pickHalfBp.toFixed(1)} bp
         </span>
@@ -60,8 +66,8 @@ export function HistoryChart({ history }: { history: HistoryPoint[] }) {
         role="img"
         aria-label={
           plain
-            ? "rate history with its wiggle-room band — arrow keys move the reading line"
-            : "print history with confidence ribbon — arrow keys move the reading line"
+            ? "rate history with its wiggle-room band; arrow keys move the reading line"
+            : "print history with confidence ribbon; arrow keys move the reading line"
         }
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
