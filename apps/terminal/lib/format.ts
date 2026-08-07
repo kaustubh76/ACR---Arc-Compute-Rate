@@ -7,11 +7,12 @@ const LOCALE = "en-US";
 
 /** What a number that is not a number looks like on the page.
  *
- *  An em dash, because it is the same mark every other "we could not read
- *  this" state uses here. A missing field used to reach `toLocaleString` and
- *  render the literal string "NaN" — which is not a degradation, it is a
- *  typo-shaped lie about a figure this paper's whole argument rests on. */
-const NOT_A_NUMBER = "—";
+ *  An ellipsis: the mark for "not read yet", which is what an unreadable field
+ *  actually is. It used to be an em dash, which read as generic placeholder
+ *  filler across every table; before that a missing field reached
+ *  `toLocaleString` and rendered the literal string "NaN" — not a degradation,
+ *  a typo-shaped lie about a figure this paper's whole argument rests on. */
+const NOT_A_NUMBER = "…";
 
 function finite(n: number): boolean {
   return typeof n === "number" && Number.isFinite(n);

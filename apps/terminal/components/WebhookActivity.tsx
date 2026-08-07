@@ -18,7 +18,7 @@ function verifiedMark(v: boolean | null) {
 }
 
 function ago(nowS: number, sec: number): string {
-  if (nowS <= 0) return "—";
+  if (nowS <= 0) return "…";
   const d = nowS - sec;
   if (d < 60) return `${Math.max(0, Math.round(d))}s ago`;
   if (d < 3600) return `${Math.round(d / 60)}m ago`;
@@ -58,8 +58,8 @@ export function WebhookActivity() {
     <section className="section">
       <div className="section-head">
         <Ed
-          x="Webhook activity — inbound from Circle"
-          p="Payment pings — Circle calls us the moment money moves"
+          x="Webhook activity · inbound from Circle"
+          p="Payment pings · Circle calls us the moment money moves"
           className="label"
         />
         {data && (
@@ -154,8 +154,8 @@ export function WebhookActivity() {
             <Ed x="press unreachable" p="server unreachable" />
           </span>
           <Ed
-            x="The webhook feed can’t be read right now — retrying automatically; events resume when the press wakes."
-            p="The feed can’t be read right now — retrying automatically; pings resume when our server wakes."
+            x="The webhook feed can’t be read right now; retrying automatically. Events resume when the press wakes."
+            p="The feed can’t be read right now; retrying automatically. Pings resume when our server wakes."
           />
         </p>
       ) : (
@@ -163,7 +163,7 @@ export function WebhookActivity() {
           <Ed
             x={
               <>
-                No events yet — point a Circle <b>Programmable Wallets</b> webhook at{" "}
+                No events yet. Point a Circle <b>Programmable Wallets</b> webhook at{" "}
                 <span className="mono">POST /webhooks/circle</span> (expose it:{" "}
                 <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>);
                 deliveries print here, signature-verified.
@@ -171,7 +171,7 @@ export function WebhookActivity() {
             }
             p={
               <>
-                No pings yet — point a Circle webhook at{" "}
+                No pings yet. Point a Circle webhook at{" "}
                 <span className="mono">POST /webhooks/circle</span> (expose it:{" "}
                 <span className="mono">cloudflared tunnel --url http://127.0.0.1:8000</span>);
                 each one prints here after its signature check.

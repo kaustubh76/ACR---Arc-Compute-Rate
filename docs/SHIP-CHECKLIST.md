@@ -90,8 +90,13 @@ dead series.
    archive (`services/index_api/index_api/receipts_live.jsonl`). If the count
    moved, update the "11 Gateway-settled receipts" sentence in
    `SUBMISSION.md` **in the same commit**.
-3. `make snapshot` → `git diff apps/terminal/lib/fallback.json` (sane = fresh
-   prints, a full trade tape, live open interest on all three books) → stage.
+3. `make snapshot` — **with `ACR_HEDGER_ADDRESS` and `ACR_HEDGER_PAYER`
+   exported**, or the archived edition ships an agent that reports itself as
+   "not configured" and the offline demo silently loses its protagonist. Both
+   are public addresses; they live in `.env` and now in `render.yaml`. Then
+   `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a full trade
+   tape, live open interest on all three books, **and a configured hedger**) →
+   stage.
 4. `make verify-claims` (full, **not** `CLAIMS_FAST`) → must exit 0.
 5. `VERIFY_STRICT=1 make verify-live` → must exit 0.
 6. `GAP_PAGES=24 make print-gaps` → the recorded tail claim still holds; if
@@ -105,6 +110,33 @@ dead series.
 9. Production click-through of the judge path above, both editions, desk
    visible on `/curve`.
 10. Submit. Record the submitted commit hash here: `____________`
+
+### Putting a fresh fill on the hedger panel (before the video, and at step 9)
+
+The panel's fills table is fed by a tape that walks back **~8h**
+(`TAPE_PAGES=4` × `TAPE_PAGE_BLOCKS=14000` at Arc's 0.510s block time,
+`packages/acr_oracle_client/acr_oracle_client/futures.py:73,84`). Older fills
+are real and on-chain but invisible here — the copy says so rather than
+claiming the agent never traded, and the position is the durable witness. If
+you want fills **on screen** while someone is watching, they must be less than
+~8h old.
+
+A bare `make hedger` will not produce one: at gap 0.00 the agent holds
+(`scripts/hedger.py:353-361`, `MIN_TRADE = 0.25`). It still pays 0.0001 for the
+print, because `buy_the_print()` runs before the position read (`:327` vs
+`:344`) — a hold-run raises the paid-queries count and adds no fill. The
+round-trip that leaves the desk exactly where it started:
+
+```sh
+HEDGER_TARGET=2.5 make hedger   # buys ~0.47 — margin-capped by TOPUP_MAX_USDC
+HEDGER_TARGET=2.0 make hedger   # sells it back; position returns to 2.00 = mandate
+```
+
+Cost: ~0.50 USDC **posted as collateral** (it stays in the venue and is
+withdrawable — it is not spent, and it is NOT covered by `SPEND_CAP_USDC`,
+which governs only the x402 print) plus 0.0001 per run. Run the pair, then
+confirm the panel shows two rows and the gap is back to `0.00` with the "on
+target" chip — leaving it half-done shows an off-mandate desk.
 
 ## Deployed 2026-08-06
 

@@ -14,15 +14,15 @@ import type { Envelope, TerminalData } from "@/lib/types";
    in the reader's own words; the pages themselves swap with the same click. */
 const NAV: Array<[href: string, label: string, plain: string]> = [
   ["/", "Fixing", "The Rate"],
+  // The reader's primer sits second, not last. It existed for a week reachable
+  // only from the footer and the 404 page — the one page written for a
+  // first-time reader was the one no first-time reader could find.
+  ["/companion", "Companion", "Start Here"],
   ["/attack", "Attack Lab", "Try to Cheat It"],
   ["/curve", "Curve", "Future Prices"],
   ["/exchange", "Exchange", "The Shop Floor"],
   ["/sellers", "Registry", "Sellers"],
   ["/developers", "Developers", "For Coders"],
-  // The reader's primer. It existed for a week reachable only from the footer
-  // and the 404 page — the one page written for a first-time reader was the
-  // one no first-time reader could find.
-  ["/companion", "Companion", "Start Here"],
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -57,8 +57,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-sky nav-pulse"
           title={
             plain
-              ? "first load — reaching our live server"
-              : "first edition — contacting the press"
+              ? "first load: reaching our live server"
+              : "first edition: contacting the press"
           }
         >
           <Ed x="linking · first edition" p="connecting · first load" />
@@ -70,12 +70,12 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-gold nav-pulse"
           title={
             plain
-              ? "our server stopped answering — showing the last live numbers while retrying"
-              : "the press stopped answering — showing the last live edition while retrying"
+              ? "our server stopped answering: showing the last live numbers while retrying"
+              : "the press stopped answering: showing the last live edition while retrying"
           }
         >
           <i className="dot breathe" />
-          stale · {conn.ageS ?? 0}s — retrying
+          stale · {conn.ageS ?? 0}s · retrying
         </span>
       );
     case "waking":
@@ -84,8 +84,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-gold nav-pulse"
           title={
             plain
-              ? "our server naps between visits to save money — it is waking up now"
-              : "the press sleeps between visits (free tier) — a wake call is in flight"
+              ? "our server naps between visits to save money; it is waking up now"
+              : "the press sleeps between visits (free tier); a wake call is in flight"
           }
         >
           <i className="dot breathe" />
@@ -101,8 +101,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-teal nav-pulse"
           title={
             plain
-              ? "our server is down — the public scoreboard answers directly; the numbers are the official record"
-              : "the press is down but ACROracle answers direct reads — prints are settlement-grade"
+              ? "our server is down but the public scoreboard answers directly; the numbers are the official record"
+              : "the press is down but ACROracle answers direct reads; prints are settlement-grade"
           }
         >
           <i className="dot breathe" />
@@ -115,8 +115,8 @@ function StatusPill({ conn }: { conn: Connection }) {
           className="chip chip-sim nav-pulse"
           title={
             plain
-              ? "a saved snapshot — the live server is not answering"
-              : "bundled snapshot — the press is not answering"
+              ? "a saved snapshot: the live server is not answering"
+              : "bundled snapshot: the press is not answering"
           }
         >
           <Ed x="sim · archived" p="simulation · saved copy" />
@@ -142,11 +142,11 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
       <header className="masthead container">
         <div className="masthead-top">
           <div className="nameplate">
-            ACR <em>— Arc Compute Rate</em>
+            ACR <em>· Arc Compute Rate</em>
           </div>
           <Ed
             x="the reference rate for machine commerce"
-            p="the going rate for machine work — in plain words"
+            p="the going rate for machine work, in plain words"
             className="label"
           />
         </div>

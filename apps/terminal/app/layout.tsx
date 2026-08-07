@@ -32,9 +32,9 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ACR — The Arc Compute Rate",
+  title: "ACR · The Arc Compute Rate",
   description:
-    "The reference rate for machine commerce — benchmarks from Arc payment exhaust, published hourly on-chain with their attack cost.",
+    "The reference rate for machine commerce: benchmarks from Arc payment exhaust, published hourly on-chain with their attack cost.",
 };
 
 export const dynamic = "force-dynamic";

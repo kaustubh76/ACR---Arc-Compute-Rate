@@ -20,37 +20,37 @@ const TIER_CHIP: Record<
   linking: {
     cls: "chip-sky",
     word: "linking",
-    title: "first edition — contacting the press",
+    title: "first edition: contacting the press",
     plainWord: "connecting",
-    plainTitle: "first load — reaching our live server",
+    plainTitle: "first load: reaching our live server",
   },
   stale: {
     cls: "chip-gold",
     word: "stale",
-    title: "last live edition — the press stopped answering; retrying",
+    title: "last live edition: the press stopped answering; retrying",
     plainWord: "stale",
-    plainTitle: "showing the last live numbers — our server stopped answering; retrying",
+    plainTitle: "showing the last live numbers: our server stopped answering; retrying",
   },
   waking: {
     cls: "chip-gold",
     word: "waking",
-    title: "the press is spinning up — free tier cold start",
+    title: "the press is spinning up: free tier cold start",
     plainWord: "waking",
-    plainTitle: "our server naps between visits to save money — it is waking up now",
+    plainTitle: "our server naps between visits to save money; it is waking up now",
   },
   "onchain-only": {
     cls: "chip-teal",
     word: "on-chain",
-    title: "direct ACROracle reads — the press is down, the prints are not",
+    title: "direct ACROracle reads: the press is down, the prints are not",
     plainWord: "blockchain",
-    plainTitle: "read straight off the public record — our server is down, the numbers are not",
+    plainTitle: "read straight off the public record: our server is down, the numbers are not",
   },
   archived: {
     cls: "chip-sim",
     word: "sim",
-    title: "bundled snapshot — the press is not answering",
+    title: "bundled snapshot: the press is not answering",
     plainWord: "saved copy",
-    plainTitle: "a saved snapshot — start the live server for fresh numbers",
+    plainTitle: "a saved snapshot: start the live server for fresh numbers",
   },
 };
 
@@ -121,8 +121,8 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
       key="gas"
       title={
         plain
-          ? "this network charges its fees in digital dollars — fixed and predictable"
-          : "USDC is Arc's native gas — deterministic, dollar-denominated fees"
+          ? "this network charges its fees in digital dollars: fixed and predictable"
+          : "USDC is Arc's native gas: deterministic, dollar-denominated fees"
       }
     >
       <Ed x="gas = USDC" p="fees paid in dollars" />
@@ -160,7 +160,7 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
     parts.push(
       <span key="tape" className={simTape ? "chip chip-sim" : undefined} title={
         simTape
-          ? "estimator, signature and on-chain print are real — the settlement flow underneath is simulated"
+          ? "estimator, signature and on-chain print are real; the settlement flow underneath is simulated"
           : `index computed from the ${c.tapeSource} tape`
       }>
         <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>
@@ -182,8 +182,8 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         className="chip chip-teal"
         title={
           plain
-            ? `the shopkeeper's rounds — last check ${keeperAge(age, true)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
-            : `venue keeper — heartbeat checked ${keeperAge(age, false)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+            ? `the shopkeeper's rounds · last check ${keeperAge(age, true)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+            : `venue keeper · heartbeat checked ${keeperAge(age, false)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
         }
       >
         <span className="dot breathe" aria-hidden />
@@ -198,8 +198,8 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         className={`chip ${futTier.chip}`}
         title={
           plain
-            ? "the futures trading desk — contracts currently open"
-            : "ACRFutures desk — total open interest"
+            ? "the futures trading desk · contracts currently open"
+            : "ACRFutures desk · total open interest"
         }
       >
         {futTier.chip === "chip-sim" ? null : <span className="dot breathe" aria-hidden />}
@@ -216,7 +216,7 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         {/* outside the parts array so expert mode never renders a dangling · */}
         <span
           className="chip chip-gold plain-only"
-          title="every number identical — only the words changed"
+          title="every number identical; only the words changed"
           style={{ marginRight: 10 }}
         >
           plain edition

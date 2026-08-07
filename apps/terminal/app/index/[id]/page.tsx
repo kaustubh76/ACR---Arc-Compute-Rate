@@ -7,7 +7,7 @@ import { IndexView } from "./view";
 export const dynamic = "force-dynamic";
 
 export function generateMetadata({ params }: { params: { id: string } }): Metadata {
-  return { title: `${decodeURIComponent(params.id)} — ACR` };
+  return { title: `${decodeURIComponent(params.id)} · ACR` };
 }
 
 export default async function IndexPage({ params }: { params: { id: string } }) {

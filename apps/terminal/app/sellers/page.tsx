@@ -3,7 +3,7 @@ import { loadTerminal } from "@/lib/api";
 import { SellersView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Registry — ACR",
+  title: "Registry · ACR",
   description: "Seller reliability and EIP-712 attestations: attestation earns placement.",
 };
 

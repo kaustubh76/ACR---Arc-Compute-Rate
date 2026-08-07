@@ -614,12 +614,14 @@ self-dealing. The liquidity is first-party; the market is not closed.
 
 ### D4. Who is actually paying you?
 
-**Eleven Gateway settlements from exactly two payers — and both wallets are
-ours.** Re-measured today at `/marketplace/receipts`: `0x784e6d2d…` ×7 (the CI
-buyer agent) and `0x71e140d9…` ×4 (the autonomous hedger's backing EOA).
+**Thirty-one Gateway settlements from exactly two payers — and both wallets are
+ours.** Re-measured 2026-08-08 at `/marketplace/receipts`: `0x784e6d2d…` ×27 (the
+CI buyer agent) and `0x71e140d9…` ×4 (the autonomous hedger's backing EOA).
 
-Lifetime revenue is therefore **0.0011 USDC — about a tenth of a cent.** Say it
-before someone multiplies it out.
+Lifetime revenue is therefore **0.0031 USDC — about a third of a cent.** Say it
+before someone multiplies it out. Note what growing the tape did NOT change: the
+payer count. Twenty more settlements bought twenty more proofs that the rail
+works and not one more customer.
 
 The honest sentence is: **the plumbing is proven, the demand is not.** Real USDC
 moved through Circle Gateway, settled `exact` on `eip155:5042002`, deduped by

@@ -3,7 +3,7 @@ import { loadTerminal } from "@/lib/api";
 import { ExchangeView } from "./view";
 
 export const metadata: Metadata = {
-  title: "Exchange — ACR",
+  title: "Exchange · ACR",
   description:
     "The exchange floor of the compute index: machine-readable listings, x402 nanopayment settlement, and the public receipts tape.",
 };

@@ -4,14 +4,13 @@ import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
 import { FuturesMarkChart } from "@/components/charts/FuturesMarkChart";
 import { FuturesTape } from "@/components/chain/FuturesTape";
-import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { PublicDesk } from "@/components/chain/PublicDesk";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
-import { useFutures, useHedger } from "@/lib/useLive";
+import { useFutures } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useDeskAddress } from "@/lib/useDeskAddress";
 import { contractNotional } from "@/lib/futuresBook";
@@ -32,19 +31,19 @@ function tierBanner(
     case "linking":
       return null;
     case "stale":
-      return `last live quotes · ${ageS ?? 0}s ago — retrying`;
+      return `last live quotes · ${ageS ?? 0}s ago · retrying`;
     case "waking":
       return plain
-        ? `our server is waking · ~${wakeRemainingS ?? 0}s — quotes are last-known until it answers`
-        : `press waking · ~${wakeRemainingS ?? 0}s — quotes are last-known until it answers`;
+        ? `our server is waking · ~${wakeRemainingS ?? 0}s · quotes are last-known until it answers`
+        : `press waking · ~${wakeRemainingS ?? 0}s · quotes are last-known until it answers`;
     case "onchain-only":
       return plain
-        ? "the rate reads off the blockchain — these quotes are last-known (the dealer lives on our server)"
-        : "spot reads direct from ACROracle — these quotes are last-known (the maker lives in the press)";
+        ? "the rate reads off the blockchain · these quotes are last-known (the dealer lives on our server)"
+        : "spot reads direct from ACROracle · these quotes are last-known (the maker lives in the press)";
     default:
       return plain
-        ? "saved quotes — the corridor re-opens when the live server starts"
-        : "archived quotes — the corridor re-opens with the live index API";
+        ? "saved quotes · the corridor re-opens when the live server starts"
+        : "archived quotes · the corridor re-opens with the live index API";
   }
 }
 
@@ -58,7 +57,6 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
   // The futures desk + tape ride a dedicated fast endpoint (real on-chain fills),
   // so they stay lively independent of the heavier /terminal/data feed.
   const fut = useFutures();
-  const hedge = useHedger();
   const roster = fut.roster?.data ?? null;
   const futLive = Boolean(fut.roster?.live);
   const explorer = chainFacts(env.data.chain).explorer;
@@ -97,16 +95,16 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Machine commerce has a forward curve — weekly tenors, quoted continuously, cash-settled against the oracle print."
-          p="You can lock in next month’s price of machine work — weekly contracts, paid out in cash against the official rate."
+          x="Machine commerce has a forward curve: weekly tenors, quoted continuously, cash-settled against the oracle print."
+          p="You can lock in next month’s price of machine work: weekly contracts, paid out in cash against the official rate."
         />
       </div>
 
       <section className="section">
         <div className="section-head">
           <Ed
-            x="The quote corridor — where the maker trades"
-            p="The price corridor — where the dealer buys and sells"
+            x="The quote corridor · where the maker trades"
+            p="The price corridor · where the dealer buys and sells"
             className="label"
           />
           {banner ? (
@@ -142,8 +140,8 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           <div className="section-head">
             <span className="label">
               <Ed
-                x={<>Fills against the oracle — {primaryDesk.index_id}</>}
-                p={<>Trades against the official rate — {primaryDesk.index_id}</>}
+                x={<>Fills against the oracle · {primaryDesk.index_id}</>}
+                p={<>Trades against the official rate · {primaryDesk.index_id}</>}
               />
             </span>
             <span className="label muted">
@@ -164,7 +162,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
             p={
               <>
                 The dashed line is the official rate these contracts{" "}
-                <Term k="cash-settled">pay out</Term> against — the space between is{" "}
+                <Term k="cash-settled">pay out</Term> against. The space between is{" "}
                 <Term k="basis">the gap</Term>.
               </>
             }
@@ -175,7 +173,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <span className="label">
-            <Ed x="The tape — live on-chain fills" p="The trade feed — real trades on the blockchain" />
+            <Ed x="The tape · live on-chain fills" p="The trade feed · real trades on the blockchain" />
           </span>
           <span className="label">
             {futLive ? (
@@ -185,7 +183,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
               </span>
             ) : (
               <span className="muted">
-                <Ed x="archived — awaiting the live venue" p="saved — waiting for the live market" />
+                <Ed x="archived · awaiting the live venue" p="saved · waiting for the live market" />
               </span>
             )}
           </span>
@@ -211,15 +209,11 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         />
       </div>
 
-      {/* The reader trades from their own wallet above; this is the machine
-          doing the same thing unattended, one section down, so the comparison
-          is the page rather than a paragraph about it. */}
-      <HedgerPanel
-        state={hedge.hedger?.data ?? null}
-        live={Boolean(hedge.hedger?.live)}
-        explorer={explorer}
-      />
-
+      {/* The hedger used to sit here too. It belongs on the Shop Floor: what it
+          shows is commerce — what it PAID for data, its receipts, its two
+          wallets — while this page is the term structure. Two mounts also meant
+          the same panel introduced itself twice to anyone walking the demo
+          path. It lives on /exchange now, next to the buyer it argues with. */}
 
       <section className="section">
         <div className="section-head">
@@ -275,7 +269,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
               An Avellaneda–Stoikov maker quotes both sides of the latest print; the weekly future
               settles in cash on <span className="mono">ACROracle</span>
               {contractSize
-                ? ` at ${contractSize.multiplier}× the index — ${money(contractSize.notional)} a contract at today's mark.`
+                ? ` at ${contractSize.multiplier}× the index: ${money(contractSize.notional)} a contract at today's mark.`
                 : "."}
             </>
           }

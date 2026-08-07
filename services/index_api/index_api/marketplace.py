@@ -100,8 +100,8 @@ ENDPOINT_FAMILIES: list[dict] = [
         "family": "prints",
         "template": "/prints",
         "description": (
-            "All latest ACR fixings — constant-quality rate, bootstrap CI, "
-            "manipulation cost, robustness — for every index."
+            "All latest ACR fixings for every index: constant-quality rate, "
+            "bootstrap CI, manipulation cost, robustness."
         ),
         "input": {"type": "object", "properties": {}},
         "output": {
@@ -124,7 +124,7 @@ ENDPOINT_FAMILIES: list[dict] = [
     {
         "family": "curve",
         "template": "/curve/{index_id}",
-        "description": "Term structure — Avellaneda–Stoikov mids at 1/2/4/8-week tenors.",
+        "description": "Term structure: Avellaneda–Stoikov mids at 1/2/4/8-week tenors.",
         "input": _INDEX_ID_PARAM,
         "output": {
             "type": "object",
@@ -163,7 +163,7 @@ ENDPOINT_FAMILIES: list[dict] = [
     {
         "family": "seller-scores",
         "template": "/seller-scores/{index_id}",
-        "description": "Seller reliability — attestation + clean-volume share per seller.",
+        "description": "Seller reliability: attestation and clean-volume share per seller.",
         "input": _INDEX_ID_PARAM,
         "output": {
             "type": "object",

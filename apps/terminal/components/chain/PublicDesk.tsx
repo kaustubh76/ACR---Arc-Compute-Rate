@@ -262,7 +262,7 @@ export function PublicDesk({
       try {
         await fn();
       } catch (e) {
-        setNote(e instanceof Error ? e.message : "something went wrong — try again");
+        setNote(e instanceof Error ? e.message : "something went wrong. Try again");
       } finally {
         setBusy(false);
         setBusySince(null);
@@ -293,7 +293,7 @@ export function PublicDesk({
         await new Promise((r) => setTimeout(r, 2500));
         if ((await refreshWallet(session)).wallet) return;
       }
-      setNote("wallet still provisioning — reopen the desk in a moment");
+      setNote("wallet still provisioning. Reopen the desk in a moment");
     });
 
   const stake = () =>
@@ -307,7 +307,7 @@ export function PublicDesk({
         const w = await refreshWallet(session);
         if (w.usdc && w.usdc > 0) return;
       }
-      setNote("the stake is still settling — give it a moment and reopen the desk");
+      setNote("the stake is still settling. Give it a moment and reopen the desk");
     });
 
   const refreshExit = useCallback(async (address: string) => {
@@ -377,7 +377,7 @@ export function PublicDesk({
       }
       const live = await refreshLimits(address, indexId);
       if (!live?.collateral_usdc) {
-        setNote("collateral is still confirming — give it a moment");
+        setNote("collateral is still confirming. Give it a moment");
         return;
       }
       localStorage.setItem(COLLAT_KEY, address);
@@ -394,7 +394,7 @@ export function PublicDesk({
       // receipt for a trade that had not happened.
       const pre = await refreshLimits(address, indexId);
       if (!pre) {
-        setNote("could not read your margin just now — try again in a moment");
+        setNote("could not read your margin just now. Try again in a moment");
         return;
       }
       const before = pre.contracts;
@@ -448,7 +448,7 @@ export function PublicDesk({
         }
         await new Promise((r) => setTimeout(r, 2500));
       }
-      setNote("the fill is still confirming — the tape above will show it");
+      setNote("the fill is still confirming. The tape above will show it");
     });
 
   /** Take collateral back out of one series. Works on a settled or expired
@@ -483,7 +483,7 @@ export function PublicDesk({
         if (after?.series.find((r) => r.series_id === row.series_id)?.settled) return;
         await new Promise((r) => setTimeout(r, 2500));
       }
-      setNote("the settlement is still confirming — this page will catch up on its own");
+      setNote("the settlement is still confirming. This page will catch up on its own");
     });
 
   const withdraw = (row: ExitRow) =>
@@ -509,7 +509,7 @@ export function PublicDesk({
         }
         await new Promise((r) => setTimeout(r, 2500));
       }
-      setNote("the withdrawal is still confirming — your balance will update");
+      setNote("the withdrawal is still confirming. Your balance will update");
     });
 
   // Position poll while trading (10s, matches the route's CDN window).
@@ -594,8 +594,8 @@ export function PublicDesk({
             told them nothing about the ~60s wake or that no click is needed. */}
         <p className="muted">
           <Ed
-            x="the desk needs a live press or a direct chain read to mint wallet challenges — archived editions are read-only. The free-tier press wakes on first visit (~60s); this page keeps retrying and the desk opens by itself."
-            p="trading needs our live server, which naps between visits to save money — it is waking up now (about a minute). Keep this page open: it retries on its own and the desk appears when the server answers."
+            x="the desk needs a live press or a direct chain read to mint wallet challenges. Archived editions are read-only. The free-tier press wakes on first visit (~60s); this page keeps retrying and the desk opens by itself."
+            p="trading needs our server, which naps between visits; keep this page open and the desk appears by itself in about a minute."
           />
         </p>
       </section>
@@ -606,7 +606,7 @@ export function PublicDesk({
     <section className="section">
       <div className="section-head">
         <span className="label">
-          <Ed x="The public desk — trade the curve yourself" p="Trade it yourself — with a real wallet" />
+          <Ed x="The public desk · trade the curve yourself" p="Trade it yourself · with a real wallet" />
         </span>
         <span className="label">
           <span className="chip chip-teal">
@@ -617,8 +617,8 @@ export function PublicDesk({
 
       <p className="muted" style={{ maxWidth: 620 }}>
         <Ed
-          x="Open a PIN-secured Circle wallet, stake $0.50 of testnet USDC, and take a real position on ACRFutures — withdraw whenever you like."
-          p="Make a small wallet locked by your PIN, get 50 cents of test money, and place a real trade — you can take it back out any time."
+          x="Open a PIN-secured Circle wallet, stake $0.50 of testnet USDC, and take a real position on ACRFutures. Withdraw whenever you like."
+          p="Make a small wallet locked by your PIN, get 50 cents of test money, and place a real trade. You can take it back out any time."
         />
       </p>
 
@@ -627,8 +627,8 @@ export function PublicDesk({
           stake are ours. A reader should not have to infer that. */}
       <p className="muted" style={{ maxWidth: 620 }}>
         <Ed
-          x="Honest framing: the stake is our testnet grant and the maker opposite you is our bot — the wallet, PIN and fills are real, on-chain."
-          p="To be straight: the 50 cents is ours and so is the trader on the other side — but only your PIN moves your money, and the trades are real."
+          x="Honest framing: the stake is our testnet grant and the maker opposite you is our bot. The wallet, PIN and fills are real, on-chain."
+          p="To be straight: the 50 cents is ours and so is the trader on the other side. Only your PIN moves your money, and the trades are real."
         />
       </p>
 
@@ -642,7 +642,7 @@ export function PublicDesk({
 
       {phase === "closed" || phase === "opening" ? (
         <button className="btn" onClick={open} disabled={busy}>
-          <Ed x={busy ? "opening…" : "open a desk account"} p={busy ? "opening…" : "start — make my wallet"} />
+          <Ed x={busy ? "opening…" : "open a desk account"} p={busy ? "opening…" : "start · make my wallet"} />
         </button>
       ) : null}
 
@@ -752,13 +752,13 @@ export function PublicDesk({
             // is the bug this branch exists to avoid.
             <span className="muted">
               <Ed
-                x="the desk could not read the chain just now — this retries on its own"
-                p="we could not check just now — this retries on its own"
+                x="the desk could not read the chain just now. This retries on its own"
+                p="we could not check just now. This retries on its own"
               />
             </span>
           ) : (
             <span className="muted">
-              <Ed x="flat — your fills print on the tape above" p="no position yet — your trades appear in the feed above" />
+              <Ed x="flat · your fills print on the tape above" p="no position yet · your trades appear in the feed above" />
             </span>
           )}
         </div>
@@ -815,8 +815,8 @@ export function PublicDesk({
               {bar.frozen ? (
                 <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
                   <Ed
-                    x="one side of the book is full — that direction cannot be filled until the maker's inventory comes back."
-                    p="the desk cannot take a trade that way right now — it will clear on its own shortly."
+                    x="one side of the book is full. That direction cannot be filled until the maker's inventory comes back."
+                    p="the desk cannot take a trade that way right now. It will clear on its own shortly."
                   />
                 </p>
               ) : null}
@@ -881,17 +881,17 @@ export function PublicDesk({
             <span className="muted">
               {row.settled ? (
                 <Ed
-                  x={`${row.index_id} series ${row.series_id} settled — your cleared balance is free`}
-                  p="this market has finished — your money is ready to take back"
+                  x={`${row.index_id} series ${row.series_id} settled · your cleared balance is free`}
+                  p="this market has finished. Your money is ready to take back"
                 />
               ) : row.expired ? (
                 <Ed
-                  x={`${row.index_id} series ${row.series_id} expired — settle it below to free your balance`}
-                  p="this market has closed — close the books below and your money is free"
+                  x={`${row.index_id} series ${row.series_id} expired · settle it below to free your balance`}
+                  p="this market has closed. Close the books below and your money is free"
                 />
               ) : (
                 <Ed
-                  x={`${row.index_id} — free margin above your position`}
+                  x={`${row.index_id} · free margin above your position`}
                   p="the part not backing a trade"
                 />
               )}
@@ -900,8 +900,8 @@ export function PublicDesk({
         ) : row.contracts !== 0 ? (
           <p className="muted" key={row.series_id}>
             <Ed
-              x={`${row.collateral_usdc.toFixed(2)} USDC is margining your ${row.index_id} position — it frees up when you close it or the series settles`}
-              p={`your ${row.collateral_usdc.toFixed(2)} dollars is backing the trade you have open — close it, or wait for this market to finish, and you can take it back`}
+              x={`${row.collateral_usdc.toFixed(2)} USDC is margining your ${row.index_id} position. It frees up when you close it or the series settles`}
+              p={`your ${row.collateral_usdc.toFixed(2)} dollars is backing the trade you have open. Close it, or wait for this market to finish, and you can take it back`}
             />
           </p>
         ) : null,
@@ -927,8 +927,8 @@ export function PublicDesk({
             </button>
             <span className="muted">
               <Ed
-                x="settling is permissionless — anyone may call it, you pay the gas, and it clears every trader's position at the final price"
-                p="anyone is allowed to do this, not just us. You pay a fraction of a cent in fees, and it finishes the market for everybody at the official closing price."
+                x="settling is permissionless: anyone may call it, you pay the gas, and it clears every trader's position at the final price"
+                p="anyone may do this, not just us: you pay a fraction of a cent and it finishes the market for everyone at the official closing price."
               />
             </span>
           </p>

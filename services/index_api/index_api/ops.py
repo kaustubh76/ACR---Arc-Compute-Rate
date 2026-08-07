@@ -284,7 +284,7 @@ def _keeper(rec: Recorder) -> None:
             age < 300,
             f"{chore}: checked {age / 60:.0f} min ago",
             warn_only=True,
-            detail=str(c.get("verdict") or "on cooldown — nothing to do"),
+            detail=str(c.get("verdict") or "on cooldown, nothing to do"),
         )
 
 
@@ -318,7 +318,7 @@ def _venue(rec: Recorder) -> None:
             False,
             f"#{s['series_id']} {s['index_id']}: expired, not settled",
             warn_only=True,
-            detail="anyone may settle it — see the desk",
+            detail="anyone may settle it: see the desk",
         )
 
 
@@ -409,7 +409,7 @@ def _funding(rec: Recorder) -> None:
             bal >= floor,
             f"{role}: {bal:.2f} USDC",
             warn_only=True,
-            detail=f"below the {floor:.2f} floor — the next roll may fail its budget guard"
+            detail=f"below the {floor:.2f} floor: the next roll may fail its budget guard"
             if bal < floor
             else None,
         )

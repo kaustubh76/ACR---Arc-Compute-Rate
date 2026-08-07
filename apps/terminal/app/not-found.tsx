@@ -12,7 +12,7 @@ export default function NotFound() {
         className="standfirst"
         style={{ marginTop: 8 }}
         x="The fixing you are looking for does not exist in this edition."
-        p="There is nothing at this address — the front page has everything."
+        p="There is nothing at this address. The front page has everything."
       />
       <p style={{ marginTop: 24 }}>
         <Link href="/" className="section-link">

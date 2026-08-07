@@ -33,13 +33,13 @@ export function SettlementTape({
           <span className="tape-item muted">
             {unreachable ? (
               <Ed
-                x="the tape is unreachable — the press isn't answering; retrying"
-                p="the receipt roll is unreachable — our server isn't answering; retrying"
+                x="the tape is unreachable: the press isn't answering; retrying"
+                p="the receipt roll is unreachable: our server isn't answering; retrying"
               />
             ) : (
               <Ed
-                x="the tape opens with the first paid query — run `make agent`"
-                p="the receipt roll opens with the first paid question — run `make agent`"
+                x="the tape opens with the first paid query · run `make agent`"
+                p="the receipt roll opens with the first paid question · run `make agent`"
               />
             )}
           </span>
@@ -67,8 +67,8 @@ export function SettlementTape({
             ? "the live receipt roll"
             : "live settlement tape"
           : plain
-            ? "simulated receipts — saved copy"
-            : "simulated tape — bundled snapshot"
+            ? "simulated receipts · saved copy"
+            : "simulated tape · bundled snapshot"
       }
     >
       <div className="tape-track">

@@ -393,7 +393,7 @@ def venue_withdraw(params: dict, dry_run: bool) -> dict:
                 claims.append({
                     "series_id": sid, "index_id": x["index_id"],
                     "held_usdc": round(units / 1e6, 6), "free_usdc": 0.0,
-                    "note": "open position and no live mark — wait for the next print",
+                    "note": "open position and no live mark: wait for the next print",
                 })
                 continue
         free = free_collateral_units(

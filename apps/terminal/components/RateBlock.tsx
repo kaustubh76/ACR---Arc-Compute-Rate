@@ -27,15 +27,15 @@ export function RateBlock({
   const plain = useEdition() === "plain";
   const chainTitle = direct
     ? plain
-      ? "read straight off the blockchain scoreboard by this page — our server is down, the number is not"
-      : "read straight from ACROracle by this terminal — the press is down, the print is not"
+      ? "read straight off the blockchain scoreboard by this page: our server is down, the number is not"
+      : "read straight from ACROracle by this terminal: the press is down, the print is not"
     : live
       ? plain
-        ? "read live from the public scoreboard — the record real money settles against"
-        : "the print read live from ACROracle — the record contracts settle against"
+        ? "read live from the public scoreboard: the record real money settles against"
+        : "the print read live from ACROracle: the record contracts settle against"
       : plain
-        ? "the last recorded rate (saved copy — start the live server for real-time)"
-        : "last on-chain print (archived snapshot — start the live API for real-time)";
+        ? "the last recorded rate (saved copy; start the live server for real-time)"
+        : "last on-chain print (archived snapshot; start the live API for real-time)";
   return (
     <Link href={`/index/${p.index_id}`} className="rate-block">
       <div className="rb-head">
@@ -52,8 +52,8 @@ export function RateBlock({
             className="chip chip-sim"
             title={
               plain
-                ? "our estimate — nothing posted to the blockchain yet"
-                : "estimator output — no on-chain print yet"
+                ? "our estimate: nothing posted to the blockchain yet"
+                : "estimator output: no on-chain print yet"
             }
           >
             <Ed x="sim" p="simulation" />
@@ -75,7 +75,7 @@ export function RateBlock({
           }
           p={
             <>
-              bp <span className="muted">— honest wiggle room, 95% sure</span>
+              bp <span className="muted">(honest wiggle room, 95% sure)</span>
             </>
           }
         />
@@ -85,8 +85,8 @@ export function RateBlock({
           className="rb-est muted"
           title={
             plain
-              ? "our freshly computed estimate — it gets posted to the blockchain each hour"
-              : "live estimator reading (sim tape) — the oracle posts this hourly"
+              ? "our freshly computed estimate: it gets posted to the blockchain each hour"
+              : "live estimator reading (sim tape): the oracle posts this hourly"
           }
         >
           <Ed x="est. " p="our estimate " />
@@ -94,7 +94,7 @@ export function RateBlock({
         </div>
       )}
       <div className="rb-cost">
-        <Ed x="Cost to move 1% — " p="To bend this 1%, a cheat must burn " />
+        <Ed x="Cost to move 1%: " p="To bend this 1%, a cheat must burn " />
         <TickerNumber text={money(p.cost_to_move_1pct)} />
       </div>
       <div className="rb-spark">

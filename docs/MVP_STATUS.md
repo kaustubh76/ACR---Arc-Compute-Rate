@@ -17,7 +17,7 @@
 | Core product (estimator + bound + red-team) | ✅ Complete, real math, CI-gated |
 | On-chain (Oracle + Registry + x402 + webhooks) | ✅ Deployed & live on Arc testnet |
 | Dashboard (Terminal UI) | ✅ MVP-ready, 6 pages, live on Vercel |
-| Tests / CI | ✅ **356 passed** python + 60 forge + 93 node, 4-job CI green |
+| Tests / CI | ✅ **356 passed** python + 60 forge + 95 node, 4-job CI green |
 | Instrument layer (futures/MM) | ✅ **Live-traded** — three books on Arc (ACR-INF, ACR-GPU, ACR-DATA), a keeper rotating hourly fills, and readers trading from their own Circle wallets |
 | Production hardening | 🟡 Paid cloud tier, Next 15, 3 FLAGs to verify |
 
@@ -102,7 +102,7 @@ Next.js 14.2 App Router, React 18, SWR, hand-authored `globals.css` (~1,600 line
 
 **Design system — "Arc Dawn":** permanently-dark chain-native terminal; navy→gold "pre-dawn sky" surfaces; `--sand` is THE rate color; `--finality` teal = settled; glass panels + tinted glows; 4 fonts (Space Grotesk / DM Sans / Space Mono / IBM Plex Mono). Motion is CSS-first and fully `prefers-reduced-motion`-safe. **Currently ~70% utilitarian / 30% hooky** — the hooky bits (rolling ticker numbers, breathing pill, marquee tape, adversary-room flip) are excellent, but there was **no first-viewport "wow"** (the signature dawn/`ArcHorizon` asset was stranded in a 96px footer). §8 addresses this.
 
-**Terminal tests:** 11 suites (buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase · futures book · read result · chain constants) on the security- and honesty-critical pure logic. Build config production-clean (`next.config.mjs` marks the Circle SDK external).
+**Terminal tests:** 12 suites (buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase · futures book · read result · chain constants · price formatting) on the security- and honesty-critical pure logic. Build config production-clean (`next.config.mjs` marks the Circle SDK external).
 
 ---
 
@@ -180,7 +180,7 @@ claim gets re-checked rather than re-asserted.
 
 - **Python: 356 tests** (incl. anvil-gated on-chain integration, skipped when anvil is down — CI boots a node so they genuinely run) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle, keeper, desk), top-level `tests/`.
 - **Foundry: 60 tests** (17 ACROracle + 10 AttestationRegistry + 16 ACRFutures + 10 FeedAccessAttestor + 5 + 2 invariant, `fail_on_revert=true`).
-- **Node: 91 tests** (81 terminal + 10 agent) + `tsc` type-checks.
+- **Node: 105 tests** (95 terminal + 10 agent) + `tsc` type-checks.
 - **Gates:** ruff clean · glossary 423/423 · resistance eval-gate 4/4 · interop 12/12.
 - **CI** (`.github/workflows/ci.yml`, 4 jobs, every push/PR): python (ruff+pytest+eval-gate) · contracts (forge) · agent (build+test) · terminal (test + `next build`). Plus `keepalive.yml` (cron pings the API `/health`). Hermetic — `conftest.py` disables `.env` + strips `ACR_*`, so `make ci` needs no secrets.
 

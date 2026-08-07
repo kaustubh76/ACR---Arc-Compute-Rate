@@ -25,7 +25,7 @@ import type { CatalogItem, Envelope, LiveBuyResponse, LiveBuyResult, TerminalDat
 
 function priceUsdc(item: CatalogItem): string {
   const atomic = item.accepts[0]?.amount ?? item.accepts[0]?.maxAmountRequired;
-  return atomic && /^\d+$/.test(atomic) ? `$${(Number(atomic) / 1e6).toFixed(6)}` : "—";
+  return atomic && /^\d+$/.test(atomic) ? `$${(Number(atomic) / 1e6).toFixed(6)}` : "…";
 }
 
 function pathOf(resource: string): string {
@@ -93,7 +93,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       }
       await refreshBuyer();
     } catch {
-      setReleaseError("the floor needs the live press — it may still be waking");
+      setReleaseError("the floor needs the live press, which may still be waking");
     } finally {
       setReleasing(false);
     }
@@ -144,15 +144,22 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Machines discover the listings, pay a nanopayment a query, and every settlement prints on the tape — discovery is free, the data costs."
-          p="Robot shoppers browse what’s for sale, pay a fraction of a cent a question, and every receipt prints below — looking is free, answers cost."
+          x="Machines discover the listings, pay a nanopayment a query, and every settlement prints on the tape. Discovery is free, the data costs."
+          p="Robot shoppers browse what’s for sale, pay a fraction of a cent a question, and every receipt prints below. Looking is free, answers cost."
+        />
+        <Ed
+          as="p"
+          className="standfirst"
+          style={{ margin: "8px 0 0" }}
+          x="One buyer closes the loop. The print it purchases is the input to the position it takes, and the log says so."
+          p="One robot shopper closes the loop. It pays for the number, then trades on it, one wallet, one log."
         />
       </div>
 
       <section className="section">
         <div className="section-head">
           <span className="label">
-            <Ed x="Listings — /marketplace/catalog" p="For sale — /marketplace/catalog" />
+            <Ed x="Listings · /marketplace/catalog" p="For sale · /marketplace/catalog" />
             {catalogArchived ? (
               <span className="muted">
                 {" "}
@@ -163,7 +170,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           <span className="label">
             {tape == null || ledger == null ? (
               <span className="muted">
-                <Ed x="gate — awaiting API" p="paywall — waiting for our server" />
+                <Ed x="gate · awaiting API" p="paywall · waiting for our server" />
               </span>
             ) : !tape.live ? (
               <span className="muted">
@@ -207,7 +214,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                         {unitOf(item) ? <span className="muted"> · {unitOf(item)}</span> : null}
                       </td>
                       <td className="mono">{priceUsdc(item)}</td>
-                      <td className="mono">{item.accepts[0]?.network ?? "—"}</td>
+                      <td className="mono">{item.accepts[0]?.network ?? "…"}</td>
                       <td>
                         {item.metadata.provider.attestation ? (
                           <span className="green">
@@ -231,22 +238,22 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
               style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
               x={
                 <>
-                  Each listing carries its full x402 payment terms and schemas —{" "}
+                  Each listing carries its full x402 payment terms and schemas.{" "}
                   {attestation
-                    ? `backed by ${fmtInt(attestation.sellers_attested)} EIP-712 seller attestations read from the on-chain registry.`
-                    : "seller provenance lights up with a deployed AttestationRegistry."}
+                    ? `Backed by ${fmtInt(attestation.sellers_attested)} EIP-712 seller attestations read from the on-chain registry.`
+                    : "Seller provenance lights up with a deployed AttestationRegistry."}
                 </>
               }
               p={
                 <>
-                  Every listing shows its price terms and the shape of the answer —{" "}
+                  Every listing shows its price terms and the shape of the answer.{" "}
                   {attestation ? (
                     <>
-                      backed by {fmtInt(attestation.sellers_attested)}{" "}
+                      Backed by {fmtInt(attestation.sellers_attested)}{" "}
                       <Term k="attestation">sworn seller records</Term> on the public register.
                     </>
                   ) : (
-                    <>sworn seller records appear once the register is live.</>
+                    <>Sworn seller records appear once the register is live.</>
                   )}
                 </>
               }
@@ -255,11 +262,11 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
         ) : (
           <div className="awaiting">
             {catalog?.live ? (
-              "Awaiting the catalog —"
+              "Awaiting the catalog"
             ) : (
               <Ed
-                x="The exchange opens when the press answers — the free-tier press wakes on first visit (~60s) and this page retries by itself."
-                p="The shop opens when our server wakes up — it naps between visits to save money, and this page keeps trying on its own."
+                x="The exchange opens when the press answers. The free-tier press wakes on first visit (~60s) and this page retries by itself."
+                p="The shop opens when our server wakes up. It naps between visits to save money, and this page keeps trying on its own."
               />
             )}
           </div>
@@ -269,7 +276,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <span className="label">
-            <Ed x="The tape — /marketplace/receipts" p="The receipt roll — /marketplace/receipts" />
+            <Ed x="The tape · /marketplace/receipts" p="The receipt roll · /marketplace/receipts" />
             {tape != null && !tape.live && ledger ? (
               <span className="muted">
                 {" "}
@@ -308,8 +315,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                 title={
                   buyerReady?.buyer_ready
                     ? plain
-                      ? "3 REAL payments through Circle — it signs a digital check and money actually moves"
-                      : "3 REAL Circle Gateway settlements — signs EIP-3009 and settles on Arc"
+                      ? "3 REAL payments through Circle: it signs a digital check and money actually moves"
+                      : "3 REAL Circle Gateway settlements: signs EIP-3009 and settles on Arc"
                     : plain
                       ? "this copy of the site has no funded demo shopper"
                       : "no funded demo buyer is configured on this deployment"
@@ -319,11 +326,11 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed x="settling… (real Circle)" p="paying… (really)" />
                 ) : buyerReady?.buyer_ready ? (
                   <Ed
-                    x="Release the LIVE buyer — 3 real settlements"
-                    p="Let the LIVE buyer loose — 3 real payments"
+                    x="Release the LIVE buyer · 3 real settlements"
+                    p="Let the LIVE buyer loose · 3 real payments"
                   />
                 ) : (
-                  <Ed x="LIVE buyer — unavailable here" p="LIVE buyer — not available here" />
+                  <Ed x="LIVE buyer · unavailable here" p="LIVE buyer · not available here" />
                 )}
               </button>
             ) : (
@@ -337,16 +344,16 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                       ? "20 real pay-per-question round trips through the live paywall"
                       : "20 real x402 two-act exchanges through the live gate"
                     : plain
-                    ? "the shop's till is asleep — this wakes with the server"
-                    : "the paid gate is not answering — this opens when the press does"
+                    ? "the shop's till is asleep: this wakes with the server"
+                    : "the paid gate is not answering: this opens when the press does"
                 }
               >
                 {running ? (
                   `buying… ${run?.done}/${run?.total}`
                 ) : (
                   <Ed
-                    x="Release the floor buyer — 20 paid queries"
-                    p="Let the robot shopper loose — 20 paid questions"
+                    x="Release the floor buyer · 20 paid queries"
+                    p="Let the robot shopper loose · 20 paid questions"
                   />
                 )}
               </button>
@@ -363,16 +370,16 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
         {gateIsCircle && !buyerReady?.buyer_ready ? (
           <p className="muted" style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}>
             <Ed
-              x="This deployment carries no funded demo buyer, so the button above is closed. Nothing else here is affected — the settlement tape below is the real, on-chain record of payments that already happened."
-              p="This copy of the site has no demo shopper with money in it, so that button is switched off. Everything else still works — the list of payments below really happened."
+              x="This deployment carries no funded demo buyer, so the button above is closed. Nothing else here is affected. The settlement tape below is the real, on-chain record of payments that already happened."
+              p="This copy of the site has no demo shopper with money, so that button is off; everything else works and the payments below really happened."
             />
           </p>
         ) : null}
         {!gateIsCircle && !gateIsDev ? (
           <p className="muted" style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}>
             <Ed
-              x="The paid gate is not answering yet, so the buyer cannot run. The free-tier press wakes on first visit (~60s) and this page retries by itself — the tape below is the archived record until it does."
-              p="Our server is still waking up (about a minute), so the robot shopper cannot go yet. Keep this page open — it retries on its own, and the payments listed below are real ones from before."
+              x="The paid gate is not answering yet, so the buyer cannot run. The free-tier press wakes on first visit (~60s) and this page retries by itself. The tape below is the archived record until it does."
+              p="Our server is waking up (about a minute), so the shopper waits; this page keeps trying and the payments below are real ones from before."
             />
           </p>
         ) : null}
@@ -388,7 +395,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                 {r.status === 200 ? (
                   <span className="green">✓ {r.path} → {r.tx_ref}</span>
                 ) : (
-                  <span className="vermilion">✗ {r.path} — {r.error ?? `status ${r.status}`}</span>
+                  <span className="vermilion">✗ {r.path} · {r.error ?? `status ${r.status}`}</span>
                 )}
               </span>
             ))}
@@ -398,7 +405,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
         {run && run.state !== "idle" ? (
           <p className="mono" style={{ fontSize: 13, marginTop: 0 }}>
             {run.state === "error" ? (
-              <span className="vermilion">buyer errored — {run.error}</span>
+              <span className="vermilion">buyer errored · {run.error}</span>
             ) : (
               <>
                 {run.payer} · {run.done}/{run.total} settled · $
@@ -429,13 +436,13 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        offline demo — the agent pays the mock gate (run{" "}
+                        offline demo · the agent pays the mock gate (run{" "}
                         <span className="mono">ACR_X402_MODE=dev make api</span> first)
                       </>
                     }
                     p={
                       <>
-                        practice run — the robot pays the practice paywall (run{" "}
+                        practice run · the robot pays the practice paywall (run{" "}
                         <span className="mono">ACR_X402_MODE=dev make api</span> first)
                       </>
                     }
@@ -448,14 +455,14 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        Arc testnet — real Circle Gateway settlement; needs a funded{" "}
+                        Arc testnet · real Circle Gateway settlement; needs a funded{" "}
                         <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
                         <span className="mono">docs/agent-runbook.md</span>)
                       </>
                     }
                     p={
                       <>
-                        the real test network — actual Circle payments; needs a funded{" "}
+                        the real test network · actual Circle payments; needs a funded{" "}
                         <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
                         <span className="mono">docs/agent-runbook.md</span>)
                       </>
@@ -472,13 +479,13 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
           x={
             <>
-              The button runs the buyer’s whole loop — discover, pay, receipt — in-process;{" "}
+              The button runs the buyer’s whole loop (discover, pay, receipt) in-process;{" "}
               <span className="mono">apps/agent</span> is its twin over real HTTP.
             </>
           }
           p={
             <>
-              The button runs a whole robot shopping trip — browse, pay, receipt — inside this
+              The button runs a whole robot shopping trip (browse, pay, receipt) inside this
               site; <span className="mono">apps/agent</span> is its stand-alone twin.
             </>
           }
@@ -501,8 +508,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="muted"
           style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}
-          x="The hedger pays for the print above, then trades the on-chain future on what it read — one agent, both sides of the marketplace."
-          p="This robot pays for the rate above, then trades a real contract on what it learned — one agent, both halves of the shop."
+          x="The hedger pays for the print above, then trades the on-chain future on what it read: one agent, both sides of the marketplace."
+          p="This robot pays for the rate above, then trades a real contract on what it learned: one agent, both halves of the shop."
         />
       </section>
       <HedgerPanel

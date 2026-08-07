@@ -47,10 +47,12 @@ export function AttackChart({
     <div className={faded ? "stage-faded" : undefined}>
       <div className="reading" aria-live="polite">
         <span className="vermilion">
-          <Ed x="— naive VWAP error" p="— plain average’s error" />
+          <i className="key-swatch" />
+          <Ed x="naive VWAP error" p="plain average’s error" />
         </span>
         <span className="gold">
-          <Ed x="— ACR error" p="— ACR’s error" />
+          <i className="key-swatch" />
+          <Ed x="ACR error" p="ACR’s error" />
         </span>
         {pick && (
           <span>
@@ -65,7 +67,7 @@ export function AttackChart({
         viewBox={`0 0 ${W} ${H}`}
         tabIndex={0}
         role="img"
-        aria-label="attack exercise: VWAP error vs ACR error by hour — arrow keys move the reading line"
+        aria-label="attack exercise: VWAP error vs ACR error by hour; arrow keys move the reading line"
         onPointerMove={onPointerMove}
         onPointerLeave={onPointerLeave}
         onKeyDown={onKeyDown}

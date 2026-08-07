@@ -36,13 +36,13 @@ export default function GlobalError({
               color: "#e9a13f",
             }}
           >
-            ACR — The Arc Compute Rate
+            ACR · The Arc Compute Rate
           </p>
           <h1 style={{ fontSize: 26, fontWeight: 500, margin: "12px 0" }}>
             The presses stopped mid-run.
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: "#acc6e9" }}>
-            The terminal shell hit a fault — nothing on-chain is affected; the oracle keeps
+            The terminal shell hit a fault. Nothing on-chain is affected; the oracle keeps
             printing on Arc.
           </p>
           <button

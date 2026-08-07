@@ -37,7 +37,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   if (!buyerConfigured()) {
     return NextResponse.json(
-      { detail: "no funded buyer — set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)" },
+      { detail: "no funded buyer: set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)" },
       { status: 400 },
     );
   }

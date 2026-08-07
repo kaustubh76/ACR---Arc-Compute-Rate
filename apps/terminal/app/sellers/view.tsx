@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AddressChip } from "@/components/chain/AddressChip";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useCatalog, useTerminal } from "@/lib/useLive";
 import { useEdition } from "@/lib/useEdition";
-import { fmtInt, money, shortAddr } from "@/lib/format";
+import { fmtInt, money } from "@/lib/format";
 import { INDICES } from "@/lib/indices";
 import type { Envelope, TerminalData } from "@/lib/types";
 
@@ -15,7 +15,16 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
   const env = useTerminal(initial);
   const catalog = useCatalog();
   const [selected, setSelected] = useState<string>(INDICES[0]);
+  /* The attestation column was a verdict nobody could act on. Filtering to it
+     is the one interaction that makes the registry's argument playable: the
+     claim is that filing a record earns placement, and this is the control that
+     lets a reader check whether the top of the table is in fact the filed set. */
+  const [attestedOnly, setAttestedOnly] = useState(false);
+  /* Which row is showing its arithmetic. One at a time: the table is the
+     comparison, and several open rows push the rest off the fold. */
+  const [expanded, setExpanded] = useState<string | null>(null);
   const sellers = env.data.sellers?.[selected];
+  const shown = attestedOnly ? sellers?.filter((s) => s.attested) : sellers;
 
   // The REAL on-chain attestation summary, read from AttestationRegistry and
   // served by /marketplace/catalog. Null during a cold-start warm — the registry
@@ -36,8 +45,8 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="Sellers who attest their metadata are priced like-for-like — attestation earns placement."
-          p="Sellers who file a signed record of what they sell get compared fairly — filing earns a place in this paper."
+          x="Sellers who attest their metadata are priced like-for-like. Attestation earns placement."
+          p="Sellers who file a signed record of what they sell get compared fairly. Filing earns a place in this paper."
         />
       </div>
 
@@ -45,7 +54,7 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
         <div className="panel panel-pad">
           <div className="section-head" style={{ marginTop: 0 }}>
             <span className="label">
-              <Ed x="Registry — on-chain attestations" p="The register — sworn seller records" />
+              <Ed x="Registry · on-chain attestations" p="The register · sworn seller records" />
               {attLive ? <span className="green"> · live</span> : null}
             </span>
             <span className={`chip ${attLive ? "chip-teal" : "chip-sim"}`}>
@@ -77,14 +86,14 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
               </div>
               <div>
                 <div className="counter-value" style={{ fontSize: 20 }}>
-                  {att.services?.length ? att.services.join(" · ") : "—"}
+                  {att.services?.length ? att.services.join(" · ") : "none listed"}
                 </div>
                 <div className="counter-label label">Services covered</div>
               </div>
               {att.latency_slo_ms && (att.latency_slo_ms.min != null || att.latency_slo_ms.max != null) ? (
                 <div>
                   <div className="counter-value" style={{ fontSize: 20 }}>
-                    {att.latency_slo_ms.min ?? "—"}–{att.latency_slo_ms.max ?? "—"} ms
+                    {att.latency_slo_ms.min ?? "n/a"}–{att.latency_slo_ms.max ?? "n/a"} ms
                   </div>
                   <div className="counter-label label">
                     <Ed x="Latency SLO range" p="Promised answer speed" />
@@ -100,13 +109,13 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
               x={
                 <>
                   The attestation summary reads live from the on-chain{" "}
-                  <span className="mono">AttestationRegistry</span> — it fills in once the API
+                  <span className="mono">AttestationRegistry</span>. It fills in once the API
                   warms.
                 </>
               }
               p={
                 <>
-                  This card fills in once our server wakes — each entry is a seller’s{" "}
+                  This card fills in once our server wakes. Each entry is a seller’s{" "}
                   <Term k="eip712">verifiably signed</Term> statement of what they offer.
                 </>
               }
@@ -118,38 +127,63 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
       <section className="section">
         <div className="section-head">
           <span className="label">
-            <Ed x={<>Seller reliability — {selected}</>} p={<>Seller trust ranking — {selected}</>} />
+            <Ed x={<>Seller reliability · {selected}</>} p={<>Seller trust ranking · {selected}</>} />
             {simTape ? (
               <span
                 className="muted"
                 title={
                   plain
-                    ? "this feed is the calibrated simulator — the card above counts the real blockchain records"
-                    : "the tape is the calibrated simulator — the card above counts the real on-chain records"
+                    ? "this feed is the calibrated simulator. The card above counts the real blockchain records"
+                    : "the tape is the calibrated simulator. The card above counts the real on-chain records"
                 }
               >
                 {" "}
                 <Ed
-                  x={<>· sim tape{att ? ` — ${fmtInt(att.sellers_attested)} real attestations on-chain` : ""}</>}
-                  p={<>· simulated feed{att ? ` — ${fmtInt(att.sellers_attested)} real sworn records on the blockchain` : ""}</>}
+                  x={<>· sim tape{att ? ` · ${fmtInt(att.sellers_attested)} real attestations on-chain` : ""}</>}
+                  p={<>· simulated feed{att ? ` · ${fmtInt(att.sellers_attested)} real sworn records on the blockchain` : ""}</>}
                 />
               </span>
             ) : null}
           </span>
-          <div className="segmented">
-            {INDICES.map((iid) => (
+          {/* Two controls, and `type="button"` on both: the default is submit,
+              and `aria-pressed` is what tells a screen reader which one is on —
+              the /attack presets already do this and these did not. */}
+          <div className="btn-row">
+            <div className="segmented" role="group" aria-label="attestation filter">
               <button
-                key={iid}
-                className={iid === selected ? "on" : ""}
-                onClick={() => setSelected(iid)}
+                type="button"
+                className={attestedOnly ? "" : "on"}
+                aria-pressed={!attestedOnly}
+                onClick={() => setAttestedOnly(false)}
               >
-                {iid.replace("ACR-", "")}
+                <Ed x="all" p="everyone" />
               </button>
-            ))}
+              <button
+                type="button"
+                className={attestedOnly ? "on" : ""}
+                aria-pressed={attestedOnly}
+                onClick={() => setAttestedOnly(true)}
+              >
+                <Ed x="attested" p="filed a record" />
+              </button>
+            </div>
+            <div className="segmented" role="group" aria-label="index">
+              {INDICES.map((iid) => (
+                <button
+                  key={iid}
+                  type="button"
+                  className={iid === selected ? "on" : ""}
+                  aria-pressed={iid === selected}
+                  onClick={() => setSelected(iid)}
+                >
+                  {iid.replace("ACR-", "")}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {sellers?.length ? (
+        {shown?.length ? (
           <div className="table-scroll">
             <table className="sheet">
               <thead>
@@ -168,9 +202,40 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 </tr>
               </thead>
               <tbody>
-                {sellers.map((s) => (
-                  <tr key={s.seller}>
-                    <td className="mono">{shortAddr(s.seller)}</td>
+                {shown.map((s) => {
+                  const open = expanded === s.seller;
+                  /* The score's two halves are already on every row and the
+                     page states the formula in prose below. Showing the
+                     arithmetic per seller is what turns "0.842" from a verdict
+                     into a claim a reader can check. Both halves are ½-weighted
+                     (see the footnote), so this is the whole derivation. */
+                  const cleanHalf = 0.5 * s.clean_share;
+                  const attHalf = s.attested ? 0.5 : 0;
+                  return (
+                <Fragment key={s.seller}>
+                <tr
+                  className="row-link"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={open}
+                  aria-label={`show how ${s.seller.slice(0, 10)} scored ${s.score.toFixed(3)}`}
+                  title={open ? "hide the arithmetic" : "show how this score was reached"}
+                  onClick={() => setExpanded(open ? null : s.seller)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpanded(open ? null : s.seller);
+                    }
+                  }}
+                >
+                    {/* Was dead `shortAddr` text on a page whose whole claim is
+                        "check it yourself". AddressChip tiers honestly: a real
+                        hex address links out to the explorer, a simulated
+                        seller id gets the dashed ring and no link, so the sim
+                        tape cannot borrow the credibility of a real one. */}
+                    <td>
+                      <AddressChip address={s.seller} explorer={facts.explorer} />
+                    </td>
                     <td style={{ fontWeight: 600 }}>{s.score.toFixed(3)}</td>
                     <td>
                       <span className="share-bar" style={{ marginRight: 10 }}>
@@ -185,15 +250,32 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                           title={
                             simTape
                               ? plain
-                                ? "sworn within the simulated feed — real blockchain records are counted in the register card above"
-                                : "attested within the simulated tape — real on-chain records are counted in the registry card above"
+                                ? "sworn within the simulated feed. Real blockchain records are counted in the register card above"
+                                : "attested within the simulated tape. Real on-chain records are counted in the registry card above"
                               : plain
                                 ? "a verifiably signed record read from the public register"
                                 : "EIP-712 record read from the on-chain AttestationRegistry"
                           }
                         >
-                          <Ed x="EIP-712 ✓" p="signed ✓" />
-                          {simTape ? <span className="muted"> sim</span> : null}
+                          {/* The badge is the claim; the registry is where the
+                              claim is checkable. There is no per-seller tx in
+                              the payload, so the contract is the honest target
+                              rather than a link that implies more than we hold. */}
+                          {facts.registry && facts.explorer && !simTape ? (
+                            <a
+                              className="chip chip-teal"
+                              href={`${facts.explorer}/address/${facts.registry}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <Ed x="EIP-712 ✓" p="signed ✓" />
+                            </a>
+                          ) : (
+                            <>
+                              <Ed x="EIP-712 ✓" p="signed ✓" />
+                              {simTape ? <span className="muted"> sim</span> : null}
+                            </>
+                          )}
                         </span>
                       ) : (
                         <span className="muted">
@@ -203,18 +285,46 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                     </td>
                     <td>{money(s.volume_usdc, 0)}</td>
                   </tr>
-                ))}
+                  {open ? (
+                    <tr>
+                      <td colSpan={5} className="wrap">
+                        <span className="mono" style={{ fontSize: 12.5 }}>
+                          ½ · {(100 * s.clean_share).toFixed(0)}% = {cleanHalf.toFixed(3)}
+                          {"  ·  "}½ · {s.attested ? "1" : "0"} = {attHalf.toFixed(3)}
+                          {"  ·  "}
+                          <b className="gold">{s.score.toFixed(3)}</b>
+                        </span>{" "}
+                        <span className="muted" style={{ fontSize: 12.5 }}>
+                          <Ed
+                            x="clean-volume share and the signed record, half each."
+                            p="honest volume and a filed record, half each."
+                          />
+                        </span>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="awaiting">
-            {env.live ? (
-              "Awaiting seller verdicts —"
+            {/* A filter that empties the table must say it was the filter. The
+                cold-press copy below would otherwise blame the server for a
+                state the reader just created with a click. */}
+            {attestedOnly && sellers?.length ? (
+              <Ed
+                x="No attested sellers on this index yet. Switch to all to see the rest."
+                p="Nobody has filed a record on this one yet. Switch to everyone to see the rest."
+              />
+            ) : env.live ? (
+              "Awaiting seller verdicts"
             ) : (
               <Ed
-                x="The registry opens when the press answers — it wakes on first visit (~60s) and this page retries by itself."
-                p="This list needs our server, which naps between visits — it is waking now, and this page keeps trying on its own."
+                x="The registry opens when the press answers. It wakes on first visit (~60s) and this page retries by itself."
+                p="This list needs our server, which naps between visits. It is waking now, and this page keeps trying on its own."
               />
             )}
           </div>

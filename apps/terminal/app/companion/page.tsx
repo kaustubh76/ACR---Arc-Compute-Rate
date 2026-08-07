@@ -3,9 +3,9 @@ import Link from "next/link";
 import { GLOSSARY_THEMES, PLAIN_GLOSSARY, PRIMER_BEATS } from "@/lib/plainGlossary";
 
 export const metadata: Metadata = {
-  title: "The Reader’s Companion — ACR",
+  title: "The Reader’s Companion · ACR",
   description:
-    "Every term this paper uses, in one line each with an everyday analogy — the plain-English companion to the Arc Compute Rate.",
+    "Every term this paper uses, in one line each with an everyday analogy: the plain-English companion to the Arc Compute Rate.",
 };
 
 /* The Reader's Companion: the plain-language dictionary as an editorial page.
@@ -18,8 +18,8 @@ export default function CompanionPage() {
     <>
       <div className="standfirst-block" style={{ marginTop: 40 }}>
         <p className="standfirst" style={{ margin: 0 }}>
-          Every term this paper uses, in one line each — with the everyday analogy that makes it
-          stick, no prior knowledge assumed.
+          Every term this paper uses, in one line each, with the everyday analogy that makes it
+          stick. No prior knowledge assumed.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default function CompanionPage() {
 
       <section className="section">
         <p className="muted" style={{ fontSize: 13, maxWidth: 68 * 9 }}>
-          The paper’s canonical glossary (<span className="mono">docs/GLOSSARY.md</span>) — flip
+          The paper’s canonical glossary is <span className="mono">docs/GLOSSARY.md</span>. Flip
           the masthead to <b>plain</b> and every page gets this treatment, numbers identical.
         </p>
         {/* This page is the plain edition's "Start Here", and its only exit

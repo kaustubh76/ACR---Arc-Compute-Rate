@@ -102,16 +102,16 @@ export function OperatorConsole() {
     try {
       r = await fetch("/api/ops/actions", { headers: { "X-ACR-Ops-Token": k } });
     } catch {
-      throw new Error("could not reach this site's own server — check your connection");
+      throw new Error("could not reach this site's own server; check your connection");
     }
     if (r.ok) return (await r.json()) as Catalogue;
     if (r.status === 401) throw new Error("that key was not accepted");
     if (r.status === 429)
-      throw new Error("too many bad keys were tried recently — the console is resting");
+      throw new Error("too many bad keys were tried recently, so the console is resting");
     if (r.status === 404)
-      throw new Error("no operator console on this deployment — no key is configured on the press");
+      throw new Error("no operator console on this deployment: no key is configured on the press");
     if (r.status === 504 || r.status === 503)
-      throw new Error("the press did not answer in time — it may be waking; try again shortly");
+      throw new Error("the press did not answer in time; it may be waking, so try again shortly");
     throw new Error(`the console answered ${r.status}`);
   }, []);
 
@@ -180,7 +180,7 @@ export function OperatorConsole() {
       // A dry run arms the run button; a real run disarms it again, so a
       // second execution always needs a fresh preview.
       setPreview(dryRun ? (body.result ?? {}) : null);
-      setNote(dryRun ? null : "done — see the trail below");
+      setNote(dryRun ? null : "done · see the trail below");
       await refresh(key);
     } catch {
       setNote("the console could not be reached");
@@ -204,7 +204,7 @@ export function OperatorConsole() {
         </div>
         <p className="muted" style={{ maxWidth: 68 * 9 }}>
           <Ed
-            x="Settling, rolling, collateral top-ups and treasury transfers live behind a key. Without one configured on the press, this console does not exist at all — the route answers as though it were never built."
+            x="Settling, rolling, collateral top-ups and treasury transfers live behind a key. Without one configured on the press, this console does not exist at all: the route answers as though it were never built."
             p="The controls that move real money are locked. If nobody has set a key on our server, there is nothing here to unlock."
           />
         </p>
@@ -248,8 +248,8 @@ export function OperatorConsole() {
 
       <p className="muted" style={{ maxWidth: 68 * 9 }}>
         <Ed
-          x="Every action prices itself first. The run button stays disabled until a dry run for this exact form has come back, and any edit clears it — the amounts, addresses and series you are about to commit are always ones you have already read."
-          p="Every control shows you what it would do before it does it. You cannot run anything until you have previewed it, and changing a field makes you preview again."
+          x="Every action prices itself first. The run button stays disabled until a dry run for this exact form has come back, and any edit clears it. The amounts, addresses and series you are about to commit are always ones you have already read."
+          p="Every control previews what it would do first, and changing any field makes you preview again."
         />
       </p>
 
@@ -265,7 +265,7 @@ export function OperatorConsole() {
           }}
           aria-label="operator action"
         >
-          <option value="">— choose an action —</option>
+          <option value="">choose an action…</option>
           {(cat?.actions ?? []).map((a) => (
             <option key={a.action} value={a.action}>
               {a.action} · {a.description}

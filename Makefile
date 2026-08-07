@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -296,6 +296,17 @@ circle-balance: circle-check
 	@test -n "$(ADDR)" || { echo "usage: make circle-balance ADDR=0x<buyer wallet>"; exit 1; }
 	circle wallet balance --address $(ADDR) --chain $(CIRCLE_CHAIN)
 	circle gateway balance --address $(ADDR) --chain $(CIRCLE_CHAIN) --all
+
+# The SDK path for the same deposit — Unified Balance Kit over the buyer's
+# AGENT_PRIVATE_KEY (no CLI session, no kit key). `make circle-deposit` stays
+# as the CLI/operator route; this one is the programmatic route an agent runs.
+gateway-deposit:
+	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-deposit needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md)"; exit 1; }
+	cd apps/agent && npm run deposit -- --amount $(AMOUNT)
+
+gateway-balance:
+	@test -n "$$AGENT_PRIVATE_KEY" || { echo "gateway-balance needs AGENT_PRIVATE_KEY exported (see docs/agent-runbook.md)"; exit 1; }
+	cd apps/agent && npm run deposit -- --balances
 
 skills-install: circle-check
 	circle skill install --tool claude-code

@@ -90,7 +90,7 @@ test("an expiry is a real date, in UTC, the same on server and client", () => {
   // datetime.fromtimestamp(..., timezone.utc). Unlike a print's ts
   // (SIM-seconds), expiry_ts is genuine epoch, so a date here is honest.
   assert.equal(expiryLabel(1786972818), "Aug 17, 2026 · 13:20 UTC");
-  assert.equal(expiryLabel(0), "—");
+  assert.equal(expiryLabel(0), "unset");
 });
 
 test("basis is the gap to the rate the contract settles against", () => {

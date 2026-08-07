@@ -80,14 +80,14 @@ export function OpsView() {
             x={
               <>
                 Every pillar&rsquo;s standing, checked inside the press itself and republished on
-                its own timer — the same questions the operator used to answer one terminal
-                command at a time.
+                its own timer. These are the same questions the operator used to answer one
+                terminal command at a time.
               </>
             }
             p={
               <>
-                A plain checklist of whether each part of this site is working right now. Our
-                server checks itself every so often and this page shows what it found.
+                A plain checklist of whether each part of this site is working right now, from a
+                server that checks itself every so often.
               </>
             }
           />
@@ -110,8 +110,8 @@ export function OpsView() {
           </div>
           <p className="muted" style={{ maxWidth: 68 * 9 }}>
             <Ed
-              x="the checker runs on the press, so there is no verdict while it sleeps. Every other page can fall back to the archived edition; this one deliberately cannot — a stored “all pillars live” would be asserting the health of a service that is not answering. The free-tier press wakes on first visit (~60s) and this page retries by itself."
-              p="the checker lives on our server, which naps between visits — so there is nothing to report until it wakes (about a minute). We could show you the last answer we saved, but a saved “everything is fine” would be a lie about right now, so we would rather show you nothing. This page retries on its own."
+              x="the checker runs on the press, so there is no verdict while it sleeps. Every other page can fall back to the archived edition; this one deliberately cannot. A stored “all pillars live” would be asserting the health of a service that is not answering. The free-tier press wakes on first visit (~60s) and this page retries by itself."
+              p="Our server is waking up, and a saved “all fine” would lie about right now, so we show nothing until it answers."
             />
           </p>
         </section>
@@ -177,7 +177,7 @@ export function OpsView() {
                 one. They answer different questions and both still matter. */}
             <p className="muted" style={{ fontSize: 13, maxWidth: 68 * 9, marginTop: 10 }}>
               <Ed
-                x="This is the press reporting on itself, from inside. The external gate — which probes the deployed API and the terminal over the public internet, and can catch a route this process cannot see — stays a command: make verify-live."
+                x="This is the press reporting on itself, from inside. The external gate stays a command: make verify-live. It probes the deployed API and the terminal over the public internet, and can catch a route this process cannot see."
                 p="This is our server checking itself. We also run a separate check from outside, on a laptop, that can catch problems this one cannot see."
               />
             </p>
@@ -198,7 +198,7 @@ export function OpsView() {
               ) : (
                 <div className="table-scroll">
                   <table className="sheet">
-                    <caption className="sr-only">{s.title} — checks</caption>
+                    <caption className="sr-only">{s.title} · checks</caption>
                     {/* Three unlabelled columns read as "✓, oracle configured,
                         no address set" with no clue what the first cell is.
                         `.sheet th` is already styled, so this costs no CSS. */}

@@ -33,8 +33,8 @@ export function FinalityBadge({
         style={micro ? { fontSize: 9.5, padding: "2px 8px" } : undefined}
         title={
           plain
-            ? "the last recorded rate from the saved copy — start the live server for real-time freshness"
-            : "last on-chain print from the bundled snapshot — start the live API for real-time freshness"
+            ? "the last recorded rate from the saved copy: start the live server for real-time freshness"
+            : "last on-chain print from the bundled snapshot: start the live API for real-time freshness"
         }
       >
         <Ed x="on-chain · archived" p="on the blockchain · saved copy" />
@@ -48,8 +48,8 @@ export function FinalityBadge({
         className="chip chip-sky"
         title={
           plain
-            ? "payments here confirm for good in under a second — no take-backs"
-            : "Malachite BFT — deterministic sub-second finality"
+            ? "payments here confirm for good in under a second: no take-backs"
+            : "Malachite BFT · deterministic sub-second finality"
         }
       >
         <Ed x={<>finality &lt;1s</>} p={<>final in &lt;1s</>} />
@@ -68,8 +68,8 @@ export function FinalityBadge({
       title={
         stale
           ? plain
-            ? "the latest official rate is old — money should not settle against it"
-            : "the latest on-chain print is stale — settlement consumers should reject it"
+            ? "the latest official rate is old; money should not settle against it"
+            : "the latest on-chain print is stale; settlement consumers should reject it"
           : plain
             ? "how old the official rate on the public scoreboard is · confirmed for good in under a second"
             : "age of the settlement-grade print on ACROracle · finality is deterministic and sub-second"
