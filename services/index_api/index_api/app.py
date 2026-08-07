@@ -1051,7 +1051,7 @@ async def demo_buyer_start(req: BuyerStartRequest | None = None) -> dict:
     if isinstance(get_facilitator(), CircleFacilitator):
         raise HTTPException(
             status_code=409,
-            detail="live Circle gate — the in-page buyer pays the dev gate only; "
+            detail="live Circle gate: the in-page buyer pays the dev gate only; "
             "run apps/agent with a funded wallet instead",
         )
     r = req or BuyerStartRequest()

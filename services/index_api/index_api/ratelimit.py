@@ -174,5 +174,5 @@ def check(request, endpoint: str, ident: str | None = None) -> None:
     if not _limiter.allow(f"{endpoint}:host:{client_key(request)}", limit, window):
         raise HTTPException(
             status_code=429,
-            detail="the desk is busy — try again in a little while",
+            detail="the desk is busy, so try again in a little while",
         )
