@@ -12,7 +12,7 @@ import { useEdition } from "@/lib/useEdition";
 import type { WalletBalance } from "@/lib/types";
 
 function Amount({ value, unit = "USDC" }: { value: string | null; unit?: string }) {
-  if (value == null) return <span className="muted mono">—</span>;
+  if (value == null) return <span className="muted mono">…</span>;
   return (
     <span className="mono" style={{ color: "var(--sand)" }}>
       {value} <span className="muted" style={{ fontSize: 12 }}>{unit}</span>
@@ -27,7 +27,7 @@ function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
     <div className="wallet-row">
       <div className="wallet-role">
         <span className="label">
-          {isBuyer ? "Buyer — pays" : <Ed x="Seller — pay_to" p="Seller — gets paid" />}
+          {isBuyer ? "Buyer · pays" : <Ed x="Seller · pay_to" p="Seller · gets paid" />}
         </span>
         <AddressChip address={w.address} explorer={explorer} />
       </div>
@@ -37,7 +37,7 @@ function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
             <span
               title={
                 plain
-                  ? "spendable deposit held at Circle — each paid question draws from here, no extra fees needed"
+                  ? "spendable deposit held at Circle. Each paid question draws from here, no extra fees needed"
                   : "spendable Gateway deposit (gasless x402 draws from here)"
               }
             >
@@ -51,7 +51,7 @@ function WalletRow({ w, explorer }: { w: WalletBalance; explorer?: string }) {
               {Number(w.gateway.withdrawing) > 0 ? ` · ${w.gateway.withdrawing} mid-batch` : ""}
             </span>
             <span className="muted mono" style={{ fontSize: 12 }}>
-              wallet {w.usdc ?? "—"} USDC
+              wallet {w.usdc ?? "…"} USDC
             </span>
           </>
         ) : (
@@ -79,7 +79,7 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
     <div className="panel panel-pad wallet-panel">
       <div className="section-head" style={{ marginTop: 0 }}>
         <span className="label">
-          <Ed x="Circle Gateway wallets" p="Circle wallets — who pays, who gets paid" />
+          <Ed x="Circle Gateway wallets" p="Circle wallets · who pays, who gets paid" />
           {ready ? <span className="green"> · live</span> : null}
         </span>
         {ready ? (
@@ -99,8 +99,8 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
         <p className="muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
           {error ? (
             <Ed
-              x="Balances are unreachable right now — the terminal keeps retrying automatically."
-              p="Balances are unreachable right now — this page keeps retrying automatically."
+              x="Balances are unreachable right now. The terminal keeps retrying automatically."
+              p="Balances are unreachable right now. This page keeps retrying automatically."
             />
           ) : (
             data?.note ?? (

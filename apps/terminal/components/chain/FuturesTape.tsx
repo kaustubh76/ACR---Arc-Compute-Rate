@@ -42,8 +42,8 @@ export function FuturesTape({
         <div className="tape-static">
           <span className="tape-item muted">
             <Ed
-              x="awaiting fills — the desk is quiet (fills print here the moment they land on-chain)"
-              p="waiting for trades — the desk is quiet (trades appear here the moment they happen)"
+              x="awaiting fills: the desk is quiet, and fills print here the moment they land on-chain"
+              p="waiting for trades: the desk is quiet, and trades appear the moment they happen"
             />
           </span>
         </div>
@@ -74,7 +74,7 @@ export function FuturesTape({
   ));
 
   return (
-    <div className="tape" title={live ? "live futures fills on Arc" : "recent fills — archived"}>
+    <div className="tape" title={live ? "live futures fills on Arc" : "recent fills · archived"}>
       <div className="tape-track">
         {items}
         <span aria-hidden className="tape-item muted">

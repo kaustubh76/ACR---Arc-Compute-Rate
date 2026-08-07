@@ -44,7 +44,7 @@ export function DeskSteps({ phase, elapsedS }: { phase: DeskPhase; elapsedS?: nu
                     words at step 1 and at step 4. Clipped, not hidden — this
                     has to stay in the accessibility tree. */}
                 <span className="sr-only">
-                  {done ? " — done" : now ? " — you are here" : " — not started"}
+                  {done ? " · done" : now ? " · you are here" : " · not started"}
                 </span>
               </span>
             </li>
@@ -61,7 +61,7 @@ export function DeskSteps({ phase, elapsedS }: { phase: DeskPhase; elapsedS?: nu
             {` · ${Math.round(elapsedS)}s · `}
             <Ed
               x="ceremonies can take up to a minute"
-              p="this can take up to a minute — keep the page open"
+              p="this can take up to a minute, so keep the page open"
             />
           </>
         ) : null}

@@ -43,7 +43,7 @@ export function AddressChip({
           {short}
         </a>
       ) : (
-        <span title={`${address} — simulated identity`}>{short}</span>
+        <span title={`${address} · simulated identity`}>{short}</span>
       )}
       {copy && real && (
         <button

@@ -44,8 +44,8 @@ export function TxLink({ txRef, explorer }: { txRef: string; explorer?: string }
       className="chip chip-sim"
       title={
         plain
-          ? "a simulated payment — run the live paywall for real receipts"
-          : "simulated settlement — run the live gate for real refs"
+          ? "a simulated payment: run the live paywall for real receipts"
+          : "simulated settlement: run the live gate for real refs"
       }
     >
       {txRef}

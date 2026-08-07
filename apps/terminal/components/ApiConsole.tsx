@@ -5,7 +5,15 @@ import { useBuyerReady, useX402Info } from "@/lib/useLive";
 import { refKind } from "@/lib/chain";
 import { INDICES, PRICE_FALLBACK_USDC, isIndexId } from "@/lib/indices";
 import { Ed } from "@/components/Ed";
-import type { ConsoleResult, ExchangeSample, LiveBuyResponse, LiveBuyResult } from "@/lib/types";
+import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
+import { fmt, fmtInt, fmtPrice } from "@/lib/format";
+import type {
+  ConsoleResult,
+  ExchangeSample,
+  LiveBuyResponse,
+  LiveBuyResult,
+  PrintRow,
+} from "@/lib/types";
 
 type EndpointKind = "prints-all" | "prints" | "curve" | "vol" | "seller-scores";
 const ENDPOINTS: Array<{ kind: EndpointKind; label: string; parameterized: boolean }> = [
@@ -39,6 +47,99 @@ function statusClass(status: number): string {
   return "vermilion";
 }
 
+/** What the selected endpoint SELLS, drawn from the free feed.
+ *
+ *  Switching to `curve` or `vol` used to change the request line and nothing
+ *  else: with no query run, the console rendered nothing at all below the
+ *  status row, and with a stale one it showed the previous endpoint's JSON
+ *  under the new endpoint's label. Either way the control read as broken.
+ *
+ *  The honest fix is that we already publish these shapes for free. Every
+ *  `PrintRow` on the terminal feed carries `curve` and `vol` verbatim — the
+ *  same arrays and scalars the paid routes return. So the console can show a
+ *  reader exactly what they are about to buy, and the paid call then proves
+ *  the gate rather than the data. */
+function ShapePreview({
+  kind,
+  index,
+  prints,
+}: {
+  kind: EndpointKind;
+  index: string;
+  prints: Record<string, PrintRow>;
+}) {
+  const print = prints[index];
+  if (!print) return null;
+
+  if (kind === "curve") {
+    if (!print.curve?.length) return null;
+    return (
+      <div className="console-preview">
+        <div className="label" style={{ marginBottom: 10 }}>
+          <Ed x={`Shape · ${index} term structure`} p={`Shape · ${index} prices ahead`} />
+        </div>
+        <QuoteCorridor prints={prints} only={index} />
+        <div className="table-scroll" style={{ marginTop: 10 }}>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>
+                  <Ed x="tenor" p="weeks out" />
+                </th>
+                <th>
+                  <Ed x="bid" p="buy at" />
+                </th>
+                <th>
+                  <Ed x="mid" p="middle" />
+                </th>
+                <th>
+                  <Ed x="ask" p="sell at" />
+                </th>
+                <th>
+                  <Ed x="spread" p="gap" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {print.curve.map((c) => (
+                <tr key={c.tenor_weeks}>
+                  <td className="mono">{c.tenor_weeks}w</td>
+                  <td className="mono">{fmtPrice(c.bid)}</td>
+                  <td className="mono gold">{fmtPrice(c.mid)}</td>
+                  <td className="mono">{fmtPrice(c.ask)}</td>
+                  <td className="mono">{fmtInt(c.spread_bp)} bp</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  if (kind === "vol") {
+    return (
+      <div className="console-preview">
+        <div className="label" style={{ marginBottom: 10 }}>
+          <Ed x={`Shape · ${index} realized volatility`} p={`Shape · how much ${index} moves`} />
+        </div>
+        <div className="lab-counters">
+          <div>
+            <div className="counter-value gold" style={{ fontSize: 30 }}>
+              {fmt(100 * print.vol, 1)}%
+            </div>
+            <div className="counter-label label">
+              <Ed x="annualized, from the print history" p="over a year, from past rates" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function pretty(v: unknown, cap = 24): { text: string; truncated: boolean } {
   const full = typeof v === "string" ? v : JSON.stringify(v, null, 2);
   const lines = full.split("\n");
@@ -51,12 +152,16 @@ export function ApiConsole({
   externalPath,
   onRevenue,
   sample,
+  prints,
 }: {
   live: boolean;
   externalPath?: string | null;
   onRevenue: () => void;
   /** recorded two-act exchange from the bundle — shown while the gate is offline */
   sample?: ExchangeSample | null;
+  /** The free terminal feed. Carries `curve` and `vol` verbatim, so the console
+   *  can show the shape of what the selected endpoint sells without paying. */
+  prints: Record<string, PrintRow>;
 }) {
   const info = useX402Info();
   const mode = info?.data?.facilitator; // "dev" | "circle" | undefined
@@ -194,8 +299,8 @@ export function ApiConsole({
     <section className="section">
       <div className="section-head">
         <Ed
-          x="The wire — query the index"
-          p="Ask the index a question — and pay for the answer"
+          x="The wire · query the index"
+          p="Ask the index a question · pay for the answer"
           className="label"
         />
         {mode && (
@@ -207,17 +312,45 @@ export function ApiConsole({
 
       <div className="console">
         <div className="console-controls">
-          <div className="segmented">
+          {/* Changing the endpoint clears the last answer. It used to leave it
+              mounted, so the request line read `GET /curve/ACR-INF` above a
+              `/prints` payload until the reader paid again — the console
+              quietly showing one endpoint's data under another's name. */}
+          <div className="segmented" role="group" aria-label="endpoint">
             {ENDPOINTS.map((e) => (
-              <button key={e.kind} className={e.kind === kind ? "on" : ""} onClick={() => setKind(e.kind)}>
+              <button
+                key={e.kind}
+                type="button"
+                className={e.kind === kind ? "on" : ""}
+                aria-pressed={e.kind === kind}
+                onClick={() => {
+                  setKind(e.kind);
+                  setResult(null);
+                  setLiveOut(null);
+                  setError(null);
+                  setExpanded(false);
+                }}
+              >
                 {e.label}
               </button>
             ))}
           </div>
           {current.parameterized && (
-            <div className="segmented">
+            <div className="segmented" role="group" aria-label="index">
               {INDICES.map((i) => (
-                <button key={i} className={i === index ? "on" : ""} onClick={() => setIndex(i)}>
+                <button
+                  key={i}
+                  type="button"
+                  className={i === index ? "on" : ""}
+                  aria-pressed={i === index}
+                  onClick={() => {
+                    setIndex(i);
+                    setResult(null);
+                    setLiveOut(null);
+                    setError(null);
+                    setExpanded(false);
+                  }}
+                >
                   {i.replace("ACR-", "")}
                 </button>
               ))}
@@ -248,16 +381,28 @@ export function ApiConsole({
           x={
             <>
               The <span className="mono">resource</span> in the challenge below is the live API
-              endpoint a machine pays for — a different domain from this dashboard by design.
+              endpoint a machine pays for. It is a different domain from this dashboard by design.
             </>
           }
           p={
             <>
               The <span className="mono">resource</span> in the paywall notice below is the live
-              address a robot pays to use — a different domain from this dashboard on purpose.
+              address a robot pays to use. It is a different domain from this dashboard on purpose.
             </>
           }
         />
+
+        {/* What the selected endpoint sells, free, before anyone pays for it. */}
+        <ShapePreview kind={kind} index={index} prints={prints} />
+        {kind === "curve" || kind === "vol" ? (
+          <Ed
+            as="p"
+            className="muted"
+            style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}
+            x="The shape above is the free copy of exactly what this endpoint returns. Paying buys it with its own signed record of where it came from."
+            p="The picture above is the free copy of what this endpoint answers with. Paying buys it with a signed note of where it came from."
+          />
+        ) : null}
 
         <div className="console-actions">
           <button className="btn" onClick={query} disabled={!gateLive || busy}>
@@ -274,7 +419,7 @@ export function ApiConsole({
             <label className="agent-toggle">
               <input type="checkbox" checked={agentOn} onChange={(e) => setAgentOn(e.target.checked)} />
               <span className="label">
-                <Ed x="Demo agent — 1 query / 4s" p="Demo robot — 1 question / 4s" />
+                <Ed x="Demo agent · 1 query / 4s" p="Demo robot · 1 question / 4s" />
               </span>
             </label>
           )}
@@ -290,8 +435,8 @@ export function ApiConsole({
         <div className="label" style={{ marginTop: 8, minHeight: 18 }} aria-live="polite">
           {!gateLive ? (
             <Ed
-              x="The gate is offline — below is a RECORDED exchange from the archived edition."
-              p="The paywall is offline — below is a RECORDED exchange from the saved copy."
+              x="The gate is offline. Below is a RECORDED exchange from the archived edition."
+              p="The paywall is offline. Below is a RECORDED exchange from the saved copy."
             />
           ) : error ? (
             <span className="vermilion">{error}</span>
@@ -305,7 +450,7 @@ export function ApiConsole({
             <div className="specimen">
               <div className="act-head">
                 <span className="label">
-                  <Ed x="Act I — challenge (recorded)" p="Act I — the turnstile asks (recorded)" />
+                  <Ed x="Act I · challenge (recorded)" p="Act I · the turnstile asks (recorded)" />
                 </span>
                 <span className={`mono ${statusClass(sample.challenge.status)}`}>
                   {sample.challenge.status} {sample.challenge.status === 402 ? "Payment Required" : ""}
@@ -320,7 +465,7 @@ export function ApiConsole({
             <div className="specimen">
               <div className="act-head">
                 <span className="label">
-                  <Ed x="Act II — settled (recorded)" p="Act II — the coin drops (recorded)" />
+                  <Ed x="Act II · settled (recorded)" p="Act II · the coin drops (recorded)" />
                 </span>
                 <span className={`mono ${statusClass(sample.settled.status)}`}>
                   {sample.settled.status}
@@ -342,7 +487,7 @@ export function ApiConsole({
             <div className="specimen">
               <div className="act-head">
                 <span className="label">
-                  <Ed x="Act I — challenge" p="Act I — the turnstile asks" />
+                  <Ed x="Act I · challenge" p="Act I · the turnstile asks" />
                 </span>
                 <span className={`mono ${statusClass(result.act1.status)}`}>
                   {result.act1.status} {result.act1.status === 402 ? "Payment Required" : ""}
@@ -362,9 +507,9 @@ export function ApiConsole({
               <div className="act-head">
                 <span className="label">
                   {result.paid ? (
-                    <Ed x="Act II — settled" p="Act II — the coin drops" />
+                    <Ed x="Act II · settled" p="Act II · the coin drops" />
                   ) : (
-                    <Ed x="Act II — rejected" p="Act II — refused" />
+                    <Ed x="Act II · rejected" p="Act II · refused" />
                   )}
                 </span>
                 <span className={`mono ${statusClass(result.act2.status)}`}>{result.act2.status}</span>
@@ -393,7 +538,7 @@ export function ApiConsole({
               <div className="specimen">
                 <div className="act-head">
                   <span className="label">
-                    <Ed x="Act II — real Circle settlement" p="Act II — real money moves (Circle)" />
+                    <Ed x="Act II · real Circle settlement" p="Act II · real money moves (Circle)" />
                   </span>
                   {buyerReady?.buyer_ready ? (
                     <button className="btn" onClick={settleReal} disabled={liveBusy}>
@@ -419,14 +564,14 @@ export function ApiConsole({
                       <Ed
                         x={
                           <>
-                            The mock header fails closed on the real gate —{" "}
+                            The mock header fails closed on the real gate.{" "}
                             <b>Settle for real</b> signs an EIP-3009 authorization and settles
                             through Circle Gateway.
                           </>
                         }
                         p={
                           <>
-                            Pretend money is refused on the real paywall —{" "}
+                            Pretend money is refused on the real paywall.{" "}
                             <b>Settle for real</b> signs a digital check and pays through Circle.
                           </>
                         }
@@ -441,7 +586,7 @@ export function ApiConsole({
                         saying that is more useful than naming the key. */}
                     <Ed
                       x="This deployment carries no funded buyer, so real settlement is closed. The console still runs every query against the live gate; only the paying half is unavailable here."
-                      p="This copy of the site has no shopper with money in it, so it cannot pay for real. Everything else in this console still works — you just get the practice version."
+                      p="This copy of the site has no shopper with money, so it cannot pay for real; the rest of the console still works as a practice run."
                     />
                   </div>
                 )}

@@ -101,7 +101,7 @@ export function FuturesDesk({
     <section className="section">
       <div className="section-head">
         <span className="label">
-          <Ed x="The desk — on-chain futures (ACRFutures)" p="The trading desk — real futures on the blockchain" />
+          <Ed x="The desk · on-chain futures (ACRFutures)" p="The trading desk · real futures on the blockchain" />
         </span>
         {venue ? (
           rows.length ? (
@@ -185,7 +185,7 @@ export function FuturesDesk({
                           at. Arrives on every row and was thrown away. */}
                       <td className="mono">
                         {flat ? (
-                          <span className="muted">—</span>
+                          <span className="muted">flat</span>
                         ) : (
                           <TickerNumber text={r.maker_avg_price.toFixed(5)} />
                         )}
@@ -272,8 +272,8 @@ export function FuturesDesk({
                   <AddressChip address={primary.maker} explorer={explorer} copy={false} />{" "}
                   <span className="muted">
                     <Ed
-                      x="our Circle developer-controlled wallet — it takes the other side of every fill"
-                      p="our own wallet — it takes the other side of every trade"
+                      x="our Circle developer-controlled wallet. It takes the other side of every fill"
+                      p="our own wallet. It takes the other side of every trade"
                     />
                   </span>
                 </span>
@@ -308,8 +308,8 @@ export function FuturesDesk({
         <div className="awaiting">
           {venue ? (
             <Ed
-              x="The desk is deployed — positions load once the venue warms."
-              p="The market is open — trades load once the venue warms."
+              x="The desk is deployed. Positions load once the venue warms."
+              p="The market is open. Trades load once the venue warms."
             />
           ) : (
             <Ed
@@ -325,7 +325,7 @@ export function FuturesDesk({
           x={
             <>
               Every fill is mirrored by the maker; at expiry positions cash-settle against{" "}
-              <span className="mono">ACROracle.latestPrint</span> on-chain — no delivery needed.
+              <span className="mono">ACROracle.latestPrint</span> on-chain. No delivery needed.
             </>
           }
           p={

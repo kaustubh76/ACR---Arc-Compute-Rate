@@ -22,12 +22,12 @@ const ENDPOINTS: Array<[string, string, string, string, string, string | null]> 
   ["GET", "/curve/{index_id}", "x402", "Term structure (A-S mids by tenor)", "Forward prices, week by week", `/curve/${INDICES[0]}`],
   ["GET", "/vol/{index_id}", "x402", "Realized annualized vol", "How jumpy the price has been (yearly figure)", `/vol/${INDICES[0]}`],
   ["GET", "/seller-scores/{index_id}", "x402", "Seller reliability", "Which sellers to trust", `/seller-scores/${INDICES[0]}`],
-  ["GET", "/", "public", "Service card — indices, pricing, marketplace pointers", "The menu — what is sold here and for how much", null],
+  ["GET", "/", "public", "Service card · indices, pricing, marketplace pointers", "The menu · what is sold here and for how much", null],
   ["GET", "/onchain/{index_id}", "public", "Settlement-grade print from ACROracle", "The official rate, read off the blockchain", null],
-  ["GET", "/futures", "public", "The whole venue — every desk and the on-chain fill tape", "The trading desk and every recent trade", null],
+  ["GET", "/futures", "public", "The whole venue · every desk and the on-chain fill tape", "The trading desk and every recent trade", null],
   ["GET", "/futures/{index_id}", "public", "One index's live series, read from ACRFutures", "One market's trading desk, read off the blockchain", null],
   ["GET", "/marketplace/catalog", "public", "Machine-readable listings (Bazaar-shaped)", "The shop's listings, in a shape robots can read", null],
-  ["GET", "/marketplace/receipts", "public", "The settlement tape — recent x402 receipts", "The receipt roll — who paid for what", null],
+  ["GET", "/marketplace/receipts", "public", "The settlement tape · recent x402 receipts", "The receipt roll · who paid for what", null],
   ["GET", "/terminal/data", "public", "The human terminal feed (this site)", "Everything this website shows, as data", null],
   ["POST", "/demo/attack/start", "public", "Kick a live wash-attack run (Attack Lab)", "Start a live cheating attempt (the lab)", null],
   ["GET", "/demo/attack/status", "public", "Attack run progress + verdict", "How the cheating attempt is going", null],
@@ -72,8 +72,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           as="p"
           className="standfirst"
           style={{ margin: 0 }}
-          x="The index about machine commerce is bought by machines — every query is a Nanopayment."
-          p="Sold the way it is made, machine to machine — software pays a fraction of a cent a question, no account, no API key."
+          x="The index about machine commerce is bought by machines. Every query is a Nanopayment."
+          p="Sold the way it is made, machine to machine. Software pays a fraction of a cent a question, no account, no API key."
         />
       </div>
 
@@ -89,7 +89,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
             x="x402 · USDC on Arc · pay-per-print, no keys, no accounts"
             p={
               <>
-                pay-per-answer in digital dollars — the web’s{" "}
+                pay-per-answer in digital dollars · the web’s{" "}
                 <Term k="x402">“402 Payment Required”</Term> standard
               </>
             }
@@ -102,6 +102,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         externalPath={loadPath}
         onRevenue={refresh}
         sample={env.data.x402_exchange_sample ?? null}
+        prints={env.data.prints}
       />
 
       <Ed
@@ -140,7 +141,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         <div className="wallet-grid">
           {(
             [
-              ["ACROracle", "the rate itself — every print lands here", c.oracle],
+              ["ACROracle", "the rate itself · every print lands here", c.oracle],
               ["AttestationRegistry", "sellers' signed reliability claims", c.registry],
               ["ACRFutures", "the cash-settled venue and its books", c.futures],
               ["FeedAccessAttestor", "a paid query, recorded as a right", c.attestor],
@@ -169,7 +170,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
 
       <section className="section">
         <div className="section-head">
-          <Ed x="Machine revenue — live" p="What machines have paid us — live" className="label" />
+          <Ed x="Machine revenue · live" p="What machines have paid us · live" className="label" />
         </div>
         <div className="lab-counters">
           <div>
@@ -216,8 +217,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         ) : (
           <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
             <Ed
-              x="No receipts yet this session — run a query above and it prints here."
-              p="No receipts yet this session — ask a question above and it prints here."
+              x="No receipts yet this session. Run a query above and it prints here."
+              p="No receipts yet this session. Ask a question above and it prints here."
             />
           </p>
         )}

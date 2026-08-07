@@ -73,7 +73,7 @@ export function OracleProvenance({
             <AddressChip address={c.oracle} explorer={c.explorer} />
           ) : (
             <span className="muted" title="deploy: make deploy-testnet → set ACR_ORACLE_ADDRESS">
-              undeployed — awaiting testnet
+              undeployed · awaiting testnet
             </span>
           )}
         </span>

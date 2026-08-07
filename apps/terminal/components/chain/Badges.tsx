@@ -17,8 +17,8 @@ export function SimBadge({ mode }: { mode: "sim" | "dev" | "live" | "onchain" })
         className="chip chip-teal"
         title={
           plain
-            ? "read straight off the blockchain by this page — our server is down, the record is not"
-            : "read straight from ACROracle by this terminal — the index API is down, the record is not"
+            ? "read straight off the blockchain by this page: our server is down, the record is not"
+            : "read straight from ACROracle by this terminal: the index API is down, the record is not"
         }
       >
         direct read
@@ -35,8 +35,8 @@ export function SimBadge({ mode }: { mode: "sim" | "dev" | "live" | "onchain" })
       className="chip chip-sim"
       title={
         plain
-          ? "a saved simulation — start the live server for live data"
-          : "bundled simulation — start the index API for live data"
+          ? "a saved simulation: start the live server for live data"
+          : "bundled simulation: start the index API for live data"
       }
     >
       sim
