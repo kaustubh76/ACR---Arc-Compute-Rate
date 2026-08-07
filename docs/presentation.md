@@ -108,9 +108,28 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 - **Portia**, an autonomous paralegal fleet, resells LLM work at fixed prices but pays for inference per call — ~**100M tokens/mo × 0.49236 $/1k tokens** (the ACR-INF print) ≈ **$49,236/mo**, all floating. One +10% month is **+$4,924** of unbudgeted burn.
 - The fix: go **long ACR-INF futures**. Cash-settled — at expiry the venue **freezes the freshest oracle print** (≤ 2 h old, enforced on-chain) and pays the difference in USDC. **No delivery, no GPU repossession, no seller cooperation.**
 - A hedge is only as good as its settlement print: every ACR print ships its **CI** and its **attack-cost-per-bp**, so both sides can read — on-chain — what bending the settle would cost.
-- **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — **three books** (ACR-INF, ACR-GPU, ACR-DATA), 10× multiplier, 2000 bp initial margin on this deployment, socialized-loss clearing, settling against the same ACROracle. The maker standing behind the book is a **Circle developer-controlled wallet**, and an **autonomous agent buys the print over x402 and trades on it**. Watch both on `/curve`.
+- **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — **three books** (ACR-INF, ACR-GPU, ACR-DATA), 10× multiplier, 2000 bp initial margin on this deployment, socialized-loss clearing, settling against the same ACROracle.
+- **And an agent already runs Portia's playbook.** It pays $0.0001 for the print over x402, reads its own book, and trades the gap to its mandate — from a Circle agent wallet, unattended. **The print it purchases is the input to the position it takes, and the log says so.** That is the whole product in one sentence; the next slide is the cast that surrounds it.
 
 <!-- Every compute future before this died one of two deaths: physical delivery you can't enforce, or cash settlement against an index you can bend. We amputated delivery — "capacity forwards with the hardest organ amputated" — and made bending priced. Portia's math is a worked example at the ship-week print; the venue is testnet-scale by design (10× multiplier). The mechanism, not the notional, is the product. -->
+
+---
+
+###### THE ECONOMY · SIX WALLETS, SIX MANDATES
+
+# Every Circle wallet model, doing a job — not ticking a box
+
+| Agent | Wallet | Pays for | Decides |
+|---|---|---|---|
+| **press** | Developer-Controlled | gas to sign 3 prints/hr | **nothing, deliberately** |
+| **maker · taker** | Developer-Controlled ×2 | collateral, roll gas, hourly fill | size, against both sides' margin |
+| **hedger** | **Agent wallet** (SCA trades, EOA pays) | the print, then its own margin | *everything* — and refuses rather than clamps |
+| **reader** | **User-controlled** SCA, PIN | nothing: Gas Station sponsors | their own trade, their own exit |
+| **CLI buyer** | raw EOA + `x402-batching` | $0.0001 × 13 resources | which listings to buy |
+
+**We consume Circle's Skills and publish one back** (`skills/acr-hedge`), and `make gateway-deposit` (Unified Balance Kit) makes the last operator step something an agent does for itself.
+
+<!-- This slide replaced a five-row compliance table. Same coverage, told as a product: Nanopayments is the hedger's receipt, Agent Wallets is three rows here, Marketplace is what the CLI buyer shops. The honest line to say out loud: both sides of the book are ours, and both payers are ours. The mechanism is real; the demand is not yet. -->
 
 ---
 
@@ -161,6 +180,8 @@ Read live from ACROracle at final submission — posted **hourly, in-cloud, sign
 | **Deterministic USDC fees** | The attack cost is **a number, not a distribution** |
 | Agent Marketplace | Native machine-to-machine discovery |
 
+**And the bridge nobody else has to build:** Gateway settles nanopayments *off*-chain, so "this wallet paid for the feed" normally lives only in a seller's ledger. `FeedAccessAttestor` signs that receipt with the same custody wallet that signs prints, so **an off-chain payment becomes an on-chain right** — which is what lets a venue rebate fees to the wallets that paid for its index.
+
 <!-- The kill-question "why Arc?" answered mathematically: on a probabilistic-fee chain, attack cost is a Monte Carlo estimate. On Arc it's arithmetic. -->
 
 ---
@@ -198,7 +219,7 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 
 ---
 
-###### LIVE ON ARC · ALL GATES RE-RUN 2026-07-31
+###### LIVE ON ARC · ALL GATES RE-RUN 2026-08-08
 
 # Deployed, printing, hedgeable — all seven weeks shipped
 
@@ -219,7 +240,7 @@ Provenance labeled on every value — `sim` / `gateway-ref` / `tx`. Reproduce: `
 
 ---
 
-###### THE LIVE DEMO · 4 MINUTES
+###### THE LIVE DEMO · 3 MINUTES
 
 # Attack the index, then hedge on it
 
@@ -231,6 +252,20 @@ Provenance labeled on every value — `sim` / `gateway-ref` / `tx`. Reproduce: `
 **Live:** https://arc-compute-rate.vercel.app · reader's companion at `/companion`
 
 <!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. Series rolls are automated (futures-lifecycle.yml); `make desk-preflight` confirms the venue is tradable before a session. The Public Desk needs a PIN ceremony per action, so allow ~30 s per step live. -->
+
+---
+
+###### THE LIFECYCLE · WHAT HAPPENS AFTER THE DEADLINE
+
+# Arc mainnet is **September 16**. This is day-one infrastructure.
+
+- **Nothing here is a testnet exhibit.** The estimator, the oracle, the venue and the gate are chain-first; the only Arc-specific assumptions are the ones that make the manipulation bound *a number at all* — deterministic USDC fees, USDC as gas, sub-second finality.
+- **The one thing we are missing, named:** a dependent that is not us. The venue settling on the feed is a real dependent — but we deployed both. One outside consumer turns *"our two components agree"* into *"someone else is exposed to this number."* The Marketplace listing is submitted; Circle's Discovery API carries no Arc network yet.
+- **And a community, with something to hold.** Post-hackathon: **$GPOOR** on **ACTFUN**, Arc's own community-mined launchpad — you mine it by complaining about compute prices on-chain, with the live ACR print in the complaint. It belongs *after* a submission, not inside one: the mining window is an hour, and a launch nobody can mine is not a fair launch.
+
+## **Stop whining. Hedge.**
+
+<!-- Deliberately not built for the deadline: the token was analysed and cut. It scores zero on an agentic-economy rubric, and a meme launch would have eaten the day that bought the App Kits integration and the published skill. Saying which quirky idea we killed, and why, is worth more than shipping it. -->
 
 ---
 

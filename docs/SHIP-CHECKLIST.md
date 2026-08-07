@@ -90,8 +90,13 @@ dead series.
    archive (`services/index_api/index_api/receipts_live.jsonl`). If the count
    moved, update the "11 Gateway-settled receipts" sentence in
    `SUBMISSION.md` **in the same commit**.
-3. `make snapshot` → `git diff apps/terminal/lib/fallback.json` (sane = fresh
-   prints, a full trade tape, live open interest on all three books) → stage.
+3. `make snapshot` — **with `ACR_HEDGER_ADDRESS` and `ACR_HEDGER_PAYER`
+   exported**, or the archived edition ships an agent that reports itself as
+   "not configured" and the offline demo silently loses its protagonist. Both
+   are public addresses; they live in `.env` and now in `render.yaml`. Then
+   `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a full trade
+   tape, live open interest on all three books, **and a configured hedger**) →
+   stage.
 4. `make verify-claims` (full, **not** `CLAIMS_FAST`) → must exit 0.
 5. `VERIFY_STRICT=1 make verify-live` → must exit 0.
 6. `GAP_PAGES=24 make print-gaps` → the recorded tail claim still holds; if
