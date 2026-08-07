@@ -114,7 +114,7 @@ credential-free offline mode and a live Arc-testnet path:
 | **Agent Wallets** | Buyer: `apps/agent/` pays via the official `@circle-fin/x402-batching` `GatewayClient` (wallet created/funded through the Circle CLI). Seller/oracle: Circle Developer-Controlled Wallets sign prints + attestations (`packages/acr_oracle_client/signer.py`) and deploy contracts (`scripts/deploy_circle.py`). |
 | **Agent Marketplace** | `GET /marketplace/catalog` — Bazaar-shaped machine-readable listings with prices, input/output schemas, and on-chain attestation provenance (`AttestationRegistry` as the ERC-8004-style reputation anchor); `GET /marketplace/receipts` — the public settlement tape; Terminal `/exchange` page. |
 | **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` + `circle services search/inspect/pay` cross-checks — `docs/agent-runbook.md`. |
-| **Circle Skills** | Installed as the `circle-skills` Claude Code plugin (`make skills-install`): `use-agent-wallet`, `fund-agent-wallet`, `pay-via-agent-wallet`, `use-circle-cli`. |
+| **Circle Skills** | Consumed as the `circle-skills` Claude Code plugin (`make skills-install`): `use-agent-wallet`, `fund-agent-wallet`, `pay-via-agent-wallet`, `use-circle-cli` — and **published back**: `skills/acr-hedge/SKILL.md` teaches any agent the full loop (discover → pay for the print → read the venue → hedge), commands lifted from the running hedger. |
 
 Demo economics: $0.0001/query (well under a $0.01/action ceiling);
 `make agent-live` makes 60 discovered, receipt-verified x402 payments under a
