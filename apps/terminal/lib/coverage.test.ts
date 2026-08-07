@@ -162,3 +162,47 @@ test("banned jargon never leaks into extractable plain copy", () => {
   }
   assert.deepEqual(leaks, []);
 });
+
+/* Both editions' copy is swept clean of the em dash, and stays that way.
+   Not a style preference: a dash was doing four different jobs here — missing
+   value, label/value separator, chart legend swatch, and mid-sentence pause —
+   and a mark that means four things reads as filler in all four. The house
+   separator is the middot (·), a missing number is an ellipsis, a legend key
+   is a real swatch, and a sentence that wants a pause gets a second sentence.
+   The en dash survives for genuine ranges (1–4 ms) and names
+   (Avellaneda–Stoikov), which is why this tests for — alone. */
+const COPY_PROPS = /\b[xp]="([^"]+)"/g;
+
+test("no em dash in either edition's copy", () => {
+  const dashed: string[] = [];
+  for (const file of ALL) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    for (const m of src.matchAll(COPY_PROPS)) {
+      if (m[1].includes("—")) dashed.push(`${file}: ${m[0].slice(0, 72)}…`);
+    }
+  }
+  for (const [key, { gloss }] of Object.entries(PLAIN_GLOSSARY)) {
+    if (gloss.includes("—")) dashed.push(`glossary gloss ${key}`);
+  }
+  for (const beat of PRIMER_BEATS) {
+    if (beat.head.includes("—") || beat.body.includes("—")) dashed.push(`primer beat: ${beat.head}`);
+  }
+  assert.deepEqual(dashed, []);
+});
+
+/* Plain copy is a one-liner or it is not plain copy. The whole point of the
+   edition is that a first-time reader gets the thing in one pass; a 299-char
+   three-sentence paragraph is the expert edition wearing simpler words. 140 is
+   the same ceiling the glossary already holds itself to (lib/glossary.test.ts). */
+const PLAIN_MAX = 140;
+
+test("plain copy stays a one-liner", () => {
+  const long: string[] = [];
+  for (const file of ALL) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    for (const m of src.matchAll(/\bp="([^"]+)"/g)) {
+      if (m[1].length > PLAIN_MAX) long.push(`${file}: ${m[1].length} chars — ${m[1].slice(0, 48)}…`);
+    }
+  }
+  assert.deepEqual(long, []);
+});

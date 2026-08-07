@@ -46,8 +46,8 @@ test("every index gets the same number of significant figures", () => {
   assert.deepEqual([INF.mid, GPU.mid, DATA.mid].map((v) => sigFigs(fmtPrice(v))), [5, 5, 5]);
 });
 
-test("a non-number is an em dash, not the string NaN", () => {
-  for (const bad of [NaN, Infinity, -Infinity]) assert.equal(fmtPrice(bad), "—");
+test("a non-number is an ellipsis, not the string NaN", () => {
+  for (const bad of [NaN, Infinity, -Infinity]) assert.equal(fmtPrice(bad), "…");
 });
 
 test("zero does not poison the magnitude clamp", () => {

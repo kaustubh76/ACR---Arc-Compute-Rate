@@ -18,12 +18,12 @@ export const PLAIN_GLOSSARY = {
   /* ---- money ---- */
   usdc: {
     term: "USDC",
-    gloss: "a digital dollar — a coin built to always be worth exactly $1",
+    gloss: "a digital dollar: a coin built to always be worth exactly $1",
     theme: "money",
   },
   nanopayment: {
     term: "nanopayment",
-    gloss: "a payment of a fraction of a cent — too small for card fees, easy for software",
+    gloss: "a payment of a fraction of a cent: too small for card fees, easy for software",
     theme: "money",
   },
   x402: {
@@ -33,17 +33,17 @@ export const PLAIN_GLOSSARY = {
   },
   eip3009: {
     term: "signed check",
-    gloss: "paying by handing over a signed authorization — like a check — instead of moving cash yourself",
+    gloss: "paying by handing over a signed authorization, like a check, instead of moving cash yourself",
     theme: "money",
   },
   gateway: {
     term: "Gateway",
-    gloss: "Circle’s clearing house — it pools deposits and settles many tiny payments in batches",
+    gloss: "Circle’s clearing house: it pools deposits and settles many tiny payments in batches",
     theme: "money",
   },
   "gas-usdc": {
     term: "fees in dollars",
-    gloss: "this network charges its fees in the same dollars you already carry — no second token needed",
+    gloss: "this network charges its fees in the same dollars you already carry: no second token needed",
     theme: "money",
   },
   "market-maker": {
@@ -53,29 +53,29 @@ export const PLAIN_GLOSSARY = {
   },
   tenor: {
     term: "weeks out",
-    gloss: "how far in the future a contract runs — week one, week two, and so on",
+    gloss: "how far in the future a contract runs: week one, week two, and so on",
     theme: "money",
   },
   "cash-settled": {
     term: "cash-settled",
-    gloss: "no goods change hands at the end — the contract simply pays out the price difference in cash",
+    gloss: "no goods change hands at the end: the contract simply pays out the price difference in cash",
     theme: "money",
   },
   basis: {
     term: "the gap",
-    gloss: "how far a trade sits from the official rate — the market's opinion of where that rate is heading",
+    gloss: "how far a trade sits from the official rate: the market's opinion of where that rate is heading",
     theme: "money",
   },
   mark: {
     term: "the running price",
-    gloss: "the price everyone is settled up at right now — the score at half-time, not the final whistle",
+    gloss: "the price everyone is settled up at right now: the score at half-time, not the final whistle",
     theme: "money",
   },
 
   /* ---- statistics ---- */
   vwap: {
     term: "plain average (VWAP)",
-    gloss: "a size-weighted average — one staged $10M sale drags it wherever the faker wants",
+    gloss: "a size-weighted average: one staged $10M sale drags it wherever the faker wants",
     theme: "statistics",
   },
   "trimmed-median": {
@@ -85,12 +85,12 @@ export const PLAIN_GLOSSARY = {
   },
   ci: {
     term: "wiggle room",
-    gloss: "the honest give-or-take range around an estimate — where the true number almost surely sits",
+    gloss: "the honest give-or-take range around an estimate: where the true number almost surely sits",
     theme: "statistics",
   },
   bp: {
     term: "basis point (bp)",
-    gloss: "one hundredth of one percent — a penny on a hundred dollars",
+    gloss: "one hundredth of one percent: a penny on a hundred dollars",
     theme: "statistics",
   },
   hedonic: {
@@ -100,7 +100,7 @@ export const PLAIN_GLOSSARY = {
   },
   deconvolution: {
     term: "un-blurring",
-    gloss: "undoing the smear that batching puts on timing — like sharpening a long-exposure photo",
+    gloss: "undoing the smear that batching puts on timing, like sharpening a long-exposure photo",
     theme: "statistics",
   },
   vol: {
@@ -110,19 +110,19 @@ export const PLAIN_GLOSSARY = {
   },
   exhaust: {
     term: "payment exhaust",
-    gloss: "the stream of real payments machines leave behind as they trade — our raw material",
+    gloss: "the stream of real payments machines leave behind as they trade: our raw material",
     theme: "statistics",
   },
   "attack-cost": {
     term: "the bill for cheating",
-    gloss: "the literal dollars a cheat must burn to bend this rate — computed and published every hour",
+    gloss: "the literal dollars a cheat must burn to bend this rate, computed and published every hour",
     theme: "statistics",
   },
 
   /* ---- blockchain ---- */
   "on-chain": {
     term: "on-chain",
-    gloss: "recorded on the blockchain — a public ledger nobody can quietly edit",
+    gloss: "recorded on the blockchain, a public ledger nobody can quietly edit",
     theme: "blockchain",
   },
   oracle: {
@@ -132,7 +132,7 @@ export const PLAIN_GLOSSARY = {
   },
   keeper: {
     term: "the keeper",
-    gloss: "our unattended bot that keeps the market open — it trades a little each hour and starts the next contract when one ends",
+    gloss: "our unattended bot that keeps the market open: it trades a little each hour and starts the next contract when one ends",
     theme: "blockchain",
   },
   "feed-access": {
@@ -142,12 +142,12 @@ export const PLAIN_GLOSSARY = {
   },
   finality: {
     term: "final in under a second",
-    gloss: "confirmed for good in under a second — the whistle blows, the goal counts, no replays",
+    gloss: "confirmed for good in under a second: the whistle blows, the goal counts, no replays",
     theme: "blockchain",
   },
   eip712: {
     term: "verifiable signature",
-    gloss: "a standard notarized form — data signed so anyone can check exactly who signed it",
+    gloss: "a standard notarized form: data signed so anyone can check exactly who signed it",
     theme: "blockchain",
   },
   attestation: {
@@ -157,12 +157,12 @@ export const PLAIN_GLOSSARY = {
   },
   "wash-trade": {
     term: "fake trade",
-    gloss: "selling your car to yourself to fake a hot market — volume with no real economics",
+    gloss: "selling your car to yourself to fake a hot market: volume with no real economics",
     theme: "blockchain",
   },
   sybil: {
     term: "sock-puppets",
-    gloss: "one troll wearing a hundred accounts that all look independent — until you trace the money",
+    gloss: "one troll wearing a hundred accounts that all look independent, until you trace the money",
     theme: "blockchain",
   },
   "settlement-grade": {
@@ -172,14 +172,14 @@ export const PLAIN_GLOSSARY = {
   },
   relayer: {
     term: "courier",
-    gloss: "whoever posts a signed message on-chain — the signature is what counts, not the courier",
+    gloss: "whoever posts a signed message on-chain: the signature is what counts, not the courier",
     theme: "blockchain",
   },
 
   /* ---- this paper ---- */
   fixing: {
     term: "the fixing",
-    gloss: "the hour’s official price-setting — an old exchange word for publishing the day’s rate",
+    gloss: "the hour’s official price-setting: an old exchange word for publishing the day’s rate",
     theme: "this paper",
   },
   print: {
@@ -189,17 +189,17 @@ export const PLAIN_GLOSSARY = {
   },
   sofr: {
     term: "SOFR",
-    gloss: "the benchmark rate US loans settle on — ACR is the same idea, but for machine work",
+    gloss: "the benchmark rate US loans settle on. ACR is the same idea, but for machine work",
     theme: "this paper",
   },
   "the-press": {
     term: "the press",
-    gloss: "our live server, which sets this paper’s type — it naps between visits to save money",
+    gloss: "our live server, which sets this paper’s type and naps between visits to save money",
     theme: "this paper",
   },
   provenance: {
     term: "paper trail",
-    gloss: "which contract, which signer, which transaction a number came from — all checkable",
+    gloss: "which contract, which signer, which transaction a number came from: all checkable",
     theme: "this paper",
   },
 } satisfies Record<string, PlainTerm>;
@@ -223,11 +223,11 @@ export interface PrimerBeat {
 export const PRIMER_BEATS: PrimerBeat[] = [
   {
     head: "The problem",
-    body: "Machines now buy AI work from machines, but there is no trustworthy going rate — and a fake one is cheap to stage.",
+    body: "Machines now buy AI work from machines with no trustworthy going rate, and a fake one is cheap to stage.",
   },
   {
     head: "The estimate",
-    body: "ACR reads every payment on the Arc network — noisy, salted with fakes — and works out the honest rate; that is the big number above.",
+    body: "ACR reads every payment on the Arc network, noisy and salted with fakes, and works out the honest rate: the big number above.",
   },
   {
     head: "The print",
@@ -235,11 +235,11 @@ export const PRIMER_BEATS: PrimerBeat[] = [
   },
   {
     head: "The money",
-    body: "Software pays a fraction of a cent per question, automatically — no accounts, no keys, the payment rides in the web request.",
+    body: "Software pays a fraction of a cent per question, automatically: no accounts, no keys, the payment rides in the web request.",
   },
   {
     head: "The bill for cheating",
-    body: "Fakes get filtered, extremes get ignored — and every rate ships with the literal dollar cost of bending it 0.01%: cheating is priced.",
+    body: "Fakes get filtered and extremes get ignored, and every rate ships with the literal dollar cost of bending it 0.01%. Cheating is priced.",
   },
   {
     head: "The desk",

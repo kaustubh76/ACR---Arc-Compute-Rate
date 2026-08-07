@@ -123,7 +123,7 @@ export function contractNotional(mark: number, multiplier: number): number | nul
  *  and the client agree; a hydration mismatch here would flip the whole page.
  */
 export function expiryLabel(expiryTs: number): string {
-  if (!(expiryTs > 0)) return "—";
+  if (!(expiryTs > 0)) return "unset";
   const d = new Date(expiryTs * 1000);
   const date = d.toLocaleDateString(LOCALE, {
     day: "numeric",
