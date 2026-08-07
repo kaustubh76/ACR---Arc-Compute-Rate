@@ -82,7 +82,11 @@ def _error_series(seed: int, hours: int = 12, atk_from: int = 4, atk_to: int = 8
         if len(window) < 50:
             continue
         true = res.true_window_level("ACR-INF", window)
-        p, _ = estimate_index("ACR-INF", window, res.attestations, ts=t1, settings=settings)
+        # Same shape the LIVE run emits (index_api.demo). The archived exhibit
+        # is what a reader sees before they press anything, so a thinner
+        # snapshot would make the recorded run look less accountable than a
+        # fresh one — the opposite of the point.
+        p, d = estimate_index("ACR-INF", window, res.attestations, ts=t1, settings=settings)
         vwap = naive_vwap(window)
         out.append(
             {
@@ -93,6 +97,13 @@ def _error_series(seed: int, hours: int = 12, atk_from: int = 4, atk_to: int = 8
                 "acr_err_bp": 1e4 * abs(p.value - true) / true,
                 "vwap_err_bp": 1e4 * abs(vwap - true) / true,
                 "attack": atk_from <= h < atk_to,
+                "acr_ci_lo": p.ci_lo,
+                "acr_ci_hi": p.ci_hi,
+                "attack_cost_per_bp": p.attack_cost_per_bp,
+                "n_raw": len(window),
+                "n_obs": p.n_obs,
+                "cleaned_pct": 100.0 * d.cleaning.removed_fraction,
+                "sybil_clusters": len(d.cleaning.sybil_communities),
             }
         )
     return out

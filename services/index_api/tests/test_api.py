@@ -229,6 +229,55 @@ def test_demo_attack_run_single_flight_and_verdict(monkeypatch):
     assert v["peak_vwap_err_bp"] > v["peak_acr_err_bp"]
     assert v["resistance"] > 1.0
 
+    # --- the telemetry the page shows its work with -----------------------
+    # These used to be computed 12 times a run and thrown away at the
+    # `p, _ = estimate_index(...)` line. Without them /attack can only assert
+    # that the index resists manipulation; with them it can show the cleaner
+    # doing the resisting, hour by hour.
+    assert st["phase"] == "done"
+    assert st["elapsed_s"] is not None and st["elapsed_s"] > 0
+    assert st["started_at"] is not None
+    # Totals are known before the first hour is estimated, so every counter
+    # can be a fraction of a stated whole rather than a number climbing to
+    # nowhere.
+    assert st["n_adversarial_total"] >= st["n_adversarial"] > 0
+    assert st["usdc_total"] >= st["usdc_burned"] > 0
+    # Why the budget knob does not move the outcome: the trade cap binds.
+    assert st["budget_affords"] > st["trade_cap"] > 0
+
+    for pt in st["series"]:
+        assert pt["n_raw"] >= pt["n_obs"] > 0
+        assert 0.0 <= pt["cleaned_pct"] <= 100.0
+        assert pt["acr_ci_lo"] <= pt["acr"] <= pt["acr_ci_hi"]
+        assert pt["attack_cost_per_bp"] > 0
+        assert pt["step_ms"] is not None
+
+    # The claim this whole page exists to make, as a property of the data:
+    # a poisoned hour floods the tape and the cleaner removes far more of it.
+    atk = [p for p in st["series"] if p["attack"]]
+    quiet = [p for p in st["series"] if not p["attack"]]
+    assert atk and quiet
+    assert max(p["cleaned_pct"] for p in atk) > max(p["cleaned_pct"] for p in quiet)
+    assert max(p["n_raw"] for p in atk) > max(p["n_raw"] for p in quiet)
+
+
+def test_attack_status_is_honest_before_any_run_has_happened():
+    """Idle must not look like a finished run of zeroes — the page rests on
+    the archived exercise instead, and needs to be able to tell the two
+    apart."""
+    import index_api.demo as demo
+
+    demo._run = demo.AttackRun()
+    st = demo.status()
+    assert st["state"] == "idle"
+    assert st["phase"] == "idle"
+    # Absent, not zero: a 0.0 elapsed or a 0 total would render as a real
+    # measurement of a run that never happened.
+    assert st["elapsed_s"] is None
+    assert st["started_at"] is None
+    assert st["n_adversarial_total"] is None
+    assert st["usdc_total"] is None
+
 
 def test_demo_attack_start_clamps_params(monkeypatch):
     from index_api import demo
