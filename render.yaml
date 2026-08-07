@@ -92,6 +92,22 @@ services:
       - key: ACR_REFRESH_SECONDS
         value: "3600"
 
+      # --- The autonomous hedger's two PUBLIC identities --------------------
+      # Both are addresses, not credentials: /hedger derives the agent's whole
+      # state from public chain data and the receipt tape, and holds no key for
+      # it. Inlined rather than `sync: false` for that reason — they are the
+      # deploy's identity (which agent this surface reports on), and they are
+      # already printed in docs/SUBMISSION.md. Until now they lived only in the
+      # dashboard, so a rebuilt service would have served `configured: false`
+      # and quietly dropped the agent from the product. Unset either and the
+      # surface says so rather than inventing an empty agent; the same two must
+      # be exported for `make snapshot` or the archived edition loses it too.
+      # Two addresses, one agent — docs/WALLETS.md explains why it needs both.
+      - key: ACR_HEDGER_ADDRESS
+        value: "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9"
+      - key: ACR_HEDGER_PAYER
+        value: "0x71E140D9540d3163EAD1591f81b454C6d5BD26C0"
+
       # The instance's own URL, knocked on every ACR_CHAIN_WARM_SECONDS so it
       # never looks idle. The press only posts while this process is AWAKE, and
       # the free plan sleeps after ~15 idle minutes — measured gaps between
