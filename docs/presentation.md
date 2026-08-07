@@ -209,7 +209,7 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 | **ACRFutures** `0x29d97c62…82642fe` | Three live books (INF/GPU/DATA), **maker is a Circle custody wallet**, cash-settles on the print |
 | **Terminal + Seller API** | API x402-gated at **$0.0001/query**, fail-closed |
 
-`make ci` green 2026-08-04: **355 py** · **60 forge** (incl. futures + invariants) · **93 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **423/423** · GitHub CI **4/4**.
+`make ci` green 2026-08-04: **356 py** · **60 forge** (incl. futures + invariants) · **93 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **423/423** · GitHub CI **4/4**.
 
 Real settlement through **Circle Gateway** — batch-UUID receipts in-repo and on the public `/exchange` tape; Circle's own CLI paid the gate (`payable`).
 
