@@ -90,13 +90,18 @@ dead series.
    archive (`services/index_api/index_api/receipts_live.jsonl`). If the count
    moved, update the "11 Gateway-settled receipts" sentence in
    `SUBMISSION.md` **in the same commit**.
-3. `make snapshot` — **with `ACR_HEDGER_ADDRESS` and `ACR_HEDGER_PAYER`
-   exported**, or the archived edition ships an agent that reports itself as
-   "not configured" and the offline demo silently loses its protagonist. Both
-   are public addresses; they live in `.env` and now in `render.yaml`. Then
-   `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a full trade
-   tape, live open interest on all three books, **and a configured hedger**) →
-   stage.
+3. `make snapshot` — nothing to export. The two hedger addresses now resolve
+   from `.env` as well as from the process environment (`ACRSettings`), and
+   `check_hedger_commit_guard` **refuses to write the bundle** if the agent,
+   its payer, its position or its receipts would be missing. This step used to
+   read "remember to export them first", and the reason it is written this way
+   now is that the ritual was forgotten once and the archive shipped an agent
+   reporting itself as "not configured" — the offline demo losing its
+   protagonist, silently, past a green CI. The run prints
+   `hedger=set (N receipts)`; if it says `NULL` the guard has already stopped
+   you. Then `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a
+   full trade tape, live open interest on all three books, **and a configured
+   hedger carrying its own receipts**) → stage.
 4. `make verify-claims` (full, **not** `CLAIMS_FAST`) → must exit 0.
 5. `VERIFY_STRICT=1 make verify-live` → must exit 0.
 6. `GAP_PAGES=24 make print-gaps` → the recorded tail claim still holds; if

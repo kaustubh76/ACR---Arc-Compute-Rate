@@ -350,17 +350,47 @@ def _gate(rec: Recorder) -> None:
 
 
 def _hedger(rec: Recorder) -> None:
+    from .app import get_facilitator
     from .hedger import build_hedger_state
+    from .marketplace import build_receipts
     from .onchain import get_futures
 
-    st = build_hedger_state(get_futures())
-    if not st:
-        rec.unknown("hedger standing", "no state could be derived")
+    # The ledger was never passed, so the label "chain + ledger" was half true
+    # and the spend leg of the loop was invisible to the operator. Same
+    # facilitator `_gate` already reaches for, resolved the same way.
+    st = build_hedger_state(get_futures(), build_receipts(get_facilitator()))
+    # `if not st` could never fire — build_hedger_state always returns a
+    # populated dict — so the honest question is whether an agent is CONFIGURED.
+    if not st.get("configured"):
+        rec.unknown("hedger standing", "no agent address (ACR_HEDGER_ADDRESS or .env)")
         return
     rec.check(True, "hedger standing derived from chain + ledger")
-    pos = st.get("position") or {}
-    if pos:
-        rec.check(True, f"position: {pos.get('contracts', 0):.3f} contracts")
+
+    # This read was `st["position"]`. The payload has always said
+    # `position_contracts`, so the branch was dead and /ops never once reported
+    # the one number the agent exists to move. A throttled read is None and
+    # stays an unknown — a zeroed position reads as a liquidated agent.
+    pos, gap = st.get("position_contracts"), st.get("gap_contracts")
+    if pos is None:
+        rec.unknown("hedger position", "the venue would not say")
+    else:
+        on_target = gap is not None and abs(gap) < 0.25
+        rec.check(
+            on_target,
+            f"position: {pos:+.3f} of {st['target_contracts']:+.3f} contracts",
+            # An operator-run agent sitting behind its mandate is a schedule
+            # fact, not an outage.
+            warn_only=True,
+            detail=None if on_target
+            else (f"gap {gap:+.3f}" if gap is not None else "gap unread"),
+        )
+
+    paid = st.get("paid_queries")
+    if paid is None:
+        rec.unknown("hedger spend", "the receipt ledger was not read")
+    else:
+        rec.check(paid > 0, f"{paid} paid read(s) for {st['spent_usdc']} USDC",
+                  warn_only=True)
 
 
 def _funding(rec: Recorder) -> None:

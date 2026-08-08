@@ -32,7 +32,7 @@
  * green/vermilion and the futures tape has always used it. */
 
 import type { HedgerState } from "@/lib/types";
-import { formatQty, tapeAge } from "@/lib/futuresBook";
+import { contractNotional, formatQty, tapeAge } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
 import { Ed } from "@/components/Ed";
 import { AddressChip } from "@/components/chain/AddressChip";
@@ -204,6 +204,23 @@ export function HedgerPanel({
   const hasAge = live && nowS > 0 && fills.some((f) => f.seen_at > 0);
   const cols = hasAge ? 5 : 4;
 
+  /* The joint between the two legs. `contractNotional` is the same tested helper
+     /curve and FuturesDesk use, and it returns null rather than 0 when either
+     input is missing, so a throttled mark drops the figure instead of asserting
+     a free position. Deliberately NOT re-derived server-side the way
+     `gap_contracts` is: the gap is the agent's decision input and has to match
+     what it acted on, where this is presentation, and three surfaces quoting one
+     helper is how they stay agreed. */
+  const perContract = contractNotional(state.mark ?? 0, state.multiplier ?? 0);
+  const exposure = perContract !== null && pos !== null ? Math.abs(pos) * perContract : null;
+
+  /* null means the ledger was not read; [] means it was read and this payer is
+     not in it. Two different claims, so two different sentences below. */
+  const paid = state.receipts ?? null;
+  const shownPaid = paid ? paid.slice(0, SHOWN) : [];
+  const hasPaidAge = live && nowS > 0 && shownPaid.some((r) => (r.settled_at ?? 0) > 0);
+  const paidCols = hasPaidAge ? 3 : 2;
+
   return (
     <Card
       indexId={state.index_id}
@@ -313,7 +330,106 @@ export function HedgerPanel({
       </p>
 
       <div className="label" style={{ marginTop: 22, marginBottom: 8 }}>
-        <Ed x="recent fills" p="recent trades" />
+        <Ed x="1 · prints it bought" p="1 · prices it paid for" />
+        {state.paid_queries != null && state.paid_queries > shownPaid.length ? (
+          <span className="muted">
+            {" "}
+            · {shownPaid.length} of {state.paid_queries}
+          </span>
+        ) : null}
+      </div>
+
+      {/* The other half of the sentence this panel exists to make literal. The
+          press already filtered the ledger by this agent's payer to compute the
+          spend figure above and then threw the rows away; these are those rows.
+          Real Gateway batch references, so a reader can take one to Circle. Same
+          empty-row discipline as the fills table: the headers stand either way. */}
+      <div className="table-scroll">
+        <table className="sheet">
+          <thead>
+            <tr>
+              <th>
+                <Ed x="paid · USDC" p="paid · dollars" />
+              </th>
+              {hasPaidAge ? (
+                <th>
+                  <Ed x="settled" p="when" />
+                </th>
+              ) : null}
+              <th>
+                <Ed x="ref" p="receipt" />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shownPaid.length ? (
+              shownPaid.map((r) => (
+                <tr key={r.tx_ref}>
+                  <td className="mono">{r.amount_usdc.toFixed(4)}</td>
+                  {hasPaidAge ? (
+                    <td className="mono muted">
+                      {tapeAge(r.settled_at ?? 0, nowS, live ? "press" : "bundle").text}
+                    </td>
+                  ) : null}
+                  <td>
+                    <TxLink txRef={r.tx_ref} explorer={explorer} />
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                {/* Two different empties, two different sentences. An unread
+                    ledger and an empty one call for opposite conclusions, and the
+                    press keeps them apart (null vs []) precisely so this row
+                    can too. Collapsing them here would undo that work. */}
+                <td colSpan={paidCols} className="wrap muted">
+                  {paid === null ? (
+                    <Ed
+                      x="The ledger was not read here, so this reads as unknown rather than none."
+                      p="We could not read the payment list here, so this is unknown, not zero."
+                    />
+                  ) : (
+                    <Ed
+                      x="No paid read by this agent is in the ledger yet, which is what the counter above says."
+                      p="This robot has not paid for a price yet. The number above says the same."
+                    />
+                  )}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* The joint. Without this line the card is two unrelated tables; with it,
+          it is one argument. ACRFutures fills every trade at
+          `oracle.latestValue(indexId)`, so the mark IS the print the rows above
+          paid for, and the arithmetic is the contract's own — printed so a
+          reader can check it rather than take it. This also closes the loop
+          BEFORE the fills table, which matters because that table is usually
+          empty: an agent at its mandate stops trading, so its fills age out of
+          the tape's ~8h reach while the position they built persists in
+          contract state. Figures stay OUTSIDE <Ed>, per the house rule. */}
+      <p className="muted" style={{ fontSize: 12.5, margin: "14px 0 0", maxWidth: 68 * 9 }}>
+        <Ed x="Each row above bought one print of" p="Each row above bought one price for" />{" "}
+        <span className="mono">{state.index_id}</span>.{" "}
+        <Ed
+          x="The venue fills every trade at that same print, so the position below is that print, priced."
+          p="The market trades at that same price, so what it holds below is that price, turned into money."
+        />
+        {exposure !== null ? (
+          <>
+            {" "}
+            <span className="mono">
+              {num(pos)} × {state.mark!.toFixed(5)} × {state.multiplier} ={" "}
+              {exposure.toFixed(2)} USDC
+            </span>
+          </>
+        ) : null}
+      </p>
+
+      <div className="label" style={{ marginTop: 22, marginBottom: 8 }}>
+        <Ed x="2 · fills it took" p="2 · trades it made" />
         {state.fills.length > SHOWN ? (
           <span className="muted">
             {" "}
@@ -377,8 +493,8 @@ export function HedgerPanel({
                     series" was never earned. */}
                 <td colSpan={cols} className="wrap muted">
                   <Ed
-                    x="No fills inside the tape's ~8h reach. The position above is the durable witness."
-                    p="No trades in the last eight hours or so. What it holds, above, is the lasting record."
+                    x="No fill inside the tape's ~8h reach. The position above is what those prints bought, and contract state does not expire with a log window."
+                    p="No trades in the last eight hours or so. What it holds above is what those payments bought, and that record stays."
                   />
                 </td>
               </tr>

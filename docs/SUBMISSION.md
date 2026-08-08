@@ -105,7 +105,7 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Desk round trip on Arc | `make desk-e2e` → `make desk-evidence` | ✅ stake → collateral → trade → **withdraw**, confirmed by four independent witnesses (venue balance, contract state, wallet balance, `CollateralWithdrawn` + paymaster) |
 | Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~18.5k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
 | Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 423/423 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **356 passed** — including 9 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
+| Python suite | `pytest packages services tests` | ✅ **364 passed** — including 9 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
 | Contracts | `forge test -vvv` | ✅ **60 passed** (17 oracle + 10 registry + 16 futures + 10 feed-access attestor + 7 invariants, `fail_on_revert=true`) |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |

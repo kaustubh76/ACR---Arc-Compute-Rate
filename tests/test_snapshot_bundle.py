@@ -93,3 +93,46 @@ def test_fallback_futures_sections_are_not_silently_empty():
     # column: every row shares one `seen_at` (the snapshot stamp), so block
     # height is the only ordering the offline chart can trust.
     assert len({t["block"] for t in trades}) > 1, "archived fills must span more than one block"
+
+
+def test_fallback_hedger_section_still_carries_its_agent():
+    """The archived edition must keep the product's protagonist.
+
+    `build_hedger_state` reports `configured: false` with every standing null
+    when the agent's address is unset, and `capture_hedger_state` swallows any
+    exception into the same shape — so a snapshot run without the two addresses
+    writes a syntactically perfect bundle with the autonomous agent deleted.
+    That is exactly what the committed bundle did: a live venue address beside
+    `configured: false`, because `venue` resolved through ACRSettings (which
+    reads `.env`) while the agent addresses came from raw os.environ. Presence
+    checks pass on both; only content tells them apart, and offline — a judge
+    loading the page while the free-tier API sleeps — is where it shows.
+    """
+    snapshot = json.loads(FALLBACK.read_text())
+    h = snapshot.get("hedger") or {}
+    assert h.get("configured"), "fallback.json archived an unconfigured hedger"
+    # Two addresses, one agent (docs/WALLETS.md): the smart account trades, the
+    # backing EOA pays. One without the other is half an agent, and they are
+    # genuinely different addresses — matching the ledger on the SCA would
+    # report a paying agent as having paid nothing.
+    assert h.get("agent") and h.get("payer"), "the hedger needs BOTH identities"
+    assert h["agent"].lower() != h["payer"].lower(), "the SCA is not its own EOA"
+    assert h.get("venue") and isinstance(h.get("series_id"), int)
+    assert h.get("position_contracts") is not None, "archived a position that never read"
+
+    # Both legs of the loop. `receipts: null` means the ledger was not read at
+    # all, which is a different and worse archive than one with no rows — the
+    # panel renders those as different sentences, and so does this.
+    rows = h.get("receipts")
+    assert rows, "the archived hedger bought nothing — half the loop is missing"
+    assert all(r["tx_ref"] and r["amount_usdc"] > 0 for r in rows), "empty receipt rows"
+    # Newest first, so the panel's five-row window is the five most RECENT
+    # payments. The committed ledger is append-ordered by capture, not by
+    # settlement (its four hedger rows run …397, …342, …322, …355), so this is a
+    # real property of the builder rather than an accident of the file.
+    stamps = [r["settled_at"] for r in rows if r.get("settled_at")]
+    assert stamps == sorted(stamps, reverse=True), "receipts must be newest-first"
+    # The counter above the table and the table itself must tell one story: the
+    # rows are capped, the count is not.
+    assert h["paid_queries"] >= len(rows) >= 1
+    assert h["spent_usdc"] >= round(sum(r["amount_usdc"] for r in rows), 6) - 1e-9

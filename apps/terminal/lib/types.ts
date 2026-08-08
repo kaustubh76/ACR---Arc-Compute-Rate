@@ -197,12 +197,39 @@ export interface HedgerState {
   venue: string | null;
   wallet_kind: string;
   series_id: number | null;
+  /** USDC per 1.0 of index value, per contract. Feeds `contractNotional`. */
+  multiplier: number | null;
+  /** The venue's last recorded fill price on the agent's series. `ACRFutures`
+   *  fills every trade at `oracle.latestValue(indexId)` and emits it, so this IS
+   *  an oracle print — the one the contract itself used — checkable at
+   *  `mark_block`. Null when no fill on that series is inside the tape's reach.
+   *  Present even when `fills` is empty: the heartbeat keeps trading the book
+   *  while an agent sitting at its mandate holds. */
+  mark: number | null;
+  mark_block: number | null;
   position_contracts: number | null;
   gap_contracts: number | null;
   collateral_usdc: number | null;
   paid_queries: number | null;
   spent_usdc: number | null;
   fills: FuturesTradeRow[];
+  /** The agent's OWN settled payments, newest first, at most ten. Null means the
+   *  ledger was not read; [] means it was read and this payer is not in it.
+   *  Those are different claims and the panel prints different sentences. */
+  receipts: HedgerReceipt[] | null;
+}
+
+/** One settled payment made BY the hedger, projected to the keys both ledger
+ *  paths carry. The live ring adds `seq` and the committed archive adds
+ *  `resource`; neither is here, because a field present on one path and absent
+ *  on the other is how a panel learns to render "…" for a real value. */
+export interface HedgerReceipt {
+  /** Circle Gateway batch reference (a UUID), or a `dev-`/`sim-` marker. */
+  tx_ref: string;
+  amount_usdc: number;
+  network: string;
+  /** Epoch seconds. Null on a row written before the field existed. */
+  settled_at: number | null;
 }
 
 export interface TerminalData {

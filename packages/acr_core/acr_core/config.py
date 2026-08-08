@@ -107,6 +107,24 @@ class ACRSettings(BaseSettings):
     #: the file (in-memory only). Relative paths resolve from the process cwd.
     webhook_log_path: str = "data/webhook_events.jsonl"
 
+    # --- the autonomous hedger's two PUBLIC identities --------------------
+    # Addresses, not credentials: /hedger derives the agent's whole state from
+    # public chain data plus the receipt ledger and holds no key for either.
+    # They belong here so `.env` reaches them the same way it already reaches
+    # `futures_address`. Until it did, `index_api/hedger.py` read raw
+    # os.environ only — so `make snapshot` from a checkout wrote a bundle
+    # carrying the venue the agent trades on beside an agent that reported
+    # itself as not configured, and the offline edition lost its protagonist.
+    # Two addresses, one agent (docs/WALLETS.md):
+    #: the SCA — what ``ACRFutures.trade`` records as the taker, because it
+    #: reads ``msg.sender``.
+    hedger_address: str = ""
+    #: the backing EOA — what the x402 settlement records as the payer, because
+    #: EIP-3009 needs a signature ``ecrecover`` can verify and Circle signs with
+    #: that EOA. Empty → the surface reports itself as not configured rather
+    #: than inventing an empty agent.
+    hedger_payer: str = ""
+
     # --- x402 / Nanopayments (empty facilitator url → dev-mode gate) ---
     #: Facilitator selection: "auto" (Circle iff URL + PAY_TO are set), "dev"
     #: (force the mock gate even when Circle vars are present — demo loops),
