@@ -22,7 +22,7 @@ says how to re-measure it, because the docs are the thing that drifts.
 > Gateway/x402 nanopayments, wallet guardrails, open Q&A).
 > Position to open from: **we're not asking how to start — every rail on your
 > agenda already runs in our production stack.** 7 real Gateway x402
-> settlements on a public ledger, a live cash-settled futures venue on Arc,
+> settlements on a public ledger (34 today), a live cash-settled futures venue on Arc,
 > readers trading through Circle user-controlled SCA wallets from a browser,
 > paymaster-sponsored gas, custody-signed hourly oracle prints, and measured
 > numbers on Arc's RPC edges.
@@ -592,11 +592,14 @@ not: *"it never fabricates price signal to force a number out."*
 
 The repo argues the cleaning stack would reject that degenerate single-seller
 shape anyway, and it probably would — but **nobody has run the estimator over
-the 11 receipts**, and the first-order reason is duller than the elegant one:
-with 11 rows across 3 addresses you are below the hedonic stage's 8-row minimum
-and inside one small community. "Too few observations" comes before "the
-estimator refuses degenerate shapes". `tape_audit.py` audits `ArcSource`, not
-this path — running it here is a gap worth closing.
+the 34 receipts**, and the honest reason has changed as the tape grew. It used
+to be stated as "too few observations", which was never quite right — 11 rows
+was already above the hedonic stage's 8-row minimum, not below it. At 34 rows
+the row-count argument collapses entirely. What is actually missing is price
+dispersion: 34 settlements at one flat price from two addresses carry none, and
+the hedonic stage needs rows of *seller features* these receipts do not have.
+`tape_audit.py` audits `ArcSource`, not this path — running it here is a gap
+worth closing.
 
 ### D3. Both sides of the futures book are you.
 
@@ -614,14 +617,17 @@ self-dealing. The liquidity is first-party; the market is not closed.
 
 ### D4. Who is actually paying you?
 
-**Thirty-one Gateway settlements from exactly two payers — and both wallets are
-ours.** Re-measured 2026-08-08 at `/marketplace/receipts`: `0x784e6d2d…` ×27 (the
-CI buyer agent) and `0x71e140d9…` ×4 (the autonomous hedger's backing EOA).
+**Thirty-four Gateway settlements from exactly two payers — and both wallets are
+ours.** Re-measured 2026-08-08 against the durable archive
+(`services/index_api/index_api/receipts_live.jsonl`, which `make verify-claims`
+now parses on every run, so this number cannot rot again without CI saying so):
+`0x784e6d2d…` ×27 (the CI buyer agent) and `0x71e140d9…` ×7 (the autonomous
+hedger's backing EOA).
 
-Lifetime revenue is therefore **0.0031 USDC — about a third of a cent.** Say it
+Lifetime revenue is therefore **0.0034 USDC — about a third of a cent.** Say it
 before someone multiplies it out. Note what growing the tape did NOT change: the
-payer count. Twenty more settlements bought twenty more proofs that the rail
-works and not one more customer.
+payer count. Twenty-three more settlements bought twenty-three more proofs that
+the rail works and not one more customer.
 
 The honest sentence is: **the plumbing is proven, the demand is not.** Real USDC
 moved through Circle Gateway, settled `exact` on `eip155:5042002`, deduped by
@@ -751,15 +757,22 @@ real claim the first time something we did not write settles on the print.
 It is the only loop in the repo that makes an economic decision. Every other
 agent does one leg: the buyer pays but never acts on what it bought; the
 heartbeat trades but never pays for the data it trades on. The hedger does both
-— *"the print it purchases is the input to the position it takes, and the log
-says so."*
+— and the joint between the legs is the contract's rather than the agent's:
+`ACRFutures.trade` fills at `oracle.latestValue(indexId)`, so the print it paid
+for IS the number it was filled at, by construction. Both halves are public
+without us: `GET /hedger` serves the Gateway settlement references its wallet
+paid beside the position and fills those prints bought.
 
 It also now diagnoses its own constraint. When it cannot reach its mandate it
 distinguishes *the book is full* (posting margin would change nothing) from *my
 own margin is full* (fixable), and in the second case posts a bounded top-up and
 then trades. A run from 2026-08-04 reads: paid 0.0001 USDC for the print,
 diagnosed margin-bound, posted 0.20 collateral, bought 0.18, reaching its 2.0
-mandate exactly.
+mandate exactly. (The mandate was 2.0 that day; it is 2.5 now. Raising it was
+the only way to put a fresh fill on the panel, because `circle wallet execute`
+cannot build a transaction carrying a negative `int256` — so the agent can raise
+a position and never lower one, and the mandate had to move to meet the position
+instead. See `docs/WALLETS.md`.)
 
 ### F3. What keeps it alive without a human?
 
