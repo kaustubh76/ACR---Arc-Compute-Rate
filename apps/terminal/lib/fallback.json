@@ -57,12 +57,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.4923551190903513,
-        "ci_lo": 0.48981011921009515,
-        "ci_hi": 0.4933476790459626,
-        "attack_cost_per_bp": 0.009397,
-        "timestamp": 4644000,
-        "posted_at": 1786177342
+        "value": 0.4953335241916736,
+        "ci_lo": 0.49425837042109294,
+        "ci_hi": 0.4987369827231464,
+        "attack_cost_per_bp": 0.010151,
+        "timestamp": 4698000,
+        "posted_at": 1786209413
       }
     },
     "ACR-GPU": {
@@ -83,34 +83,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.011123406292148561,
-          "bid": 0.011095381306026319,
-          "ask": 0.011151431278270804,
-          "spread_bp": 50.389216012048465
+          "mid": 0.011123295068095805,
+          "bid": 0.011095270081973562,
+          "ask": 0.011151320054218048,
+          "spread_bp": 50.38971986390043
         }
       ],
       "robustness": {
@@ -122,12 +122,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.011100978452646001,
-        "ci_lo": 0.01094206414922481,
-        "ci_hi": 0.011119543300974892,
-        "attack_cost_per_bp": 0.008533,
-        "timestamp": 4644000,
-        "posted_at": 1786177348
+        "value": 0.011027025952822034,
+        "ci_lo": 0.010980833012639255,
+        "ci_hi": 0.01105385865406088,
+        "attack_cost_per_bp": 0.016105,
+        "timestamp": 4698000,
+        "posted_at": 1786209418
       }
     },
     "ACR-DATA": {
@@ -187,12 +187,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.002087878893650796,
-        "ci_lo": 0.002084184784945665,
-        "ci_hi": 0.002098916391787599,
-        "attack_cost_per_bp": 0.013424,
-        "timestamp": 4644000,
-        "posted_at": 1786177351
+        "value": 0.00204800261417756,
+        "ci_lo": 0.002040073394193858,
+        "ci_hi": 0.002066234496557916,
+        "attack_cost_per_bp": 0.004335,
+        "timestamp": 4698000,
+        "posted_at": 1786209424
       }
     }
   },
@@ -1507,11 +1507,11 @@
       "settled": false,
       "settlement_price": 0.0,
       "maker_inventory": -3.72,
-      "maker_avg_price": 0.49332497956477905,
-      "maker_realized_usdc": 0.08046674587566138,
-      "maker_unrealized_usdc": 0.116545,
+      "maker_avg_price": 0.493459962402608,
+      "maker_realized_usdc": 0.08597802073922343,
+      "maker_unrealized_usdc": 0.016281,
       "open_interest": 3.72,
-      "trader_count": 4
+      "trader_count": 5
     },
     "ACR-GPU": {
       "series_id": 4,
@@ -1522,11 +1522,11 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": -2.25,
-      "maker_avg_price": 0.010948447469641166,
-      "maker_realized_usdc": -0.0023461641107988002,
-      "maker_unrealized_usdc": -0.005778,
-      "open_interest": 2.25,
+      "maker_inventory": -2.0,
+      "maker_avg_price": 0.010982773005796009,
+      "maker_realized_usdc": -0.00321081007372271,
+      "maker_unrealized_usdc": -0.004095,
+      "open_interest": 2.0,
       "trader_count": 4
     },
     "ACR-DATA": {
@@ -1540,8 +1540,8 @@
       "settlement_price": 0.0,
       "maker_inventory": 0.0,
       "maker_avg_price": 0.0,
-      "maker_realized_usdc": -0.00057149632092823,
-      "maker_unrealized_usdc": -0.000571,
+      "maker_realized_usdc": -0.0006834447586175499,
+      "maker_unrealized_usdc": -0.000683,
       "open_interest": 0.0,
       "trader_count": 2
     }
@@ -1793,22 +1793,22 @@
     "tape_source": "sim",
     "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
     "poster": {
-      "posts": 27,
+      "posts": 32,
       "last": {
         "ACR-INF": {
-          "tx": "0x5ce9d448ed614589e3b48b9f222909446236af5e5b72a2d75c0d5485ae68fead",
-          "block": 55914061,
-          "at_wall": 1786177342.0
+          "tx": "0xbf1a8a044b4e2dddd7bb629164577c971f6411895d037a306f4e998a02755bd6",
+          "block": 55976560,
+          "at_wall": 1786209413.0
         },
         "ACR-GPU": {
-          "tx": "0x7e8376d64b3750e758ba62b232fb22743408f9fce0aa982431adb89395414aa1",
-          "block": 55914071,
-          "at_wall": 1786177348.0
+          "tx": "0x10e734b53dd7c5de1da81488e4669a007b732d2b365f88b2949427f83b798410",
+          "block": 55976571,
+          "at_wall": 1786209418.0
         },
         "ACR-DATA": {
-          "tx": "0xc4f10a414a5a537afdd9c38cb4a10d4e282c6cad11fb1a64ca531e6a9b8355da",
-          "block": 55914076,
-          "at_wall": 1786177351.0
+          "tx": "0x5d82e8dce6d13b7bc14b6b11c1c23d3680d1831d7f494759d5f3b6d8a59d1d46",
+          "block": 55976581,
+          "at_wall": 1786209424.0
         }
       }
     }
@@ -1836,6 +1836,36 @@
           "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
           "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
           "sellers_attested": 4,
+          "sellers": [
+            {
+              "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+              "service": "inference",
+              "model_class": "frontier",
+              "latency_slo_ms": 800.0,
+              "schema_id": "openai/chat@1"
+            },
+            {
+              "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+              "service": "gpu",
+              "model_class": "mid",
+              "latency_slo_ms": 2500.0,
+              "schema_id": "gpu/h100@1"
+            },
+            {
+              "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+              "service": "inference",
+              "model_class": "open",
+              "latency_slo_ms": 1200.0,
+              "schema_id": "llama/chat@1"
+            },
+            {
+              "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+              "service": "data",
+              "model_class": "small",
+              "latency_slo_ms": 400.0,
+              "schema_id": "data/feed@1"
+            }
+          ],
           "services": [
             "data",
             "gpu",
@@ -1852,7 +1882,7 @@
           "resource": "/prints",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -1940,6 +1970,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -1962,7 +2022,7 @@
           "resource": "/prints/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2055,6 +2115,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2077,7 +2167,7 @@
           "resource": "/prints/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2170,6 +2260,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2192,7 +2312,7 @@
           "resource": "/prints/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2285,6 +2405,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2307,7 +2457,7 @@
           "resource": "/curve/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2401,6 +2551,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2423,7 +2603,7 @@
           "resource": "/curve/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2517,6 +2697,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2539,7 +2749,7 @@
           "resource": "/curve/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2633,6 +2843,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2655,7 +2895,7 @@
           "resource": "/vol/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2726,6 +2966,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2748,7 +3018,7 @@
           "resource": "/vol/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2819,6 +3089,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2841,7 +3141,7 @@
           "resource": "/vol/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2912,6 +3212,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -2934,7 +3264,7 @@
           "resource": "/seller-scores/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3025,6 +3355,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -3047,7 +3407,7 @@
           "resource": "/seller-scores/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3138,6 +3498,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -3160,7 +3550,7 @@
           "resource": "/seller-scores/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T09:02:16.766Z",
+          "lastUpdated": "2026-08-08T18:05:59.708Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3251,6 +3641,36 @@
                 "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
                 "sellers_attested": 4,
+                "sellers": [
+                  {
+                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
+                    "service": "inference",
+                    "model_class": "frontier",
+                    "latency_slo_ms": 800.0,
+                    "schema_id": "openai/chat@1"
+                  },
+                  {
+                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
+                    "service": "gpu",
+                    "model_class": "mid",
+                    "latency_slo_ms": 2500.0,
+                    "schema_id": "gpu/h100@1"
+                  },
+                  {
+                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
+                    "service": "inference",
+                    "model_class": "open",
+                    "latency_slo_ms": 1200.0,
+                    "schema_id": "llama/chat@1"
+                  },
+                  {
+                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
+                    "service": "data",
+                    "model_class": "small",
+                    "latency_slo_ms": 400.0,
+                    "schema_id": "data/feed@1"
+                  }
+                ],
                 "services": [
                   "data",
                   "gpu",
@@ -3629,24 +4049,44 @@
   },
   "futures_trades": [
     {
-      "series_id": 3,
-      "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
-      "qty": 0.47,
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.00204800261417756,
+      "block": 55982302,
+      "tx": "0x11d72779def4396dfabc2c00a2b26e893f5992fe79e5f32de55faabc8ea5fe01",
+      "seen_at": 1786212521.562931
+    },
+    {
+      "series_id": 4,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.011027025952822034,
+      "block": 55976931,
+      "tx": "0xa390e376d1259c996256bf4f01cb7ea2b313019060f10d8f7070134c455c5605",
+      "seen_at": 1786212521.562931
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
       "side": "buy",
-      "mark": 0.4923551190903513,
-      "block": 55917193,
-      "tx": "0x61039aee3f95de6d106491320527536c09c29fee17ab75f3dc31ac52d92fab97",
-      "seen_at": 1786179854.5155861
+      "mark": 0.002062461256157907,
+      "block": 55969837,
+      "tx": "0x8a8eaafe26a8e7a068f8cb5797948f905b0c1ea7b3c14513614b720aad546489",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 3,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": 0.25,
       "side": "buy",
-      "mark": 0.4923551190903513,
-      "block": 55914130,
-      "tx": "0x2719c9b66dbb51d509e84c60898fe563a1f1dec2fc55a8b359ec68bd974db525",
-      "seen_at": 1786179854.5155861
+      "mark": 0.4953335241916736,
+      "block": 55962726,
+      "tx": "0xdd74103d35fa227f172a17ce5853e62a12fd5b45792e3b9642692116e18d06dc",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 4,
@@ -3654,39 +4094,19 @@
       "qty": 0.25,
       "side": "buy",
       "mark": 0.010831107596982992,
-      "block": 55907027,
-      "tx": "0xb4cccdaf57fdba8a29f433d0179fa7710e35f407503c88fec03cf7228769013c",
-      "seen_at": 1786179854.5155861
+      "block": 55955720,
+      "tx": "0x3be93e62c08602b085dca0a8b3617c32edf190be72e28f01c94194c20a85bfec",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": -0.25,
       "side": "sell",
-      "mark": 0.002062461256157907,
-      "block": 55899998,
-      "tx": "0x576dbd303189b8668b29a64ca174036ba6c44fe68f24d307ab274ccca0dd8a5c",
-      "seen_at": 1786179854.5155861
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.011061675358186168,
-      "block": 55894231,
-      "tx": "0x4e0f987b48af107c34f4161f6b7d517146de77a92238d5a7c5db585fb01a7bb1",
-      "seen_at": 1786179854.5155861
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.00204800261417756,
-      "block": 55887287,
-      "tx": "0x78e1a0e87d559a10140e15041239a19f472c043e4a28be1a277da6f52cc65d77",
-      "seen_at": 1786179854.5155861
+      "mark": 0.002087878893650796,
+      "block": 55948594,
+      "tx": "0x5eadbe3a65a867984f4d019e6f5eda6d81b72eb862bada84ff31a0918728b815",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 3,
@@ -3694,29 +4114,49 @@
       "qty": -0.25,
       "side": "sell",
       "mark": 0.49112046961935424,
-      "block": 55880191,
-      "tx": "0xa02fb92cceb110e53011b7624010b0bad7ff49585bfd5a420cd160c904393b60",
-      "seen_at": 1786179854.5155861
+      "block": 55941452,
+      "tx": "0x0dd4fd97d43f5f093f7659dd5f1e967bf9750821233e7a22a25025d7ef3f7fb0",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 4,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.011100978452646001,
+      "block": 55934270,
+      "tx": "0x608eadca60f785069ce60a749659c9e1c2ba47307f49f4f5526c34a99de64054",
+      "seen_at": 1786212521.562931
+    },
+    {
+      "series_id": 4,
+      "taker": "0x17b38219143873Da6e4EDeB601E8c13b80076c89",
+      "qty": -2.0,
+      "side": "sell",
+      "mark": 0.011027025952822034,
+      "block": 55928687,
+      "tx": "0x155d32e594340fc388f1bb97a9c1a6ced102cd1fa8751a481adf24135773b0d9",
+      "seen_at": 1786212521.562931
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": 0.25,
       "side": "buy",
-      "mark": 0.011061675358186168,
-      "block": 55873071,
-      "tx": "0xa8efbeeda9f8f37e1319d6a2dcde22c0fd3989bc5947127354c068e781172e04",
-      "seen_at": 1786179854.5155861
+      "mark": 0.002028640876594722,
+      "block": 55927160,
+      "tx": "0x68f46211cab7eff34ae40374345018d2445f093ecba32ddaebe755c17335698c",
+      "seen_at": 1786212521.562931
     },
     {
       "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": -0.25,
       "side": "sell",
-      "mark": 0.00204800261417756,
-      "block": 55866014,
-      "tx": "0x555cbe2371f5d4247ede2e3598afa2ebcc706783ec0abe59dc53ff68b72c6ffb",
-      "seen_at": 1786179854.5155861
+      "mark": 0.002028640876594722,
+      "block": 55926891,
+      "tx": "0xedf745775483c7638f6c3adda45b25a982558fa99123c81e63b9d5719dba7bda",
+      "seen_at": 1786212521.562931
     }
   ],
   "hedger": {
@@ -3729,23 +4169,12 @@
     "wallet_kind": "circle-agent-wallet",
     "series_id": 3,
     "multiplier": 10,
-    "mark": 0.4923551190903513,
-    "mark_block": 55917193,
+    "mark": 0.4953335241916736,
+    "mark_block": 55962726,
     "position_contracts": 2.47,
     "gap_contracts": 0.03,
     "collateral_usdc": 2.7,
-    "fills": [
-      {
-        "series_id": 3,
-        "taker": "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9",
-        "qty": 0.47,
-        "side": "buy",
-        "mark": 0.4923551190903513,
-        "block": 55917193,
-        "tx": "0x61039aee3f95de6d106491320527536c09c29fee17ab75f3dc31ac52d92fab97",
-        "seen_at": 1786179854.5155861
-      }
-    ],
+    "fills": [],
     "receipts": [
       {
         "tx_ref": "b0c1be36-6283-4660-af3e-2ad0a8bdfe33",
