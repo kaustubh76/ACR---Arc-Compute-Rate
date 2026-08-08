@@ -2,6 +2,17 @@
 
 **Deadline: Mon 2026-08-10 17:29 IST · Code freeze EOD Fri 08-08 (SHIP-CHECKLIST.md:12) · Sat = docs/deck/video only · Sun = ritual only**
 
+> **Status 2026-08-08 — this plan was executed. It is a record now, not an
+> instruction sheet.** Two things it quotes are superseded and deliberately left
+> in place rather than rewritten. The spine sentence at §2 seam C and §3 (*"the
+> print it purchases is the input to the position it takes, and the log says
+> so"*) was found FALSE about the log it named — `data/hedger_decisions.jsonl`
+> is gitignored and its `print_tx` was null on every live line — and was
+> replaced by the mechanism claim: `ACRFutures` fills at
+> `oracle.latestValue(indexId)`, so the print paid for IS the number filled at.
+> And the hedger's evidence slot in §3 is `GET /hedger`, not that log file. See
+> commit `c5d38ad`.
+
 ---
 
 ## 1. Context and the honest ACTFUN verdict
@@ -24,10 +35,10 @@ Strategic anchor: **Arc public mainnet launches Sept 16, 2026** — ACR pitches 
 
 | Circle product | Status | Where |
 |---|---|---|
-| Gateway / x402 Nanopayments | **LIVE both sides** — seller gate + 2 real buyers, 11 Gateway-settled receipts (2 payers, both ours) | `services/index_api/index_api/x402.py` (13 priced resources, Circle facilitator, fail-closed), `apps/terminal/lib/gatewayBuyer.ts`, `app/api/buy/route.ts`, `app/api/circle/balances/route.ts`, `apps/agent/src/payer.ts`, `receipts_live.jsonl` |
+| Gateway / x402 Nanopayments | **LIVE both sides** — seller gate + 2 real buyers, 34 Gateway-settled receipts (2 payers, both ours: 27 CLI buyer + 7 hedger) | `services/index_api/index_api/x402.py` (13 priced resources, Circle facilitator, fail-closed), `apps/terminal/lib/gatewayBuyer.ts`, `app/api/buy/route.ts`, `app/api/circle/balances/route.ts`, `apps/agent/src/payer.ts`, `receipts_live.jsonl` |
 | User-controlled wallets | **LIVE** — PIN ceremony, SCA on ARC-TESTNET, faucet, approve→collateral→trade→withdraw→settle | `components/chain/PublicDesk.tsx` (941 ln) on /curve, `services/index_api/index_api/desk.py` (1120 ln), proxy `app/api/desk/[action]/route.ts` |
 | Developer-controlled wallets | **LIVE, load-bearing** — 4 wallets; custody signs every oracle print; maker wallet OWNS the venue | `packages/acr_oracle_client/acr_oracle_client/signer.py` (`CircleWalletSigner`), `render.yaml` |
-| Agent wallet + `circle` CLI | **LIVE** — the hedger: pays x402 for the print via `circle services pay`, reads its position, sizes gap to 2.0-contract mandate, trades via `circle wallet execute "trade(uint256,int256)"` | `scripts/hedger.py`, `services/index_api/index_api/hedger.py` + `GET /hedger`, `HedgerPanel.tsx` on /curve + /exchange |
+| Agent wallet + `circle` CLI | **LIVE** — the hedger: pays x402 for the print via `circle services pay`, reads its position, sizes gap to its 2.5-contract mandate, trades via `circle wallet execute "trade(uint256,int256)"` | `scripts/hedger.py`, `services/index_api/index_api/hedger.py` + `GET /hedger`, `HedgerPanel.tsx` on /exchange (it was on /curve too until 2026-08-07; two mounts meant one panel introduced itself twice on the demo path — `apps/terminal/app/curve/view.tsx:212-216`) |
 | Agent Marketplace | **PARTIAL** — Bazaar-shaped catalog LIVE; listing form **submitted 2026-08-04, NOT listed** (Discovery API: 0 Arc-testnet listings) | `services/index_api/index_api/marketplace.py`, `MARKETPLACE-LISTING.md` |
 | Circle Webhooks | **LIVE** — P-256 signature verify, pinned key | `services/index_api/index_api/webhooks.py`, `WebhookActivity.tsx` |
 | Gas Station / Paymaster | **PARTIAL** — consumed by desk SCAs, VERIFIED via ERC-4337 `UserOperationEvent` paymaster topic; never configured by us | `scripts/desk_evidence.py`, `docs/WALLETS.md:57` |
@@ -53,7 +64,7 @@ Strategic anchor: **Arc public mainnet launches Sept 16, 2026** — ACR pitches 
 ### `docs/SUBMISSION.md`
 - **Kill roadmap-first §2** → appendix.
 - **New §1 spine = the two promoted sentences** (`CIRCLE-SESSION-QUESTIONS.md:730` and `:752`). These ARE the product; everything else is cast.
-- **Dissolve §4's pillar table into §2 "The economy of agents"** — one row per agent: **press** (dev-controlled EOA · pays gas to sign hourly prints · decides nothing, that's the point), **maker/taker** (dev-controlled EOAs · quote + heartbeat · keeper decides from chain state · venue tape), **hedger** (agent wallet; SCA `0x1Dc707E3…` trades / EOA `0x71e140d9…` pays · buys the print, sizes the gap to its 2.0 mandate · `data/hedger_decisions.jsonl`), **reader** (user-controlled SCA · PIN, Gas Station-sponsored · Public Desk), **CLI buyer** (`apps/agent` · pays 13 priced resources · receipts archive). Wallet type / what it pays / what it decides / where its log is — that IS pillar coverage, told as a story. Compact pillar→code table survives as judge-map appendix.
+- **Dissolve §4's pillar table into §2 "The economy of agents"** — one row per agent: **press** (dev-controlled EOA · pays gas to sign hourly prints · decides nothing, that's the point), **maker/taker** (dev-controlled EOAs · quote + heartbeat · keeper decides from chain state · venue tape), **hedger** (agent wallet; SCA `0x1Dc707E3…` trades / EOA `0x71e140d9…` pays · buys the print, sizes the gap to its 2.5 mandate · `data/hedger_decisions.jsonl`), **reader** (user-controlled SCA · PIN, Gas Station-sponsored · Public Desk), **CLI buyer** (`apps/agent` · pays 13 priced resources · receipts archive). Wallet type / what it pays / what it decides / where its log is — that IS pillar coverage, told as a story. Compact pillar→code table survives as judge-map appendix.
 - **FeedAccessAttestor promoted** to its own paragraph: "off-chain payment becomes an on-chain right — the receipt is a contract-readable fact."
 - **Roadmap/lifecycle close:** mainnet Sept 16 framing + marketplace listing status + the one $GPOOR roadmap line (§1).
 - Preserve verbatim: "submitted, not listed" · "plumbing proven, demand not" · honesty tiers §6.
@@ -65,7 +76,7 @@ Strategic anchor: **Arc public mainnet launches Sept 16, 2026** — ACR pitches 
 - 0:00–0:20 `/` hero, live rate: "machine commerce's SOFR — and the economy that pays for it."
 - 0:20–1:05 `/attack`: the $8,000 wash attack buying ≤2.39% — the wow, given full room.
 - 1:05–1:45 `/curve`: desk + "settlement refuses a print older than 2 hours."
-- 1:45–2:35 `/exchange`: the hedger log walkthrough (paid 0.0001 for the print → diagnosed the gap → traded to mandate — decision logic tied to a real signal it PAID for) + one live buy click + Gateway receipts tape.
+- 1:45–2:35 `/exchange`: the hedger card — **two tables and the sentence between them. There is no log on screen; do not call it one.** Point at *1 · prints it bought*: Circle Gateway batch UUIDs its own wallet settled at $0.0001 each, and say the thing that makes them interesting — a Gateway settlement is off-chain, so no explorer resolves it, which is why the seller publishes a receipts tape at all. Read the joint line as written ("the venue fills every trade at that same print, so the position below is that print, priced"), then the arithmetic on screen. Then *2 · fills it took* — if it is empty, say why before anyone wonders: an agent that has reached its mandate stops trading, so its fills age out of the ~8h window while the position they built persists in contract state, and the card says exactly that in its own empty row. (Want fills on camera? There is no round-trip: `circle wallet execute` cannot build a transaction carrying a negative `int256`, so raise `HEDGER_TARGET` by at least `MIN_TRADE` and leave it raised, at least ~8h before recording, per `docs/SHIP-CHECKLIST.md`.) Close on one live buy click. **The line to land: decision logic tied to a real signal it paid for, and both legs are public state — one off-chain receipt, one on-chain position — not a file we are asking you to trust.**
 - 2:35–3:00 honesty pill ("this ladder never fakes freshness"), lifecycle close, repo.
 
 ---

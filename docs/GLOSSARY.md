@@ -464,12 +464,17 @@ and it proves its own tamper-resistance.
 
 - **autonomous hedger (`scripts/hedger.py`, `GET /hedger`)** — a single agent that
   runs a four-step loop: pay a real x402 nanopayment for the latest `ACR-INF` print,
-  read its own on-chain ACRFutures position, compute the gap to its mandate, and
-  trade that difference. It is the demand side made whole — an agent that *reads the
-  rate, then trades on what it read*. *A trader who buys today's price sheet, checks
-  what it already owns, and places one order to hit its target.*
+  read its own on-chain ACRFutures position, compute the gap to its mandate, and buy
+  the difference. It is the demand side made whole — an agent that *reads the rate,
+  then trades on what it read*. It trades in one direction only: `circle wallet
+  execute` cannot build a transaction carrying a negative `int256`, so this agent can
+  open and increase a position and cannot reduce one. *A trader who buys today's
+  price sheet, checks what it already owns, and places one order to close the
+  shortfall — and can only ever buy more, never sell back.*
 - **mandate / `TARGET`** — the position the hedger is told to hold (in contracts);
-  `gap = TARGET − position` drives each trade. *The instruction: "stay this long."*
+  `gap = TARGET − position` sizes each trade, and only a POSITIVE gap can be acted on
+  from an agent wallet, so the mandate is raised to meet the position rather than the
+  position sold back to the mandate. *The instruction: "hold at least this much."*
 - **agent wallet** — a Circle wallet an agent signs through (email/OTP), with **no
   exportable private key**; the hedger signs every payment and trade this way. *A
   company card the agent can spend with but can never photocopy.*

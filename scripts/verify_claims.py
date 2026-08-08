@@ -22,13 +22,19 @@ Exit codes: 0 = every claim still holds; 1 = a document is lying.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 import sys
+from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+#: The Readme is the first thing a judge opens and the last thing anyone
+#: re-reads. Its Demo-Day Metrics block states the receipts count, so it is
+#: parsed here for the same reason the deck is.
+README = ROOT / "Readme.md"
 SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
 STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
 #: The gap-analysis doc drifted furthest of all — 230/50/60 against a suite of
@@ -72,9 +78,45 @@ def claim(text: str, pattern: str) -> int | None:
     return int(m.group(1).replace(",", "")) if m else None
 
 
+#: The architecture canvas states the suite sizes on two of its cards, and
+#: Readme.md advertises that canvas as "implementation-accurate" — so those are
+#: claims, not decoration. They rotted to 289 py / 81 terminal against a suite of
+#: 367 / 95 for exactly the reason the deck rotted before it was parsed here:
+#: nothing read them. The sentence lives in three committed files (the generator,
+#: the canvas it writes, and the SVG the deck renders from it); the canvas and
+#: the SVG are both checked, because "edited the generator, forgot `make
+#: diagram`" has already happened twice in this history.
+DIAGRAM = ROOT / "acr_architecture.excalidraw"
+DIAGRAM_SVG = ROOT / "docs" / "assets" / "acr_architecture.preview.svg"
+#: Matches both spellings the canvas uses — "TESTS · N py + N forge + …" on the
+#: verification card and "N py · N forge · … — green" on the metrics card. Only
+#: the separator differs.
+SUITES_RE = re.compile(
+    r"(\d+)\s*py\s*[·+]\s*(\d+)\s*forge\s*[·+]\s*(\d+)\s*terminal\s*[·+]\s*(\d+)\s*agent"
+)
+
+
+def diagram_suite_claims(path: Path) -> list[tuple[int, ...]]:
+    """Every (py, forge, terminal, agent) tuple an artefact states.
+
+    A list rather than a first match on purpose: two cards say this, and a card
+    edited alone must report as a disagreement instead of hiding behind its twin.
+    """
+    if not path.exists():
+        return []
+    text = path.read_text()
+    if path.suffix == ".excalidraw":
+        doc = json.loads(text)
+        text = "\n".join(
+            e.get("text", "") for e in doc["elements"] if e.get("type") == "text"
+        )
+    return [tuple(int(g) for g in m) for m in SUITES_RE.findall(text)]
+
+
 # --- the measurements -------------------------------------------------------
 
 
+@cache
 def measured_pytest() -> int | None:
     """Collected, not executed — cheap, and it counts the anvil-gated tests that
     SKIP on a machine without a node. Deliberately not `-q`: that suppresses the
@@ -85,6 +127,7 @@ def measured_pytest() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@cache
 def measured_forge() -> int | None:
     """Plain `forge test` — `--summary` prints a table and moves the one-line
     total out of reach."""
@@ -93,12 +136,14 @@ def measured_forge() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@cache
 def measured_terminal() -> int | None:
     out = run(["npm", "test"], cwd=ROOT / "apps" / "terminal")
     m = re.search(r"^# pass (\d+)$", out, re.M)
     return int(m.group(1)) if m else None
 
 
+@cache
 def measured_glossary() -> int | None:
     out = run(["uv", "run", "python", "scripts/check_glossary_coverage.py"])
     m = re.search(r"all (\d+) uncommon diagram terms", out)
@@ -211,6 +256,83 @@ def main() -> None:
             check(False, "glossary: could not measure")
         else:
             check(actual == stated, f"glossary: docs say {stated}, measured {actual}")
+
+    print("\nthe architecture diagram (Readme calls it implementation-accurate)")
+    canvas = diagram_suite_claims(DIAGRAM)
+    svg = diagram_suite_claims(DIAGRAM_SVG)
+    if not canvas:
+        check(False, "diagram: no '<n> py · <n> forge · <n> terminal · <n> agent' "
+                     "claim found — has a card been reworded?")
+    else:
+        # Both cheap, and both on even under CLAIMS_FAST: they catch a skipped
+        # `make diagram` / `make deck`, which is how the SVG kept 289 after the
+        # canvas was fixed. Neither runs a suite.
+        check(len(set(canvas)) == 1,
+              f"diagram: its two cards agree with each other {sorted(set(canvas))}")
+        check(sorted(set(svg)) == sorted(set(canvas)),
+              f"diagram: docs/assets/*.svg matches the canvas (svg says {sorted(set(svg))})")
+        py, forge, term, _agent = canvas[0]
+        for label, stated, measure, costly in (
+            ("diagram python count", py, measured_pytest, False),
+            ("diagram forge count", forge, measured_forge, True),
+            ("diagram terminal count", term, measured_terminal, True),
+        ):
+            if FAST and costly:
+                print(f"  · {label}: claims {stated} (not measured)")
+                continue
+            actual = measure()
+            if actual is None:
+                check(False, f"{label}: could not measure (toolchain missing?)")
+                continue
+            check(actual == stated, f"{label}: diagram says {stated}, measured {actual}")
+
+    print("\nthe receipts archive (the number four docs quote and nothing measured)")
+    # This rotted to 11 in three places while the archive held 31, for the
+    # dullest possible reason: no check read the file. The suite counts, the
+    # glossary and the CI shape were all measured; the one number a judge is
+    # most likely to spot-check by opening the ledger was not.
+    ledger = ROOT / "services" / "index_api" / "index_api" / "receipts_live.jsonl"
+    rows, payers = [], {}
+    for ln in (ledger.read_text().splitlines() if ledger.exists() else []):
+        if not ln.strip():
+            continue
+        try:
+            # Parsed, not counted. A line that is not JSON is not a receipt, and
+            # a total that includes it is the same soft number this file exists
+            # to kill.
+            who = str(json.loads(ln).get("payer", "")).lower()
+        except Exception:
+            continue
+        rows.append(ln)
+        payers[who] = payers.get(who, 0) + 1
+    readme = README.read_text() if README.exists() else ""
+    for name, text, pattern in (
+        ("SUBMISSION", sub, r"\*\*(\d+) Gateway-settled receipts\*\*"),
+        ("STATUS", status, r"receipts_live\.jsonl`, (\d+) rows"),
+        ("Readme", readme, r"\*\*(\d+)\*\* real Gateway x402 settlements"),
+    ):
+        stated = claim(text, pattern)
+        if stated is None:
+            check(False, f"receipts: no count found in {name} — has it been reworded?")
+        else:
+            check(stated == len(rows), f"receipts: {name} says {stated}, the archive holds {len(rows)}")
+    # "Two distinct payers" is the claim carrying the honesty here — revenue
+    # from one wallet we control would prove plumbing rather than demand — so
+    # it is the one worth a gate of its own.
+    # Spelled, not numeric: SUBMISSION opens the paragraph "**Two distinct
+    # payers** have settled…", and prose is the right call there. Match the word
+    # rather than forcing a digit into the sentence to suit the checker.
+    m = re.search(r"\*\*(\d+|[A-Za-z]+) distinct payers\*\*", sub)
+    WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    raw = m.group(1).lower() if m else None
+    stated_payers = (
+        int(raw) if raw and raw.isdigit() else WORDS.get(raw) if raw else None
+    )
+    if stated_payers is None:
+        check(False, "receipts: SUBMISSION states no payer count I can parse")
+    else:
+        check(stated_payers == len(payers),
+              f"receipts: SUBMISSION says {stated_payers} payer(s), the archive has {len(payers)}")
 
     print("\nCI shape")
     stated_jobs = claim(sub, r"(\d+)/\d+ jobs green")

@@ -151,8 +151,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: "8px 0 0" }}
-          x="One buyer closes the loop. The print it purchases is the input to the position it takes, and the log says so."
-          p="One robot shopper closes the loop. It pays for the number, then trades on it, one wallet, one log."
+          x="One buyer closes the loop. It pays for the print, and the venue fills its trade at that same print, so the position below is what it paid for."
+          p="One robot shopper closes the loop. It pays for the number, and the market trades at that same number, so it holds what it paid for."
         />
       </div>
 
@@ -495,28 +495,28 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       {/* The loop this page argues for, actually closed. Everything above is a
           machine BUYING the print; this is the machine that then trades a real
           on-chain future on what it read. useHedger shares its SWR key with
-          /curve, so mounting it here costs no extra request. */}
+          /curve, so mounting it here costs no extra request.
+
+          One head, not two. HedgerPanel carries its own `.section-head` inside
+          its card — the WalletPanel mount 200 lines up is built the same way —
+          so this section is a bare 56px wrapper. A head here AND in the panel
+          drew two hairlines and two gold accent bars, 56px apart, for one
+          subject, with a single sentence stranded between them. That head's
+          copy now opens the deck below instead of being repeated. */}
       <section className="section">
-        <div className="section-head">
-          <Ed
-            x="…and what a machine does with what it bought"
-            p="…and what a robot does with what it bought"
-            className="label"
-          />
-        </div>
         <Ed
           as="p"
           className="muted"
-          style={{ fontSize: 13, marginTop: 0, maxWidth: 68 * 9 }}
-          x="The hedger pays for the print above, then trades the on-chain future on what it read: one agent, both sides of the marketplace."
-          p="This robot pays for the rate above, then trades a real contract on what it learned: one agent, both halves of the shop."
+          style={{ fontSize: 13, margin: "0 0 14px", maxWidth: 68 * 9 }}
+          x="…and what a machine does with what it bought: it pays for the print above, then trades the on-chain future on what it read, one agent on both sides of the marketplace."
+          p="…and what a robot does with what it bought: it pays for the rate above, then trades a real contract on what it learned."
+        />
+        <HedgerPanel
+          state={hedge.hedger?.data ?? null}
+          live={Boolean(hedge.hedger?.live)}
+          explorer={explorer}
         />
       </section>
-      <HedgerPanel
-        state={hedge.hedger?.data ?? null}
-        live={Boolean(hedge.hedger?.live)}
-        explorer={explorer}
-      />
 
       <section className="section">
         <div className="section-head">

@@ -200,7 +200,7 @@ def capture_hedger_state() -> dict:
         # Spend comes from the DURABLE receipts archive — the same committed
         # file SUBMISSION.md cites — never the live facilitator's counters
         # (ephemeral under an "archived" label) and never the sim ledger,
-        # which knows no real payer and turned the agent's 4 real settlements
+        # which knows no real payer and turned the agent's 7 real settlements
         # into a confident "paid 0". An archive the repo already version-
         # controls is exactly what an archived edition should carry.
         arch = Path("services/index_api/index_api/receipts_live.jsonl")
@@ -210,12 +210,15 @@ def capture_hedger_state() -> dict:
         receipts = {"receipts": rows} if rows else None  # None → unknown, not 0
         return build_hedger_state(get_futures(), receipts)
     except Exception:  # pragma: no cover - a dead RPC must not fail the snapshot
+        # Same key set build_hedger_state promises — pinned by
+        # services/index_api/tests/test_hedger.py::test_the_payload_key_set_is_the_contract.
         return {"configured": False, "agent": None, "payer": None,
                 "index_id": "ACR-INF", "target_contracts": 0.0, "venue": None,
                 "wallet_kind": "circle-agent-wallet", "series_id": None,
+                "multiplier": None, "mark": None, "mark_block": None,
                 "position_contracts": None, "gap_contracts": None,
                 "collateral_usdc": None, "paid_queries": None,
-                "spent_usdc": None, "fills": []}
+                "spent_usdc": None, "fills": [], "receipts": None}
 
 
 def capture_poster_provenance(reader) -> tuple[dict | None, str | None]:
@@ -296,6 +299,61 @@ def check_futures_commit_guard(payload: dict) -> None:
         )
 
 
+def check_hedger_commit_guard(payload: dict) -> None:
+    """Refuse to commit a bundle whose autonomous agent is missing.
+
+    The futures guard's failure one layer up. ``build_hedger_state`` reports
+    ``configured: false`` with every standing null whenever the agent address is
+    unset, and ``capture_hedger_state`` swallows every exception into that same
+    shape — so a run without the two addresses writes a SYNTACTICALLY PERFECT
+    bundle from which the product's protagonist has been deleted.
+
+    Not hypothetical: the committed bundle read ``configured: false`` beside a
+    live venue address, because ``venue`` resolved through ACRSettings (which
+    reads ``.env``) while the two agent addresses were read from raw os.environ
+    and nobody had exported them. docs/SHIP-CHECKLIST.md made exporting them a
+    ritual, and a ritual is not a guard. The addresses now also resolve from
+    ``.env`` (acr_core.config), so the ordinary path works unattended; this
+    guard is about the extraordinary one.
+
+    Opt out with ACR_SNAPSHOT_ALLOW_NO_HEDGER=1 for a deliberately agent-less
+    bundle, so the guard is a refusal rather than an obstacle.
+    """
+    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_HEDGER", "") not in ("", "0", "false"):
+        return
+    h = payload.get("hedger") or {}
+    if not h.get("configured"):
+        raise SystemExit(
+            "refusing to commit a bundle with an unconfigured hedger — the "
+            "archived edition would lose the one agent here that makes an "
+            "economic decision; set ACR_HEDGER_ADDRESS and ACR_HEDGER_PAYER "
+            "(both are public, and both are in .env and render.yaml), or pass "
+            "ACR_SNAPSHOT_ALLOW_NO_HEDGER=1"
+        )
+    if not h.get("payer"):
+        raise SystemExit(
+            "refusing to commit a hedger with no payer — two addresses are one "
+            "agent, and without ACR_HEDGER_PAYER the panel shows a machine that "
+            "trades and never pays, which is the exact claim this product does "
+            "NOT make; set it, or pass ACR_SNAPSHOT_ALLOW_NO_HEDGER=1"
+        )
+    if h.get("position_contracts") is None:
+        raise SystemExit(
+            "refusing to commit a hedger whose position would not read — the "
+            "archived panel would print an ellipsis where its headline figure "
+            "goes, forever; re-run when the RPC answers, or pass "
+            "ACR_SNAPSHOT_ALLOW_NO_HEDGER=1"
+        )
+    if not h.get("receipts"):
+        raise SystemExit(
+            "refusing to commit a hedger with no purchases — the panel argues "
+            "that the print it bought is the input to the position it took, and "
+            "half of that would be missing; check that "
+            "services/index_api/index_api/receipts_live.jsonl carries rows for "
+            "ACR_HEDGER_PAYER, or pass ACR_SNAPSHOT_ALLOW_NO_HEDGER=1"
+        )
+
+
 def main() -> None:
     store = build_warmup_store()
     for _ in range(WARMUP_REFRESHES):
@@ -331,13 +389,21 @@ def main() -> None:
         assert payload["oracle"] is None
         assert all(p["onchain"] is None for p in payload["prints"].values())
     embed_bundle_sections(payload)
+    # Both content guards answer the same question — is this archive worth
+    # committing? — so they stand together.
     check_futures_commit_guard(payload)
+    check_hedger_commit_guard(payload)
     out = Path("apps/terminal/lib/fallback.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2))
+    hedge = payload.get("hedger") or {}
     print(
         f"wrote {out} ({out.stat().st_size:,} bytes)  "
         f"oracle={'set' if configured else 'null'}  "
+        # Say it out loud: a run that quietly dropped the agent used to look
+        # exactly like one that kept it.
+        f"hedger={'set' if hedge.get('configured') else 'NULL'}"
+        f" ({len(hedge.get('receipts') or [])} receipts)  "
         f"sections={'/'.join(k for k in ('marketplace', 'revenue', 'x402', 'x402_exchange_sample'))}"
     )
 

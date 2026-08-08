@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="ACR · The Arc Compute Rate">
+  <!-- Arc Dawn at tab size: the rate (Token Sand) cresting the house rule.
+       That rule is the horizon-line gradient this design puts above every
+       .section-head (globals.css:251,584), and the composition is the one
+       components/ArcHorizon.tsx already draws, so the tab and the page carry
+       one mark.
+
+       Not a monogram: "ACR" is three letterforms across 16 pixels, which is
+       mush. Not a candlestick: that says fintech and says nothing about Arc.
+
+       Colours are hardcoded because an SVG file cannot read :root custom
+       properties; these are the literal values from app/globals.css. Nothing
+       load-bearing is thinner than 2px at 16px. The tile is full-bleed opaque
+       on purpose: a transparent mark in genesis navy vanishes against Chrome's
+       dark tab strip.
+
+       NB for editors: no double hyphen may appear in these comments. It is
+       illegal inside an XML comment, and a malformed SVG still passes Next's
+       image-size check (that sniffs only the root element) while browsers
+       silently refuse to render it. Write token names without their prefix. -->
+  <defs>
+    <linearGradient id="acr-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#000b24"/>
+      <stop offset="1" stop-color="#0b223e"/>
+    </linearGradient>
+    <!-- The same three colours in the same order as the horizon-line token,
+         with the end fades tightened: a 120px rule's falloff, compressed to 32
+         units, erases the line entirely at tab size. -->
+    <linearGradient id="acr-rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#326796" stop-opacity="0"/>
+      <stop offset="0.10" stop-color="#326796" stop-opacity="1"/>
+      <stop offset="0.52" stop-color="#e9a13f" stop-opacity="1"/>
+      <stop offset="0.90" stop-color="#e9a13f" stop-opacity="1"/>
+      <stop offset="1" stop-color="#e9a13f" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="acr-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffcc6f" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#ffcc6f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#acr-sky)"/>
+  <circle cx="16" cy="18" r="12" fill="url(#acr-glow)"/>
+  <path d="M8 18a8 8 0 0 1 16 0Z" fill="#ffcc6f"/>
+  <rect y="18" width="32" height="4" fill="url(#acr-rule)"/>
+</svg>

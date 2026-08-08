@@ -87,16 +87,32 @@ dead series.
    for `3` live indices, gate `circle`, signer `circle`; the post-on-wake
    catch-up lands a fresh print if the box overslept.
 2. `make x402-capture` — fold any new Gateway settlements into the durable
-   archive (`services/index_api/index_api/receipts_live.jsonl`). If the count
-   moved, update the "11 Gateway-settled receipts" sentence in
-   `SUBMISSION.md` **in the same commit**.
-3. `make snapshot` — **with `ACR_HEDGER_ADDRESS` and `ACR_HEDGER_PAYER`
-   exported**, or the archived edition ships an agent that reports itself as
-   "not configured" and the offline demo silently loses its protagonist. Both
-   are public addresses; they live in `.env` and now in `render.yaml`. Then
-   `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a full trade
-   tape, live open interest on all three books, **and a configured hedger**) →
-   stage.
+   archive (`services/index_api/index_api/receipts_live.jsonl`), then `wc -l`
+   it. If the count moved, update **every** doc that states it, in the same
+   commit — and search for the **number**, not for a sentence:
+   - `docs/SUBMISSION.md` §4 — the receipts count and the payer split
+   - `Readme.md` Zone H — "real Gateway x402 settlements"
+   - `docs/IMPLEMENTATION_STATUS.md` TL;DR — "`receipts_live.jsonl`, N rows"
+   - `docs/ENDGAME-PLAN.md` §2 — the Nanopayments row
+   - `docs/agent-runbook.md` §4 — the durable-proof sentence
+
+   This step used to name a phrase ("the 11 Gateway-settled receipts sentence")
+   that stopped existing the instant the count moved, so the ritual could only
+   find its target on the runs where there was nothing to do. `make
+   verify-claims` now measures the archive and fails if any of these disagree,
+   so a miss here is caught rather than shipped.
+3. `make snapshot` — nothing to export. The two hedger addresses now resolve
+   from `.env` as well as from the process environment (`ACRSettings`), and
+   `check_hedger_commit_guard` **refuses to write the bundle** if the agent,
+   its payer, its position or its receipts would be missing. This step used to
+   read "remember to export them first", and the reason it is written this way
+   now is that the ritual was forgotten once and the archive shipped an agent
+   reporting itself as "not configured" — the offline demo losing its
+   protagonist, silently, past a green CI. The run prints
+   `hedger=set (N receipts)`; if it says `NULL` the guard has already stopped
+   you. Then `git diff apps/terminal/lib/fallback.json` (sane = fresh prints, a
+   full trade tape, live open interest on all three books, **and a configured
+   hedger carrying its own receipts**) → stage.
 4. `make verify-claims` (full, **not** `CLAIMS_FAST`) → must exit 0.
 5. `VERIFY_STRICT=1 make verify-live` → must exit 0.
 6. `GAP_PAGES=24 make print-gaps` → the recorded tail claim still holds; if
@@ -121,22 +137,39 @@ claiming the agent never traded, and the position is the durable witness. If
 you want fills **on screen** while someone is watching, they must be less than
 ~8h old.
 
-A bare `make hedger` will not produce one: at gap 0.00 the agent holds
-(`scripts/hedger.py:353-361`, `MIN_TRADE = 0.25`). It still pays 0.0001 for the
-print, because `buy_the_print()` runs before the position read (`:327` vs
-`:344`) — a hold-run raises the paid-queries count and adds no fill. The
-round-trip that leaves the desk exactly where it started:
+A bare `make hedger` will not produce one: inside `MIN_TRADE = 0.25` of its
+mandate the agent holds (`scripts/hedger.py`). It still pays 0.0001 for the
+print, because `buy_the_print()` runs before the position read — a hold-run
+raises the paid-queries count and adds no fill.
+
+**There is no round-trip. Raise the mandate; you cannot lower it back.**
+
+This checklist used to prescribe `HEDGER_TARGET=2.5` then `HEDGER_TARGET=2.0`
+to buy a fill and sell it back. The second leg does not work, and the reason is
+worth knowing before you plan a recording around it: **`circle wallet execute`
+cannot build a transaction carrying a negative `int256`.** Measured 2026-08-08
+on ARC-TESTNET — `+1e16` estimates and returns a fee, `-1e16` fails with
+`400 Fails to perform transaction estimation`, and so do both two's-complement
+spellings and a `--` separator. It is not a venue revert: the identical call
+succeeds under `eth_call`, and an oversized *positive* quantity returns the
+different error `Estimate fee execution reverted`, which is what a revert looks
+like. So the agent can open and increase a position and cannot reduce one.
+
+To put a fill on screen, raise the mandate by at least `MIN_TRADE` and leave it
+raised:
 
 ```sh
-HEDGER_TARGET=2.5 make hedger   # buys ~0.47 — margin-capped by TOPUP_MAX_USDC
-HEDGER_TARGET=2.0 make hedger   # sells it back; position returns to 2.00 = mandate
+HEDGER_TARGET=3.0 make hedger   # buys toward 3.0 — margin-capped by TOPUP_MAX_USDC
 ```
 
-Cost: ~0.50 USDC **posted as collateral** (it stays in the venue and is
-withdrawable — it is not spent, and it is NOT covered by `SPEND_CAP_USDC`,
-which governs only the x402 print) plus 0.0001 per run. Run the pair, then
-confirm the panel shows two rows and the gap is back to `0.00` with the "on
-target" chip — leaving it half-done shows an off-mandate desk.
+Then set `HEDGER_TARGET` to the position it actually reached, in **both**
+`scripts/hedger.py` and `services/index_api/index_api/hedger.py` (a test pins
+them together) and in `render.yaml`, so the panel reads "on target" rather than
+showing a gap the agent has no way to close. Cost: ~0.50 USDC **posted as
+collateral** — it stays in the venue and is withdrawable, it is not spent, and
+it is not covered by `SPEND_CAP_USDC`, which governs only the x402 print — plus
+0.0001 per run. Mind `POSITION_CAP = 3.0`: a mandate above it makes the agent
+refuse rather than trade.
 
 ## Deployed 2026-08-06
 

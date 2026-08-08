@@ -12,7 +12,19 @@ one wallet with no human in it:
 Every other agent in this repo does one leg. The buyer pays but never acts on
 what it bought; the heartbeat trades but never pays for the data it trades on.
 Neither is an economic decision. This one is: the print it purchases is the
-input to the position it takes, and the log says so.
+input to the position it takes — and that join belongs to the venue, not to
+this script. ``ACRFutures.trade`` fills at ``oracle.latestValue(indexId)``, so
+the number this agent paid for IS the number it was filled at, whatever this
+file happens to write down.
+
+Which matters, because the log below is a DIAGNOSTIC and not evidence. It
+lands in ``data/``, which is gitignored and dockerignored, so it never leaves
+the machine that ran it — and ``print_tx`` was null on all seven of its first
+live lines while the payments themselves succeeded (see ``buy_the_print``).
+The claim a stranger can check is ``GET /hedger``: the Gateway settlements
+this wallet made, beside the position they bought, one from the public
+receipts tape and one from the chain. Write this log for yourself; point other
+people at that.
 
 ## Why a Circle AGENT wallet, and not the ones the venue uses
 
@@ -64,6 +76,7 @@ deliberate refusal); 1 = it could not run (no wallet, no venue, chain unreadable
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
@@ -93,7 +106,7 @@ INDEX = os.environ.get("HEDGER_INDEX", "ACR-INF")
 #: service advertised 2.0, so `make hedger` with only ACR_HEDGER_ADDRESS
 #: exported would have SOLD 0.82 — the exact opposite of the mandate the site
 #: shows a judge. Two files, two defaults, one agent.
-TARGET = float(os.environ.get("HEDGER_TARGET", "2.0"))
+TARGET = float(os.environ.get("HEDGER_TARGET", "2.5"))
 #: Do not trade for less than this; a dust fill costs more in gas than it hedges.
 MIN_TRADE = float(os.environ.get("HEDGER_MIN_TRADE", "0.25"))
 
@@ -245,8 +258,95 @@ def _fmt_qty(q: float) -> str:
 
     A float would reach the CLI in scientific notation for small sizes and be
     ABI-encoded as something nobody intended.
+
+    KNOWN LIMIT, measured 2026-08-08 on ARC-TESTNET: a NEGATIVE value does not
+    survive ``circle wallet execute``. ``+1e16`` estimates and returns a fee;
+    ``-1e16`` fails with ``400 Fails to perform transaction estimation``, and so
+    do both two's-complement spellings and a ``--`` separator. It is not a
+    revert — the identical call succeeds under ``eth_call`` against the venue,
+    and an oversized POSITIVE quantity returns the different error ``Estimate
+    fee execution reverted``, which is what a revert actually looks like. The
+    transaction cannot be BUILT, so this agent can open and increase a position
+    through the agent wallet but cannot reduce one. See skills/acr-hedge.
     """
     return str(int(round(q * 10**18)))
+
+
+#: Every key a `circle services pay` response has plausibly carried the
+#: settlement reference under. Ordered by specificity, and `id` is last on
+#: purpose — it is the key most likely to belong to some wrapper object that is
+#: not the settlement at all.
+REF_KEYS = (
+    # `receipt` is FIRST because it is the one the CLI actually uses: a live run
+    # on 2026-08-08 reported `data.payment = {amount, chain, receipt, scheme,
+    # seller}`. That was never a guess — the diagnostic below printed the
+    # response's shape after failing to find a reference, and this key is what
+    # it named. The rest stay as plausible alternates across CLI versions.
+    "receipt",
+    "settlementRef", "settlement_ref", "settlementReference",
+    "transactionId", "transaction_id", "txRef", "tx_ref", "txHash",
+    "paymentId", "payment_id", "batchId", "batch_id",
+    "referenceId", "reference_id", "id",
+)
+
+
+def _find_ref(node: object, depth: int = 0) -> str | None:
+    """The first plausible settlement reference anywhere in a pay response.
+
+    Recursive rather than top-level, because the failure this replaces was not
+    "we guessed the wrong name" so much as "we guessed the wrong DEPTH": the
+    caller already unwraps one ``data`` envelope, and a reference one level
+    below that was invisible to three ``.get`` calls. Depth-bounded so a large
+    payload — the purchased print rides along in the same response — cannot turn
+    a log line into a tree walk.
+
+    Values are type-checked before they are believed: a bool under ``id`` is a
+    flag and a dict under ``transactionId`` is some other object, and writing
+    either into ``print_tx`` would replace a null with something worse — a field
+    that looks populated and resolves to nothing.
+    """
+    if depth > 4 or not isinstance(node, dict):
+        return None
+    for k in REF_KEYS:
+        v = node.get(k)
+        if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v).strip():
+            return str(v).strip()
+    for v in node.values():
+        if isinstance(v, dict):
+            if hit := _find_ref(v, depth + 1):
+                return hit
+        elif isinstance(v, list):
+            for item in v:
+                if isinstance(item, dict) and (hit := _find_ref(item, depth + 1)):
+                    return hit
+    return None
+
+
+def _settlement_ref(raw: str | None) -> str | None:
+    """The Gateway batch UUID, unwrapped from whatever the CLI handed back.
+
+    ``data.payment.receipt`` is the x402 ``X-PAYMENT-RESPONSE`` header verbatim:
+    base64 over ``{"success", "transaction", "network", "payer"}``. Storing that
+    blob would be worse than storing nothing — it LOOKS like a reference and
+    matches no receipt anyone can look up. The ``transaction`` inside it is the
+    real one: measured on 2026-08-08, the decoded value
+    ``b0c1be36-6283-4660-af3e-2ad0a8bdfe33`` is byte-for-byte the ``tx_ref`` the
+    seller's own ``/marketplace/receipts`` published for that payment. So the
+    log and the public tape can finally name the same thing.
+    """
+    if not raw:
+        return None
+    ref = str(raw).strip()
+    try:
+        decoded = json.loads(base64.b64decode(ref, validate=True))
+    except Exception:
+        return ref  # already a plain reference, or not base64 at all
+    if isinstance(decoded, dict):
+        for k in ("transaction", "transactionId", "id"):
+            v = decoded.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    return ref
 
 
 def buy_the_print(spent_so_far: float, d: Decision) -> float:
@@ -268,11 +368,37 @@ def buy_the_print(spent_so_far: float, d: Decision) -> float:
     if DRY_RUN:
         d.notes.append(f"dry run — would pay {body.get('price', '?')}")
         return 0.0
-    ref = body.get("settlementRef") or body.get("transactionId") or body.get("id")
-    d.print_tx = str(ref) if ref else None
+    # Search the whole response, not three keys at one depth — and search the
+    # envelope too, because `body` above already discarded one level and the
+    # reference may have been in the level it discarded.
+    d.print_tx = _settlement_ref(_find_ref(body) or _find_ref(data))
     # Trust the seller's own price, not our guess at it.
     paid = float(body.get("amountPaid") or body.get("amount") or 0.0001)
     d.notes.append(f"paid {paid} USDC for {INDEX}")
+    if not d.print_tx:
+        # The diagnostic that was missing. `print_tx` was null on all seven of
+        # this log's first live lines — including three whose own note says the
+        # payment SUCCEEDED — and nothing recorded what the CLI had actually
+        # returned, so every run rediscovered nothing and wrote another silent
+        # null. Record the SHAPE once, so the next paid run either finds the
+        # reference or names the key it should have looked under.
+        #
+        # Keys only, never values: a pay response carries the purchased print
+        # and a payment authorization, and a decision log is the wrong place for
+        # either. Two levels, because "which envelope was it in" is half the
+        # question and printing only the inner one already lost that answer.
+        # Nested one level, because the first live run of this diagnostic came
+        # back `keys ['payment', 'response']` — which proved the reference was
+        # not at the top and still did not say where it WAS. A shape report that
+        # stops at the outermost layer only moves the mystery inward.
+        def _shape(node: object, depth: int = 0) -> object:
+            if not isinstance(node, dict) or depth > 2:
+                return type(node).__name__
+            return {k: _shape(v, depth + 1) for k, v in sorted(node.items())}
+
+        d.notes.append(
+            f"paid, but found no settlement ref: shape {_shape(data)}"
+        )
     return paid
 
 
