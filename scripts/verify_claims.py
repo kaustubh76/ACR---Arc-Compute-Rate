@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -77,9 +78,45 @@ def claim(text: str, pattern: str) -> int | None:
     return int(m.group(1).replace(",", "")) if m else None
 
 
+#: The architecture canvas states the suite sizes on two of its cards, and
+#: Readme.md advertises that canvas as "implementation-accurate" — so those are
+#: claims, not decoration. They rotted to 289 py / 81 terminal against a suite of
+#: 367 / 95 for exactly the reason the deck rotted before it was parsed here:
+#: nothing read them. The sentence lives in three committed files (the generator,
+#: the canvas it writes, and the SVG the deck renders from it); the canvas and
+#: the SVG are both checked, because "edited the generator, forgot `make
+#: diagram`" has already happened twice in this history.
+DIAGRAM = ROOT / "acr_architecture.excalidraw"
+DIAGRAM_SVG = ROOT / "docs" / "assets" / "acr_architecture.preview.svg"
+#: Matches both spellings the canvas uses — "TESTS · N py + N forge + …" on the
+#: verification card and "N py · N forge · … — green" on the metrics card. Only
+#: the separator differs.
+SUITES_RE = re.compile(
+    r"(\d+)\s*py\s*[·+]\s*(\d+)\s*forge\s*[·+]\s*(\d+)\s*terminal\s*[·+]\s*(\d+)\s*agent"
+)
+
+
+def diagram_suite_claims(path: Path) -> list[tuple[int, ...]]:
+    """Every (py, forge, terminal, agent) tuple an artefact states.
+
+    A list rather than a first match on purpose: two cards say this, and a card
+    edited alone must report as a disagreement instead of hiding behind its twin.
+    """
+    if not path.exists():
+        return []
+    text = path.read_text()
+    if path.suffix == ".excalidraw":
+        doc = json.loads(text)
+        text = "\n".join(
+            e.get("text", "") for e in doc["elements"] if e.get("type") == "text"
+        )
+    return [tuple(int(g) for g in m) for m in SUITES_RE.findall(text)]
+
+
 # --- the measurements -------------------------------------------------------
 
 
+@lru_cache(maxsize=None)
 def measured_pytest() -> int | None:
     """Collected, not executed — cheap, and it counts the anvil-gated tests that
     SKIP on a machine without a node. Deliberately not `-q`: that suppresses the
@@ -90,6 +127,7 @@ def measured_pytest() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@lru_cache(maxsize=None)
 def measured_forge() -> int | None:
     """Plain `forge test` — `--summary` prints a table and moves the one-line
     total out of reach."""
@@ -98,12 +136,14 @@ def measured_forge() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@lru_cache(maxsize=None)
 def measured_terminal() -> int | None:
     out = run(["npm", "test"], cwd=ROOT / "apps" / "terminal")
     m = re.search(r"^# pass (\d+)$", out, re.M)
     return int(m.group(1)) if m else None
 
 
+@lru_cache(maxsize=None)
 def measured_glossary() -> int | None:
     out = run(["uv", "run", "python", "scripts/check_glossary_coverage.py"])
     m = re.search(r"all (\d+) uncommon diagram terms", out)
@@ -216,6 +256,35 @@ def main() -> None:
             check(False, "glossary: could not measure")
         else:
             check(actual == stated, f"glossary: docs say {stated}, measured {actual}")
+
+    print("\nthe architecture diagram (Readme calls it implementation-accurate)")
+    canvas = diagram_suite_claims(DIAGRAM)
+    svg = diagram_suite_claims(DIAGRAM_SVG)
+    if not canvas:
+        check(False, "diagram: no '<n> py · <n> forge · <n> terminal · <n> agent' "
+                     "claim found — has a card been reworded?")
+    else:
+        # Both cheap, and both on even under CLAIMS_FAST: they catch a skipped
+        # `make diagram` / `make deck`, which is how the SVG kept 289 after the
+        # canvas was fixed. Neither runs a suite.
+        check(len(set(canvas)) == 1,
+              f"diagram: its two cards agree with each other {sorted(set(canvas))}")
+        check(sorted(set(svg)) == sorted(set(canvas)),
+              f"diagram: docs/assets/*.svg matches the canvas (svg says {sorted(set(svg))})")
+        py, forge, term, _agent = canvas[0]
+        for label, stated, measure, costly in (
+            ("diagram python count", py, measured_pytest, False),
+            ("diagram forge count", forge, measured_forge, True),
+            ("diagram terminal count", term, measured_terminal, True),
+        ):
+            if FAST and costly:
+                print(f"  · {label}: claims {stated} (not measured)")
+                continue
+            actual = measure()
+            if actual is None:
+                check(False, f"{label}: could not measure (toolchain missing?)")
+                continue
+            check(actual == stated, f"{label}: diagram says {stated}, measured {actual}")
 
     print("\nthe receipts archive (the number four docs quote and nothing measured)")
     # This rotted to 11 in three places while the archive held 31, for the
