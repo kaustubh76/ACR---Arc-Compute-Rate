@@ -75,8 +75,11 @@ export function WalletPanel({ explorer }: { explorer?: string }) {
   const data = balances?.data ?? null;
   const ready = data?.buyer_ready === true && (data?.wallets.length ?? 0) > 0;
 
+  // `wallet-panel` used to ride along on the div below and is gone: it appears
+  // in no stylesheet, so it styled nothing. Same failure mode as the `table`
+  // and `teal` classes the hedger panel used to name.
   return (
-    <div className="panel panel-pad wallet-panel">
+    <div className="panel panel-pad">
       <div className="section-head" style={{ marginTop: 0 }}>
         <span className="label">
           <Ed x="Circle Gateway wallets" p="Circle wallets · who pays, who gets paid" />
