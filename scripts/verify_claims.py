@@ -27,7 +27,7 @@ import os
 import re
 import subprocess
 import sys
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -116,7 +116,7 @@ def diagram_suite_claims(path: Path) -> list[tuple[int, ...]]:
 # --- the measurements -------------------------------------------------------
 
 
-@lru_cache(maxsize=None)
+@cache
 def measured_pytest() -> int | None:
     """Collected, not executed — cheap, and it counts the anvil-gated tests that
     SKIP on a machine without a node. Deliberately not `-q`: that suppresses the
@@ -127,7 +127,7 @@ def measured_pytest() -> int | None:
     return int(m.group(1)) if m else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def measured_forge() -> int | None:
     """Plain `forge test` — `--summary` prints a table and moves the one-line
     total out of reach."""
@@ -136,14 +136,14 @@ def measured_forge() -> int | None:
     return int(m.group(1)) if m else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def measured_terminal() -> int | None:
     out = run(["npm", "test"], cwd=ROOT / "apps" / "terminal")
     m = re.search(r"^# pass (\d+)$", out, re.M)
     return int(m.group(1)) if m else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def measured_glossary() -> int | None:
     out = run(["uv", "run", "python", "scripts/check_glossary_coverage.py"])
     m = re.search(r"all (\d+) uncommon diagram terms", out)
