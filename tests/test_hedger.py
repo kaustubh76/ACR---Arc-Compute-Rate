@@ -13,7 +13,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-from hedger import margin_bound, topup_for  # noqa: E402
+from hedger import _find_ref, _settlement_ref, margin_bound, topup_for  # noqa: E402
 
 #: The live numbers on 2026-08-04: mark 0.4924, multiplier 10, MARGIN_BPS 2000.
 PER_CONTRACT = 0.4924 * 10 * 0.2
@@ -86,8 +86,73 @@ def test_the_deployed_mandate_is_the_scripts_default():
 
     The script defaulted to 1.0 while the deployed service advertised 2.0, so
     `make hedger` with only ACR_HEDGER_ADDRESS exported would have SOLD 0.82 —
-    the opposite of the mandate on the site a judge reads.
+    the opposite of the mandate on the site a judge reads. They must move
+    together, which is why this pins both against one number rather than
+    trusting two files to be edited at once.
     """
     import hedger
+    from index_api.hedger import TARGET_CONTRACTS
 
-    assert hedger.TARGET == 2.0
+    assert hedger.TARGET == 2.5
+    assert TARGET_CONTRACTS == hedger.TARGET
+
+
+def test_a_settlement_ref_is_found_at_whatever_depth_it_arrives():
+    """`print_tx` was null on all seven of the log's first live lines, including
+    three whose own notes say the payment succeeded.
+
+    The old lookup read three keys at ONE depth, off a body from which the
+    caller had already stripped a `data` envelope — so a reference one level
+    down was invisible, and every run wrote another silent null. This is the
+    pure half of that fix; the widened search itself can only be proven by a
+    paid run, and `HEDGER_DRY_RUN=1` returns before it.
+    """
+    ref = "b2dd87be-d626-41f5-80e4-87b34fb1da54"
+    assert _find_ref({"settlementRef": ref}) == ref
+    # The shape the old code could not see.
+    assert _find_ref({"payment": {"settlement": {"id": ref}}}) == ref
+    # And inside a list, which a pay response uses for batched authorizations.
+    assert _find_ref({"settlements": [{"transactionId": ref}]}) == ref
+
+
+def test_a_ref_that_is_not_a_reference_is_refused():
+    """A bool under `id` is a flag and a dict under `transactionId` is some
+    other object. Writing either into `print_tx` would replace a null with
+    something worse: a field that looks populated and resolves to nothing."""
+    assert _find_ref({"id": True}) is None
+    assert _find_ref({"id": {}}) is None
+    assert _find_ref({"id": "   "}) is None
+    assert _find_ref({}) is None
+    assert _find_ref(None) is None
+    # Depth-bounded, so a large payload cannot turn a log line into a tree walk.
+    deep = {"a": {"b": {"c": {"d": {"e": {"id": "too-deep"}}}}}}
+    assert _find_ref(deep) is None
+
+
+def test_the_logged_ref_is_the_one_the_public_tape_publishes():
+    """`data.payment.receipt` is the x402 X-PAYMENT-RESPONSE header verbatim:
+    base64 over {success, transaction, network, payer}.
+
+    Storing that blob would be worse than storing nothing — it looks like a
+    reference and matches no receipt anyone can look up. The `transaction`
+    inside it is the real one. Measured against production on 2026-08-08: this
+    exact payload decodes to the `tx_ref` the seller's own /marketplace/receipts
+    published for that same payment, so the agent's log and the public tape can
+    finally name the same thing.
+    """
+    import base64
+    import json
+
+    uuid = "b0c1be36-6283-4660-af3e-2ad0a8bdfe33"
+    header = base64.b64encode(
+        json.dumps({"success": True, "transaction": uuid,
+                    "network": "eip155:5042002", "payer": "0x71e1"}).encode()
+    ).decode()
+    assert _settlement_ref(header) == uuid
+    # A plain reference passes through untouched, so a CLI that stops wrapping
+    # it does not silently start logging None.
+    assert _settlement_ref(uuid) == uuid
+    assert _settlement_ref(None) is None
+    # Base64 that is not JSON is not a wrapper; keep what we were given rather
+    # than inventing a decode.
+    assert _settlement_ref(base64.b64encode(b"not json").decode()) is not None

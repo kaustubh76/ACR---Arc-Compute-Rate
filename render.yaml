@@ -107,6 +107,13 @@ services:
         value: "0x1Dc707E330d7B1Cd9b2d0a0C0346CE2D19d35bc9"
       - key: ACR_HEDGER_PAYER
         value: "0x71E140D9540d3163EAD1591f81b454C6d5BD26C0"
+      # The mandate the panel shows, recorded rather than left to a code
+      # default. Both hedger modules default to the same number and a test pins
+      # them together, so this is belt-and-braces — but the mandate is a
+      # deliberate operating choice, and a choice that lives only in a default
+      # is one nobody can see they made.
+      - key: HEDGER_TARGET
+        value: "2.5"
 
       # The instance's own URL, knocked on every ACR_CHAIN_WARM_SECONDS so it
       # never looks idle. The press only posts while this process is AWAKE, and

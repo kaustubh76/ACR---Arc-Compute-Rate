@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -76,6 +77,14 @@ _BOOK_DEPTH_TRADES = float(os.environ.get("VERIFY_BOOK_DEPTH", "4"))
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
 STRICT = os.environ.get("VERIFY_STRICT", "") not in ("", "0", "false")
+#: A Circle Gateway settlement reference is a batch UUID. Anything else reaching
+#: this surface is a placeholder that got published: `dev-…`/`sim-…` are what the
+#: mock gate writes, and an empty string is a row that lost its reference on the
+#: way through. Either renders in the hedger panel as a receipt a judge can
+#: click, which is why this is a shape test and not a truthiness test.
+_GATEWAY_REF = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+)
 
 GATED = ["/prints/ACR-INF", "/curve/ACR-INF", "/vol/ACR-INF", "/seller-scores/ACR-INF"]
 UNGATED = ["/onchain/ACR-INF", "/marketplace/catalog", "/revenue", "/x402/info"]
@@ -529,7 +538,7 @@ def verify_desk(live_series: dict | None) -> None:
         )
 
 
-def verify_hedger() -> None:
+def verify_hedger(settings) -> None:
     """The autonomous agent — did it actually pay and trade, or is it a panel?
 
     This lives here rather than in a dispatch workflow ON PURPOSE. Running the
@@ -571,11 +580,77 @@ def verify_hedger() -> None:
         warn_only=True,
     )
     paid = body.get("paid_queries")
+    receipts = body.get("receipts")
+    spent = body.get("spent_usdc")
+    # `paid_queries` is a bare integer, and an integer is not evidence. The array
+    # beside it is: every row is a Circle Gateway batch reference this agent's own
+    # wallet settled, and HedgerPanel renders them as clickable receipts under
+    # "1 · prints it bought". Checking only the counter meant a deployment serving
+    # `paid_queries: 4` over `receipts: null` passed every gate here — a number
+    # with nothing under it, which is the shape a fabricated claim has.
     check(
         bool(paid),
-        f"{paid} x402 settlement(s) from the agent — it paid for the data it traded on",
+        f"{paid} x402 settlement(s) recorded against the agent's payer",
         warn_only=True,
     )
+    if paid:
+        # Past here the payload has ASSERTED a spend, so it owes the evidence.
+        # build_hedger_state fills paid_queries, spent_usdc and receipts in ONE
+        # pass over ONE filtered list, so a count with no rows under it is not
+        # "it has not paid" — it is that derivation broken. Hence hard, per this
+        # file's own rule: warn on somebody else's scheduler, fail on our code.
+        if check(
+            isinstance(receipts, list) and len(receipts) > 0,
+            f"the receipts array carries the evidence for those {paid} ("
+            + ("null — the counter has nothing under it"
+               if receipts is None else f"{len(receipts or [])} row(s)")
+            + ")",
+        ):
+            check(
+                len(receipts) <= paid,
+                f"{len(receipts)} receipt row(s) <= {paid} paid queries "
+                "(the array is the newest ten of the count, never more than it)",
+            )
+            shown = sum(float(r.get("amount_usdc") or 0.0) for r in receipts)
+            # The array caps at RECENT_RECEIPTS while spent_usdc sums the whole
+            # filtered set, so equality is only OWED when nothing was truncated.
+            # Asserting it unconditionally would go red the moment the agent's
+            # eleventh payment lands, and a check that breaks on success is a
+            # check people learn to mute. The tolerance is the upstream
+            # round(…, 6) and nothing looser.
+            if len(receipts) == paid:
+                check(
+                    spent is not None and abs(float(spent) - shown) <= 5e-6,
+                    f"spent_usdc {spent} == the rows' own sum {shown:.6f}",
+                )
+            else:
+                check(
+                    spent is not None and shown <= float(spent) + 5e-6,
+                    f"the {len(receipts)} shown rows sum to {shown:.6f}, "
+                    f"inside spent_usdc {spent}",
+                )
+            bad_ref = next(
+                (r.get("tx_ref") for r in receipts
+                 if not _GATEWAY_REF.match(str(r.get("tx_ref") or ""))),
+                None,
+            )
+            check(
+                bad_ref is None,
+                "every tx_ref is a Circle Gateway batch UUID"
+                + (f" — got {str(bad_ref)[:28]!r}, a placeholder rather than a settlement"
+                   if bad_ref is not None else ""),
+            )
+            want_net = settings.caip2()
+            bad_net = next(
+                (r.get("network") for r in receipts if r.get("network") != want_net),
+                None,
+            )
+            check(
+                bad_net is None,
+                f"every receipt settled on {want_net}"
+                + (f" — got {bad_net!r}, which is not this deployment's gate"
+                   if bad_net is not None else ""),
+            )
     pos, gap = body.get("position_contracts"), body.get("gap_contracts")
     if pos is not None:
         check(True, f"position {pos:+.2f} against a mandate of "
@@ -768,7 +843,7 @@ def main() -> None:
     section(verify_seller)
     section(verify_x402)
     section(verify_desk, live)
-    section(verify_hedger)
+    section(verify_hedger, s)
     section(verify_terminal, live)
     section(verify_funding, w3, s)
     section(verify_crons, w3)

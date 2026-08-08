@@ -32,7 +32,7 @@ from acr_core import get_settings
 #: The mandate, in contracts — the position the agent is trying to hold. Mirrors
 #: HEDGER_TARGET in scripts/hedger.py; the Terminal shows it so a reader can see
 #: what the agent was aiming at, not just where it ended up.
-TARGET_CONTRACTS = float(os.environ.get("HEDGER_TARGET", "2.0"))
+TARGET_CONTRACTS = float(os.environ.get("HEDGER_TARGET", "2.5"))
 HEDGER_INDEX = os.environ.get("HEDGER_INDEX", "ACR-INF")
 
 

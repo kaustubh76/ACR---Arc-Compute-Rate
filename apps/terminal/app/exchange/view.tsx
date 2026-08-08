@@ -151,8 +151,8 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           as="p"
           className="standfirst"
           style={{ margin: "8px 0 0" }}
-          x="One buyer closes the loop. The print it purchases is the input to the position it takes, and the log says so."
-          p="One robot shopper closes the loop. It pays for the number, then trades on it, one wallet, one log."
+          x="One buyer closes the loop. It pays for the print, and the venue fills its trade at that same print, so the position below is what it paid for."
+          p="One robot shopper closes the loop. It pays for the number, and the market trades at that same number, so it holds what it paid for."
         />
       </div>
 

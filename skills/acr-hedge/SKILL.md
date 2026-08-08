@@ -9,10 +9,15 @@ ACR (Arc Compute Rate) publishes a manipulation-resistant benchmark for machine-
 prices — ACR-INF ($/1k tokens), ACR-GPU ($/GPU-sec), ACR-DATA ($/MB) — pressed hourly
 on-chain on Arc Testnet (chain 5042002), with a cash-settled weekly futures venue that
 settles only against a print less than two hours old. This skill is the loop the
-reference agent runs: **pay for the print, then trade on it — one wallet, one log.**
+reference agent runs: **pay for the print, then trade on it — and because the venue
+fills every trade at that same print, the position you end up holding is the print you
+bought.** One wallet buys both legs; one URL shows both.
 
-Reference implementation: `scripts/hedger.py` in the ACR repo. Its public decision
-state is `GET https://acr-api-1fto.onrender.com/hedger`.
+Reference implementation: `scripts/hedger.py` in the ACR repo. That URL is
+`GET https://acr-api-1fto.onrender.com/hedger`, and it is the point of the design: it
+returns the Gateway settlements the agent's own wallet paid **and** the position and
+fills those prints bought, so the loop is checkable by a stranger rather than attested
+by the agent.
 
 ## Prerequisites
 
@@ -78,6 +83,21 @@ circle wallet execute "trade(uint256,int256)" <seriesId> <qtyWad> \
 A float reaches the CLI in scientific notation for small sizes and gets ABI-encoded as
 something nobody intended. Positive = long (pays if the rate rises), negative = short.
 
+> **A negative `int256` does not survive `circle wallet execute` today.** Measured on
+> 2026-08-08 against ARC-TESTNET: `trade(uint256,int256)` with `+1e16` estimates fine and
+> returns a fee, while `-1e16` fails with `400 Fails to perform transaction estimation`.
+> Two's complement, as hex or decimal, fails the same way, and `--` before the positional
+> arguments does not help. It is **not** a contract revert — the same call succeeds under
+> `eth_call` against the venue, and an oversized *positive* quantity returns the different
+> error `Estimate fee execution reverted`, which is what a real revert looks like. So the
+> failure is in building the transaction, not in running it.
+>
+> Practical consequence: **an agent on this path can open and increase a position but
+> cannot reduce one.** Design for it. Either give your agent a one-directional mandate,
+> keep an EOA route for the closing leg, or let the position run to cash settlement at
+> expiry — and whichever you choose, do not write an agent whose mandate assumes it can
+> trade back. Ours did, and it sat 0.47 contracts above its target with no way down.
+
 ## Guardrails the reference agent enforces (copy them)
 
 - **Spend cap on data**: pass `--max-amount` so the payment layer refuses independently
@@ -89,5 +109,17 @@ something nobody intended. Positive = long (pays if the rate rises), negative = 
 - **Re-read collateral after posting.** A transaction that returned is not collateral
   posted; sizing a trade off the number you hoped for is how an agent authorizes an
   order the contract then reverts.
-- **A breach refuses rather than clamps** — and every decision goes to an append-only
-  log with the tx hashes, so the claim is checkable on-chain.
+- **A breach refuses rather than clamps**, and log the whole decision rather than the
+  outcome. "It traded" is an assertion; "it held 2.00 against a mandate of 2.5 at a mark
+  of 0.49236, so it bought 0.47" is a claim someone can check.
+- **Publish state, not a log file — and know which leg settles where.** Your two legs do
+  not settle in the same place, and conflating them is the easiest false claim to make
+  here. The *trade* is an Arc transaction and an `ACRFutures.Traded` event, so an explorer
+  resolves it. The *payment* is a Circle Gateway batch settlement: an off-chain UUID that
+  no explorer can resolve, which is exactly why the seller publishes a receipts tape at
+  all. So serve both from one public endpoint instead of pointing at a file on your own
+  disk — a log on the machine that ran the agent proves nothing to anyone else, and ours
+  had a null payment reference for its first seven live decisions without anybody
+  noticing. The reference agent's endpoint is `GET /hedger` above: the Gateway `tx_ref`s
+  its wallet settled, and the position and fills those prints bought, each derived from a
+  source the reader can hit without you.

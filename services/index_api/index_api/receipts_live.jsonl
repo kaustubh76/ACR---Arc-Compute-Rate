@@ -29,3 +29,6 @@
 {"payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d", "amount_usdc": 0.0001, "tx_ref": "1107f467-206f-4552-b749-54f0f5a9995d", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786093943.8650515, "resource": ""}
 {"payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d", "amount_usdc": 0.0001, "tx_ref": "c5c4355e-d669-4f5c-b365-dbb2c68b3f96", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786093942.205442, "resource": ""}
 {"payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d", "amount_usdc": 0.0001, "tx_ref": "cbc5e451-f543-44ba-9967-e712a1173db1", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786093940.4007545, "resource": ""}
+{"payer": "0x71e140d9540d3163ead1591f81b454c6d5bd26c0", "amount_usdc": 0.0001, "tx_ref": "b0c1be36-6283-4660-af3e-2ad0a8bdfe33", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786179102.2749844, "resource": ""}
+{"payer": "0x71e140d9540d3163ead1591f81b454c6d5bd26c0", "amount_usdc": 0.0001, "tx_ref": "aae1ab44-8cfe-4ed9-b02c-7d0874238ea2", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786178994.1993856, "resource": ""}
+{"payer": "0x71e140d9540d3163ead1591f81b454c6d5bd26c0", "amount_usdc": 0.0001, "tx_ref": "95b7b42c-2d10-47d7-9ff4-2f2053f7b959", "network": "eip155:5042002", "scheme": "exact", "settled_at": 1786178909.9387798, "resource": ""}

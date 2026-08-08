@@ -109,7 +109,7 @@ A manipulation-resistant reference rate for machine services, live on Arc testne
 - The fix: go **long ACR-INF futures**. Cash-settled — at expiry the venue **freezes the freshest oracle print** (≤ 2 h old, enforced on-chain) and pays the difference in USDC. **No delivery, no GPU repossession, no seller cooperation.**
 - A hedge is only as good as its settlement print: every ACR print ships its **CI** and its **attack-cost-per-bp**, so both sides can read — on-chain — what bending the settle would cost.
 - **This loop is live on Arc testnet:** `ACRFutures 0x29d97c62…82642fe` — **three books** (ACR-INF, ACR-GPU, ACR-DATA), 10× multiplier, 2000 bp initial margin on this deployment, socialized-loss clearing, settling against the same ACROracle.
-- **And an agent already runs Portia's playbook.** It pays $0.0001 for the print over x402, reads its own book, and trades the gap to its mandate — from a Circle agent wallet, unattended. **The print it purchases is the input to the position it takes, and the log says so.** That is the whole product in one sentence; the next slide is the cast that surrounds it.
+- **And an agent already runs Portia's playbook.** It pays $0.0001 for the print over x402, reads its own book, and trades the gap to its mandate — from a Circle agent wallet, unattended. **It pays for the print, and the venue fills it at that same print — so the position it holds is the print it bought, and that join is enforced by the contract, not claimed by the agent.** That is the whole product in one sentence; the next slide is the cast that surrounds it.
 
 <!-- Every compute future before this died one of two deaths: physical delivery you can't enforce, or cash settlement against an index you can bend. We amputated delivery — "capacity forwards with the hardest organ amputated" — and made bending priced. Portia's math is a worked example at the ship-week print; the venue is testnet-scale by design (10× multiplier). The mechanism, not the notional, is the product. -->
 
@@ -230,7 +230,7 @@ Full spec: `docs/methodology.md` — published before liquidity, the way SOFR wa
 | **ACRFutures** `0x29d97c62…82642fe` | Three live books (INF/GPU/DATA), **maker is a Circle custody wallet**, cash-settles on the print |
 | **Terminal + Seller API** | API x402-gated at **$0.0001/query**, fail-closed |
 
-`make ci` green 2026-08-08: **364 py** · **60 forge** (incl. futures + invariants) · **95 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **423/423** · GitHub CI **4/4**.
+`make ci` green 2026-08-08: **367 py** · **60 forge** (incl. futures + invariants) · **95 terminal** · **10/10 agent** · resistance **4/4** · interop **12/12** · glossary **423/423** · GitHub CI **4/4**.
 
 Real settlement through **Circle Gateway** — batch-UUID receipts in-repo and on the public `/exchange` tape; Circle's own CLI paid the gate (`payable`).
 
@@ -247,11 +247,11 @@ Provenance labeled on every value — `sim` / `gateway-ref` / `tx`. Reproduce: `
 1. `/` — the print ticking live: rate + CI + attack cost. New to the jargon? Flip the masthead to **plain** — the whole paper re-sets in plain English.
 2. `/attack` — press the button: wash flow floods in, naive VWAP swings <span class="bad">~+110%</span>, **ACR holds**, and the counter burns the attacker's USDC. Offline twin: `make demo` — one command, ~1 minute.
 3. `/curve` — the term structure, the **live futures desk** read from ACRFutures on-chain, and **the Public Desk: trade it yourself.** Open a Circle *user-controlled* wallet in the browser (your PIN, our gas), take the stake, place a real fill, withdraw it again — the key never leaves your device, so every step is a challenge only your PIN can sign.
-4. `/exchange` — real Gateway settlements on the tape; paper trail in `docs/SUBMISSION.md`.
+4. `/exchange` — **the hedger, both legs in one card, which is what this slide's title promised.** *1 · prints it bought*: real **Circle Gateway batch UUIDs**, $0.0001 each, settled by the agent's own wallet — a settlement reference, not a hash, because Gateway batches off-chain. Then the joint: the venue fills every trade at that same print, so the card prints the arithmetic — **`2.00 × 0.49112 × 10 = 9.82 USDC`** is the position those prints bought. *2 · fills it took* is the on-chain half. An agent at its mandate stops trading, so when its fills have aged out of the tape's ~8 h reach the table says exactly that rather than pretending. Real Gateway settlements on the marketplace tape below; paper trail in `docs/SUBMISSION.md`.
 
 **Live:** https://arc-compute-rate.vercel.app · reader's companion at `/companion`
 
-<!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. Series rolls are automated (futures-lifecycle.yml); `make desk-preflight` confirms the venue is tradable before a session. The Public Desk needs a PIN ceremony per action, so allow ~30 s per step live. -->
+<!-- LIVE PATH: this is the cutaway. Demo prep: hit /health five minutes early (free-tier press wakes in ~60 s); if still cold, the Terminal labels the tier honestly and reads ACROracle directly — even the fallback is on-chain truth. make demo needs no network. Series rolls are automated (futures-lifecycle.yml); `make desk-preflight` confirms the venue is tradable before a session. The Public Desk needs a PIN ceremony per action, so allow ~30 s per step live. The hedger card is the beat that answers "so what": say out loud that its two tables are two different KINDS of evidence — one off-chain settlement reference, one on-chain transaction — and that the sentence between them is the contract's rule rather than our claim. The mark moves, so read whatever figure is on screen rather than the one on this slide. If the fills table is empty, that is the expected state for an agent already at its mandate and the card says so itself; `docs/SHIP-CHECKLIST.md` has the round-trip that puts a fresh fill there if you want one on camera. -->
 
 ---
 

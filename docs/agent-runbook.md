@@ -129,9 +129,13 @@ make agent-live   # 60 queries, $0.01 cap, discovery from /marketplace/catalog
 ```
 
 This loop is **proven live**: real x402 paid queries have settled against the
-deployed gate (https://acr-api-1fto.onrender.com) — the durable in-repo proof
-is `data/x402_receipts_live.jsonl` (Gateway batch UUIDs, scheme `exact`);
-run tallies on the free-tier ledger are ephemeral. Each line prints the Gateway settlement reference; the
+deployed gate (https://acr-api-1fto.onrender.com) — the durable in-repo proof is
+`services/index_api/index_api/receipts_live.jsonl` (34 rows, Gateway batch UUIDs,
+scheme `exact`). It lives under `services/` rather than `data/` because `data/` is
+in both `.gitignore` and `.dockerignore`, so a file there reaches neither the repo
+nor the image; the buyer's own local capture at `data/x402_receipts_live.jsonl` is
+what `make x402-capture` and `scripts/gen_snapshot.py` fold *from*, not something a
+reader can open. Run tallies on the free-tier ledger are ephemeral. Each line prints the Gateway settlement reference; the
 summary block totals payments and distinct settlements. Watch them land live on the Terminal's
 **Exchange** tape (`make terminal` → /exchange) and in
 `GET /marketplace/receipts`.

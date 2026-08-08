@@ -22,6 +22,7 @@ Exit codes: 0 = every claim still holds; 1 = a document is lying.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -29,6 +30,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+#: The Readme is the first thing a judge opens and the last thing anyone
+#: re-reads. Its Demo-Day Metrics block states the receipts count, so it is
+#: parsed here for the same reason the deck is.
+README = ROOT / "Readme.md"
 SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
 STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
 #: The gap-analysis doc drifted furthest of all — 230/50/60 against a suite of
@@ -211,6 +216,54 @@ def main() -> None:
             check(False, "glossary: could not measure")
         else:
             check(actual == stated, f"glossary: docs say {stated}, measured {actual}")
+
+    print("\nthe receipts archive (the number four docs quote and nothing measured)")
+    # This rotted to 11 in three places while the archive held 31, for the
+    # dullest possible reason: no check read the file. The suite counts, the
+    # glossary and the CI shape were all measured; the one number a judge is
+    # most likely to spot-check by opening the ledger was not.
+    ledger = ROOT / "services" / "index_api" / "index_api" / "receipts_live.jsonl"
+    rows, payers = [], {}
+    for ln in (ledger.read_text().splitlines() if ledger.exists() else []):
+        if not ln.strip():
+            continue
+        try:
+            # Parsed, not counted. A line that is not JSON is not a receipt, and
+            # a total that includes it is the same soft number this file exists
+            # to kill.
+            who = str(json.loads(ln).get("payer", "")).lower()
+        except Exception:
+            continue
+        rows.append(ln)
+        payers[who] = payers.get(who, 0) + 1
+    readme = README.read_text() if README.exists() else ""
+    for name, text, pattern in (
+        ("SUBMISSION", sub, r"\*\*(\d+) Gateway-settled receipts\*\*"),
+        ("STATUS", status, r"receipts_live\.jsonl`, (\d+) rows"),
+        ("Readme", readme, r"\*\*(\d+)\*\* real Gateway x402 settlements"),
+    ):
+        stated = claim(text, pattern)
+        if stated is None:
+            check(False, f"receipts: no count found in {name} — has it been reworded?")
+        else:
+            check(stated == len(rows), f"receipts: {name} says {stated}, the archive holds {len(rows)}")
+    # "Two distinct payers" is the claim carrying the honesty here — revenue
+    # from one wallet we control would prove plumbing rather than demand — so
+    # it is the one worth a gate of its own.
+    # Spelled, not numeric: SUBMISSION opens the paragraph "**Two distinct
+    # payers** have settled…", and prose is the right call there. Match the word
+    # rather than forcing a digit into the sentence to suit the checker.
+    m = re.search(r"\*\*(\d+|[A-Za-z]+) distinct payers\*\*", sub)
+    WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    raw = m.group(1).lower() if m else None
+    stated_payers = (
+        int(raw) if raw and raw.isdigit() else WORDS.get(raw) if raw else None
+    )
+    if stated_payers is None:
+        check(False, "receipts: SUBMISSION states no payer count I can parse")
+    else:
+        check(stated_payers == len(payers),
+              f"receipts: SUBMISSION says {stated_payers} payer(s), the archive has {len(payers)}")
 
     print("\nCI shape")
     stated_jobs = claim(sub, r"(\d+)/\d+ jobs green")
