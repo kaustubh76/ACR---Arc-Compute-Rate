@@ -155,10 +155,17 @@ export function PublicDesk({
 
   const tradable = Object.keys(desks ?? {});
   const desk = (desks ?? {})[indexId];
-  // Offer the full feasible size; before the first /limits answer, offer the
-  // floor — the server re-clamps every challenge anyway.
-  const buySize = limits ? limits.max_buy : MIN_TRADE;
-  const sellSize = limits ? limits.max_sell : MIN_TRADE;
+  // Offer the full feasible size, and offer NOTHING until the server has said
+  // what that is. This used to fall back to the floor before the first /limits
+  // answer, on the reasoning that "the server re-clamps every challenge
+  // anyway" — which is not what the server does. `build_challenge` clamps
+  // DOWNWARD within the feasible range, but when the cap is under MIN_QTY it
+  // refuses with a 409 instead. So the fallback offered a live button whose
+  // only possible outcome was a refusal, and a reader who pressed it got a
+  // console error and no visible reason. 0 keeps both buttons disabled until
+  // the margin math has actually answered.
+  const buySize = limits ? limits.max_buy : 0;
+  const sellSize = limits ? limits.max_sell : 0;
 
   useEffect(() => {
     if (tradable.length && !tradable.includes(indexId)) setIndexId(tradable[0]);
@@ -640,6 +647,26 @@ export function PublicDesk({
         elapsedS={busySince != null && nowS > 0 ? nowS - busySince : null}
       />
 
+      {/* The desk's answer, next to the buttons that provoke it.
+          This used to render at the very BOTTOM of the section — below the
+          headroom bar, the reader's receipts, the withdrawable rows and the
+          settle rows — so a refusal landed several hundred pixels under the
+          button that caused it. Every one of these messages is worth reading
+          ("no margin for a buy right now, post collateral or trade the other
+          way"; "your stake is already posted on another market"), and a reader
+          who cannot see it concludes the button is broken and presses it again.
+          `aria-live` because it appears without a navigation. */}
+      {note && (
+        <p
+          className="vermilion"
+          role="status"
+          aria-live="polite"
+          style={{ fontSize: 13, margin: "12px 0 0", maxWidth: 68 * 9 }}
+        >
+          {note}
+        </p>
+      )}
+
       {phase === "closed" || phase === "opening" ? (
         <button className="btn" onClick={open} disabled={busy}>
           <Ed x={busy ? "opening…" : "open a desk account"} p={busy ? "opening…" : "start · make my wallet"} />
@@ -934,7 +961,6 @@ export function PublicDesk({
           </p>
         ))}
 
-      {note && <p className="muted vermilion">{note}</p>}
       <FillToast payload={fillToast} explorer={explorer} />
     </section>
   );
