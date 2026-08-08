@@ -240,7 +240,7 @@ export function HedgerPanel({
       <p className="muted" style={{ fontSize: 13, margin: 0, maxWidth: 68 * 9 }}>
         <Ed
           x="A compute buyer is short the rate it pays, so it hedges by going long the future. This agent buys the ACR print over x402, compares it to the position it already holds, and trades the difference. No human in the loop."
-          p="This robot pays a fraction of a cent for today's price, then buys or sells to reach the target its owner set once."
+          p="This robot pays a fraction of a cent for today's price, then buys toward the target its owner set once, and buying is all it can do."
         />
       </p>
 

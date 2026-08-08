@@ -197,6 +197,40 @@ Worth flagging because the symptom points away from the cause: it cost a live
 run that reported "payment failed" while the trade beside it succeeded, and
 nothing in the error suggests a runtime flag.
 
+## `circle wallet execute` cannot carry a negative `int256`
+
+The one above is a runtime flag you can set. This one changes what the wallet
+can *do*, so it belongs beside the two identities rather than in a runbook
+footnote. Measured 2026-08-08 on ARC-TESTNET against
+`ACRFutures.trade(uint256,int256)`:
+
+| Attempt | Result |
+|---|---|
+| `+1e16` (WAD, long) | estimates and returns a fee — the transaction builds |
+| `-1e16` | `400 Fails to perform transaction estimation` |
+| Two's complement, hex **and** decimal | the same 400 |
+| `--` before the positional arguments | the same 400 |
+| The identical call under `eth_call` | **succeeds** |
+| An oversized *positive* quantity | `Estimate fee execution reverted` |
+
+The last two rows are what make this a diagnosis rather than a guess. A contract
+revert produces a **different** error, and the same call the CLI refuses to build
+executes fine against the same venue over `eth_call`. So the failure is in
+**building** the transaction, not in running it.
+
+**What it means for the wallet.** An agent wallet on this path can open and
+increase an on-chain position and cannot reduce one — it is a buy-side-only
+signer for any signed-quantity ABI. Design around it three ways: give the agent a
+one-directional mandate, keep an EOA route for the closing leg, or let the
+position run to cash settlement at expiry.
+
+**What it means for our hedger.** Its mandate is one-directional by necessity
+rather than by choice, and the repair for an overshoot is to raise the mandate to
+the position rather than sell the position back. That is available because we own
+the mandate; it would not be if we owed it to a counterparty. `_fmt_qty`
+(`scripts/hedger.py`) carries the same measurement in code, and
+`skills/acr-hedge/SKILL.md` publishes it so nobody else has to find it twice.
+
 ## Why CI is the one place a raw key is still the *safer* choice
 
 The obvious next step after moving the venue into custody is "put the Circle
