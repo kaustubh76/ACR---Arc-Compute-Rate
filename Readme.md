@@ -55,7 +55,7 @@ The four input streams, top to bottom:
 
 1. **x402 Authorizations** (teal) — EIP-3009 signed payment payloads: price, size, buyer, seller, timestamp. The highest-frequency observable.
 2. **Gateway Batch Settlements** (teal) — net positions settled *later* than economic time. The box states the diagram's most important sentence: the observed tape equals the **latent flow convolved with the batching schedule**. This is why naive VWAP measures the batch scheduler, not the market.
-3. **Seller Attestations** (orange) — EIP-712 signed service metadata (model class, latency SLO, schema) flowing into `AttestationRegistry.sol`. Feeds Pillar 2.
+3. **Seller Attestations** (orange) — EIP-712 signed service metadata (model class, latency SLO, schema) flowing into `AttestationRegistry.sol`. Wired to Pillar 2: `PrintStore._merge_onchain_attestations` unions the registry into the estimator's feature set on every load, on-chain winning ties. On **this** deployment it feeds Pillar 2 nothing — the published tape is the simulator (`ACR_TAPE_SOURCE=sim`), whose seller ids share no address with the 4 records on-chain, so the union adds 4 rows the regression never matches to an event. `make seed-sellers` with `ACR_TAPE_SOURCE=arc` is the one command that closes it, and `/sellers` says so on the page.
 4. **Adversarial Flow** (red) — wash trades, spoof volume, sybil seller clusters. Deliberately drawn as a *first-class input*: the estimator is designed against contaminated data, not clean data.
 
 ### Zone B — ESTIMATOR CORE (center, blue container — the largest zone by design)
@@ -67,7 +67,7 @@ Title bar states the discipline: **"one estimand: the latent price of machine se
 | **Observation Model** | **Pillar 1** | The state-space formulation: observed tape = latent process ∘ batching operator + noise. Kalman-class filtering with irregular observations. The stage no other team will know exists. |
 | **Cleaning Stack** | — | Wash-flow exclusion via funding-graph analysis, per-cluster volume caps, sybil detection (Louvain), self-dealing filters. |
 | **Robust Estimator** | — | Volume-time trimmed weighted median (α-trim), documented breakdown point, confidence interval per print. |
-| **Hedonic Adjustment** | **Pillar 2** | Regression on registry quality features strips model/latency effects → a **constant-quality** rate. Case-Shiller methodology, applied to compute. |
+| **Hedonic Adjustment** | **Pillar 2** | Notional-weighted regression of log-price on seller quality features (model class, latency) strips those effects → a **constant-quality** rate. Case-Shiller methodology, applied to compute. Features come from the registry *or* the tape's own attestations, whichever covers the seller (`PrintStore._merge_onchain_attestations`); on the published simulator tape they come from the tape, because the 4 on-chain records match no simulated seller. |
 | **ACR PRINTS** (gold) | output | Hourly prints: **ACR-INF** ($/1k tokens), **ACR-GPU** ($/GPU-sec), **ACR-DATA** ($/MB) — each shipped with its CI **and its attack-cost-per-bp**. |
 | **Manipulation Cost Bound** (red dashed) | **Pillar 3** | Lower bound on USDC required to move the print by 1bp = f(trim α, cluster caps, **deterministic USDC fees**). Only computable on Arc; on volatile-gas chains the bound is a random variable. |
 

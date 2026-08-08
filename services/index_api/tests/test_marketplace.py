@@ -98,6 +98,36 @@ def test_catalog_attestation_block_from_registry():
     assert att["sellers_attested"] == 2
     assert att["services"] == ["gpu", "inference"]
     assert att["latency_slo_ms"] == {"min": 250.0, "max": 500.0}
+    # The rows behind the count. The summary used to keep only the scalar, so
+    # /sellers printed a "4" over sixty simulated rows that were not those four
+    # and had nothing to show instead. Pinned field by field: this is the wire a
+    # discovery crawler parses and the Terminal renders as clickable addresses.
+    assert att["sellers"] == [
+        {
+            "seller": "0xSellerA",
+            "service": "inference",
+            "model_class": "frontier",
+            "latency_slo_ms": 250.0,
+            "schema_id": "acr-v1",
+        },
+        {
+            "seller": "0xSellerB",
+            "service": "gpu",
+            "model_class": "mid",
+            "latency_slo_ms": 500.0,
+            "schema_id": "acr-v1",
+        },
+    ]
+    # Enum VALUES, not reprs — `ModelClass.FRONTIER` on the wire is unparseable.
+    assert all(isinstance(r["service"], str) for r in att["sellers"])
+    # Registry order (sellerAt(0..n-1)), not re-sorted: `services` above is free
+    # to sort and discard who-filed-when; a row list is not.
+    assert [r["seller"] for r in att["sellers"]] == ["0xSellerA", "0xSellerB"]
+    # The count IS the rows' length, so the card and its table cannot disagree.
+    assert len(att["sellers"]) == att["sellers_attested"]
+    # One object, two readers: a crawler reading an item and one reading the
+    # root must not get different reputation blocks.
+    assert cat["provider"]["attestation"] == att
 
 
 def test_registry_seam_defaults_to_null():

@@ -265,6 +265,27 @@ def _read_attestation_summary(registry, settings) -> dict | None:
         "registry": settings.registry_address,
         "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
         "sellers_attested": len(attestations),
+        # The rows behind the count. ``all_attestations()`` already paid for
+        # sellerCount + sellerAt/getAttestation per seller and this kept one
+        # integer — the same miss the hedger's receipt ledger had. A count is an
+        # assertion; the addresses are the only thing on this listing a buyer can
+        # check without us, and /sellers prints this number directly above 60
+        # simulated rows that are NOT these sellers. Zero extra RPC: same read,
+        # already TTL-cached and warmed off-request by the background loop.
+        #
+        # Registry order (sellerAt(0..n-1)), deliberately not re-sorted: that is
+        # the order they filed, which `services` below is free to discard and a
+        # row list is not. snake_case to match the block it lives in.
+        "sellers": [
+            {
+                "seller": a.seller,
+                "service": a.service.value,
+                "model_class": a.model_class.value,
+                "latency_slo_ms": a.latency_slo_ms,
+                "schema_id": a.schema_id,
+            }
+            for a in attestations
+        ],
         "services": sorted({a.service.value for a in attestations}),
         "latency_slo_ms": {
             "min": min((a.latency_slo_ms for a in attestations), default=None),

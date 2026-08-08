@@ -29,7 +29,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/attack/view.tsx": 10,
   "app/curve/view.tsx": 5,
   "app/exchange/view.tsx": 12,
-  "app/sellers/view.tsx": 8,
+  // Was 8 against an actual 15 — a floor that had stopped holding anything,
+  // which is part of why this page's attestation copy rotted unnoticed.
+  "app/sellers/view.tsx": 30,
   "app/developers/view.tsx": 8,
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,

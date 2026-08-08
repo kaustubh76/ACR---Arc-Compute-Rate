@@ -352,10 +352,29 @@ export interface CatalogAccepts {
   extra?: Record<string, unknown>;
 }
 
+/** One record as `AttestationRegistry` holds it, straight off the wire. The keys
+ *  are the press's snake_case rather than a UI shape: this is the same object a
+ *  discovery crawler reads at /marketplace/catalog. `service` and `model_class`
+ *  stay `string` because the press owns those enums — a narrow union here would
+ *  break the build the day a fourth service is added, for no gain. */
+export interface CatalogAttestationRow {
+  seller: string;
+  service: string;
+  model_class: string;
+  latency_slo_ms: number;
+  schema_id: string;
+}
+
 export interface CatalogAttestation {
   registry?: string;
   standard?: string;
   sellers_attested: number;
+  /** The rows behind `sellers_attested`. OPTIONAL, and that is load-bearing:
+   *  a bundle snapshotted before this field existed carries the count with no
+   *  rows. `undefined` means "archived before we served them"; `[]` means "the
+   *  chain was read and holds nothing". Opposite claims, so the panel prints a
+   *  different sentence for each rather than collapsing them into "empty". */
+  sellers?: CatalogAttestationRow[];
   services: string[];
   latency_slo_ms?: { min: number | null; max: number | null };
 }
