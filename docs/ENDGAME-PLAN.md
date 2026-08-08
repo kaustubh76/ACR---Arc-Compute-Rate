@@ -2,6 +2,17 @@
 
 **Deadline: Mon 2026-08-10 17:29 IST · Code freeze EOD Fri 08-08 (SHIP-CHECKLIST.md:12) · Sat = docs/deck/video only · Sun = ritual only**
 
+> **Status 2026-08-08 — this plan was executed. It is a record now, not an
+> instruction sheet.** Two things it quotes are superseded and deliberately left
+> in place rather than rewritten. The spine sentence at §2 seam C and §3 (*"the
+> print it purchases is the input to the position it takes, and the log says
+> so"*) was found FALSE about the log it named — `data/hedger_decisions.jsonl`
+> is gitignored and its `print_tx` was null on every live line — and was
+> replaced by the mechanism claim: `ACRFutures` fills at
+> `oracle.latestValue(indexId)`, so the print paid for IS the number filled at.
+> And the hedger's evidence slot in §3 is `GET /hedger`, not that log file. See
+> commit `c5d38ad`.
+
 ---
 
 ## 1. Context and the honest ACTFUN verdict
@@ -65,7 +76,7 @@ Strategic anchor: **Arc public mainnet launches Sept 16, 2026** — ACR pitches 
 - 0:00–0:20 `/` hero, live rate: "machine commerce's SOFR — and the economy that pays for it."
 - 0:20–1:05 `/attack`: the $8,000 wash attack buying ≤2.39% — the wow, given full room.
 - 1:05–1:45 `/curve`: desk + "settlement refuses a print older than 2 hours."
-- 1:45–2:35 `/exchange`: the hedger card — **two tables and the sentence between them. There is no log on screen; do not call it one.** Point at *1 · prints it bought*: Circle Gateway batch UUIDs its own wallet settled at $0.0001 each, and say the thing that makes them interesting — a Gateway settlement is off-chain, so no explorer resolves it, which is why the seller publishes a receipts tape at all. Read the joint line as written ("the venue fills every trade at that same print, so the position below is that print, priced"), then the arithmetic on screen. Then *2 · fills it took* — if it is empty, say why before anyone wonders: an agent that has reached its mandate stops trading, so its fills age out of the ~8h window while the position they built persists in contract state, and the card says exactly that in its own empty row. (Want fills on camera? Run the round-trip in `docs/SHIP-CHECKLIST.md` within ~8h of recording.) Close on one live buy click. **The line to land: decision logic tied to a real signal it paid for, and both legs are public state — one off-chain receipt, one on-chain position — not a file we are asking you to trust.**
+- 1:45–2:35 `/exchange`: the hedger card — **two tables and the sentence between them. There is no log on screen; do not call it one.** Point at *1 · prints it bought*: Circle Gateway batch UUIDs its own wallet settled at $0.0001 each, and say the thing that makes them interesting — a Gateway settlement is off-chain, so no explorer resolves it, which is why the seller publishes a receipts tape at all. Read the joint line as written ("the venue fills every trade at that same print, so the position below is that print, priced"), then the arithmetic on screen. Then *2 · fills it took* — if it is empty, say why before anyone wonders: an agent that has reached its mandate stops trading, so its fills age out of the ~8h window while the position they built persists in contract state, and the card says exactly that in its own empty row. (Want fills on camera? There is no round-trip: `circle wallet execute` cannot build a transaction carrying a negative `int256`, so raise `HEDGER_TARGET` by at least `MIN_TRADE` and leave it raised, at least ~8h before recording, per `docs/SHIP-CHECKLIST.md`.) Close on one live buy click. **The line to land: decision logic tied to a real signal it paid for, and both legs are public state — one off-chain receipt, one on-chain position — not a file we are asking you to trust.**
 - 2:35–3:00 honesty pill ("this ladder never fakes freshness"), lifecycle close, repo.
 
 ---

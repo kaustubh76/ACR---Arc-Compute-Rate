@@ -128,8 +128,9 @@ def test_fallback_hedger_section_still_carries_its_agent():
     assert all(r["tx_ref"] and r["amount_usdc"] > 0 for r in rows), "empty receipt rows"
     # Newest first, so the panel's five-row window is the five most RECENT
     # payments. The committed ledger is append-ordered by capture, not by
-    # settlement (its four hedger rows run …397, …342, …322, …355), so this is a
-    # real property of the builder rather than an accident of the file.
+    # settlement (of its seven hedger rows the newest by `settled_at` sits fifth
+    # from the top), so this is a real property of the builder rather than an
+    # accident of the file.
     stamps = [r["settled_at"] for r in rows if r.get("settled_at")]
     assert stamps == sorted(stamps, reverse=True), "receipts must be newest-first"
     # The counter above the table and the table itself must tell one story: the

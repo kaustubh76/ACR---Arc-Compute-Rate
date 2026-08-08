@@ -200,7 +200,7 @@ def capture_hedger_state() -> dict:
         # Spend comes from the DURABLE receipts archive — the same committed
         # file SUBMISSION.md cites — never the live facilitator's counters
         # (ephemeral under an "archived" label) and never the sim ledger,
-        # which knows no real payer and turned the agent's 4 real settlements
+        # which knows no real payer and turned the agent's 7 real settlements
         # into a confident "paid 0". An archive the repo already version-
         # controls is exactly what an archived edition should carry.
         arch = Path("services/index_api/index_api/receipts_live.jsonl")

@@ -173,10 +173,11 @@ def build_hedger_state(futures, receipts: dict | None = None) -> dict:
             if str(r.get("payer", "")).lower() == low_payer
         ]
         # Sorted here rather than trusted. The live ring is already newest-first,
-        # but the committed archive is append-ordered by CAPTURE: its four hedger
-        # rows run …397, …342, …322, …355, so "take the top of the file" would
-        # have put the newest payment third. A row written before `settled_at`
-        # existed sorts last rather than to the epoch.
+        # but the committed archive is append-ordered by CAPTURE, and capture
+        # order is not settlement order: of its seven hedger rows the newest by
+        # `settled_at` sits FIFTH from the top, so "take the top of the file"
+        # would publish the wrong payment as the latest. A row written before
+        # `settled_at` existed sorts last rather than to the epoch.
         rows.sort(key=lambda r: float(r.get("settled_at") or 0.0), reverse=True)
         out["paid_queries"] = len(rows)
         out["spent_usdc"] = round(sum(float(r.get("amount_usdc", 0.0)) for r in rows), 6)
@@ -184,7 +185,7 @@ def build_hedger_state(futures, receipts: dict | None = None) -> dict:
         # the live ring adds `seq` and the committed archive adds `resource` —
         # and a field present on one path and absent on the other is precisely
         # how a panel learns to render "…" for a value that is really there.
-        # (`resource` is empty on 29 of the archive's 31 rows anyway, so it names
+        # (`resource` is empty on 32 of the archive's 34 rows anyway, so it names
         # nothing.) Everything below is on BOTH paths, coerced at this boundary.
         out["receipts"] = [
             {

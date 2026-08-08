@@ -96,7 +96,10 @@ something nobody intended. Positive = long (pays if the rate rises), negative = 
 > cannot reduce one.** Design for it. Either give your agent a one-directional mandate,
 > keep an EOA route for the closing leg, or let the position run to cash settlement at
 > expiry — and whichever you choose, do not write an agent whose mandate assumes it can
-> trade back. Ours did, and it sat 0.47 contracts above its target with no way down.
+> trade back. Ours did: it bought 0.47 contracts chasing a raised target, could not
+> sell them back, and the only repair left was to raise the mandate so the target met
+> the position instead of the other way round. That is available when you own the
+> mandate. It is not available when you owe it to a counterparty.
 
 ## Guardrails the reference agent enforces (copy them)
 
