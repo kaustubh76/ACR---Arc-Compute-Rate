@@ -26,26 +26,26 @@
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.48895238342413994,
-          "bid": 0.4877205594854711,
-          "ask": 0.49018420736280877,
-          "spread_bp": 50.3862535669568
+          "mid": 0.48902512871429427,
+          "bid": 0.4877835271828627,
+          "ask": 0.4902667302457258,
+          "spread_bp": 50.778639318427906
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.48895238342413994,
-          "bid": 0.4877205594854711,
-          "ask": 0.49018420736280877,
-          "spread_bp": 50.3862535669568
+          "mid": 0.4891706192946029,
+          "bid": 0.48790946257764606,
+          "ask": 0.4904317760115598,
+          "spread_bp": 51.563060707754275
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.48895238342413994,
-          "bid": 0.4877205594854711,
-          "ask": 0.49018420736280877,
-          "spread_bp": 50.3862535669568
+          "mid": 0.4894616004552203,
+          "bid": 0.4881613333672127,
+          "ask": 0.4907618675432279,
+          "spread_bp": 53.13050448894534
         }
       ],
       "robustness": {
@@ -57,12 +57,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.4953335241916736,
-        "ci_lo": 0.49425837042109294,
-        "ci_hi": 0.4987369827231464,
-        "attack_cost_per_bp": 0.010151,
-        "timestamp": 4698000,
-        "posted_at": 1786209413
+        "value": 0.49773380357474806,
+        "ci_lo": 0.494493045254866,
+        "ci_hi": 0.49780229920817265,
+        "attack_cost_per_bp": 0.015539,
+        "timestamp": 4834800,
+        "posted_at": 1786302924
       }
     },
     "ACR-GPU": {
@@ -91,26 +91,26 @@
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.011123295068095805,
-          "bid": 0.011095270081973562,
-          "ask": 0.011151320054218048,
-          "spread_bp": 50.38971986390043
+          "mid": 0.011124184860517859,
+          "bid": 0.011095937426290104,
+          "ask": 0.011152432294745614,
+          "spread_bp": 50.785625341432514
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.011123295068095805,
-          "bid": 0.011095270081973562,
-          "ask": 0.011151320054218048,
-          "spread_bp": 50.38971986390043
+          "mid": 0.011125964445361966,
+          "bid": 0.011097272114923184,
+          "ask": 0.011154656775800749,
+          "spread_bp": 51.577246322665346
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.011123295068095805,
-          "bid": 0.011095270081973562,
-          "ask": 0.011151320054218048,
-          "spread_bp": 50.38971986390043
+          "mid": 0.011129523615050183,
+          "bid": 0.011099941492189347,
+          "ask": 0.01115910573791102,
+          "spread_bp": 53.15972881504672
         }
       ],
       "robustness": {
@@ -122,12 +122,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.011027025952822034,
-        "ci_lo": 0.010980833012639255,
-        "ci_hi": 0.01105385865406088,
-        "attack_cost_per_bp": 0.016105,
-        "timestamp": 4698000,
-        "posted_at": 1786209418
+        "value": 0.011061675358186168,
+        "ci_lo": 0.010993844837743542,
+        "ci_hi": 0.011133057827074782,
+        "attack_cost_per_bp": 0.022275,
+        "timestamp": 4834800,
+        "posted_at": 1786302929
       }
     },
     "ACR-DATA": {
@@ -148,34 +148,34 @@
         {
           "tenor_weeks": 1,
           "expiry_ts": 777600.0,
-          "mid": 0.0020995458859619474,
-          "bid": 0.00209425568632808,
-          "ask": 0.002104836085595815,
-          "spread_bp": 50.393751041488656
+          "mid": 0.002099566881420807,
+          "bid": 0.00209427668178694,
+          "ask": 0.0021048570810546746,
+          "spread_bp": 50.39324710901756
         },
         {
           "tenor_weeks": 2,
           "expiry_ts": 1382400.0,
-          "mid": 0.0020995458859619474,
+          "mid": 0.0020995878768796665,
           "bid": 0.00209425568632808,
-          "ask": 0.002104836085595815,
-          "spread_bp": 50.393751041488656
+          "ask": 0.002104920067431253,
+          "spread_bp": 50.792735186783375
         },
         {
           "tenor_weeks": 4,
           "expiry_ts": 2592000.0,
-          "mid": 0.0020995458859619474,
-          "bid": 0.00209425568632808,
-          "ask": 0.002104836085595815,
-          "spread_bp": 50.393751041488656
+          "mid": 0.002099629867797386,
+          "bid": 0.002094213695410361,
+          "ask": 0.002105046040184411,
+          "spread_bp": 51.59168737399318
         },
         {
           "tenor_weeks": 8,
           "expiry_ts": 5011200.0,
-          "mid": 0.0020995458859619474,
-          "bid": 0.00209425568632808,
-          "ask": 0.002104836085595815,
-          "spread_bp": 50.393751041488656
+          "mid": 0.002099713849632824,
+          "bid": 0.0020941297135749224,
+          "ask": 0.002105297985690726,
+          "spread_bp": 53.189495881815546
         }
       ],
       "robustness": {
@@ -187,12 +187,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.00204800261417756,
-        "ci_lo": 0.002040073394193858,
-        "ci_hi": 0.002066234496557916,
-        "attack_cost_per_bp": 0.004335,
-        "timestamp": 4698000,
-        "posted_at": 1786209424
+        "value": 0.002062461256157907,
+        "ci_lo": 0.002062115999981669,
+        "ci_hi": 0.002088750678616696,
+        "attack_cost_per_bp": 0.014546,
+        "timestamp": 4834800,
+        "posted_at": 1786302934
       }
     }
   },
@@ -1507,9 +1507,9 @@
       "settled": false,
       "settlement_price": 0.0,
       "maker_inventory": -3.72,
-      "maker_avg_price": 0.493459962402608,
-      "maker_realized_usdc": 0.08597802073922343,
-      "maker_unrealized_usdc": 0.016281,
+      "maker_avg_price": 0.49360824461581293,
+      "maker_realized_usdc": 0.08046192240799935,
+      "maker_unrealized_usdc": -0.073008,
       "open_interest": 3.72,
       "trader_count": 5
     },
@@ -1523,9 +1523,9 @@
       "settled": false,
       "settlement_price": 0.0,
       "maker_inventory": -2.0,
-      "maker_avg_price": 0.010982773005796009,
-      "maker_realized_usdc": -0.00321081007372271,
-      "maker_unrealized_usdc": -0.004095,
+      "maker_avg_price": 0.011005952921430216,
+      "maker_realized_usdc": -0.0030979889833989502,
+      "maker_unrealized_usdc": -0.004212,
       "open_interest": 2.0,
       "trader_count": 4
     },
@@ -1538,11 +1538,11 @@
       "exists": true,
       "settled": false,
       "settlement_price": 0.0,
-      "maker_inventory": 0.0,
-      "maker_avg_price": 0.0,
-      "maker_realized_usdc": -0.0006834447586175499,
-      "maker_unrealized_usdc": -0.000683,
-      "open_interest": 0.0,
+      "maker_inventory": -0.25,
+      "maker_avg_price": 0.002062461256157907,
+      "maker_realized_usdc": -0.00066830500884242,
+      "maker_unrealized_usdc": -0.000668,
+      "open_interest": 0.25,
       "trader_count": 2
     }
   },
@@ -1793,22 +1793,22 @@
     "tape_source": "sim",
     "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
     "poster": {
-      "posts": 32,
+      "posts": 30,
       "last": {
         "ACR-INF": {
-          "tx": "0xbf1a8a044b4e2dddd7bb629164577c971f6411895d037a306f4e998a02755bd6",
-          "block": 55976560,
-          "at_wall": 1786209413.0
+          "tx": "0x6a993a8ee602a4279c0cbcf6630682f75444fff392a5a77e36fb3c5b032e9dbb",
+          "block": 56165046,
+          "at_wall": 1786306530.0
         },
         "ACR-GPU": {
-          "tx": "0x10e734b53dd7c5de1da81488e4669a007b732d2b365f88b2949427f83b798410",
-          "block": 55976571,
-          "at_wall": 1786209418.0
+          "tx": "0xdfc63e438988461b784e87de3193658d2f294148e3da8da30a96f65d57026e78",
+          "block": 56166295,
+          "at_wall": 1786307173.0
         },
         "ACR-DATA": {
-          "tx": "0x5d82e8dce6d13b7bc14b6b11c1c23d3680d1831d7f494759d5f3b6d8a59d1d46",
-          "block": 55976581,
-          "at_wall": 1786209424.0
+          "tx": "0xf259c63f9d48b1cfed5079b060ead0484e0498c6a02d68009b62559ba735a9dc",
+          "block": 56166302,
+          "at_wall": 1786307177.0
         }
       }
     }
@@ -1882,7 +1882,7 @@
           "resource": "/prints",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2022,7 +2022,7 @@
           "resource": "/prints/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2167,7 +2167,7 @@
           "resource": "/prints/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2312,7 +2312,7 @@
           "resource": "/prints/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2457,7 +2457,7 @@
           "resource": "/curve/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2603,7 +2603,7 @@
           "resource": "/curve/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2749,7 +2749,7 @@
           "resource": "/curve/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -2895,7 +2895,7 @@
           "resource": "/vol/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3018,7 +3018,7 @@
           "resource": "/vol/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3141,7 +3141,7 @@
           "resource": "/vol/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3264,7 +3264,7 @@
           "resource": "/seller-scores/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3407,7 +3407,7 @@
           "resource": "/seller-scores/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -3550,7 +3550,7 @@
           "resource": "/seller-scores/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-08-08T18:05:59.708Z",
+          "lastUpdated": "2026-08-09T20:08:28.417Z",
           "accepts": [
             {
               "scheme": "exact",
@@ -4051,22 +4051,22 @@
     {
       "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.00204800261417756,
-      "block": 55982302,
-      "tx": "0x11d72779def4396dfabc2c00a2b26e893f5992fe79e5f32de55faabc8ea5fe01",
-      "seen_at": 1786212521.562931
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.002062461256157907,
+      "block": 56161183,
+      "tx": "0x556bf10c8c9efd8375eac6b9c9cc0028e399877afe6ae3b3899df77264cb8e40",
+      "seen_at": 1786307436.4623559
     },
     {
-      "series_id": 4,
+      "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": -0.25,
       "side": "sell",
-      "mark": 0.011027025952822034,
-      "block": 55976931,
-      "tx": "0xa390e376d1259c996256bf4f01cb7ea2b313019060f10d8f7070134c455c5605",
-      "seen_at": 1786212521.562931
+      "mark": 0.002062461256157907,
+      "block": 56160382,
+      "tx": "0x11a84ed5843899cfcf560a7abf60a822f65d02ab6f135ab6ffd631dd5aca8d99",
+      "seen_at": 1786307436.4623559
     },
     {
       "series_id": 5,
@@ -4074,39 +4074,69 @@
       "qty": 0.25,
       "side": "buy",
       "mark": 0.002062461256157907,
-      "block": 55969837,
-      "tx": "0x8a8eaafe26a8e7a068f8cb5797948f905b0c1ea7b3c14513614b720aad546489",
-      "seen_at": 1786212521.562931
-    },
-    {
-      "series_id": 3,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.4953335241916736,
-      "block": 55962726,
-      "tx": "0xdd74103d35fa227f172a17ce5853e62a12fd5b45792e3b9642692116e18d06dc",
-      "seen_at": 1786212521.562931
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.010831107596982992,
-      "block": 55955720,
-      "tx": "0x3be93e62c08602b085dca0a8b3617c32edf190be72e28f01c94194c20a85bfec",
-      "seen_at": 1786212521.562931
+      "block": 56159737,
+      "tx": "0x00f172298c765b522dfa12834a3608855e54c58258c8ce87c32780e80333c634",
+      "seen_at": 1786307436.4623559
     },
     {
       "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": -0.25,
       "side": "sell",
-      "mark": 0.002087878893650796,
-      "block": 55948594,
-      "tx": "0x5eadbe3a65a867984f4d019e6f5eda6d81b72eb862bada84ff31a0918728b815",
-      "seen_at": 1786212521.562931
+      "mark": 0.002062461256157907,
+      "block": 56159122,
+      "tx": "0xda2c95c3066680e129e230817c8636203f180a9df0ce438ab3e93bafb92e5ba5",
+      "seen_at": 1786307436.4623559
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.002062461256157907,
+      "block": 56158577,
+      "tx": "0xef9330f3866bc31abd73a8220a3b5a1c0426fd180a4fbb504a64b525a95dcf72",
+      "seen_at": 1786307436.4623559
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.00204800261417756,
+      "block": 56151567,
+      "tx": "0xfc6196059a6eb679b142c40f34c5cda7142b431b2a0c97e9a8d2e8c7e82f5326",
+      "seen_at": 1786307436.4623559
+    },
+    {
+      "series_id": 3,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.49112046961935424,
+      "block": 56144551,
+      "tx": "0x73d5efff67f1b19d214a642bd0fc6218693781cf77d5823f1f3e5ce7ccd20371",
+      "seen_at": 1786307436.4623559
+    },
+    {
+      "series_id": 4,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": -0.25,
+      "side": "sell",
+      "mark": 0.011061675358186168,
+      "block": 56137480,
+      "tx": "0x755fbd333c6b29c75c0f7884edf08083fea273c371846bcefa1914a980a68348",
+      "seen_at": 1786307436.4623559
+    },
+    {
+      "series_id": 5,
+      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
+      "qty": 0.25,
+      "side": "buy",
+      "mark": 0.00204800261417756,
+      "block": 56130466,
+      "tx": "0x899eaab2dddb70cd772d4911162e33f7abe498438fa73b93f6ec8658eefee69c",
+      "seen_at": 1786307436.4623559
     },
     {
       "series_id": 3,
@@ -4114,49 +4144,19 @@
       "qty": -0.25,
       "side": "sell",
       "mark": 0.49112046961935424,
-      "block": 55941452,
-      "tx": "0x0dd4fd97d43f5f093f7659dd5f1e967bf9750821233e7a22a25025d7ef3f7fb0",
-      "seen_at": 1786212521.562931
+      "block": 56123413,
+      "tx": "0x4481becfc80abd876602542f647d0db0668260f6d6cd46aeba3094642a865bac",
+      "seen_at": 1786307436.4623559
     },
     {
       "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.011100978452646001,
-      "block": 55934270,
-      "tx": "0x608eadca60f785069ce60a749659c9e1c2ba47307f49f4f5526c34a99de64054",
-      "seen_at": 1786212521.562931
-    },
-    {
-      "series_id": 4,
-      "taker": "0x17b38219143873Da6e4EDeB601E8c13b80076c89",
-      "qty": -2.0,
-      "side": "sell",
-      "mark": 0.011027025952822034,
-      "block": 55928687,
-      "tx": "0x155d32e594340fc388f1bb97a9c1a6ced102cd1fa8751a481adf24135773b0d9",
-      "seen_at": 1786212521.562931
-    },
-    {
-      "series_id": 5,
       "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
       "qty": 0.25,
       "side": "buy",
-      "mark": 0.002028640876594722,
-      "block": 55927160,
-      "tx": "0x68f46211cab7eff34ae40374345018d2445f093ecba32ddaebe755c17335698c",
-      "seen_at": 1786212521.562931
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.002028640876594722,
-      "block": 55926891,
-      "tx": "0xedf745775483c7638f6c3adda45b25a982558fa99123c81e63b9d5719dba7bda",
-      "seen_at": 1786212521.562931
+      "mark": 0.011061675358186168,
+      "block": 56116398,
+      "tx": "0xcbf865e5490e3350f06d6482f2ed5d7d5bdd5f2809c376b53f7c50e472d146bb",
+      "seen_at": 1786307436.4623559
     }
   ],
   "hedger": {
@@ -4169,8 +4169,8 @@
     "wallet_kind": "circle-agent-wallet",
     "series_id": 3,
     "multiplier": 10,
-    "mark": 0.4953335241916736,
-    "mark_block": 55962726,
+    "mark": 0.49112046961935424,
+    "mark_block": 56144551,
     "position_contracts": 2.47,
     "gap_contracts": 0.03,
     "collateral_usdc": 2.7,

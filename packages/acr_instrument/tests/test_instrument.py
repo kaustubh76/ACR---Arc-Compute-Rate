@@ -84,8 +84,9 @@ def test_spot_stays_inside_the_corridor_at_a_realistic_book():
 def test_the_spread_is_still_relative_and_unchanged():
     """The lean moved to relative units; the spread was ALREADY relative and
     must stay put — docs quote ~50 bp for all three indices."""
-    # kappa=400 is the deployed value (acr_core config as_kappa); ASParams'
-    # own default is 1.5, which prices a ~12900 bp book — not what ships.
+    # kappa=400 is the deployed value (acr_core config as_kappa), and now also
+    # ASParams' own default; passed explicitly here so the test states the
+    # calibration it is pinning rather than inheriting it.
     mm = AvellanedaStoikovMM(
         "ACR-INF", expiry_ts=100.0, params=ASParams(gamma=0.1, sigma=0.02, kappa=400.0)
     )
@@ -95,3 +96,34 @@ def test_the_spread_is_still_relative_and_unchanged():
     ]
     assert max(spreads) - min(spreads) < 1e-6, spreads
     assert 50.0 < spreads[0] < 50.8, spreads[0]
+
+    # --- the tenor axis exists ---
+    # /curve published one quote under four tenor labels for months: it built a
+    # different expiry per tenor and then called quote(now=start), so
+    # _time_left returned (T-t)/(T-start) = 1.0 every time and the week count
+    # cancelled itself out. Nothing failed, nothing went empty; the rows were
+    # simply bit-identical under four different expiry_ts. Asserted here rather
+    # than as a new test() because pytest's count is stated in six docs plus the
+    # architecture diagram.
+    tenors = (1.0, 2.0, 4.0, 8.0)
+    flat = Position(contracts=0.0)
+    by_tenor = [mm.quote(0.49, flat, now=0.0, start=0.0, tau=t).spread_bp for t in tenors]
+    # strict=False, deliberately: pairing a list with its own tail is uneven by
+    # construction, and strict=True would raise on the last element.
+    assert all(
+        b < a for b, a in zip(by_tenor, by_tenor[1:], strict=False)
+    ), f"the corridor must widen with tenor, got {by_tenor}"
+    # The front point is the calibrated one and must not have moved: tau=1
+    # is what the old code computed for every row, so 1W is unchanged.
+    assert abs(by_tenor[0] - spreads[0]) < 1e-9, (by_tenor[0], spreads[0])
+    # ...and the difference is visible at the one decimal place the page prints.
+    assert by_tenor[-1] - by_tenor[0] > 0.1, by_tenor
+
+    # The lean scales with the horizon too, so the 8-week point is where the
+    # reservation price is most likely to escape its own corridor — the exact
+    # failure that made ACR-GPU look broken in August. Check every tenor at a
+    # book deeper than any the venue has actually carried.
+    for t in tenors:
+        q = mm.quote(0.49, Position(contracts=-4.0), now=0.0, start=0.0, tau=t)
+        assert q.bid <= 0.49 <= q.ask, f"spot outside the corridor at {t}w: [{q.bid}, {q.ask}]"
+        assert q.mid > 0.49, f"a short book must lean the mid up at {t}w"

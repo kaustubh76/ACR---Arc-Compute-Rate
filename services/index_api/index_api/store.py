@@ -196,10 +196,22 @@ class PrintStore:
     def curve(self, index_id: str, tenors_weeks: tuple[int, ...] = (1, 2, 4, 8)) -> list[dict]:
         """Term structure: A-S mid quotes at successive weekly tenors.
 
-        The maker quotes around its *live inventory* (from the on-chain futures
-        desk when configured): a long book skews the reservation price down and a
-        short book up, exactly as ``AvellanedaStoikovMM`` prescribes — so the
-        curve is the bootstrap maker's real book, not a flat-inventory sketch."""
+        Two things give the curve its shape, and for a long time only one of
+        them worked.
+
+        The lean is the maker's *live inventory* (from the on-chain futures desk
+        when configured): a long book skews the reservation price down and a
+        short book up, exactly as ``AvellanedaStoikovMM`` prescribes.
+
+        The slope is the horizon, and it used to be absent. This loop built a
+        different ``expiry`` per tenor and then called ``quote(now=p.ts,
+        start=p.ts)``, which makes ``_time_left`` compute ``(T-t)/(T-start)`` =
+        1.0 for EVERY tenor — the week count cancelled itself, and all four rows
+        came out bit-identical while carrying four different ``expiry_ts``
+        labels. Passing ``tau`` explicitly is the fix; in the model's units that
+        makes ``sigma`` a per-week volatility, and the 1-week point is unchanged
+        (tau=1 either way), so the ~50 bp base calibration still holds at the
+        front and the corridor widens from there."""
         self.ensure()
         p = self.latest.get(index_id)
         if p is None:
@@ -212,7 +224,9 @@ class PrintStore:
             # avg_price is irrelevant to the quote (which skews on `contracts`);
             # seed it at the mark so the position is internally consistent.
             pos = Position(contracts=inventory, avg_price=p.value)
-            q = mm.quote(p.value, pos, now=p.ts, start=p.ts)
+            # tau = the tenor itself, in weeks. NOT now/start: those are equal
+            # here, and the ratio would be 1.0 for every w (see the docstring).
+            q = mm.quote(p.value, pos, now=p.ts, start=p.ts, tau=float(w))
             pts.append({"tenor_weeks": w, "expiry_ts": expiry, "mid": q.mid,
                         "bid": q.bid, "ask": q.ask, "spread_bp": q.spread_bp})
         return pts

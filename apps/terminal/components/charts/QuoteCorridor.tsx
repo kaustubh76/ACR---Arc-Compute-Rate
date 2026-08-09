@@ -124,6 +124,14 @@ export function QuoteCorridor({
     .map((p) => {
       const s = slopeBp(p);
       if (s == null) return `${p.index_id} ${fmtPrice(p.curve[0].mid)}`;
+      /* Flat needs its own branch, and not as a nicety: `s > 0` sent an exactly
+         zero slope down the else, so a book with no inventory published
+         "backwardation −0.0 bp" — a market claim, stated with a sign, about a
+         curve that has no slope. A flat book is the normal state for an index
+         the maker holds nothing on, so this reads on production today. Rounds
+         to the same 0.1 bp the number is printed at, so the words can never
+         disagree with the figure beside them. */
+      if (Math.abs(s) < 0.05) return `${p.index_id} ${plain ? "same later" : "flat"} 0.0 bp`;
       const shape = s > 0 ? (plain ? "dearer later" : "contango") : plain ? "cheaper later" : "backwardation";
       return `${p.index_id} ${shape} ${s > 0 ? "+" : "−"}${Math.abs(s).toFixed(1)} bp`;
     })

@@ -27,8 +27,12 @@ from .future import Position
 @dataclass
 class ASParams:
     gamma: float = 0.1  # inventory risk aversion
-    kappa: float = 1.5  # order-book liquidity
-    sigma: float = 0.02  # index volatility (per unit time)
+    # Matches acr_core's as_kappa. It used to default to 1.5, which prices a
+    # ~12,900 bp book: anything constructing ASParams() without settings got a
+    # degenerate corridor while the deployment got 50 bp, and only a comment in
+    # the test suite said so.
+    kappa: float = 400.0  # order-book liquidity
+    sigma: float = 0.02  # index volatility, PER WEEK (~14% annualized)
     horizon: float = 1.0  # normalized time-to-expiry at t=0
 
 
@@ -42,6 +46,15 @@ class AvellanedaStoikovMM:
         self.p = params
 
     def _time_left(self, now: float, start: float) -> float:
+        """Fraction of THIS contract's life still to run, times the horizon.
+
+        Note what this is not: it is a normalized 1→0 decay for one contract
+        ageing toward its own expiry, NOT a duration. Feeding it a family of
+        expiries to build a term structure divides the tenor out exactly
+        (``(T-t)/(T-start)`` is 1.0 for every T when ``now == start``), which is
+        precisely how /curve came to publish one quote under four tenor labels.
+        Cross-sectional callers must pass ``tau`` to ``quote`` instead.
+        """
         total = max(self.expiry_ts - start, 1e-9)
         return max(0.0, (self.expiry_ts - now) / total) * self.p.horizon
 
@@ -77,9 +90,20 @@ class AvellanedaStoikovMM:
         now: float,
         start: float,
         size: float = 1.0,
+        tau: float | None = None,
     ) -> Quote:
-        """Produce a two-sided quote around the oracle print ``mid``."""
-        tau = self._time_left(now, start)
+        """Produce a two-sided quote around the oracle print ``mid``.
+
+        ``tau`` overrides the computed time-to-expiry, in the SAME time unit
+        ``sigma`` is quoted in. That unit was implicit until now, and its being
+        implicit is what let the term structure collapse unnoticed: a caller
+        pricing several tenors at once must supply the horizon explicitly,
+        because ``_time_left`` normalizes it away. ``store.curve`` passes the
+        tenor in weeks and therefore reads ``sigma`` as a WEEKLY volatility
+        (0.02/week, about 14% annualized).
+        """
+        if tau is None:
+            tau = self._time_left(now, start)
         r = self.reservation_price(mid, position.contracts, tau)
         half = self.optimal_half_spread(tau) * mid  # scale spread to price level
         bid = max(1e-9, r - half)
