@@ -280,6 +280,42 @@ export interface OnchainDirectRead {
   partial?: boolean;
 }
 
+/** One `AttestationRegistry` record as the CHAIN returned it, on demand.
+ *
+ *  Deliberately not the same shape as `CatalogAttestationRow`, which is the
+ *  press's summary of the same thing. This carries what the press drops and
+ *  what makes the read a reading rather than a restatement: the raw `uint8`
+ *  codes beside their names, the `bytes32` before it was decoded, and the
+ *  contract's own `timestamp`. */
+export interface RegistryOnchainRecord {
+  seller: string;
+  service_code: number;
+  service: string;
+  class_code: number;
+  model_class: string;
+  latency_slo_ms: number;
+  schema_id_hex: string;
+  schema_id: string;
+  /** Unix seconds, as the contract stores it. */
+  attested_at: number;
+}
+
+/** The answer to one press of "read it from the chain".
+ *
+ *  `block` and `took_ms` are the point of the payload, not metadata: they are
+ *  what distinguishes a live reading from a re-render of the card above it. */
+export interface RegistryDirectRead {
+  registry: string;
+  chain_id: number;
+  block: number;
+  /** `sellerCount()` as returned, which may exceed `sellers.length` if the
+   *  crawl was capped — `truncated` says which. */
+  seller_count: number;
+  truncated: boolean;
+  took_ms: number;
+  sellers: RegistryOnchainRecord[];
+}
+
 export type AttackRunState = "idle" | "running" | "done" | "error";
 
 export interface AttackVerdict {

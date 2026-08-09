@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { AddressChip } from "@/components/chain/AddressChip";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
@@ -9,7 +9,13 @@ import { useCatalog, useTerminal } from "@/lib/useLive";
 import { useEdition } from "@/lib/useEdition";
 import { fmtInt, money } from "@/lib/format";
 import { INDICES } from "@/lib/indices";
-import type { CatalogAttestationRow, Envelope, TerminalData } from "@/lib/types";
+import type {
+  CatalogAttestationRow,
+  Envelope,
+  RegistryDirectRead,
+  RegistryOnchainRecord,
+  TerminalData,
+} from "@/lib/types";
 
 /** The records behind the counter above.
  *
@@ -24,10 +30,17 @@ import type { CatalogAttestationRow, Envelope, TerminalData } from "@/lib/types"
 function RegistryRows({
   rows,
   explorer,
+  chain,
 }: {
   rows: CatalogAttestationRow[] | undefined;
   explorer?: string;
+  /** The chain's own records, keyed lowercase, once the reader has pressed
+   *  "read it from the chain". `null` before that, and that is the design:
+   *  these rows carry no caret and no click until there is something behind
+   *  them, so a caret on this page always means real extra evidence. */
+  chain: Map<string, RegistryOnchainRecord> | null;
 }) {
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <>
       <div className="label" style={{ marginTop: 22, marginBottom: 8 }}>
@@ -56,17 +69,94 @@ function RegistryRows({
           </thead>
           <tbody>
             {rows?.length ? (
-              rows.map((r) => (
-                <tr key={r.seller}>
-                  <td>
-                    <AddressChip address={r.seller} explorer={explorer} />
-                  </td>
-                  <td>{r.service}</td>
-                  <td>{r.model_class}</td>
-                  <td className="mono">{fmtInt(r.latency_slo_ms)} ms</td>
-                  <td className="mono">{r.schema_id}</td>
-                </tr>
-              ))
+              rows.map((r) => {
+                const rec = chain?.get(r.seller.toLowerCase()) ?? null;
+                // Read but absent: the press lists a seller the contract did
+                // not return. A free disagreement detector, and it must look
+                // like a problem rather than like a row with nothing to open.
+                const missing = chain !== null && rec === null;
+                const isOpen = open === r.seller;
+                const toggle = () => setOpen(isOpen ? null : r.seller);
+                return (
+                  <Fragment key={r.seller}>
+                    <tr
+                      className={rec ? "row-link" : ""}
+                      role={rec ? "button" : undefined}
+                      tabIndex={rec ? 0 : undefined}
+                      aria-expanded={rec ? isOpen : undefined}
+                      aria-label={
+                        rec ? `show what the chain returned for ${r.seller.slice(0, 10)}` : undefined
+                      }
+                      onClick={
+                        rec
+                          ? (e) => {
+                              // The first cell holds an explorer link and a
+                              // copy button; without this guard, opening the
+                              // explorer also toggles the row.
+                              if ((e.target as HTMLElement).closest("a, .addr-copy")) return;
+                              toggle();
+                            }
+                          : undefined
+                      }
+                      onKeyDown={
+                        rec
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                toggle();
+                              }
+                            }
+                          : undefined
+                      }
+                    >
+                      <td>
+                        {rec ? (
+                          <span className="muted" aria-hidden>
+                            {isOpen ? "▾ " : "▸ "}
+                          </span>
+                        ) : missing ? (
+                          <span className="vermilion" aria-hidden>
+                            {"! "}
+                          </span>
+                        ) : null}
+                        <AddressChip address={r.seller} explorer={explorer} />
+                      </td>
+                      <td>{r.service}</td>
+                      <td>{r.model_class}</td>
+                      <td className="mono">{fmtInt(r.latency_slo_ms)} ms</td>
+                      <td className="mono">{r.schema_id}</td>
+                    </tr>
+                    {isOpen && rec ? (
+                      <tr>
+                        <td colSpan={5} className="wrap">
+                          {/* The raw return, not our summary of it. This is the
+                              only place on the page showing values the press
+                              payload does not carry. */}
+                          <span className="mono" style={{ fontSize: 12.5 }}>
+                            service={rec.service_code} ({rec.service})
+                            {"  ·  "}modelClass={rec.class_code} ({rec.model_class})
+                            {"  ·  "}latencySloMs={fmtInt(rec.latency_slo_ms)}
+                            <br />
+                            schemaId={rec.schema_id_hex}
+                            <br />
+                            timestamp={fmtInt(rec.attested_at)}
+                          </span>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {missing ? (
+                      <tr>
+                        <td colSpan={5} className="wrap vermilion" style={{ fontSize: 12.5 }}>
+                          <Ed
+                            x="The press lists this seller and the contract did not return it. Trust the chain, not this page."
+                            p="Our server lists this seller and the blockchain did not. Believe the blockchain."
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })
             ) : (
               <tr>
                 {/* Two empties, two sentences. `undefined` means the archived
@@ -136,6 +226,41 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
   const shown = filtering
     ? sellers?.filter((s) => onchain!.has(s.seller.toLowerCase()))
     : sellers;
+
+  /* The page's own claim is "check it yourself", and until now it offered no
+     way to. Every other figure here arrives through the press, so the card's
+     "4 attested" is something a reader has to take on our word. This asks Arc
+     directly and shows what came back, stamped with the block it was read at.
+     No other button in this app re-reads a source to prove a claim. */
+  const [reading, setReading] = useState(false);
+  const [chainRead, setChainRead] = useState<RegistryDirectRead | null>(null);
+  const [readErr, setReadErr] = useState<string | null>(null);
+
+  const readChain = useCallback(async () => {
+    setReading(true);
+    setReadErr(null);
+    try {
+      const res = await fetch("/api/registry", { cache: "no-store" });
+      const body = (await res.json()) as RegistryDirectRead & { detail?: string };
+      if (!res.ok) {
+        setReadErr(String(body.detail ?? `the read failed (${res.status})`));
+        setChainRead(null);
+      } else {
+        setChainRead(body);
+      }
+    } catch {
+      setReadErr("could not reach the chain from here. Press again");
+    } finally {
+      setReading(false);
+    }
+  }, []);
+
+  /* Keyed lowercase so a record can be matched to the press row beside it.
+     null until a read lands, which is what gates the per-record carets: a
+     caret that opens onto a restatement of the row above it is a lie about
+     there being something behind it. */
+  const chainBySeller =
+    chainRead && new Map(chainRead.sellers.map((r) => [r.seller.toLowerCase(), r]));
 
   return (
     <>
@@ -221,12 +346,88 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
             />
           )}
 
+          {/* The action the page's own thesis demands. It goes to Arc directly
+              rather than through the press, so it still works when the press is
+              asleep — that is the point, and why it is not gated on `att`. */}
+          <div className="btn-row" style={{ marginTop: 18 }}>
+            <button className="btn" onClick={readChain} disabled={reading}>
+              <Ed
+                x={reading ? "asking the chain…" : "read it from the chain"}
+                p={reading ? "asking the blockchain…" : "check this on the blockchain"}
+              />
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, margin: "8px 0 0", maxWidth: 68 * 9 }}>
+            <Ed
+              x="Everything else on this page reaches you through our press. This asks the contract itself and shows what came back, at the block it was read."
+              p="Everything else here comes through our server. This asks the blockchain itself and shows you the answer."
+            />
+          </p>
+
+          {readErr ? (
+            <p
+              className="mono vermilion"
+              role="alert"
+              style={{ fontSize: 12.5, margin: "10px 0 0", maxWidth: 68 * 9 }}
+            >
+              {readErr}
+            </p>
+          ) : null}
+
+          {chainRead ? (
+            <div className="panel panel-pad" style={{ marginTop: 12 }}>
+              <div className="section-head" style={{ marginTop: 0 }}>
+                <span className="label">
+                  <Ed x="what the chain returned" p="what the blockchain said" />
+                </span>
+                <span className="chip chip-teal">
+                  <Ed x="read just now" p="asked just now" />
+                </span>
+              </div>
+              {/* Block height and latency are the payload, not decoration: they
+                  are what distinguishes a reading from a re-render of the card
+                  above. Press twice and the block should move. */}
+              <table className="sheet" style={{ marginTop: 8 }}>
+                <tbody>
+                  <tr>
+                    <td className="muted mono" style={{ width: 190 }}>
+                      block
+                    </td>
+                    <td className="mono gold">{fmtInt(chainRead.block)}</td>
+                  </tr>
+                  <tr>
+                    <td className="muted mono">sellerCount()</td>
+                    <td className="mono">{fmtInt(chainRead.seller_count)}</td>
+                  </tr>
+                  <tr>
+                    <td className="muted mono">chain</td>
+                    <td className="mono">eip155:{chainRead.chain_id}</td>
+                  </tr>
+                  <tr>
+                    <td className="muted mono">took</td>
+                    <td className="mono">{fmtInt(chainRead.took_ms)} ms</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0", maxWidth: 68 * 9 }}>
+                <Ed
+                  x="Each record above is now a row you can open, showing the raw values the contract returned rather than our summary of them."
+                  p="Each record above now opens, showing the exact values the blockchain gave back."
+                />
+              </p>
+            </div>
+          ) : null}
+
           {/* The evidence under the number. Only when the summary itself read:
               a table of nothing under a card of nothing is two apologies for
               one fact. */}
           {att ? (
             <>
-              <RegistryRows rows={att.sellers} explorer={facts.explorer} />
+              <RegistryRows
+                rows={att.sellers}
+                explorer={facts.explorer}
+                chain={chainBySeller ?? null}
+              />
 
               <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0", maxWidth: 68 * 9 }}>
                 <Ed
@@ -377,7 +578,15 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                   aria-expanded={open}
                   aria-label={`show how ${s.seller.slice(0, 10)} scored ${s.score.toFixed(3)}`}
                   title={open ? "hide the arithmetic" : "show how this score was reached"}
-                  onClick={() => setExpanded(open ? null : s.seller)}
+                  onClick={(e) => {
+                    /* The first cell holds an explorer link and a copy button.
+                       Without this guard, "open in the explorer" ALSO toggled
+                       the row and copying an address opened a panel nobody
+                       asked for. Adding the caret below makes the row visibly
+                       clickable, which makes that collision far easier to hit. */
+                    if ((e.target as HTMLElement).closest("a, .addr-copy")) return;
+                    setExpanded(open ? null : s.seller);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -391,6 +600,17 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                         seller id gets the dashed ring and no link, so the sim
                         tape cannot borrow the credibility of a real one. */}
                     <td>
+                      {/* `.row-link` gives only `cursor: pointer`, and the hover
+                          tint at globals.css:1054 is on EVERY tbody tr — so a
+                          clickable row was pixel-identical to a static one, and
+                          invisible entirely to a touch user or a screenshot.
+                          The caret is the affordance the CSS cannot be; it is
+                          the same glyph pair WebhookActivity and
+                          details.disclosure already use. aria-hidden because
+                          aria-expanded on the row already carries the state. */}
+                      <span className="muted" aria-hidden>
+                        {open ? "▾ " : "▸ "}
+                      </span>
                       <AddressChip address={s.seller} explorer={facts.explorer} />
                     </td>
                     <td style={{ fontWeight: 600 }}>{s.score.toFixed(3)}</td>
