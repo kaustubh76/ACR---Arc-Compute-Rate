@@ -178,7 +178,27 @@ export interface FuturesRoster {
   venue: string | null;
   desks: Record<string, FuturesDeskRow>;
   trades: FuturesTradeRow[];
+  /** Rounds that have finished, newest first. Absent on the archived tier. */
+  settled?: FuturesSettledRow[];
   source?: "press" | "chain" | "bundle";
+}
+
+/** A series that ran its whole life: opened, traded, expired, cash-settled.
+ *
+ *  Its own row type rather than a `FuturesDeskRow` with flags, because the two
+ *  describe different things. A desk row is a market you can trade, carrying
+ *  live inventory and open interest; this is a closed fact, and `settle`
+ *  deletes every position, so an open-interest field here would describe the
+ *  clearing rather than the round that was traded. Only what `getSeries`
+ *  itself returns is in here. */
+export interface FuturesSettledRow {
+  series_id: number;
+  index_id: string;
+  /** The oracle print frozen at settlement, in index units. */
+  settlement_price: number;
+  expiry_ts: number;
+  multiplier: number;
+  maker: string;
 }
 
 /** The autonomous hedger's standing (GET /hedger).

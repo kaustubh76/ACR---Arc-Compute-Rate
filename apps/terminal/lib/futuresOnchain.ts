@@ -555,7 +555,25 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
     /* tape is best-effort — desks alone still revive the surfaces */
   }
 
-  const data: FuturesRoster = { venue, desks, trades, source: "chain" };
+  /* The finished rounds, from the series array already crawled above — no
+     extra RPC. Unlike `deskCandidate`, a partial crawl is not a reason to
+     withhold these: each row is a closed, self-contained fact, and the only
+     cost of a short list is that a settled round shows up one refresh late.
+     Withholding, by contrast, would hide the venue's proof of settlement
+     exactly when the RPC is throttled. */
+  const settled: FuturesRoster["settled"] = series
+    .filter((s) => s.exists && s.settled)
+    .sort((a, b) => b.series_id - a.series_id)
+    .map((s) => ({
+      series_id: s.series_id,
+      index_id: s.index_id,
+      settlement_price: s.settlement_price,
+      expiry_ts: s.expiry_ts,
+      multiplier: s.multiplier,
+      maker: s.maker,
+    }));
+
+  const data: FuturesRoster = { venue, desks, trades, settled, source: "chain" };
   memo = { at: Date.now(), partial, data };
   return data;
 }

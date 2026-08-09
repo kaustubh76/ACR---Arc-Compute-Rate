@@ -126,6 +126,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
       <FuturesDesk
         desks={roster?.desks ?? env.data.futures}
         trades={roster?.trades}
+        settled={roster?.settled}
         chain={env.data.chain}
         live={futLive}
         marks={marks}

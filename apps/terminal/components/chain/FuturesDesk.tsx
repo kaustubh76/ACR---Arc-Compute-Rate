@@ -56,6 +56,7 @@ function inventoryPath(current: number, trades: FuturesTradeRow[], seriesId: num
 export function FuturesDesk({
   desks,
   trades,
+  settled,
   chain,
   live,
   marks,
@@ -63,6 +64,9 @@ export function FuturesDesk({
 }: {
   desks: Record<string, FuturesDeskRow> | undefined;
   trades?: FuturesTradeRow[];
+  /** Rounds that have already settled. Optional: the archived tier predates
+   *  this field, and a venue that has never settled sends an empty list. */
+  settled?: FuturesRoster["settled"];
   chain: ChainFactsData | null | undefined;
   live: boolean;
   /** Live oracle marks BY INDEX, used only to price the contract size.
@@ -319,6 +323,42 @@ export function FuturesDesk({
           )}
         </div>
       )}
+
+      {/* Rounds that finished. Rendered only when there ARE some, so a venue
+          that has never settled adds nothing to the page.
+
+          It exists because `selectSeriesForIndex` hides a settled series the
+          instant a live one outranks it on the same index — correct for a
+          tradable desk, and it means the venue's first completed settlement
+          would otherwise leave no trace anywhere but the explorer. The
+          sentence under the table promises cash settlement at expiry; this is
+          where that promise gets a receipt. */}
+      {settled && settled.length > 0 ? (
+        <div style={{ marginTop: 20 }}>
+          <div className="label" style={{ marginBottom: 8 }}>
+            <Ed x="Settled rounds · cash, final" p="Finished rounds · already paid out" />
+          </div>
+          <div className="provenance">
+            {settled.slice(0, 6).map((s) => (
+              <div className="provenance-row" key={s.series_id}>
+                <span className="label">
+                  {s.index_id} <span className="muted">#{s.series_id}</span>
+                </span>
+                <span className="val">
+                  {s.settlement_price > 0 ? s.settlement_price.toFixed(5) : "…"}{" "}
+                  <span className="muted">· {expiryLabel(s.expiry_ts)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0", maxWidth: 68 * 9 }}>
+            <Ed
+              x="Each ran its whole life on-chain: opened, traded, expired, then cash-settled at the oracle print above. Positions are cleared and collateral is free."
+              p="Each of these ran start to finish: opened, traded, closed, then paid out at the rate shown. Nothing is owed."
+            />
+          </p>
+        </div>
+      ) : null}
 
       <p className="muted" style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}>
         <Ed

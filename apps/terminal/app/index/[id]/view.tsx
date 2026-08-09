@@ -377,6 +377,9 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
           <FuturesDesk
             desks={{ [p.index_id]: futRow }}
             trades={futures.roster?.data?.trades}
+            /* This page is one index, so the ledger is filtered to it: a
+               settled ACR-GPU round has no business on the ACR-INF page. */
+            settled={futures.roster?.data?.settled?.filter((s) => s.index_id === p.index_id)}
             chain={env.data.chain}
             live={Boolean(futures.roster?.live)}
             marks={{ [p.index_id]: h.value }}

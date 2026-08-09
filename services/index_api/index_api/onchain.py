@@ -221,15 +221,52 @@ class FuturesReader:
             self._seen = {tx: s for tx, s in self._seen.items() if tx in live_txs}
         return [dict(t) for t in stamped]
 
+    def settled_rounds(self, *, use_cache: bool = True) -> list[dict]:
+        """Every series that has completed its life, newest first.
+
+        ``select_series_for_index`` deliberately hides a settled series the
+        moment a live one exists on the same index — right for the tradable
+        desk, and exactly wrong for proving the machinery works: the venue's
+        first completed settlement would leave no visible trace anywhere but
+        the explorer. This is the ledger of finished rounds, built from the
+        same cached ``all_series`` scan the desks already paid for, so it
+        costs no extra RPC.
+        """
+        if not self.configured:
+            return []
+        try:
+            series = self.all_series(use_cache=use_cache)
+        except Exception:
+            return []
+        done = [s for s in series if s.get("exists") and s.get("settled")]
+        done.sort(key=lambda s: s.get("series_id", 0), reverse=True)
+        # Exactly the fields `descale_series` decodes, and no more. Open
+        # interest and trader count belong to `read_desk`'s enrichment, not to
+        # this scan, and after settlement the contract has deleted every
+        # position anyway — a zero OI here would describe the clearing, not
+        # the round that was traded.
+        return [
+            {
+                "series_id": s.get("series_id"),
+                "index_id": s.get("index_id"),
+                "settlement_price": s.get("settlement_price"),
+                "expiry_ts": s.get("expiry_ts"),
+                "multiplier": s.get("multiplier"),
+                "maker": s.get("maker"),
+            }
+            for s in done
+        ]
+
     def roster(self, *, use_cache: bool = True) -> dict:
         """The whole futures venue for the Terminal desk + tape: address, per-index
-        desks, and the recent trade tape."""
+        desks, the recent trade tape, and the settled-rounds ledger."""
         if not self.configured:
-            return {"venue": None, "desks": {}, "trades": []}
+            return {"venue": None, "desks": {}, "trades": [], "settled": []}
         return {
             "venue": self.futures_address,
             "desks": self.read_all(use_cache=use_cache),
             "trades": self.recent_trades(use_cache=use_cache),
+            "settled": self.settled_rounds(use_cache=use_cache),
         }
 
 
