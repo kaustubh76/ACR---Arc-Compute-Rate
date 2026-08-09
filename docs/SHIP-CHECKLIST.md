@@ -127,6 +127,20 @@ dead series.
    visible on `/curve`.
 10. Submit. Record the submitted commit hash here: `____________`
 
+### Settled rounds are visible now (no pre-demo step needed)
+
+`/curve` carries a **settled rounds** ledger under the desk table, built from
+the roster's `settled` list at both live tiers. It reads three completed
+ACR-INF rounds: #0 (1 Aug), and #1 and #2, both settled 9 Aug against a
+17-minute-old print. Nothing has to be staged before recording — unlike the
+hedger fill below, this state is permanent.
+
+If an expired series is ever left unsettled again, `make futures-settle`
+rings the bell (permissionless; it refuses safely when the print is over two
+hours old). Do **not** run `make futures-withdraw` to "clean up" afterwards:
+it targets the live series, so it drains book depth rather than reclaiming
+anything from a settled round.
+
 ### The video records from `docs/DEMO-SCRIPT.md`
 
 The full 3-minute script lives there: pre-flight (including the T-8h fills
