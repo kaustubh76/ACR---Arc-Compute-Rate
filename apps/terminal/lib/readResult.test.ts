@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  freshHeaders,
   keepLast,
   ok,
   readFailure,
@@ -16,6 +17,16 @@ test("an unread result is never cached — one blip must not become everyone's a
   // ten seconds and the retry never reached the origin.
   assert.equal(readHeaders(unread("desk.position"))["Cache-Control"], "no-store");
   assert.match(readHeaders(ok({ contracts: 1 }))["Cache-Control"], /s-maxage=10/);
+
+  /* And the header for a read a reader ASKED for. Same file, opposite answer,
+     because a 10s shared cache is a saving on a page's own fetch and a lie on a
+     button: measured on production, /api/registry replayed one block number for
+     forty seconds under x-vercel-cache: STALE with stale-while-revalidate=30
+     doing the damage after s-maxage expired. Assert the absence of both knobs,
+     not just the presence of no-store, since it was the SWR tail that bit. */
+  const fresh = freshHeaders()["Cache-Control"];
+  assert.equal(fresh, "no-store");
+  assert.doesNotMatch(fresh, /s-maxage|stale-while-revalidate/);
 });
 
 test("an unread result asks again instead of answering", () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readSellerKeyEvidence } from "@/lib/registryOnchain";
-import { readHeaders, readStatus } from "@/lib/readResult";
+import { freshHeaders, readStatus } from "@/lib/readResult";
 
 /* GET /api/registry/keys — reproduce the four seller addresses, then look them up.
  *
@@ -12,8 +12,8 @@ import { readHeaders, readStatus } from "@/lib/readResult";
  * reads the account nonce and the contract's own signature nonce for each.
  *
  * Same freshness discipline as the sibling and for the same reason: not
- * memoized, `no-store` on the way out beyond readHeaders' 10s, so a second press
- * can report a later block. `force-dynamic` keeps it off the prerender path and
+ * memoized, `freshHeaders` (no-store) on the way out, so a second press can
+ * report a later block. `force-dynamic` keeps it off the prerender path and
  * `nodejs` because viem runs server-side.
  *
  * Note this can succeed with `chain_unread: true` — the derivation is offline,
@@ -26,7 +26,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const r = await readSellerKeyEvidence();
   if (r.ok) {
-    return NextResponse.json(r.value, { status: 200, headers: readHeaders(r) });
+    return NextResponse.json(r.value, { status: 200, headers: freshHeaders() });
   }
   // Three failures, three sentences, because they ask the reader for three
   // different things. No address is a deployment fact (nothing is wrong here);
@@ -41,6 +41,6 @@ export async function GET() {
       : "the chain would not answer just now. Press again";
   return NextResponse.json(
     { detail, unread: true, why: r.why },
-    { status: noAddress ? 404 : readStatus(r), headers: readHeaders(r) },
+    { status: noAddress ? 404 : readStatus(r), headers: freshHeaders() },
   );
 }

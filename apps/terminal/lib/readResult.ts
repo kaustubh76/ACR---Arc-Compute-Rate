@@ -46,6 +46,26 @@ export function readHeaders(r: Read<unknown>): Record<string, string> {
     : { "Cache-Control": "no-store" };
 }
 
+/** Cache headers for a read whose whole product is that it is fresh.
+ *
+ *  `readHeaders` is right for the reads a page makes on the reader's behalf: a
+ *  10s shared cache is most of the origin load gone for an answer nobody asked
+ *  for twice. It is wrong for a button. Measured on production the day
+ *  /api/registry/keys shipped: two presses nine seconds apart came back
+ *  byte-identical, same block AND same took_ms, under `x-vercel-cache: STALE`
+ *  with `age: 12`. `stale-while-revalidate=30` means the edge will replay one
+ *  answer for up to forty seconds, and Arc mines a block every 0.51s, so a
+ *  reader pressing "read it from the chain" twice was being shown a recording.
+ *
+ *  Both registry routes' comments already promised the opposite ("a second
+ *  press must be able to report a later block, or the button is theatre"), so
+ *  the header was contradicting the file it lived in. A press is a deliberate
+ *  act, not a poll; paying one origin round trip for it is the deal.
+ */
+export function freshHeaders(): Record<string, string> {
+  return { "Cache-Control": "no-store" };
+}
+
 /** 200 for an answer, 503 for "ask again".
  *
  *  503 rather than 200-with-a-null so a client's ordinary error path handles
