@@ -127,6 +127,12 @@ dead series.
    visible on `/curve`.
 10. Submit. Record the submitted commit hash here: `____________`
 
+### The video records from `docs/DEMO-SCRIPT.md`
+
+The full 3-minute script lives there: pre-flight (including the T-8h fills
+decision below), six beats with verbatim narration harvested against the
+production DOM, and the edit rules. Do not improvise the beats from memory.
+
 ### Putting a fresh fill on the hedger panel (before the video, and at step 9)
 
 The panel's fills table is fed by a tape that walks back **~8h**
