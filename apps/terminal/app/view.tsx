@@ -6,6 +6,7 @@ import { DefensibilityStrip } from "@/components/DefensibilityStrip";
 import { FuturesTeaser } from "@/components/FuturesTeaser";
 import { PrintsTable } from "@/components/PrintsTable";
 import { PlainPrimer } from "@/components/PlainPrimer";
+import { WorkloadRow } from "@/components/WorkloadRow";
 import { Ed } from "@/components/Ed";
 import { useConnection } from "@/lib/useConnection";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -41,13 +42,16 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
 
       <PlainPrimer />
 
-      <section className="section">
+      {/* `id` + anchor-target: the masthead's workload chip deep-links here
+          from every route, and the anchor must clear the sticky masthead. */}
+      <section className="section anchor-target" id="fixing">
         <div className="section-head">
           <Ed
             x="Today’s fixing · all three indices"
             p="Today’s official rates · all three services"
             className="label"
           />
+          <WorkloadRow />
         </div>
         <div className="hero">
           {prints.map((p) => (

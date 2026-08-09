@@ -12,6 +12,8 @@ import { useFutures, useOnchainHistory } from "@/lib/useLive";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
 import { editionLabel, fmt, fmtInt, halfCiBp, heroFigure, money, serviceName } from "@/lib/format";
+import { useWorkload } from "@/lib/useWorkload";
+import { deltaBp, monthlyCost } from "@/lib/workload";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id: string }) {
@@ -45,6 +47,25 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   // Lead with the settlement-grade on-chain print; sim estimate shown beside it.
   const h = heroFigure(p);
   const r = p.robustness;
+
+  /* The reader's declared usage, expressed against THIS index. Same rules as
+     the rate cards: priced off h.value, delta is the history series' ratio
+     applied to the bill, and null renders nothing at all. */
+  const w = useWorkload();
+  const yourBill = w ? monthlyCost(w, id, h.value) : null;
+  const yourBp = deltaBp(history.length ? history : undefined);
+  const rawYourMove = yourBill !== null && yourBp !== null ? (yourBill * yourBp) / 1e4 : null;
+  // Sub-cent moves drop entirely (RateBlock states the rule; the archived
+  // bundle's 24-periodic history makes a signed $0.00 otherwise).
+  const yourMove = rawYourMove !== null && Math.abs(rawYourMove) >= 0.005 ? rawYourMove : null;
+  const yourQty =
+    w === null
+      ? ""
+      : id === "ACR-INF"
+        ? `${w.inf}M tokens`
+        : id === "ACR-GPU"
+          ? `${w.gpu} GPU-hours`
+          : `${w.data} GB`;
 
   return (
     <>
@@ -116,6 +137,25 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
             </span>
           )}
         </div>
+        {yourBill !== null && (
+          /* This page's copy of the reader's line, scoped to ITS index and
+             priced off the same h.value as the hero above. Absent entirely
+             when the reader's profile does not buy this index. */
+          <div className="muted" style={{ fontSize: 13, marginTop: 6 }}>
+            <Ed x="at your " p="at your " />
+            {yourQty} · ≈ {money(yourBill)}/mo
+            {yourMove !== null && (
+              <>
+                {" "}
+                · <span className={yourMove <= 0 ? "green" : "vermilion"}>
+                  <Ed x="Δ24 " p="24h " />
+                  {yourMove <= 0 ? "−" : "+"}
+                  {money(Math.abs(yourMove))}
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <section className="section">

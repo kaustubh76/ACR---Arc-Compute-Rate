@@ -7,6 +7,8 @@ import { FinalityBadge } from "./chain/FinalityBadge";
 import { Ed } from "./Ed";
 import { useEdition } from "@/lib/useEdition";
 import { fmt, halfCiBp, heroFigure, money, serviceName } from "@/lib/format";
+import { useWorkload } from "@/lib/useWorkload";
+import { deltaBp, monthlyCost } from "@/lib/workload";
 import type { HistoryPoint, PrintRow } from "@/lib/types";
 
 export function RateBlock({
@@ -25,6 +27,18 @@ export function RateBlock({
   const h = heroFigure(p);
   const spark = (history ?? []).slice(-24).map((h) => h.value);
   const plain = useEdition() === "plain";
+  /* The reader's declared usage, if any. Priced off h.value — the number this
+     card is showing — so the personalized line can never disagree with the
+     figure above it. Null (no profile / no purchase on this index / no mark)
+     renders nothing: the card stays exactly the paper everyone else reads. */
+  const w = useWorkload();
+  const bill = w ? monthlyCost(w, p.index_id, h.value) : null;
+  const bp = deltaBp(history);
+  const rawMove = bill !== null && bp !== null ? (bill * bp) / 1e4 : null;
+  /* A move that money() would print as $0.00 is dropped, not shown signed.
+     The archived bundle's history is exactly 24-periodic, so its delta is a
+     true zero: "−$0.00" would be faithful and still read as noise. */
+  const move = rawMove !== null && Math.abs(rawMove) >= 0.005 ? rawMove : null;
   const chainTitle = direct
     ? plain
       ? "read straight off the blockchain scoreboard by this page: our server is down, the number is not"
@@ -65,6 +79,27 @@ export function RateBlock({
         <TickerNumber text={fmt(h.value)} roll />
       </div>
       <div className="rb-unit">{p.unit}</div>
+      {bill !== null && (
+        /* The reader's own line, inside the card rather than beside it. The
+           delta applies the history series' 24-fixing move to the bill as a
+           RATIO (never a subtraction across the sim/on-chain seam), and a
+           short series renders no delta at all: a missing move must never
+           read as "unchanged". Cheaper is green: this is a bill. */
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+          <Ed x="yours ≈ " p="your bill ≈ " />
+          {money(bill)}/mo
+          {move !== null && (
+            <>
+              {" "}
+              · <span className={move <= 0 ? "green" : "vermilion"}>
+                <Ed x="Δ24 " p="24h " />
+                {move <= 0 ? "−" : "+"}
+                {money(Math.abs(move))}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       <div className="rb-ci">
         ±{halfCiBp(h).toFixed(1)}{" "}
         <Ed

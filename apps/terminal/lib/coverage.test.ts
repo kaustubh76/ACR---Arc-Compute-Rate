@@ -43,6 +43,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/PrintsTable.tsx": 6,
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
+  "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
+  "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
+
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line

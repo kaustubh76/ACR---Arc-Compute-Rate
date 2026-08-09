@@ -8,6 +8,7 @@ import { useConnection, type Connection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
 import { Ed } from "@/components/Ed";
 import { EditionToggle } from "@/components/EditionToggle";
+import { WorkloadChip } from "@/components/WorkloadChip";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 /* [href, expert label, plain label] — the plain edition renames the sections
@@ -164,6 +165,9 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
             ))}
           </span>
           <span className="nav-right">
+            {/* Renders only once a reader has priced their workload — quiet
+                chrome is the rule, and the invitation lives on the home page. */}
+            <WorkloadChip initial={initial} />
             <EditionToggle />
             <StatusPill conn={conn} />
           </span>
