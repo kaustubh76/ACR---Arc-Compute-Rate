@@ -6,7 +6,8 @@ import { CHAIN } from "./chain";
 import { bundleSection } from "./api";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, nameFor, schemaFromBytes32 } from "./registryCodec";
 import { ok, unread, type Read } from "./readResult";
-import type { RegistryDirectRead } from "./types";
+import { deriveDemoSellers } from "./sellerKeys";
+import type { RegistryDirectRead, SellerKeyEvidence } from "./types";
 
 /* Reading `AttestationRegistry` straight off Arc, on demand.
  *
@@ -23,10 +24,22 @@ import type { RegistryDirectRead } from "./types";
  * types.ts instead of here.
  */
 
-/** The three views this reads. Ported from REGISTRY_ABI in
+/** The four views this reads. Ported from REGISTRY_ABI in
  *  packages/acr_oracle_client/acr_oracle_client/registry.py — same fragments,
  *  same tuple order. Only the reads: nothing here can write. */
 const REGISTRY_ABI = [
+  {
+    // The per-seller SIGNATURE nonce, consumed by `attestWithSig` on each
+    // filing. Not the account nonce, and the difference is the whole point of
+    // the evidence table on /sellers: this counts the signed records filed for
+    // a seller (1 or 2 on the live registry) while `eth_getTransactionCount` on
+    // the same address reads 0. Somebody else paid every one of those fees.
+    type: "function",
+    name: "nonces",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
   {
     type: "function",
     name: "sellerCount",
@@ -178,5 +191,69 @@ export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
     // "2 records" under a real block number, which reads as the registry
     // having shrunk rather than as a read that did not finish.
     return unread("registry.read");
+  }
+}
+
+/** The four demo sellers, derived from this repo and then looked up on Arc.
+ *
+ *  This is the second, smaller press on /sellers, and it is deliberately its
+ *  own action rather than extra columns on `readRegistry`. Nine paced calls is
+ *  roughly another four seconds, and the main "read it from the chain" button
+ *  should not get 40% slower for every reader to serve a disclosure most of
+ *  them never open.
+ *
+ *  Unlike `readRegistry`, a dead RPC is NOT total failure here: the derivation
+ *  is pure and offline, so the addresses still stand and only the two counts go
+ *  null. That is why this returns `ok(...)` with `chain_unread: true` instead of
+ *  `unread(...)` — refusing to answer would throw away a real result. The one
+ *  thing that must not happen downstream is a null rendered as 0.
+ */
+export async function readSellerKeyEvidence(): Promise<Read<SellerKeyEvidence>> {
+  const address = registryAddress();
+  if (!address) return unread("registry.address");
+
+  const started = Date.now();
+  let derived;
+  try {
+    derived = deriveDemoSellers();
+  } catch {
+    // secp256k1 refused a derived key. Impossible for the four committed
+    // labels (CI asserts their addresses), so this can only mean the labels
+    // changed — which is a broken build, not a transient chain problem.
+    return unread("registry.derive");
+  }
+
+  const base = {
+    registry: address,
+    chain_id: CHAIN.chainId,
+    took_ms: 0,
+    sellers: derived.map((d) => ({ label: d.label, address: d.address, txs: null, filed: null })),
+  };
+
+  const c = client();
+  try {
+    // Block first, same reason as readRegistry: the stamp must not be newer
+    // than the counts it describes.
+    const block = Number(await c.getBlockNumber());
+    const sellers = [];
+    for (const d of derived) {
+      await sleep(RPC_GAP_MS);
+      const txs = await c.getTransactionCount({ address: d.address });
+      await sleep(RPC_GAP_MS);
+      const filed = await c.readContract({
+        address,
+        abi: REGISTRY_ABI,
+        functionName: "nonces",
+        args: [d.address],
+      });
+      sellers.push({ label: d.label, address: d.address, txs: Number(txs), filed: Number(filed) });
+    }
+    return ok({ ...base, block, chain_unread: false, took_ms: Date.now() - started, sellers });
+  } catch {
+    // Half a crawl is worse than none for the counts: four addresses where two
+    // say 0 and two say nothing reads as a disagreement between sellers rather
+    // than as one read that stopped. So the chain leg is all-or-nothing, and
+    // the derivation survives it.
+    return ok({ ...base, block: null, chain_unread: true, took_ms: Date.now() - started });
   }
 }

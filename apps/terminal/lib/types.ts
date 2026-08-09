@@ -316,6 +316,45 @@ export interface RegistryDirectRead {
   sellers: RegistryOnchainRecord[];
 }
 
+/** One demo seller, derived from its repo label and then looked up on Arc.
+ *
+ *  The two counts are different numbers and must never share a label. `txs` is
+ *  the ACCOUNT nonce (`eth_getTransactionCount`) and reads 0: this key has never
+ *  sent a transaction. `filed` is the CONTRACT's own signature nonce
+ *  (`AttestationRegistry.nonces`), which counts how many signed records have
+ *  been filed FOR this seller by somebody else. Together they are the
+ *  meta-transaction, visible.
+ *
+ *  `filed` is a count, not a flag, and the live registry proves it: two of the
+ *  four read 2 on the day this shipped, because their record was filed again.
+ *  Nothing here or on the page may say "filed once".
+ *
+ *  Both are nullable, and null is not zero. The derivation is offline and the
+ *  counts are not, so they fail separately; when Arc will not answer, these come
+ *  back null with `chain_unread` set. Rendering null as 0 would manufacture the
+ *  exact result the page is trying to prove. */
+export interface DerivedSellerCheck {
+  label: string;
+  address: string;
+  /** Account nonce. Null means the read did not happen, not that it is zero. */
+  txs: number | null;
+  /** `nonces(seller)` on the registry. Null means the read did not happen. */
+  filed: number | null;
+}
+
+/** The answer to one press of "check the four keys". */
+export interface SellerKeyEvidence {
+  registry: string;
+  chain_id: number;
+  /** Null only when the chain leg failed; the derivation still stands. */
+  block: number | null;
+  /** True when the addresses below were derived but Arc would not answer, so
+   *  every `txs`/`filed` is null. */
+  chain_unread: boolean;
+  took_ms: number;
+  sellers: DerivedSellerCheck[];
+}
+
 export type AttackRunState = "idle" | "running" | "done" | "error";
 
 export interface AttackVerdict {

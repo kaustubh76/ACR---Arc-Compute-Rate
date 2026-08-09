@@ -14,6 +14,7 @@ import type {
   Envelope,
   RegistryDirectRead,
   RegistryOnchainRecord,
+  SellerKeyEvidence,
   TerminalData,
 } from "@/lib/types";
 
@@ -255,6 +256,36 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
     }
   }, []);
 
+  /* The second, smaller press: the one inside "who signed these, and how".
+     That disclosure used to be three paragraphs of English asserting a
+     derivation and a nonce nobody could see. This performs both instead.
+
+     Its own action rather than extra columns on the read above, because the
+     chain leg is nine paced calls (~4s) and the main button should not get
+     slower for readers who never open a closed disclosure. */
+  const [keysBusy, setKeysBusy] = useState(false);
+  const [keys, setKeys] = useState<SellerKeyEvidence | null>(null);
+  const [keysErr, setKeysErr] = useState<string | null>(null);
+
+  const readKeys = useCallback(async () => {
+    setKeysBusy(true);
+    setKeysErr(null);
+    try {
+      const res = await fetch("/api/registry/keys", { cache: "no-store" });
+      const body = (await res.json()) as SellerKeyEvidence & { detail?: string };
+      if (!res.ok) {
+        setKeysErr(String(body.detail ?? `the check failed (${res.status})`));
+        setKeys(null);
+      } else {
+        setKeys(body);
+      }
+    } catch {
+      setKeysErr("could not reach the chain from here. Press again");
+    } finally {
+      setKeysBusy(false);
+    }
+  }, []);
+
   /* Keyed lowercase so a record can be matched to the press row beside it.
      null until a read lands, which is what gates the per-record carets: a
      caret that opens onto a restatement of the row above it is a lie about
@@ -436,32 +467,137 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                 />
               </p>
 
+              {/* This disclosure used to be three paragraphs asserting a
+                  derivation, a nonce and a relayer, with not one value on
+                  screen. Two of those three are computable, so they are now
+                  computed: the addresses are rebuilt here from the labels in
+                  the repo, and the two counts come off Arc. The third (which
+                  wallet relayed the filings) is recorded nowhere in this repo,
+                  so it is gone rather than restated. */}
               <details className="disclosure" style={{ marginTop: 14 }}>
                 <summary>
                   <Ed x="who signed these, and how" p="who really signed these" />
                 </summary>
-                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-                  <Ed
-                    as="p"
-                    className="muted"
-                    style={{ fontSize: 12.5, margin: 0, maxWidth: 68 * 9 }}
-                    x="Each key is sha256 of a label in packages/acr_oracle_client/demo_sellers.py, so anyone holding this repo can reproduce all four addresses."
-                    p="Each key comes from a name written in this repo, so anyone with the code can work out these addresses."
-                  />
-                  <Ed
-                    as="p"
-                    className="muted"
-                    style={{ fontSize: 12.5, margin: 0, maxWidth: 68 * 9 }}
-                    x="Every one of these accounts has nonce 0: none ever sent a transaction. The funded poster relayed each signed record through attestWithSig, which is what a meta-transaction is for, and is why the contract checks the signature rather than the sender."
-                    p="None of them ever paid a fee, because we filed their signed forms for them, and the form is what the contract checks."
-                  />
-                  <Ed
-                    as="p"
-                    className="muted"
-                    style={{ fontSize: 12.5, margin: 0, maxWidth: 68 * 9 }}
-                    x="make seed-sellers with ACR_TAPE_SOURCE=arc puts these addresses into the tape, at which point the table below becomes the registry's own set. This deployment publishes the simulator instead, for the reason /developers gives."
-                    p="One command would put these into the live feed, and then the list below would be them."
-                  />
+                <div className="disclosure-body">
+                  <p className="muted" style={{ fontSize: 12.5, margin: "0 0 14px", maxWidth: 68 * 9 }}>
+                    <Ed
+                      x="Each address below is rebuilt here from a label committed in this repo, then looked up on Arc. Nobody has to take the derivation on our word."
+                      p="Each address below is worked out here from a name kept in our code, then looked up on the blockchain."
+                    />
+                  </p>
+
+                  <div className="btn-row">
+                    <button className="btn" onClick={readKeys} disabled={keysBusy}>
+                      <Ed
+                        x={keysBusy ? "deriving and reading…" : "check the four keys"}
+                        p={keysBusy ? "working it out…" : "check these four names"}
+                      />
+                    </button>
+                  </div>
+
+                  {keysErr ? (
+                    <p
+                      className="mono vermilion"
+                      role="alert"
+                      style={{ fontSize: 12.5, margin: "10px 0 0", maxWidth: 68 * 9 }}
+                    >
+                      {keysErr}
+                    </p>
+                  ) : null}
+
+                  {keys ? (
+                    <>
+                      <div className="table-scroll" style={{ marginTop: 14 }}>
+                        <table className="sheet">
+                          <thead>
+                            <tr>
+                              <th>
+                                <Ed x="label in the repo" p="name in our code" />
+                              </th>
+                              <th>
+                                <Ed x="address it derives to" p="address it works out to" />
+                              </th>
+                              <th>
+                                <Ed x="in registry" p="in the register" />
+                              </th>
+                              <th>
+                                <Ed x="txs sent" p="times it paid a fee" />
+                              </th>
+                              <th>
+                                <Ed x="filed" p="records filed" />
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {keys.sellers.map((k) => {
+                              /* Third source, and the reason this column
+                                 earns its place: the address was derived from
+                                 the repo, the counts came from Arc, and this
+                                 tick compares the first against what the PRESS
+                                 says the registry holds. Three parties agreeing
+                                 is the claim; one party asserting is not. */
+                              const inReg = onchain ? onchain.has(k.address.toLowerCase()) : null;
+                              return (
+                                <tr key={k.label}>
+                                  <td className="mono" style={{ fontSize: 12 }}>
+                                    {k.label}
+                                  </td>
+                                  <td>
+                                    <AddressChip address={k.address} explorer={facts.explorer} />
+                                  </td>
+                                  <td className={inReg ? "green" : inReg === false ? "vermilion" : "muted"}>
+                                    {inReg == null ? "…" : inReg ? "✓" : "✗"}
+                                  </td>
+                                  {/* null is not zero, and 0 is the exact
+                                      number this table exists to show. A failed
+                                      read rendered as 0 would invent the proof,
+                                      so it renders as nothing at all. */}
+                                  <td className={k.txs === 0 ? "green" : "mono"}>
+                                    {k.txs == null ? <span className="muted">…</span> : fmtInt(k.txs)}
+                                  </td>
+                                  <td className="mono">
+                                    {k.filed == null ? <span className="muted">…</span> : fmtInt(k.filed)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <p className="mono muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
+                        {keys.chain_unread ? (
+                          <Ed
+                            x="derived here · Arc would not answer, so the two counts are unread"
+                            p="worked out here · the blockchain did not answer, so the counts are missing"
+                          />
+                        ) : (
+                          <>
+                            block {fmtInt(keys.block ?? 0)} · {fmtInt(keys.took_ms)} ms
+                          </>
+                        )}
+                      </p>
+
+                      {/* The relayer paragraph's one durable idea, kept because
+                          the contract enforces it and the two columns above now
+                          show it happening.
+
+                          Do not write "filed once" here. Measured on the live
+                          registry the day this shipped: two of the four read 2,
+                          because their record was filed again. That is the
+                          counter working (each filing burns the seller's
+                          signature nonce, so the first signature cannot be
+                          replayed to produce the second) and it is exactly the
+                          kind of sentence this table was built to stop us
+                          writing unchecked. */}
+                      <p className="muted" style={{ fontSize: 12.5, margin: "12px 0 0", maxWidth: 68 * 9 }}>
+                        <Ed
+                          x="Sent nothing, filed anyway. attestWithSig checks the signature and never the sender, so a funded account can put someone else's signed record on chain. Each filing burns that seller's nonce, so the same signature cannot be used twice."
+                          p="They never paid a fee, yet each has filed: the contract checks the signature, not who sent it."
+                        />
+                      </p>
+                    </>
+                  ) : null}
                 </div>
               </details>
 
