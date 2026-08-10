@@ -1313,6 +1313,14 @@ details.disclosure[open] summary::before {
 details.disclosure .disclosure-body {
   padding: 4px 0 24px;
 }
+/* A disclosure that counts what it hides. Part of the summary's accessible
+   name, so it is never aria-hidden. */
+details.disclosure summary .disclosure-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--ether);
+}
 
 /* ---------- numbered methodology footnotes ---------- */
 .footnotes {
@@ -1814,20 +1822,130 @@ details.disclosure .disclosure-body {
 .colophon {
   border-top: 1px solid var(--hairline);
   margin-top: 96px;
-  padding: 24px 0 48px;
+  /* The horizontal 24px restores .container's inset, which this shorthand had
+     been quietly zeroing since it is declared later at equal specificity — so
+     every line down here started 24px left of the column above it. The rule
+     above still spans the full container; only the copy is inset. */
+  padding: 24px 24px 48px;
   font-family: var(--body);
   font-size: 13.5px;
   color: var(--ether-45);
   line-height: 1.7;
 }
+/* NOTE (0,2,0): this beats any single-class rule inside the footer. Never put
+   className="mono" on a register row — it would render at 11px down here and
+   at 12.5px on /developers, from the same component. */
 .colophon .mono {
   font-size: 11px;
 }
-.colophon-facts {
+
+/* The imprint band: what the paper is on the left, the two places it sends
+   you on the right. The register gets its own band below. */
+.colophon-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 20px 40px;
+}
+.colophon-say {
+  max-width: 62ch;
+}
+.colophon-acts {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
-  margin: 16px 0;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+/* A chip that behaves like a destination. The arrow says so; hover is already
+   handled by a.chip:hover above, so nothing here re-declares it. */
+a.colophon-act {
+  padding: 5px 12px;
+}
+a.colophon-act::after {
+  content: "→";
+  color: var(--ether-45);
+  transition: color var(--dur-1) var(--ease-expo);
+}
+a.colophon-act:hover::after {
+  color: currentColor;
+}
+.colophon-register {
+  margin-top: 20px;
+}
+.colophon-imprint {
+  margin-top: 20px;
+}
+.colophon-imprint .arc-horizon-mini {
+  margin-top: 12px;
+}
+
+/* ---------- the on-chain register ----------
+   A list, not a card grid: six rows that must read down a column of names.
+   .wallet-grid is two-up and orphans its last cell whenever an odd number of
+   contracts is configured, which is the normal case here. */
+.register-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-family: var(--eyebrow);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ether-45);
+  padding-bottom: 10px;
+}
+.register-caip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--sky);
+}
+.register-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 20px;
+  padding: 9px 0;
+  border-top: 1px solid var(--hairline);
+}
+.register-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ether-70);
+  overflow-wrap: anywhere;
+}
+/* The two contracts that ARE the product. */
+.register-row.is-primary .register-name {
+  color: var(--gold);
+}
+.register-gloss {
+  font-family: var(--body);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ether-45);
+}
+.register-addr {
+  justify-self: end;
+}
+.register-note {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--body);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ether-45);
+}
+.register.is-dense .register-row {
+  padding: 7px 0;
+}
+.register.is-dense .register-name,
+.register.is-dense .register-gloss,
+.register.is-dense .register-note {
+  font-size: 12px;
 }
 
 /* ---------- states ---------- */
@@ -1869,10 +1987,33 @@ details.disclosure .disclosure-body {
     grid-template-columns: 1fr;
     gap: 20px;
   }
+  .colophon-band {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .colophon-acts {
+    justify-content: flex-start;
+  }
 }
 @media (max-width: 760px) {
   .hero {
     grid-template-columns: 1fr;
+  }
+  /* Name and address hold the line; the gloss drops beneath both. Placed
+     explicitly, because auto-flow puts a 1/-1 span on its own row and then
+     sends the address, which follows it in source order, to a THIRD row. */
+  .register-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 2px;
+  }
+  .register-name {
+    grid-area: 1 / 1;
+  }
+  .register-addr {
+    grid-area: 1 / 2;
+  }
+  .register-gloss {
+    grid-area: 2 / 1 / 3 / -1;
   }
   .nav {
     gap: 14px;

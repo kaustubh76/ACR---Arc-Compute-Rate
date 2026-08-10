@@ -45,6 +45,81 @@ export function chainFacts(chain?: ChainFactsData | null) {
   };
 }
 
+/** One row of the deployed register: what it is, where it lives, how to link it.
+ *
+ *  The footer and the developers page each hand-rolled this list, and they had
+ *  already drifted: the page was missing USDC and the Gateway wallet, and it
+ *  resolved the oracle without the payload fallback the footer used. The row
+ *  set lives here so a fifth contract is one entry, not two edits. */
+export type RegisterEntry = {
+  key: "oracle" | "futures" | "registry" | "attestor" | "usdc" | "gateway";
+  /** Proper noun. Identical in both editions, so it never goes through <Ed>. */
+  name: string;
+  addr: string;
+  /** Explorer target. USDC is a token page, everything else an address page. */
+  href: string;
+  /** The two contracts that ARE the product, marked for the gold treatment. */
+  primary?: true;
+};
+
+/** The deployed set, in the order the paper explains itself: the rate, the
+ *  venue, the record, then the money. An unconfigured contract is omitted
+ *  rather than rendered as a zero address — the register only ever names
+ *  things that exist. `oracleFallback` is the payload's top-level `oracle`,
+ *  which is populated on some responses where `chain.oracle_address` is not. */
+export function deployedContracts(
+  chain?: ChainFactsData | null,
+  oracleFallback?: string | null,
+): RegisterEntry[] {
+  const c = chainFacts(chain);
+  const oracle = c.oracle ?? oracleFallback ?? null;
+  const at = (addr: string) => addrUrl(addr, c.explorer);
+
+  // Ternaries, not `addr && {…}`: these are `string | null`, so `&&` widens the
+  // element type to include the empty string rather than narrowing to null.
+  const rows: Array<RegisterEntry | null> = [
+    oracle
+      ? { key: "oracle", name: "ACROracle", addr: oracle, href: at(oracle), primary: true }
+      : null,
+    c.futures
+      ? {
+          key: "futures",
+          name: "ACRFutures",
+          addr: c.futures,
+          href: at(c.futures),
+          primary: true,
+        }
+      : null,
+    c.registry
+      ? {
+          key: "registry",
+          name: "AttestationRegistry",
+          addr: c.registry,
+          href: at(c.registry),
+        }
+      : null,
+    c.attestor
+      ? {
+          key: "attestor",
+          name: "FeedAccessAttestor",
+          addr: c.attestor,
+          href: at(c.attestor),
+        }
+      : null,
+    // tokenUrl, not addrUrl: USDC is Arc's native gas token and arcscan has a
+    // token page for it. The footer linked it that way; a refactor that
+    // quietly downgraded it to /address would lose the supply and holders.
+    { key: "usdc", name: "USDC", addr: c.usdc, href: tokenUrl(c.usdc, c.explorer) },
+    {
+      key: "gateway",
+      name: "GatewayWallet",
+      addr: c.gatewayWallet,
+      href: at(c.gatewayWallet),
+    },
+  ];
+  return rows.filter((r): r is RegisterEntry => Boolean(r));
+}
+
 export function txUrl(hash: string, explorer: string = CHAIN.explorer): string {
   return `${explorer}/tx/${hash}`;
 }

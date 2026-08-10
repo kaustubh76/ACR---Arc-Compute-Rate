@@ -5,7 +5,7 @@ import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
-import { AddressChip } from "@/components/chain/AddressChip";
+import { ContractRegister } from "@/components/chain/ContractRegister";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
@@ -125,43 +125,21 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         }
       />
 
-      {/* The four contracts, named where a developer looks for them. This page
-          knew the chain well enough to build explorer links and never once said
+      {/* The contracts, named where a developer looks for them. This page knew
+          the chain well enough to build explorer links and never once said
           what it was linking to — so FeedAccessAttestor, which turns a paid
           query into an on-chain right, existed with nothing anywhere pointing
-          at it. Every address is a live read; an unconfigured one is omitted
-          rather than rendered as a zero address. */}
-      <section className="section">
+          at it. The list itself now lives in ContractRegister, shared with the
+          footer, because this hand-rolled copy had already drifted from it:
+          no USDC, no Gateway wallet, no plain edition for the glosses. */}
+      <section className="section anchor-target" id="register">
         <div className="section-head">
           <Ed x="The contracts" p="The public record" className="label" />
           <a className="section-link" href="/ops">
             <Ed x="systems ledger →" p="is it working? →" />
           </a>
         </div>
-        <div className="wallet-grid">
-          {(
-            [
-              ["ACROracle", "the rate itself · every print lands here", c.oracle],
-              ["AttestationRegistry", "sellers' signed reliability claims", c.registry],
-              ["ACRFutures", "the cash-settled venue and its books", c.futures],
-              ["FeedAccessAttestor", "a paid query, recorded as a right", c.attestor],
-            ] as const
-          )
-            .filter(([, , addr]) => Boolean(addr))
-            .map(([name, gloss, addr]) => (
-              <div className="wallet-row" key={name}>
-                <div>
-                  <div className="mono" style={{ fontSize: 13 }}>
-                    {name}
-                  </div>
-                  <div className="label" style={{ letterSpacing: "0.08em" }}>
-                    {gloss}
-                  </div>
-                </div>
-                <AddressChip address={addr as string} explorer={explorer} />
-              </div>
-            ))}
-        </div>
+        <ContractRegister chain={env.data.chain} oracleFallback={env.data.oracle} />
       </section>
 
       <section className="section">

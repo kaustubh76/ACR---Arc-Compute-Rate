@@ -12,11 +12,15 @@ export function AddressChip({
   explorer,
   copy = true,
   label,
+  href,
 }: {
   address: string;
   explorer?: string;
   copy?: boolean;
   label?: string;
+  /** Override the explorer target. The one caller that needs it is USDC,
+   *  which belongs on arcscan's /token page rather than /address. */
+  href?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,7 +43,12 @@ export function AddressChip({
     <span className="addr-chip">
       {disc}
       {real ? (
-        <a href={addrUrl(address, explorer)} target="_blank" rel="noreferrer" title={address}>
+        <a
+          href={href ?? addrUrl(address, explorer)}
+          target="_blank"
+          rel="noreferrer"
+          title={address}
+        >
           {short}
         </a>
       ) : (

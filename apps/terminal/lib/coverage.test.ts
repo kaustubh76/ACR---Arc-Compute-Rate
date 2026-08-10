@@ -32,12 +32,15 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Was 8 against an actual 15 — a floor that had stopped holding anything,
   // which is part of why this page's attestation copy rotted unnoticed.
   "app/sellers/view.tsx": 44,
-  "app/developers/view.tsx": 8,
+  // Both of these carried floors well under their actual counts, which is the
+  // state the sellers comment below describes as a floor that has stopped
+  // holding anything. Raised to actual as part of the register extraction.
+  "app/developers/view.tsx": 13,
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
   "components/ChainStrip.tsx": 5,
-  "components/Colophon.tsx": 3,
+  "components/Colophon.tsx": 5,
   "components/HomeHero.tsx": 5,
   "components/RateBlock.tsx": 4,
   "components/PrintsTable.tsx": 6,
@@ -55,6 +58,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
+  "components/chain/ContractRegister.tsx": 7, // six glosses + the custody note
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,

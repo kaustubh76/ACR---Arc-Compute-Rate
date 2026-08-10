@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_SETTLE_AGE_S } from "./chain";
+import { MAX_SETTLE_AGE_S, deployedContracts } from "./chain";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, schemaFromBytes32 } from "./registryCodec";
 import { DEMO_LABELS, KEY_PREFIX, deriveDemoSellers } from "./sellerKeys";
 
@@ -91,4 +91,39 @@ test("the freshness window matches the contract it copies", () => {
     filed.sort(),
     "the derived seller addresses no longer match the registry records in fallback.json",
   );
+
+  /* The register the footer and /developers now share. Folded in here rather
+     than added as a test of its own, for the reason given above the registry
+     block: `# pass N` is quoted in the docs and measured by verify_claims.
+
+     Three things that broke silently when this list was hand-rolled twice. */
+
+  // 1. An unconfigured contract is omitted, never zero-addressed. With nothing
+  //    configured the register is exactly the two chain constants — which is
+  //    also why the Colophon gates its drawer on the ACR contracts, not on
+  //    rows.length.
+  assert.deepEqual(
+    deployedContracts(null).map((r) => r.key),
+    ["usdc", "gateway"],
+    "an empty chain block should leave only the two static chain constants",
+  );
+
+  // 2. The oracle fallback. The footer had it and /developers did not, so the
+  //    page showed no oracle row on any payload that populated the top-level
+  //    `oracle` without chain.oracle_address.
+  const withFallback = deployedContracts(null, "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609");
+  assert.equal(withFallback[0]?.key, "oracle");
+  assert.equal(withFallback[0]?.addr, "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609");
+
+  // 3. USDC is Arc's native gas token and belongs on arcscan's /token page.
+  //    A refactor that reached for addrUrl for every row would lose that
+  //    without breaking a single link.
+  const usdc = deployedContracts(null).find((r) => r.key === "usdc");
+  assert.match(usdc!.href, /\/token\/0x3600/, "USDC should still link to the token page");
+
+  // And the register agrees with the committed bundle: every address the
+  // snapshot carries is one the register would name.
+  const chain = bundle.chain;
+  const keys = deployedContracts(chain, bundle.oracle).map((r) => r.key);
+  assert.deepEqual(keys, ["oracle", "futures", "registry", "attestor", "usdc", "gateway"]);
 });
