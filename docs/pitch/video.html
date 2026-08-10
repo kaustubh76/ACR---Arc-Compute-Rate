@@ -206,6 +206,9 @@ header.head .one {
   border-color: var(--gold);
   box-shadow: 0 6px 44px rgba(233, 161, 63, 0.14);
 }
+/* Spares sit outside the clock: dashed, and their badge is teal, not gold. */
+.beat.spare { border-style: dashed; }
+.beat.spare .no { color: var(--finality); }
 .beat .meta {
   display: flex;
   align-items: baseline;
@@ -356,7 +359,7 @@ table.frozen td b { color: var(--sand); font-weight: 600; }
     <div class="meta"><span class="no">BEAT 2</span><span class="window">0:25 – 1:00</span></div>
     <h3>/attack · fund the attack, live</h3>
     <p class="do">Click <b>$8,000</b>, then the run button. Speak over the run; land on the verdict
-    table (ACR ERR vs VWAP ERR columns).</p>
+    table (columns read <b>naive VWAP error</b> vs <b>ACR error</b>).</p>
     <p class="say">“Here’s why the number is worth paying for. I’m funding an eight-thousand-dollar
     wash-trading attack against it, live. Watch the two error columns: the naive volume-weighted
     average gets bent; ACR cleans the fake volume, prices the attack, and barely moves — in our
@@ -369,9 +372,11 @@ table.frozen td b { color: var(--sand); font-weight: 600; }
   <section class="beat" data-start="60" data-end="105" id="b3">
     <div class="meta"><span class="no">BEAT 3</span><span class="window">1:00 – 1:45</span></div>
     <h3>/curve · the term structure, and rounds that finished</h3>
-    <p class="do">The quote corridor (caption reads <b>contango</b> with a per-index bp figure) → the
-    desk: series row, Expiry → <b>SETTLED ROUNDS · CASH, FINAL</b> (three ACR-INF rows:
-    #2 0.49533 · #1 0.49533 · #0 0.49270) → the tape.</p>
+    <p class="do">The quote corridor — per-index caption, today reading
+    <b>ACR-INF contango +11.1 bp · ACR-GPU contango +5.6 bp · ACR-DATA flat 0.0 bp</b> (a flat book
+    is a near-balanced lean; say nothing extra) → the desk: series row, Expiry →
+    <b>SETTLED ROUNDS · CASH, FINAL</b> (three ACR-INF rows: #2 0.49533 · #1 0.49533 ·
+    #0 0.49270) → the tape.</p>
     <p class="say">“The print has a dependent: an on-chain futures venue that cash-settles against it.
     The maker quotes a real term structure off it — the corridor widens with tenor and leans on
     whichever book it is short, so each index has its own shape. Settlement refuses a print older
@@ -419,8 +424,10 @@ table.frozen td b { color: var(--sand); font-weight: 600; }
   <section class="beat" data-start="155" data-end="170" id="b5">
     <div class="meta"><span class="no">BEAT 5</span><span class="window">2:35 – 2:50</span></div>
     <h3>/sellers · the exit from our server</h3>
-    <p class="do">Press <b>READ IT FROM THE CHAIN</b>. The block number lands. Press it
-    <b>again</b>. It lands higher. Never cut inside this double-press.</p>
+    <p class="do">The register's disclosure column now <b>derives</b> the four seller addresses from
+    their labels and ticks each against the chain — a half-second of hover, no words. Then press
+    <b>READ IT FROM THE CHAIN</b>. The block number lands. Press it <b>again</b>. It lands higher.
+    Never cut inside this double-press.</p>
     <p class="say">“Everything so far came through our own server, so here’s the exit: this button
     asks the registry contract directly. There’s the answer, stamped with the block it was read at.
     Press again — the block moved. This site is live against Arc, not a recording of it.”</p>
@@ -429,11 +436,33 @@ table.frozen td b { color: var(--sand); font-weight: 600; }
   <section class="beat" data-start="170" data-end="180" id="b6">
     <div class="meta"><span class="no">BEAT 6</span><span class="window">2:50 – 3:00</span></div>
     <h3>Home · close</h3>
-    <p class="do">/ — hero + the ticking finality badge; repo URL as an end-card or the browser bar.
+    <p class="do">/ — hero + the ticking finality badge; scroll to the colophon's
+    <b>ON-CHAIN REGISTER</b> (six addresses, arcscan-linked) or use the repo URL as the end-card.
     If you ran long, this is the beat to shorten.</p>
     <p class="say">“Every tier of this site tells you how fresh it is and never fakes it. It runs
     today, it’s built for Arc mainnet, and the whole thing — contracts, agents, terminal — is in the
     repo. <strong>Arc Compute Rate.</strong>”</p>
+  </section>
+
+  <section class="beat spare" id="s1">
+    <div class="meta"><span class="no">SPARE S1</span><span class="window">~17 s · replaces a dead beat, never extends past 3:00</span></div>
+    <h3>The plain edition</h3>
+    <p class="do">Any page. Click <b>PLAIN EDITION</b> in the masthead; the whole page re-sets;
+    click back to expert.</p>
+    <p class="say">“One more thing: this paper ships in two languages. Flip the masthead to plain,
+    and every page re-sets itself in beginner English — same numbers, no jargon. That coverage is a
+    test in CI: a page that loses its plain translation fails the build.”</p>
+  </section>
+
+  <section class="beat spare" id="s2">
+    <div class="meta"><span class="no">SPARE S2</span><span class="window">~18 s · replaces a dead beat, never extends past 3:00</span></div>
+    <h3>Every endpoint answers</h3>
+    <p class="do">/developers, the <b>Endpoints</b> table (columns end in <b>Try</b>). Click the
+    <code>/health</code> row — the JSON and latency land inline; the receipts roll below records
+    the call.</p>
+    <p class="say">“Under develop, every endpoint answers for itself. Click any free row — the
+    response and its latency land right there, and the receipts roll below remembers your session.
+    Thirteen GETs run from the page, and the paid rows say exactly why they won’t.”</p>
   </section>
 
   <section class="after">
@@ -465,7 +494,9 @@ table.frozen td b { color: var(--sand); font-weight: 600; }
     var clock = document.getElementById("clock");
     var go = document.getElementById("go");
     var reset = document.getElementById("reset");
-    var beats = Array.prototype.slice.call(document.querySelectorAll(".beat"));
+    /* Only timed beats join the clock: the spare cards carry no window, and a
+       click on one must not feed NaN into the timer. */
+    var beats = Array.prototype.slice.call(document.querySelectorAll(".beat[data-start]"));
     var t0 = null;      /* epoch ms when (re)started */
     var base = 0;       /* accumulated seconds while paused */
     var timer = 0;
