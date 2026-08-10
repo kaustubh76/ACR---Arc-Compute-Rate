@@ -36,6 +36,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "docs" / "pitch" / "deck.html"
 HTML = ROOT / "docs" / "pitch" / "index.html"
 PDF = ROOT / "docs" / "pitch.pdf"
+#: The demo teleprompter rides the same convention: body-content source for the
+#: Artifact, wrapped copy for a clone. No PDF — it is a page you scroll and
+#: click, not a deck you export.
+VIDEO_SRC = ROOT / "docs" / "pitch" / "video.html"
+VIDEO_HTML = ROOT / "docs" / "pitch" / "teleprompter.html"
 
 #: Where Chrome lives, in the order worth trying. `shutil.which` first so a
 #: Linux CI box or a PATH-installed Chromium works without touching this list.
@@ -96,6 +101,10 @@ def main() -> int:
 
     HTML.write_text(wrap(SRC.read_text()))
     print(f"  ✓ {HTML.relative_to(ROOT)}  ({HTML.stat().st_size / 1024:.0f} KB)")
+
+    if VIDEO_SRC.exists():
+        VIDEO_HTML.write_text(wrap(VIDEO_SRC.read_text()))
+        print(f"  ✓ {VIDEO_HTML.relative_to(ROOT)}  ({VIDEO_HTML.stat().st_size / 1024:.0f} KB)")
 
     chrome = find_chrome()
     if not chrome:
