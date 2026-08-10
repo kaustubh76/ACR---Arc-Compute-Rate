@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1350" height="1670" viewBox="0 0 1350 1670" font-family="Helvetica,Arial,sans-serif">
+<rect width="1350" height="1670" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="70" y="40" width="560" height="880" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="90" y="92" width="510" height="116" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="90" y="220" width="510" height="205" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="90" y="437" width="510" height="116" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="90" y="565" width="510" height="92" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="90" y="669" width="510" height="132" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="90" y="813" width="510" height="96" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="70" y="950" width="560" height="350" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="90" y="996" width="510" height="96" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="90" y="1098" width="510" height="96" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="90" y="1200" width="510" height="96" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="70" y="1330" width="560" height="300" rx="4" fill="transparent" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="90" y="1382" width="510" height="180" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="690" y="60" width="620" height="240" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="690" y="330" width="620" height="470" rx="4" fill="transparent" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="690" y="830" width="620" height="800" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2" stroke-dasharray="7 5"/>
+<polyline points="345.0,208 345.0,214.0 345.0,220" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="90,322.5 50,322.5 50,1044.0 90,1044.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="345.0,1098 345.0,1095.0 345.0,1092" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="90,1248.0 40,1248.0 40,1044.0 90,1044.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="600,150.0 650,150.0 650,861.0 600,861.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<text x="88" y="65.5" font-size="15" fill="#e8590c">C · ON-CHAIN (settlement-grade)</text>
+<text x="103" y="115.5" font-size="15" fill="#e8590c">SIGNER (custody-only in prod)</text>
+<text x="103" y="136.4" font-size="11" fill="#1e1e1e">build_role_signer(maker·taker·poster·owner) → own Circle wallet</text>
+<text x="103" y="147.4" font-size="11" fill="#1e1e1e">CircleWalletSigner (Dev-Controlled) · ignores ambient .env key</text>
+<text x="103" y="158.4" font-size="11" fill="#1e1e1e">LocalKeySigner only for dev/anvil · docs/WALLETS.md</text>
+<text x="103" y="243.5" font-size="15" fill="#e8590c">ACROracle.sol</text>
+<text x="103" y="266.2" font-size="13" fill="#1e1e1e">EIP-712 verifies the signer</text>
+<text x="103" y="279.2" font-size="13" fill="#1e1e1e">any relayer submits postPrint</text>
+<text x="103" y="292.2" font-size="13" fill="#1e1e1e">invariants: value∈CI · bound&gt;0</text>
+<text x="103" y="305.2" font-size="13" fill="#1e1e1e">monotone ts · MAX_TS_SKEW</text>
+<text x="103" y="318.2" font-size="13" fill="#1e1e1e">isStale · pause · 2-step owner</text>
+<text x="103" y="460.5" font-size="15" fill="#e8590c">AttestationRegistry.sol</text>
+<text x="103" y="483.2" font-size="13" fill="#1e1e1e">EIP-712 seller metadata · nonce + deadline</text>
+<text x="103" y="496.2" font-size="13" fill="#1e1e1e">attestWithSig — seller signs, relayer pays</text>
+<text x="103" y="509.2" font-size="13" fill="#1e1e1e">→ one relayer registers many sellers</text>
+<text x="103" y="588.5" font-size="15" fill="#e8590c">FOUNDRY</text>
+<text x="103" y="610.3" font-size="12" fill="#1e1e1e">60 tests · oracle · registry · futures · FeedAccessAttestor</text>
+<text x="103" y="622.3" font-size="12" fill="#1e1e1e">invariants: netOI=0 · collateral-backed · fail_on_revert</text>
+<text x="103" y="692.5" font-size="15" fill="#e8590c">CIRCLE DEPLOY</text>
+<text x="103" y="714.3" font-size="12" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>
+<text x="103" y="726.3" font-size="12" fill="#1e1e1e">oracle + registry + ACRFutures → setSigner</text>
+<text x="103" y="738.3" font-size="12" fill="#1e1e1e">deploy_circle.py · Deploy / DeployFutures / DeployAttestor.s.sol</text>
+<text x="103" y="836.5" font-size="15" fill="#e8590c">FeedAccessAttestor.sol</text>
+<text x="103" y="857.4" font-size="11" fill="#1e1e1e">EIP-712 FeedAccess: payer·beneficiary·paidUntil·amountUsdc·nonce</text>
+<text x="103" y="868.4" font-size="11" fill="#1e1e1e">seller signs (poster Circle wallet) · anyone relays redeem()</text>
+<text x="103" y="879.4" font-size="11" fill="#1e1e1e">hasFeedAccess(addr) → on-chain fact · MAX_ACCESS_WINDOW 90d</text>
+<text x="103" y="890.4" font-size="11" fill="#1e1e1e">0xe671…FD47 · attest_feed_access.py</text>
+<text x="88" y="975.5" font-size="15" fill="#2f9e44">D · INSTRUMENT &amp; PUBLIC DESK (Pillar 4 · on-chain)</text>
+<text x="103" y="1019.5" font-size="15" fill="#2f9e44">ACRFutures.sol  (on-chain venue)</text>
+<text x="103" y="1041.3" font-size="12" fill="#1e1e1e">weekly cash-settled vs oracle · stale-guard (7200s)</text>
+<text x="103" y="1053.3" font-size="12" fill="#1e1e1e">maker mirrors every taker → net OI = 0 · 20% margin</text>
+<text x="103" y="1065.3" font-size="12" fill="#1e1e1e">USDC collateral · Traded tape · socialized-loss settle</text>
+<text x="103" y="1121.5" font-size="15" fill="#2f9e44">MARKET MAKER + VENUE KEEPER</text>
+<text x="103" y="1142.4" font-size="11" fill="#1e1e1e">A–S: r = s − q·γ·σ²·(T−t) · inventory skews the curve</text>
+<text x="103" y="1153.4" font-size="11" fill="#1e1e1e">keeper OWNS the venue (maker Circle wallet 0x9D44…)</text>
+<text x="103" y="1164.4" font-size="11" fill="#1e1e1e">roll_if_needed opens next series onlyOwner · shape read from chain</text>
+<text x="103" y="1223.5" font-size="15" fill="#2f9e44">PUBLIC DESK</text>
+<text x="103" y="1245.3" font-size="12" fill="#1e1e1e">readers trade ACRFutures via Circle user-controlled wallet</text>
+<text x="103" y="1257.3" font-size="12" fill="#1e1e1e">PIN ceremony · SCA · Gas-Station gas · no server key</text>
+<text x="103" y="1269.3" font-size="12" fill="#1e1e1e">desk.py · /desk/* · per-identity rate-limited</text>
+<text x="88" y="1355.5" font-size="15" fill="#495057">H · VERIFICATION</text>
+<text x="103" y="1405.5" font-size="15" fill="#495057">TESTS · 367 py + 60 forge + 95 terminal + 10 agent</text>
+<text x="103" y="1426.4" font-size="11" fill="#1e1e1e">4 CI jobs: python · contracts · agent · terminal</text>
+<text x="103" y="1437.4" font-size="11" fill="#1e1e1e">anvil-gated on-chain integration · eval gate</text>
+<text x="103" y="1448.4" font-size="11" fill="#1e1e1e">workflows: heartbeat · lifecycle · recover · keepalive · x402-buy</text>
+<text x="103" y="1459.4" font-size="11" fill="#1e1e1e">glossary gate · ruff · make deck · hermetic conftest (Circle mocked)</text>
+<text x="703" y="83.5" font-size="15" fill="#f08c00">JUDGE FIT (surgical)</text>
+<text x="703" y="106.2" font-size="13" fill="#1e1e1e">ICE administers LIBOR via IBA — on Arc roster</text>
+<text x="703" y="119.2" font-size="13" fill="#1e1e1e">Apollo · BNY · Mastercard: benchmark-native</text>
+<text x="703" y="132.2" font-size="13" fill="#1e1e1e">SOFR was methodology-first, liquidity-second</text>
+<text x="703" y="145.2" font-size="13" fill="#1e1e1e">the rate's administrator ≠ the rail's operator</text>
+<text x="703" y="158.2" font-size="13" fill="#1e1e1e">(the LIBOR neutrality lesson = the moat)</text>
+<text x="703" y="353.5" font-size="15" fill="#1e1e1e">DEMO-DAY METRICS · LIVE ON ARC</text>
+<text x="703" y="375.3" font-size="12" fill="#1e1e1e">Terminal (Vercel) · Seller API (Render) · chain 5042002</text>
+<text x="703" y="387.3" font-size="12" fill="#1e1e1e">ACROracle            0x4f00…2609</text>
+<text x="703" y="399.3" font-size="12" fill="#1e1e1e">AttestationRegistry  0x23ae…dFb7</text>
+<text x="703" y="411.3" font-size="12" fill="#1e1e1e">ACRFutures           0x29d9…42fe · self-rolling (series 3)</text>
+<text x="703" y="423.3" font-size="12" fill="#1e1e1e">FeedAccessAttestor   0xe671…FD47</text>
+<text x="703" y="435.3" font-size="12" fill="#1e1e1e">wallets by role: poster 0x8366… · owner+maker 0x9D44…</text>
+<text x="703" y="447.3" font-size="12" fill="#1e1e1e">taker 0xc972… · readers user-controlled · hedger agent wallet</text>
+<text x="703" y="459.3" font-size="12" fill="#1e1e1e">retired deploy EOA 0x3318…: holds no authority</text>
+<text x="703" y="471.3" font-size="12" fill="#1e1e1e">real x402 settled via Circle Gateway · durable receipts</text>
+<text x="703" y="483.3" font-size="12" fill="#1e1e1e">attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP</text>
+<text x="703" y="495.3" font-size="12" fill="#1e1e1e">100% Foundry invariants passing</text>
+<text x="703" y="507.3" font-size="12" fill="#1e1e1e">367 py · 60 forge · 95 terminal · 10 agent — green</text>
+<text x="708" y="855.5" font-size="15" fill="#f08c00">PLAIN ENGLISH  ·  read the jargon</text>
+<text x="714" y="881.9" font-size="11" fill="#1e1e1e">latent price — the real price you can't see; ACR estimates it</text>
+<text x="714" y="892.9" font-size="11" fill="#1e1e1e">benchmark / rate — the official number contracts settle on (SOFR)</text>
+<text x="714" y="903.9" font-size="11" fill="#1e1e1e">VWAP — a plain volume-weighted average; fake volume fools it</text>
+<text x="714" y="914.9" font-size="11" fill="#1e1e1e">hedonic — strip quality gaps so you compare like-for-like</text>
+<text x="714" y="925.9" font-size="11" fill="#1e1e1e">constant-quality — price with quality removed; moves w/ the market</text>
+<text x="714" y="936.9" font-size="11" fill="#1e1e1e">observation model — 'what we see = true price, blurred + noisy'</text>
+<text x="714" y="947.9" font-size="11" fill="#1e1e1e">convolution / batching — settlements smear trades together in time</text>
+<text x="714" y="958.9" font-size="11" fill="#1e1e1e">deconvolution — un-smear it to recover the true price</text>
+<text x="714" y="969.9" font-size="11" fill="#1e1e1e">Kalman filter — recover a clean signal from noisy, delayed data</text>
+<text x="714" y="980.9" font-size="11" fill="#1e1e1e">RTS smoother — a backward pass that sharpens earlier estimates</text>
+<text x="714" y="991.9" font-size="11" fill="#1e1e1e">WLS — regression that weights bigger trades more heavily</text>
+<text x="714" y="1002.9" font-size="11" fill="#1e1e1e">α-trim median (VWM) — drop the extreme few %, keep the middle</text>
+<text x="714" y="1013.9" font-size="11" fill="#1e1e1e">bootstrap CI — resample to get an honest 'give-or-take' range</text>
+<text x="714" y="1024.9" font-size="11" fill="#1e1e1e">sybil — many fake identities run by one attacker</text>
+<text x="714" y="1035.9" font-size="11" fill="#1e1e1e">wash trade / self-deal — fake trades to pump volume or price</text>
+<text x="714" y="1046.9" font-size="11" fill="#1e1e1e">Louvain — finds tight clusters in a who-paid-whom graph</text>
+<text x="714" y="1057.9" font-size="11" fill="#1e1e1e">manipulation bound — least USDC (N*) to move the rate 1 bp</text>
+<text x="714" y="1068.9" font-size="11" fill="#1e1e1e">basis point (bp) — one hundredth of a percent (0.01%)</text>
+<text x="714" y="1079.9" font-size="11" fill="#1e1e1e">oracle — on-chain contract that publishes the rate to read</text>
+<text x="714" y="1090.9" font-size="11" fill="#1e1e1e">postPrint / relayer — publish the rate; anyone may submit it</text>
+<text x="714" y="1101.9" font-size="11" fill="#1e1e1e">role signer — each job (maker/taker/poster) signs from its own Circle wallet</text>
+<text x="714" y="1112.9" font-size="11" fill="#1e1e1e">EIP-712 verify — contract checks WHO signed, not who sent it</text>
+<text x="714" y="1123.9" font-size="11" fill="#1e1e1e">MAX_TS_SKEW / isStale — reject far-future or too-old prints</text>
+<text x="714" y="1134.9" font-size="11" fill="#1e1e1e">nonce + deadline — one-time counter + expiry ⇒ replay-proof</text>
+<text x="714" y="1145.9" font-size="11" fill="#1e1e1e">2-step ownership — new admin must accept ⇒ no wrong-address handoff</text>
+<text x="714" y="1156.9" font-size="11" fill="#1e1e1e">Malachite finality — Arc confirms in &lt;1s and never reverses (no reorgs)</text>
+<text x="714" y="1167.9" font-size="11" fill="#1e1e1e">EIP-3009 — pay by signing a message (no separate approval tx)</text>
+<text x="714" y="1178.9" font-size="11" fill="#1e1e1e">x402 / Nanopayments — pay-per-call in sub-cent USDC (HTTP 402)</text>
+<text x="714" y="1189.9" font-size="11" fill="#1e1e1e">facilitator /verify /settle — check the payment, then move the USDC</text>
+<text x="714" y="1200.9" font-size="11" fill="#1e1e1e">fail-closed — if payment can't verify, deny (the safe default)</text>
+<text x="714" y="1211.9" font-size="11" fill="#1e1e1e">Arc / USDC-gas — Circle's chain; fees are paid in USDC itself</text>
+<text x="714" y="1222.9" font-size="11" fill="#1e1e1e">TapeSource — one data-in interface: SimSource | ArcSource</text>
+<text x="714" y="1233.9" font-size="11" fill="#1e1e1e">/onchain reader — API serves the rate read straight from chain</text>
+<text x="714" y="1244.9" font-size="11" fill="#1e1e1e">settlement-grade — trustworthy enough for contracts to settle on</text>
+<text x="714" y="1255.9" font-size="11" fill="#1e1e1e">cash-settled future — bet on the rate; pays the diff, no delivery</text>
+<text x="714" y="1266.9" font-size="11" fill="#1e1e1e">Avellaneda–Stoikov — a recipe for a market maker's buy/sell quotes</text>
+<text x="714" y="1277.9" font-size="11" fill="#1e1e1e">ACRFutures — an on-chain weekly future, cash-settled vs the oracle</text>
+<text x="714" y="1288.9" font-size="11" fill="#1e1e1e">initial margin — post ~20% collateral to hold a futures position</text>
+<text x="714" y="1299.9" font-size="11" fill="#1e1e1e">maker mirror-side — one maker takes the opposite of every fill (net 0)</text>
+<text x="714" y="1310.9" font-size="11" fill="#1e1e1e">socialized-loss — if a loser can't pay, winners are haircut pro-rata</text>
+<text x="714" y="1321.9" font-size="11" fill="#1e1e1e">Public Desk — trade the future with a Circle user-controlled wallet</text>
+<text x="714" y="1332.9" font-size="11" fill="#1e1e1e">user-controlled wallet — the user's own PIN/passkey keys; server has none</text>
+<text x="714" y="1343.9" font-size="11" fill="#1e1e1e">Agent Marketplace — catalog of payable services + receipts ledger</text>
+<text x="714" y="1354.9" font-size="11" fill="#1e1e1e">meta-attestation (attestWithSig) — seller signs, a relayer pays gas</text>
+<text x="714" y="1365.9" font-size="11" fill="#1e1e1e">Circle wallet / SCP — custodial signer + on-chain deploy platform</text>
+<text x="714" y="1376.9" font-size="11" fill="#1e1e1e">webhook — Circle pings the API when a settlement lands</text>
+<text x="714" y="1387.9" font-size="11" fill="#1e1e1e">SWR — the Terminal auto-refreshes its data every few seconds</text>
+<text x="714" y="1398.9" font-size="11" fill="#1e1e1e">autonomous hedger — an agent that buys the rate, then trades futures on it</text>
+<text x="714" y="1409.9" font-size="11" fill="#1e1e1e">agent wallet — a Circle wallet an agent signs with; no exportable key</text>
+<text x="714" y="1420.9" font-size="11" fill="#1e1e1e">self-rolling venue — the futures book opens its own next series (it owns itself)</text>
+<text x="714" y="1431.9" font-size="11" fill="#1e1e1e">venue keeper — the loop that trades + rolls the book, reading its shape on-chain</text>
+<text x="714" y="1442.9" font-size="11" fill="#1e1e1e">FeedAccessAttestor — on-chain proof a wallet paid for the feed (hasFeedAccess)</text>
+<text x="714" y="1453.9" font-size="11" fill="#1e1e1e">durable receipts — the settlement ledger ships in the image; survives restarts</text>
+<text x="714" y="1611.5" font-size="10.5" fill="#495057">full glossary (every term) → docs/GLOSSARY.md</text>
+</svg>

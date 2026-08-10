@@ -50,9 +50,9 @@ BRIEF_MD = ROOT / "docs" / "SUBMISSION-BRIEF.md"
 BRIEF_CSS = ROOT / "docs" / "pitch" / "brief.css"
 BRIEF_HTML = ROOT / "docs" / "pitch" / "submission-brief.html"
 BRIEF_PDF = ROOT / "docs" / "submission-brief.pdf"
-#: Inlined into the brief page in place of its <img> tag, so the PDF never
-#: depends on a relative path resolving.
-DIAGRAM_SVG = ROOT / "docs" / "assets" / "acr_architecture.core.svg"
+#: Every assets/*.svg image the brief references is inlined in place of its
+#: <img> tag, so the PDF never depends on a relative path resolving.
+ASSETS = ROOT / "docs" / "assets"
 
 #: Where Chrome lives, in the order worth trying. `shutil.which` first so a
 #: Linux CI box or a PATH-installed Chromium works without touching this list.
@@ -127,17 +127,16 @@ def render_brief() -> bool:
         return False
     body = proc.stdout
 
-    if DIAGRAM_SVG.exists():
-        svg = re.sub(r"^<\?xml[^>]*\?>\s*", "", DIAGRAM_SVG.read_text().strip())
-        body, n = re.subn(
-            r'<img[^>]*acr_architecture\.core\.svg[^>]*>',
-            lambda _m: svg,
-            body,
-            count=1,
-        )
-        if n == 0:
-            print("pitch: warning — the brief no longer embeds the architecture diagram",
-                  file=sys.stderr)
+    def inline_svg(m: re.Match) -> str:
+        f = ASSETS / m.group(1)
+        if not f.exists():
+            print(f"pitch: warning — the brief references missing {f.name}", file=sys.stderr)
+            return m.group(0)
+        return re.sub(r"^<\?xml[^>]*\?>\s*", "", f.read_text().strip())
+
+    body, n = re.subn(r'<img[^>]*src="assets/([^"]+\.svg)"[^>]*>', inline_svg, body)
+    if n == 0:
+        print("pitch: warning — the brief embeds no architecture diagram", file=sys.stderr)
 
     BRIEF_HTML.write_text(
         "<!doctype html>\n"

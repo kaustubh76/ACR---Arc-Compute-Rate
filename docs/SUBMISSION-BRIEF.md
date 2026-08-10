@@ -1,24 +1,16 @@
-# ACR — Arc Compute Rate · Submission Brief
+# ACR — Arc Compute Rate · Final Submission
 
-**Arc × Circle · Agentic Economy track · final submission · 10 Aug 2026**
+**Arc × Circle · Agentic Economy track · 10 Aug 2026 ·**
+`arc-compute-rate.vercel.app` **·** `github.com/kaustubh76/ACR---Arc-Compute-Rate`
 
-> Nine sections in the order the form asks for them. Each one opens with the exact text to paste
-> into that field, then the evidence behind it. Every figure on this page is either permanently
-> on-chain or re-measured in CI, so nothing here can drift between writing and judging.
-
-**How to use this page.** Work down the nine sections and copy each `paste` block straight into
-its form field. The blocks are complete in themselves. The one blank left on purpose is the video
-slot in field 6: paste the demo video link there once it is recorded. Everything outside the
-blocks is backing evidence for a judge who reads further.
-
-**Contents:** 1 Title · 2 Description · 3 Track · 4 Circle email · 5 Products used ·
-6 Working MVP · 7 Architecture · 8 Documentation · 9 Product feedback
-
-Live: `arc-compute-rate.vercel.app` · Repo: `github.com/kaustubh76/ACR---Arc-Compute-Rate`
+Nine sections, one per required item: title, description, track, Circle account email, products
+used, working MVP, architecture diagram, documentation, and product feedback. Every figure in
+this document is either permanently on-chain or re-measured in CI, so nothing here can drift
+between writing and judging.
 
 ---
 
-## Field 1 of 9 · Project title
+## 1 · Project title
 
 ```text
 ACR — Arc Compute Rate
@@ -29,15 +21,15 @@ attack cost."*
 
 ---
 
-## Field 2 of 9 · Description
+## 2 · Description
 
-**Short, for a tight field:**
+**In one paragraph:**
 
 ```text
 ACR is SOFR for machine commerce: a manipulation-resistant reference rate family (inference, GPU, data) recovered from the noisy, adversarial payment exhaust on Circle's Arc L1 and published hourly on-chain. Every print carries its confidence interval and the USDC an attacker must burn to move it one basis point. The rate is sold to machines over x402 nanopayments, an on-chain futures venue cash-settles against it, and an autonomous agent on a Circle agent wallet buys the print and hedges with it, with no human in the loop.
 ```
 
-**Long, where the form gives room:**
+**In full:**
 
 ```text
 Agents already pay per call for inference, GPU time and data, and they pay whatever it costs that hour. There is no benchmark, so there is nothing to hedge with, nothing to write a term contract on, and no basis for credit. A naive volume-weighted average cannot be that benchmark: our own red team moved one 122 percent with 8,000 dollars of wash trades.
@@ -46,6 +38,14 @@ ACR is the fix. A four-pillar estimator recovers the constant-quality price of m
 
 The loop already runs by itself. An autonomous agent on a Circle agent wallet pays 0.0001 dollars for the print over Circle Gateway, reads its own book on the venue, and trades the gap to its mandate. Both legs are public state that no one has to take the agent's word for: its payments are Gateway batch references on a public receipts tape, and its position is an Arc transaction.
 ```
+
+**Why machine commerce matters, in its three services.** Machine commerce is machines buying the
+three inputs every agent runs on. **Inference** is the model calls an agent thinks with, priced
+per thousand tokens. **Compute** is the GPU time it rents to run and train on, priced per GPU
+second. **Data** is the bytes it moves to feed both, priced per megabyte. Together these three
+are an agent's entire cost base, every one of them is bought per call at a floating price, and
+until now none of them had a benchmark. ACR prints one index per service: **ACR-INF** for
+inference, **ACR-GPU** for compute, and **ACR-DATA** for data.
 
 The shape of it, in one breath. **Measure:** the estimator turns payment exhaust into an EIP-712
 print signed by a Circle custody wallet. **Sell:** agents pay $0.0001 a query over Circle Gateway
@@ -56,7 +56,7 @@ breaks when the feed breaks. That is what separates this from a dashboard.
 
 ---
 
-## Field 3 of 9 · Track
+## 3 · Track
 
 ```text
 Agentic Economy
@@ -69,7 +69,7 @@ are Gateway batch references on a public receipts tape, and its position is an A
 
 ---
 
-## Field 4 of 9 · Circle account email
+## 4 · Circle account email
 
 ```text
 kaushtubhagrawal45@gmail.com
@@ -81,7 +81,7 @@ product running.
 
 ---
 
-## Field 5 of 9 · Products used
+## 5 · Products used
 
 ```text
 Arc L1 (4 contracts, native USDC gas), Circle Gateway x402 nanopayments (seller gate plus buyers), Developer-Controlled Wallets (press, maker, taker, treasury), User-Controlled Wallets with Gas Station (the Public Desk, PIN ceremony), Agent Wallets with the Circle CLI (the autonomous hedger), Unified Balance Kit (agent-run Gateway deposits), Circle webhooks (signed inbound), Agent Marketplace (Discovery-shaped catalog plus a public receipts tape; listing submitted), and Circle Skills (four consumed, one published back: acr-hedge).
@@ -107,7 +107,7 @@ the attack cost a number.
 
 ---
 
-## Field 6 of 9 · Working MVP
+## 6 · Working MVP
 
 ```text
 Live terminal: https://arc-compute-rate.vercel.app
@@ -117,8 +117,8 @@ Repo: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
 Reproduce locally: make setup && make ci && make demo
 ```
 
-> **Video slot.** Demo video (3:00): paste the link here after recording. The script lives at
-> `docs/DEMO-SCRIPT.md`.
+> **Demo video (3:00).** Submitted alongside this brief. The shot-by-shot script it was recorded
+> from is `docs/DEMO-SCRIPT.md`.
 
 **Ten-second checks a judge can run:**
 
@@ -145,25 +145,40 @@ proven; the demand is not. The site says this too.
 
 ---
 
-## Field 7 of 9 · Architecture diagram
+## 7 · Architecture diagram
 
-```text
-The diagram is embedded in this brief and lives in the repo at docs/assets/acr_architecture.core.svg. The full implementation-accurate blueprint, box by box, is docs/ARCHITECTURE-DIAGRAM.md.
-```
+The architecture in three readable bands, freshly rendered from the live canvas
+(`acr_architecture.excalidraw` in the repo root). The full canvas, with every box mapped to the
+module that implements it, is `docs/ARCHITECTURE-DIAGRAM.md`. It earns the phrase implementation
+accurate because CI holds it to that: `make verify-claims` re-measures the suite counts the
+canvas states, and `make glossary-check` requires all 423 of its terms to be defined.
 
-![The ACR pipeline: estimator core on the left feeding the on-chain settlement grade contracts on the right](assets/acr_architecture.core.svg)
+**Band 1 · from exhaust to print, under attack.** Market exhaust and ingestion feed the
+four-pillar estimator core: observation model, cleaning stack, hedonic adjustment, manipulation
+cost bound, then the hourly ACR prints with CI and attack cost. The red team lives in the same
+band because it attacks the very index it defends.
+
+![Band 1: market exhaust and ingestion feeding the estimator core and the hourly prints, with the red team beside them](assets/acr_architecture.estimator.svg)
 
 *Tape → clean (wash · sybil) → deconvolve (Kalman/RTS) → α-trim median + hedonic → print + CI +
-attack cost → EIP-712 oracle → futures settle → agents buy the rate back via x402.*
+attack cost.*
 
-The full canvas, with every box mapped to the module that implements it, lives in
-`docs/ARCHITECTURE-DIAGRAM.md`. It earns the phrase implementation accurate because CI holds it
-to that: `make verify-claims` re-measures the suite counts the canvas states, and
-`make glossary-check` requires all 423 of its terms to be defined.
+**Band 2 · settlement grade, on Arc.** The Circle-custody signer relays each EIP-712 print to
+ACROracle; AttestationRegistry and FeedAccessAttestor sit beside it; ACRFutures cash-settles
+against the print, with the Public Desk on top; verification closes the column.
+
+![Band 2: the on-chain column, from the custody signer through the oracle to the futures venue and its verification](assets/acr_architecture.chain.svg)
+
+**Band 3 · distribution and the agentic economy.** Distribution sells the print over x402
+through the index API, the facilitator and the terminal, and the agentic economy closes the
+loop: the marketplace lists it, the buyer and the webhooks consume it, and the autonomous hedger
+buys the number and trades on it.
+
+![Band 3: x402 distribution and the agentic economy that closes the loop](assets/acr_architecture.economy.svg)
 
 ---
 
-## Field 8 of 9 · Documentation
+## 8 · Documentation
 
 ```text
 Judge's one-pager: docs/SUBMISSION.md, where every claim sits beside its evidence and every gate carries the date it last ran. Methodology: docs/methodology.md. Architecture: docs/ARCHITECTURE-DIAGRAM.md. API reference: docs/acr-openapi.md. How to run: IMPLEMENTATION.md (make setup && make ci && make demo).
@@ -186,7 +201,7 @@ Judge's one-pager: docs/SUBMISSION.md, where every claim sits beside its evidenc
 
 ---
 
-## Field 9 of 9 · Product feedback
+## 9 · Product feedback
 
 ```text
 All of this was measured while building on the full stack (Gateway x402, all three wallet models, the CLI, Unified Balance Kit, webhooks, Skills) on Arc testnet.
@@ -239,11 +254,3 @@ repo's `CIRCLE-SESSION-QUESTIONS.md`.
 - **Cross-chain funding of an Arc seller through Gateway's unified balance.** It is the one rail
   this project does not use yet, and it would let any judge fund a buyer from whatever testnet
   USDC they already hold.
-
----
-
-When the video is recorded: paste its link into the video slot in field 6 and into the form's
-video field, then submit.
-
-*ACR · Arc Compute Rate · submission brief · this file is the source; `make pitch` renders
-`docs/submission-brief.pdf` from it, and `make verify-claims` re-measures the counts it states.*

@@ -164,7 +164,7 @@ svg {
   }
   .sheet { max-width: none; padding: 0; }
   a { border-bottom: none; }
-  /* each field opens a fresh page, so the PDF reads in chapters */
-  h2 { break-before: page; }
-  hr { display: none; }
+  /* The document flows: no forced page per field. It reads as one submission,
+     not a chaptered deck, and a heading never strands at a page's foot. */
+  h2 { break-after: avoid-page; }
 }
