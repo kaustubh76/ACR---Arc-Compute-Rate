@@ -148,4 +148,28 @@ test("the freshness window matches the contract it copies", () => {
     // A POST has a body the probe cannot invent, so it is never runnable.
     if (e.method === "POST") assert.equal(e.run, null, `${e.path} is a POST and cannot be probed`);
   }
+
+  /* The systems ledger's section titles, bound to the press that names them.
+     /ops keys its plain-edition titles on `s.name` and falls back to the
+     press's own `s.title` for an unknown section. That fallback is a good
+     safety net and a terrible silent failure: rename a pillar in ops.py and
+     nothing breaks, the Plain Edition just quietly starts printing expert
+     copy in one band while every other band translates. Same discipline as
+     MAX_SETTLE_AGE_S above, for the same reason. */
+  const opsPy = readFileSync(
+    join(__dirname, "..", "..", "..", "services", "index_api", "index_api", "ops.py"),
+    "utf8",
+  );
+  const block = opsPy.match(/SECTIONS = \[([\s\S]*?)\]/);
+  assert.ok(block, "ops.py should still declare SECTIONS");
+  const pillars = [...block![1].matchAll(/\(\s*"([a-z]+)"\s*,/g)].map((m) => m[1]);
+  assert.ok(pillars.length >= 9, `expected the nine pillars, read ${pillars.length}`);
+
+  const opsView = readFileSync(join(__dirname, "..", "app", "ops", "view.tsx"), "utf8");
+  const titled = [...opsView.matchAll(/^\s{2}([a-z]+):\s*<Ed /gm)].map((m) => m[1]);
+  assert.deepEqual(
+    titled,
+    pillars,
+    "app/ops/view.tsx SECTION_TITLE has drifted from ops.py SECTIONS",
+  );
 });

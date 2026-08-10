@@ -1118,6 +1118,56 @@ table.sheet .row-link:focus-visible {
   box-shadow: 0 6px 44px rgba(239, 106, 90, 0.25);
 }
 
+/* ---------- fields ----------
+   Every button in the paper has been styled since the first commit; no text
+   input ever was. Six of them (the operator key, the console's parameters, the
+   adversary settings, the desk's series picker) rendered as raw UA controls,
+   which is why the ops unlock field sat next to a .btn looking broken.
+
+   Element selectors on purpose: this is a vocabulary, not a component, and no
+   .tsx should have to opt in. Checkboxes and radios keep their native chrome —
+   .agent-toggle depends on it. */
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input:not([type]),
+select,
+textarea {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ether);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 10px 12px;
+  transition: border-color var(--dur-1) var(--ease-expo), color var(--dur-1) var(--ease-expo);
+}
+input[type="text"]:hover:not(:disabled),
+input[type="password"]:hover:not(:disabled),
+input[type="number"]:hover:not(:disabled),
+input[type="search"]:hover:not(:disabled),
+input:not([type]):hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--sky);
+}
+::placeholder {
+  color: var(--ether-45);
+  opacity: 1; /* Firefox dims it a second time */
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+/* The select's own arrow is the one piece of native chrome worth keeping —
+   it is the affordance that says this opens a list. */
+select {
+  cursor: pointer;
+}
+
 .segmented {
   display: inline-flex;
   border: 1px solid var(--hairline-strong);
@@ -1152,6 +1202,137 @@ table.sheet .row-link:focus-visible {
 .sheet td.wrap {
   white-space: normal;
   min-width: 20ch;
+}
+
+/* ---------- a sheet of prose, not of figures ----------
+   `table.sheet` right-aligns every cell after the first. That is right for
+   rates, CIs and counts; it is wrong for a checklist. On the systems ledger it
+   set each check's label hard against a column sized by the longest string in
+   its OWN section, so the same kind of check began at a different x in every
+   band (measured: 686, 620, 548, 260) while the tick judging it stayed at 105.
+   Nothing lined up into a column you could read down.
+
+   Left-alignment is the whole fix: the label now begins immediately after the
+   badge in every band, whatever the column ends up measuring. The detail
+   keeps a readable measure instead of `.wrap`'s flat 20ch floor, and a
+   section with nothing to add omits the column entirely (see view.tsx) rather
+   than reserving a canyon for it. */
+table.sheet.sheet-checks td:nth-child(2) {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+table.sheet.sheet-checks td:nth-child(3) {
+  text-align: right;
+  white-space: normal;
+  min-width: 26ch;
+  padding-left: 32px;
+}
+/* Below this a check and its reason cannot share a line without one of them
+   losing, and `.table-scroll` would resolve that by scrolling the row
+   sideways — carrying the status glyph out of view, which is the exact
+   failure `td.wrap` was written to prevent. Stack instead. */
+@media (max-width: 900px) {
+  table.sheet.sheet-checks,
+  table.sheet.sheet-checks tbody {
+    display: block;
+  }
+  /* The row becomes a grid: mark on the left spanning both lines, check on
+     the first, reason on the second. Placed explicitly, because auto-flow
+     sends a cell that follows a spanning one to a third row. */
+  table.sheet.sheet-checks tr {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  table.sheet.sheet-checks td {
+    border-bottom: 0;
+    padding: 0;
+  }
+  table.sheet.sheet-checks td:first-child {
+    grid-area: 1 / 1 / span 2 / auto;
+  }
+  table.sheet.sheet-checks td:nth-child(2) {
+    grid-area: 1 / 2;
+  }
+  /* Longhand padding, not the `td { padding: 0 }` above: a media query adds no
+     specificity, so the desktop rule's padding-left would outrank it and
+     indent the reason by an amount nobody chose. */
+  table.sheet.sheet-checks td:nth-child(3) {
+    grid-area: 2 / 2;
+    text-align: left;
+    min-width: 0;
+    padding: 3px 0 0;
+  }
+}
+
+/* ---------- the systems ledger's own furniture ----------
+   The tally line: middot-separated, but built from elements rather than a
+   joined string, because two of its counters are now links. */
+.ops-tally {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 0;
+}
+/* The separator belongs BETWEEN the counters, not inside the button at the
+   end of them — a generated middot on a bordered control reads as part of its
+   label and gets wrapped by its border. */
+.ops-tally > * + *:not(.ops-recheck)::before {
+  content: "·";
+  color: var(--ether-45);
+  margin: 0 8px;
+}
+/* A count that leads somewhere. The verdict said "1 warning" and left the
+   reader to find it across nine bands and twenty-three rows. */
+.ops-jump {
+  color: var(--sky);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-1) var(--ease-expo);
+}
+.ops-jump:hover {
+  border-bottom-color: var(--sky);
+}
+.ops-recheck {
+  margin-left: 16px;
+  font-family: var(--eyebrow);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ether-45);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-expo), border-color var(--dur-1) var(--ease-expo);
+}
+.ops-recheck:hover {
+  color: var(--ether);
+  border-color: var(--hairline-strong);
+}
+/* The section head's right side carries a standing chip AND a count. */
+.ops-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+/* An amount field and the ceiling it is bounded by, kept together. */
+.ops-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ops-cap {
+  font-family: var(--eyebrow);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ether-45);
+  white-space: nowrap;
 }
 
 /* ---------- the public desk's step rail ----------

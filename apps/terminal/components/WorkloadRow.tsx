@@ -77,15 +77,10 @@ export function WorkloadRow() {
         inputMode="decimal"
         placeholder="0"
         aria-label={aria}
-        style={{
-          background: "transparent",
-          border: "1px solid var(--hairline-strong)",
-          borderRadius: 4,
-          color: "var(--ether)",
-          fontSize: 12.5,
-          padding: "6px 9px",
-          width: 72,
-        }}
+        // Width and a tighter pad for an inline figure field; the border,
+        // radius and colour now come from the house field vocabulary in
+        // globals.css rather than being restated here.
+        style={{ width: 72, padding: "6px 9px" }}
       />
     </span>
   );

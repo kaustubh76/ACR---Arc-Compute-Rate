@@ -133,6 +133,31 @@ export function publishedAt(fetchedAtMs: number): string {
   return new Date(fetchedAtMs).toISOString().slice(11, 19) + " UTC";
 }
 
+/** How long ago something happened, in words.
+ *
+ *  One helper because there were two, and they disagreed in public: the
+ *  systems ledger said "30 min ago" while the dateline one strip above said
+ *  "30m ago" about the very same keeper check. Same fact, two vocabularies,
+ *  visible together on every page.
+ *
+ *  `null` is never a number. A chore that has not reported has NOT reported;
+ *  "0s ago" would be the exact inversion of that, so it gets its own word. */
+export function ageWords(ageS: number | null, plain = false): string {
+  if (ageS == null) return plain ? "not yet" : "unread";
+  if (ageS < 90) return "just now";
+  const m = Math.round(ageS / 60);
+  if (m < 90) return `${m} min ago`;
+  return `${Math.round(m / 60)} hr ago`;
+}
+
+/** The same, for an absolute epoch-seconds stamp against a live clock.
+ *  Returns null before the clock is running (`useNow()` is 0 on the server),
+ *  so the caller can drop the segment rather than print a wrong age. */
+export function ageWordsAt(atS: number | undefined, nowS: number): string | null {
+  if (!atS || nowS <= 0) return null;
+  return ageWords(Math.max(0, nowS - Math.round(atS)));
+}
+
 export function shortAddr(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
 }

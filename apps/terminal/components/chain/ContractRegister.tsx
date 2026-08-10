@@ -98,6 +98,22 @@ export function ContractRegister({
           p="You trade from your own wallet. The key sits behind your PIN, never with us."
         />
       </p>
+
+      {/* The one admission that has to survive the fully-live state. Every
+          other "sim" mark on the site reports CONNECTION tier, so once the
+          press is up and the oracle is printing they all go teal while the
+          flow underneath the number is still synthetic. It used to ride in the
+          dateline; the dateline now carries only what is true this minute, and
+          this is a standing fact about the build. Rendered only when it is
+          true: a disclosure that fires on every load stops being read. */}
+      {c.tapeSource === "sim" && (
+        <p className="register-note">
+          <Ed
+            x="The estimator, the signature and the on-chain print are real. The settlement flow underneath is simulated."
+            p="The rate, its signature and the blockchain record are real. The money moving underneath is pretend."
+          />
+        </p>
+      )}
     </div>
   );
 }

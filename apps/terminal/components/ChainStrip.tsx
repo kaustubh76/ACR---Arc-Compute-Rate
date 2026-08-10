@@ -2,11 +2,10 @@
 
 import { chainFacts } from "@/lib/chain";
 import { deskTier, formatOi } from "@/lib/futuresBook";
-import { editionLabel, publishedAt } from "@/lib/format";
+import { ageWords, editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
 import { useFutures, useHealth } from "@/lib/useLive";
-import { AddressChip } from "./chain/AddressChip";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
 
@@ -54,20 +53,26 @@ const TIER_CHIP: Record<
   },
 };
 
-/* The chain strip — the old editorial dateline, chain-native. It ALWAYS
-   renders the network identity (offline included; the tier chip marks the
-   rung of the connection ladder instead of hiding the chain). This line is
-   why no page can ever read as a plain white page again. */
-/** A chore's age in words. Never invents a number for a chore that has not
- *  reported: "not yet" is the honest reading, and "0s ago" would be the exact
- *  inversion of it. */
-function keeperAge(ageS: number | null, plain: boolean): string {
-  if (ageS == null) return plain ? "not yet" : "unread";
-  if (ageS < 90) return plain ? "just now" : "just now";
-  const m = Math.round(ageS / 60);
-  if (m < 90) return plain ? `${m} min ago` : `${m}m ago`;
-  return plain ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 60)}h ago`;
-}
+/* The chain strip — the editorial dateline.
+
+   It used to carry the network's identity too: name, chain id, gas token, the
+   ACROracle address, the gate and the tape. All of that is STATIC, and all of
+   it is now said better and larger elsewhere — the footer's on-chain register
+   names every contract with its address and heads itself with the CAIP-2, and
+   the masthead's StatusPill already reads "live · circle gateway". Repeating
+   them here, in the smallest type on the page, above the fold, on every page,
+   was nine facts where four would do.
+
+   What is left is the four things that are only true RIGHT NOW and are stated
+   nowhere else: which edition this is, when this copy was published, whether
+   anything is minding the book, and what the desk is carrying. The tier chip
+   rides in front of them when the connection is not live, which is the one
+   piece of state the four survivors cannot express by themselves. */
+/** How stale a keeper chore may be before it stops being a cooldown and starts
+ *  being a stopped loop. The same 300s ops.py's `_keeper` warns at — this chip
+ *  sat unconditionally teal at ANY age, so the dateline could show a healthy
+ *  green keeper directly above a ledger calling that same chore a warning. */
+const KEEPER_STALE_S = 300;
 
 export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
@@ -76,7 +81,6 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const c = chainFacts(env.data.chain);
   const prints = Object.values(env.data.prints);
   const ts = prints.length ? Math.max(...prints.map((p) => p.ts)) : 0;
-  const oracle = c.oracle ?? env.data.oracle ?? null;
   const plain = useEdition() === "plain";
   // The global live-futures cue: total open interest on the desk, when live.
   const fut = useFutures();
@@ -84,10 +88,10 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const futOi = futDesks.reduce((a, d) => a + d.open_interest, 0);
   const futLive = Boolean(fut.roster?.live);
   // Render whenever a venue is KNOWN, live or not. Gating on liveness made the
-  // futures chip the one thing in this dateline that vanishes offline —
-  // contradicting this file's own rule (see the header: it always renders the
-  // network identity, and the tier chip marks the rung) and the oracle chip
-  // fifteen lines below, which says "undeployed" rather than disappearing.
+  // futures chip vanish offline, which is the wrong reading twice over: the
+  // venue does not stop existing when our press naps, and the tier chip in
+  // front of the line is already the thing that says these numbers are
+  // archived. A fact that disappears cannot be marked as stale.
   const futVenue = fut.roster?.data?.venue ?? c.futures ?? null;
   const futTier = deskTier(fut.roster?.data?.source, futLive);
 
@@ -113,60 +117,6 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
       </span>,
     );
   }
-  parts.push(
-    <span key="net">
-      <b>{c.name}</b> · {c.chainId}
-    </span>,
-    <span
-      key="gas"
-      title={
-        plain
-          ? "this network charges its fees in digital dollars: fixed and predictable"
-          : "USDC is Arc's native gas: deterministic, dollar-denominated fees"
-      }
-    >
-      <Ed x="gas = USDC" p="fees paid in dollars" />
-    </span>,
-    <span key="oracle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <Ed x="Oracle" p="Public scoreboard" />{" "}
-      {oracle ? (
-        <AddressChip address={oracle} explorer={c.explorer} copy={false} />
-      ) : (
-        <b
-          title={
-            plain
-              ? "the scoreboard contract is not on the test network yet"
-              : "deploy ACROracle to Arc testnet to light this up"
-          }
-        >
-          undeployed
-        </b>
-      )}
-    </span>,
-  );
-  if (c.gate) {
-    parts.push(
-      <span key="gate">
-        <Ed x="gate" p="paid through" /> <b>{c.gate === "circle" ? "circle gateway" : "dev"}</b>
-      </span>,
-    );
-  }
-  if (c.tapeSource) {
-    // The one disclosure that must survive the fully-live state. Every other
-    // "sim" chip on the site reports CONNECTION tier, so once the press is up
-    // and the oracle is printing they all go teal while the flow underneath
-    // the number is still synthetic. Mark the simulated case explicitly.
-    const simTape = c.tapeSource === "sim";
-    parts.push(
-      <span key="tape" className={simTape ? "chip chip-sim" : undefined} title={
-        simTape
-          ? "estimator, signature and on-chain print are real; the settlement flow underneath is simulated"
-          : `index computed from the ${c.tapeSource} tape`
-      }>
-        <Ed x="tape" p="data feed" /> <b>{c.tapeSource}</b>
-      </span>,
-    );
-  }
   // Is anything still minding the book? The keeper's heartbeat and roll
   // verdicts went only to the server log, so a reader watching a live tape had
   // no way to tell an attended venue from an abandoned one. Rendered only when
@@ -176,18 +126,23 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   if (keeper?.enabled === true) {
     const hb = keeper.heartbeat;
     const age = hb?.checked_age_s ?? null;
+    // The chore runs on a 60s loop, so past five minutes it is not resting,
+    // it has stopped. Gold, and no breathing dot: a pulse animating over a
+    // dead loop is the one signal worse than none.
+    const stale = age == null || age >= KEEPER_STALE_S;
+    const words = ageWords(age, plain);
     parts.push(
       <span
         key="keeper"
-        className="chip chip-teal"
+        className={`chip ${stale ? "chip-gold" : "chip-teal"}`}
         title={
           plain
-            ? `the shopkeeper's rounds · last check ${keeperAge(age, true)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
-            : `venue keeper · heartbeat checked ${keeperAge(age, false)}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+            ? `the shopkeeper's rounds · last check ${words}${hb?.verdict ? `: ${hb.verdict}` : ""}`
+            : `venue keeper · heartbeat checked ${words}${hb?.verdict ? `: ${hb.verdict}` : ""}`
         }
       >
-        <span className="dot breathe" aria-hidden />
-        <Ed x="keeper" p="minded" /> · {keeperAge(age, plain)}
+        {stale ? null : <span className="dot breathe" aria-hidden />}
+        <Ed x="keeper" p="minded" /> · {words}
       </span>,
     );
   }

@@ -65,6 +65,13 @@ const FIELDS: Record<string, Array<{ name: string; label: string; kind: "number"
   ],
 };
 
+/** Which cap in the catalogue governs which action's USDC field. The press
+ *  keys them by the thing being spent, not by the action name. */
+const CAP_FOR: Record<string, string> = {
+  "venue/collateralize": "collateralize_usdc",
+  "funding/move": "fund_usdc",
+};
+
 function coerce(raw: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) {
@@ -272,17 +279,27 @@ export function OperatorConsole() {
             </option>
           ))}
         </select>
-        {fields.map((f) => (
-          <input
-            key={f.name}
-            className="mono"
-            value={form[f.name] ?? ""}
-            onChange={(e) => setField(f.name, e.target.value)}
-            placeholder={f.label}
-            aria-label={f.label}
-            style={{ width: f.kind === "number" ? 110 : 200 }}
-          />
-        ))}
+        {fields.map((f) => {
+          /* The ceiling, where the amount is typed. The catalogue has shipped
+             `caps` since the console was built and nothing read it, so an
+             operator entered a USDC figure into an unlabelled box and learned
+             the limit only from the refusal — directly under a paragraph
+             promising they would always have read the amounts first. */
+          const cap = f.name === "usdc" ? cat?.caps?.[CAP_FOR[action] ?? ""] : undefined;
+          return (
+            <span key={f.name} className="ops-field">
+              <input
+                className="mono"
+                value={form[f.name] ?? ""}
+                onChange={(e) => setField(f.name, e.target.value)}
+                placeholder={f.label}
+                aria-label={cap != null ? `${f.label}, at most ${cap}` : f.label}
+                style={{ width: f.kind === "number" ? 110 : 200 }}
+              />
+              {cap != null && <span className="ops-cap">max {cap}</span>}
+            </span>
+          );
+        })}
       </p>
 
       {action ? (
@@ -357,7 +374,11 @@ export function OperatorConsole() {
                     <td className="mono">{new Date(row.at * 1000).toISOString().slice(11, 19)}</td>
                     <td className="mono">{row.action}</td>
                     <td>
-                      <span className={`chip ${row.dry_run ? "chip-sim" : "chip-gold"}`}>
+                      {/* chip-sim is the dashed SIMULATED-DATA mark, and on
+                          this same page it also carries "press unreachable".
+                          A dry run is neither: it is a read that spent
+                          nothing, which is what sky means everywhere else. */}
+                      <span className={`chip ${row.dry_run ? "chip-sky" : "chip-gold"}`}>
                         {row.dry_run ? "dry" : "live"}
                       </span>
                     </td>
@@ -366,8 +387,12 @@ export function OperatorConsole() {
                           `undefined`, so passing "" would build a relative
                           "/tx/0x…" that goes nowhere. */}
                       {typeof tx === "string" ? <TxLink txRef={tx} /> : null}
-                      <span className="mono" style={{ fontSize: 12 }}>
-                        {row.ok ? (typeof tx === "string" ? "" : "ok") : (row.error ?? "refused")}
+                      {/* "ok" unconditionally on success. Suppressing it when
+                          a tx was present left a successful action saying
+                          nothing at all, so of the two success states only
+                          one of them said so. */}
+                      <span className="mono" style={{ fontSize: 12, marginLeft: tx ? 8 : 0 }}>
+                        {row.ok ? "ok" : (row.error ?? "refused")}
                       </span>
                     </td>
                   </tr>

@@ -52,13 +52,16 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
-  "app/ops/view.tsx": 10, // the ledger reads for operators AND for readers
-  "components/chain/OperatorConsole.tsx": 10, // the locked + unlocked states both speak
+  // Both of these sat at 10 against an actual 13 — three markers of slack, the
+  // same state the sellers comment above describes. Raised to actual; the
+  // ledger's is now 23 because every section title speaks in both editions.
+  "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
+  "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
-  "components/chain/ContractRegister.tsx": 7, // six glosses + the custody note
+  "components/chain/ContractRegister.tsx": 9, // six glosses, the custody note, the sim tape line
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,

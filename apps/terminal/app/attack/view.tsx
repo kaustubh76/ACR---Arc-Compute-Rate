@@ -200,15 +200,11 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
                   disabled={running}
                   placeholder="random"
                   inputMode="numeric"
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--rule)",
-                    borderRadius: 2,
-                    color: "var(--ink)",
-                    fontSize: 12,
-                    padding: "8px 10px",
-                    width: 120,
-                  }}
+                  // Width only. This field used to hand-roll its own border,
+                  // radius, colour and padding inline, which is how the site
+                  // ended up with two looks for one control; globals.css now
+                  // has a field vocabulary and inline styles would beat it.
+                  style={{ width: 120 }}
                 />
               </div>
             </div>
