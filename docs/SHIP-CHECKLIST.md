@@ -147,7 +147,24 @@ The full 3-minute script lives there: pre-flight (including the T-8h fills
 decision below), six beats with verbatim narration harvested against the
 production DOM, and the edit rules. Do not improvise the beats from memory.
 
-### Putting a fresh fill on the hedger panel (before the video, and at step 9)
+### A fill is already on the panel — and it is the last one
+
+Executed 10 Aug 09:20 UTC: `buy 0.24 @ 0.49773`, tx `0x22772154…`, position 2.47 → **2.71**,
+collateral 2.70 → **3.00**. It ages out of the tape's ~7.9h reach around **17:14 UTC**.
+
+There is no second one available. That trade took the agent to
+`HEDGER_COLLATERAL_CAP_USDC` (3.00) exactly, so the next tick refuses with *"the top-up cap
+leaves nothing to add"*, and `max_buy` reads 0.00 again. Raising the cap is the only way on, and
+the buy cannot be reversed through the agent wallet either way.
+
+**What it cost the book, and what fixed it.** The maker takes the mirror, so inventory went
+−3.72 → −3.96 and ACR-INF headroom fell 2.00 → 1.76, tripping the two warn-level verify-live
+depth checks. Restored with `FUND_DRY_RUN=0 scripts/fund_role.py --to maker --amount 0.15`
+(the maker was at its wallet floor and could not self-fund) followed by
+`COLLATERALIZE_DRY_RUN=0 make futures-collateralize`. Headroom is back at 2.00 and
+`VERIFY_STRICT=1 make verify-live` exits 0. **Expect this every time the hedger trades.**
+
+### Putting a fresh fill on the hedger panel (the mechanics, for reference)
 
 The panel's fills table is fed by a tape that walks back **~8h**
 (`TAPE_PAGES=4` × `TAPE_PAGE_BLOCKS=14000` at Arc's 0.510s block time,
