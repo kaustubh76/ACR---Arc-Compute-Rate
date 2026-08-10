@@ -41,6 +41,12 @@ PDF = ROOT / "docs" / "pitch.pdf"
 #: click, not a deck you export.
 VIDEO_SRC = ROOT / "docs" / "pitch" / "video.html"
 VIDEO_HTML = ROOT / "docs" / "pitch" / "teleprompter.html"
+#: The submission brief: the nine form fields, answered in order. This one IS
+#: a PDF deliverable — A4 portrait, attached to the form — so it takes the
+#: same Chrome pass as the deck.
+BRIEF_SRC = ROOT / "docs" / "pitch" / "brief.html"
+BRIEF_HTML = ROOT / "docs" / "pitch" / "submission-brief.html"
+BRIEF_PDF = ROOT / "docs" / "submission-brief.pdf"
 
 #: Where Chrome lives, in the order worth trying. `shutil.which` first so a
 #: Linux CI box or a PATH-installed Chromium works without touching this list.
@@ -94,33 +100,20 @@ def wrap(body: str) -> str:
     )
 
 
-def main() -> int:
-    if not SRC.exists():
-        print(f"pitch: {SRC.relative_to(ROOT)} is missing", file=sys.stderr)
-        return 1
+def print_pdf(chrome: str, html: Path, pdf: Path) -> bool:
+    """Print one wrapped page to PDF with headless Chrome.
 
-    HTML.write_text(wrap(SRC.read_text()))
-    print(f"  ✓ {HTML.relative_to(ROOT)}  ({HTML.stat().st_size / 1024:.0f} KB)")
+    Waits on the FILE, not on the process: Chrome writes the PDF in a few
+    seconds and then keeps running — measured here in both --headless and
+    --headless=new, so this is not a mode you can switch out of. Waiting for
+    exit means waiting for the timeout on every successful build.
+    """
+    # Delete first, so "the file exists" below means *this* run produced it
+    # and not that the last one did.
+    pdf.unlink(missing_ok=True)
 
-    if VIDEO_SRC.exists():
-        VIDEO_HTML.write_text(wrap(VIDEO_SRC.read_text()))
-        print(f"  ✓ {VIDEO_HTML.relative_to(ROOT)}  ({VIDEO_HTML.stat().st_size / 1024:.0f} KB)")
-
-    chrome = find_chrome()
-    if not chrome:
-        print(
-            "pitch: no Chrome/Chromium/Edge found — the HTML is written but the PDF is not.\n"
-            "       Install one, or open the HTML and print to PDF at 13.333in × 7.5in.",
-            file=sys.stderr,
-        )
-        return 1
-
-    # Delete first, so "the file exists" below means *this* run produced it and
-    # not that the last one did.
-    PDF.unlink(missing_ok=True)
-
-    # A throwaway profile: Chrome refuses to run headless against a profile the
-    # user already has open, which is the normal state on a laptop mid-demo.
+    # A throwaway profile: Chrome refuses to run headless against a profile
+    # the user already has open, which is the normal state on a laptop mid-demo.
     with tempfile.TemporaryDirectory() as profile:
         proc = subprocess.Popen(
             [
@@ -133,25 +126,21 @@ def main() -> int:
                 "--disable-background-networking",
                 "--disable-extensions",
                 f"--user-data-dir={profile}",
-                f"--print-to-pdf={PDF}",
-                HTML.as_uri(),
+                f"--print-to-pdf={pdf}",
+                html.as_uri(),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
 
-        # Wait on the FILE, not on the process. Chrome writes the PDF in a few
-        # seconds and then keeps running — measured here in both --headless and
-        # --headless=new, so this is not a mode you can switch out of. Waiting
-        # for exit means waiting for the timeout on every successful build.
         deadline = time.monotonic() + TIMEOUT_S
         size = -1
         while time.monotonic() < deadline:
             if proc.poll() is not None:
                 break
-            if PDF.exists():
-                now = PDF.stat().st_size
+            if pdf.exists():
+                now = pdf.stat().st_size
                 if now > 0 and now == size:
                     break  # written, and no longer growing
                 size = now
@@ -164,13 +153,44 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 proc.kill()
 
-    if not PDF.exists() or PDF.stat().st_size == 0:
+    if not pdf.exists() or pdf.stat().st_size == 0:
         err = (proc.stderr.read() if proc.stderr else "") or "(no stderr)"
-        print(f"pitch: Chrome wrote no PDF\n{err[-1500:]}", file=sys.stderr)
+        print(f"pitch: Chrome wrote no PDF for {html.name}\n{err[-1500:]}", file=sys.stderr)
+        return False
+
+    print(f"  ✓ {pdf.relative_to(ROOT)}  ({pdf.stat().st_size / 1024:.0f} KB)")
+    return True
+
+
+def main() -> int:
+    if not SRC.exists():
+        print(f"pitch: {SRC.relative_to(ROOT)} is missing", file=sys.stderr)
         return 1
 
-    print(f"  ✓ {PDF.relative_to(ROOT)}  ({PDF.stat().st_size / 1024:.0f} KB)")
-    return 0
+    HTML.write_text(wrap(SRC.read_text()))
+    print(f"  ✓ {HTML.relative_to(ROOT)}  ({HTML.stat().st_size / 1024:.0f} KB)")
+
+    if VIDEO_SRC.exists():
+        VIDEO_HTML.write_text(wrap(VIDEO_SRC.read_text()))
+        print(f"  ✓ {VIDEO_HTML.relative_to(ROOT)}  ({VIDEO_HTML.stat().st_size / 1024:.0f} KB)")
+
+    if BRIEF_SRC.exists():
+        BRIEF_HTML.write_text(wrap(BRIEF_SRC.read_text()))
+        print(f"  ✓ {BRIEF_HTML.relative_to(ROOT)}  ({BRIEF_HTML.stat().st_size / 1024:.0f} KB)")
+
+    chrome = find_chrome()
+    if not chrome:
+        print(
+            "pitch: no Chrome/Chromium/Edge found — the HTML is written but the PDFs are not.\n"
+            "       Install one, or open the HTML and print to PDF (deck 13.333in × 7.5in, brief A4).",
+            file=sys.stderr,
+        )
+        return 1
+
+    ok = print_pdf(chrome, HTML, PDF)
+    if BRIEF_SRC.exists():
+        ok = print_pdf(chrome, BRIEF_HTML, BRIEF_PDF) and ok
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ help:
 	@echo "  make ci              lint + full test suite + eval gate (mirrors GitHub CI)"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
 	@echo "  make deck            render the long-form slide deck (docs/presentation.html + .pdf)"
-	@echo "  make pitch           render the 8-slide pitch deck (docs/pitch/index.html + docs/pitch.pdf)"
+	@echo "  make pitch           render the pitch pages (8-slide deck + teleprompter + docs/submission-brief.pdf)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""

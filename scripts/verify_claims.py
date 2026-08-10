@@ -53,6 +53,11 @@ DECK = ROOT / "docs" / "presentation.md"
 #: the PDF a judge downloads. Guarded from the source; the generated copies
 #: cannot disagree with it because build_pitch.py never edits the numbers.
 PITCH = ROOT / "docs" / "pitch" / "deck.html"
+#: The submission brief answers the form's nine fields and states the same
+#: suite counts in §6, in the same `<b>367</b> py` markup — one guard loop
+#: covers both, and the brief is also rendered to docs/submission-brief.pdf,
+#: where a stale count would outlive every redeploy.
+BRIEF = ROOT / "docs" / "pitch" / "brief.html"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -179,6 +184,7 @@ def main() -> None:
     mvp = MVP.read_text() if MVP.exists() else ""
     deck = DECK.read_text() if DECK.exists() else ""
     pitch = PITCH.read_text() if PITCH.exists() else ""
+    brief = BRIEF.read_text() if BRIEF.exists() else ""
 
     print("ACR claim audit — do the docs still tell the truth?")
     if FAST:
@@ -255,23 +261,25 @@ def main() -> None:
         )
 
     # The eight-slide pitch deck states the same suite sizes on its proof
-    # slide, in its own markup (`<b>367</b> py`). Same measurements, parsed
-    # from that markup — the lesson at the top of this block was that a deck
-    # goes stale for exactly as long as nothing parses it, and this one is
-    # generated into a PDF, where a wrong number outlives every redeploy.
-    print("\nthe pitch deck (docs/pitch/deck.html — the one actually presented)")
-    if not pitch:
-        check(False, "docs/pitch/deck.html is missing")
-    else:
+    # slide, and the submission brief repeats them in §6 — both in the same
+    # markup (`<b>367</b> py`), so one loop holds both. Same measurements,
+    # parsed from that markup — the lesson at the top of this block was that a
+    # deck goes stale for exactly as long as nothing parses it, and these two
+    # are generated into PDFs, where a wrong number outlives every redeploy.
+    print("\nthe pitch pages (docs/pitch/deck.html + brief.html — what is presented and attached)")
+    for name, body in (("pitch deck", pitch), ("submission brief", brief)):
+        if not body:
+            check(False, f"the {name} is missing from docs/pitch/")
+            continue
         for label, pattern, measure, costly in (
-            ("pitch python count", r"<b>(\d+)</b> py\b", measured_pytest, False),
-            ("pitch forge count", r"<b>(\d+)</b> forge\b", measured_forge, True),
-            ("pitch terminal count", r"<b>(\d+)</b> terminal\b", measured_terminal, True),
-            ("pitch glossary count", r"<b>(\d+)</b>/\d+ glossary\b", measured_glossary, False),
+            (f"{name} python count", r"<b>(\d+)</b> py\b", measured_pytest, False),
+            (f"{name} forge count", r"<b>(\d+)</b> forge\b", measured_forge, True),
+            (f"{name} terminal count", r"<b>(\d+)</b> terminal\b", measured_terminal, True),
+            (f"{name} glossary count", r"<b>(\d+)</b>/\d+ glossary\b", measured_glossary, False),
         ):
-            stated = claim(pitch, pattern)
+            stated = claim(body, pattern)
             if stated is None:
-                check(False, f"{label}: no claim found — has the proof slide been reworded?")
+                check(False, f"{label}: no claim found — has its counts line been reworded?")
                 continue
             if FAST and costly:
                 print(f"  · {label}: claims {stated} (not measured)")
@@ -280,7 +288,7 @@ def main() -> None:
             if actual is None:
                 check(False, f"{label}: could not measure (toolchain missing?)")
                 continue
-            check(actual == stated, f"{label}: the pitch deck says {stated}, measured {actual}")
+            check(actual == stated, f"{label}: the {name} says {stated}, measured {actual}")
 
     print("\nglossary")
     stated = claim(sub, r"(\d+)/\d+ diagram terms")
