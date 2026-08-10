@@ -568,5 +568,5 @@ and it proves its own tamper-resistance.
 
 ---
 
-*See also: `Readme.md` (the visual blueprint), `docs/methodology.md` (the formal
+*See also: `docs/ARCHITECTURE-DIAGRAM.md` (the visual blueprint), `docs/methodology.md` (the formal
 spec), `IMPLEMENTATION.md` (how the code maps to the diagram).*

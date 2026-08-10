@@ -1,13 +1,13 @@
-# ACR — Public Cloud Deploy (Google Cloud Run + Vercel)
+# ACR — Public Cloud Deploy (Render + Vercel)
 
-Make the ACR **seller API + webhooks** (Cloud Run) and the **Terminal dashboard**
-(Vercel) publicly reachable, running live Circle Arc-testnet execution.
+Make the ACR **seller API + webhooks** and the **Terminal dashboard** publicly
+reachable, running live Circle Arc-testnet execution.
 
 ```
                  ┌────────────────────────┐        ┌──────────────────────┐
-  buyers/agents →│  Cloud Run: acr-api    │←──────→│  Circle Gateway       │
+  buyers/agents →│  Render: acr-api       │←──────→│  Circle Gateway       │
   Circle webhooks│  FastAPI (Dockerfile)  │ verify │  (facilitator + DCW)  │
-                 │  /x402 /webhooks /...   │ settle └──────────────────────┘
+                 │  /x402 /webhooks /...  │ settle └──────────────────────┘
                  └───────────┬────────────┘                 ↑ reads
                              │ /terminal/data etc.           │ Arc testnet RPC
                  ┌───────────┴────────────┐        ┌─────────┴────────────┐
@@ -16,7 +16,65 @@ Make the ACR **seller API + webhooks** (Cloud Run) and the **Terminal dashboard*
                  └────────────────────────┘        └──────────────────────┘
 ```
 
-## Cost
+## What is actually deployed
+
+| Piece | Host | URL |
+|---|---|---|
+| Seller API | **Render** (free plan, region `oregon`), from `render.yaml` | https://acr-api-1fto.onrender.com |
+| Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
+
+The service is declared in [`render.yaml`](../render.yaml) at the repo root: a
+`runtime: image` web service pulling `docker.io/kaushtubh02/acr-api:latest`, health-
+checked at `/health`, with the Arc RPC, the four contract addresses and the Circle
+wallet ids set as plain env vars and the three Circle credentials
+(`ACR_CIRCLE_API_KEY`, `ACR_CIRCLE_ENTITY_SECRET`, `ACR_CIRCLE_WEBHOOK_PUBLIC_KEY`)
+marked `sync: false` so they are entered in the dashboard, never committed.
+
+Three operational facts that have each cost a debugging session:
+
+- **The free plan has no persistent disk.** Anything the API writes is gone on the
+  next deploy; durable evidence has to live in the repo or on chain.
+- **The free instance sleeps after ~15 idle minutes**, and the hourly oracle poster
+  only runs while the process is alive. That is what
+  [`.github/workflows/keepalive.yml`](../.github/workflows/keepalive.yml) is for —
+  it pings `/health` every 10 minutes. A sleeping instance once took the hourly
+  press with it, opening gaps of up to 216 minutes against a 120-minute settle
+  window.
+- **Editing an env var in the Render dashboard does not restart the service.** It
+  needs an explicit redeploy (a `SKIP_BUILD` redeploy is enough). And when
+  services/ changes, deploy **Render before Vercel** — the Terminal reads the API.
+
+Deploy order for a normal change — **Render first, then Vercel**, because the
+Terminal reads the API:
+
+```bash
+# 1. API: rebuild and push the image render.yaml points at, then redeploy
+#    the service from the Render dashboard (Manual Deploy).
+docker build -t kaushtubh02/acr-api:latest .
+docker push kaushtubh02/acr-api:latest
+
+# 2. Confirm the new build is actually being served before moving on.
+curl -s https://acr-api-1fto.onrender.com/health
+
+# 3. Terminal: Vercel deploys are MANUAL for this project — trigger from the
+#    Vercel dashboard (or `vercel --prod` from apps/terminal).
+```
+
+Both hosts deploy by hand on purpose. The failure mode this prevents is the
+expensive one: re-debugging a bug that was already fixed but never shipped. Date
+the running build before you trust it — count a string in the response that the
+last change removed.
+
+---
+
+## Appendix — Google Cloud Run (an alternative, not the deployment in use)
+
+> The runbook below was written when Cloud Run was the intended host. It is kept
+> because it still works and is a reasonable path if you want scale-to-zero with a
+> warm-instance option. **It is not what serves `acr-api-1fto.onrender.com`** — the
+> `acr-api-XXXX.run.app` URLs in this section are placeholders, not live endpoints.
+
+### Cost
 No paid **plan** — GCP is pay-as-you-go; just **enable billing** (new accounts get
 $300 free credit / 90 days). Vercel Hobby is free. Arc is testnet (no real gas).
 The default deploy is **scale-to-zero** → stays in Cloud Run's free tier. Only

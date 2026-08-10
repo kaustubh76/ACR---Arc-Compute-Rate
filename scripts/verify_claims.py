@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 #: The Readme is the first thing a judge opens and the last thing anyone
 #: re-reads. Its Demo-Day Metrics block states the receipts count, so it is
 #: parsed here for the same reason the deck is.
-README = ROOT / "Readme.md"
+README = ROOT / "README.md"
 SUBMISSION = ROOT / "docs" / "SUBMISSION.md"
 STATUS = ROOT / "docs" / "IMPLEMENTATION_STATUS.md"
 #: The gap-analysis doc drifted furthest of all — 230/50/60 against a suite of
@@ -79,7 +79,7 @@ def claim(text: str, pattern: str) -> int | None:
 
 
 #: The architecture canvas states the suite sizes on two of its cards, and
-#: Readme.md advertises that canvas as "implementation-accurate" — so those are
+#: docs/ARCHITECTURE-DIAGRAM.md advertises that canvas as "implementation-accurate" — so those are
 #: claims, not decoration. They rotted to 289 py / 81 terminal against a suite of
 #: 367 / 95 for exactly the reason the deck rotted before it was parsed here:
 #: nothing read them. The sentence lives in three committed files (the generator,

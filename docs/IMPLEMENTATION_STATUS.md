@@ -1,6 +1,6 @@
 # ACR — Implementation Status & Session Handoff
 
-> **Read this first.** This is the single "what has been built, what's real vs. simulated, and where to look" context doc for ACR. It exists so a new session can act on the codebase without re-scanning the whole product. For depth, see [`Readme.md`](../Readme.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), and [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (zone map + go-live how-to).
+> **Read this first.** This is the single "what has been built, what's real vs. simulated, and where to look" context doc for ACR. It exists so a new session can act on the codebase without re-scanning the whole product. For depth, see [`docs/ARCHITECTURE-DIAGRAM.md`](ARCHITECTURE-DIAGRAM.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), and [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (zone map + go-live how-to).
 
 ---
 
@@ -208,6 +208,6 @@ Condensed — full steps in [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) and [`.e
 - [`docs/GLOSSARY.md`](GLOSSARY.md) — **plain-English** definitions (with analogies) of every term on the diagram + a jargon-free ①→⑩ walkthrough. Start here if the terminology is dense.
 - [`docs/methodology.md`](methodology.md) — the estimator specification (estimand, pillars, bound, eval).
 - [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) — blueprint→zones map + live-wiring notes.
-- [`Readme.md`](../Readme.md) — the architecture blueprint (the excalidraw canvas README). The diagram now carries a "PLAIN ENGLISH" glossary panel; render it headlessly with `scripts/preview_excalidraw.py`.
+- [`docs/ARCHITECTURE-DIAGRAM.md`](ARCHITECTURE-DIAGRAM.md) — the architecture blueprint (the excalidraw canvas README). The diagram now carries a "PLAIN ENGLISH" glossary panel; render it headlessly with `scripts/preview_excalidraw.py`.
 - [`docs/SUBMISSION.md`](SUBMISSION.md) — the judge-facing submission status (gates, evidence, deployed URLs).
 - [`docs/DEPLOY.md`](DEPLOY.md) — the cloud deployment state (Vercel Terminal + Render seller API) and how to operate it.

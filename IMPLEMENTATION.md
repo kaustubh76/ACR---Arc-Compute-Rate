@@ -1,6 +1,6 @@
 # ACR — Implementation
 
-This repository implements the ACR blueprint (`Readme.md` + `acr_architecture.excalidraw`)
+This repository implements the ACR blueprint (`docs/ARCHITECTURE-DIAGRAM.md` + `acr_architecture.excalidraw`)
 as a working, tested system: a calibrated payment-exhaust simulator, the
 four-pillar estimator, on-chain contracts, a cash-settled instrument, an
 x402-gated index API, and a live Terminal with the "Attack the Index" demo.
@@ -104,8 +104,8 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥20 + npm (the Circl
   the **LIVE Circle buyer** on `/exchange` — real Gateway settlements from the
   UI under a hard $0.01 cumulative cap.
 
-See `docs/methodology.md` for the estimator specification and `Readme.md` for the
-architectural blueprint.
+See `docs/methodology.md` for the estimator specification and
+`docs/ARCHITECTURE-DIAGRAM.md` for the architectural blueprint.
 
 [uv]: https://docs.astral.sh/uv/
 [Foundry]: https://book.getfoundry.sh/

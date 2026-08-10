@@ -1,5 +1,9 @@
 # ACR — The Arc Compute Rate
-### Architecture Blueprint · README for `acr_architecture.excalidraw`
+### Architecture Blueprint · the companion document for `acr_architecture.excalidraw`
+
+> Looking for the project itself — what ACR is, how to run it, what is live? That is the
+> [root README](../README.md). This document explains the **architecture canvas**: every zone,
+> every arrow, and the product reasoning the diagram assumes.
 
 > **One-sentence core:** Payment exhaust on Arc is a noisy, batched, adversarial observation of a latent economic process — the true price of machine services — and ACR is the estimator that recovers it, published as a live on-chain reference rate that contracts can settle against.
 >
@@ -201,8 +205,10 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 |---|---|
 | `acr_architecture.excalidraw` | The **comprehensive, implementation-accurate** canvas: 221 elements (67 rectangles, 119 text, 35 fully-bound arrows) covering the four-pillar estimator in detail, the role-based custody signer, EIP-712 verification, the x402 facilitator (concrete Circle wiring), robustness diagnostics, TapeSource, on-chain reads, **the on-chain `ACRFutures` venue + Public Desk (Circle user-controlled wallets)**, **the self-owning, self-rolling venue keeper**, **the autonomous hedger (an agent that reads the rate, then trades on it)**, **the `FeedAccessAttestor` (on-chain paid-feed access)**, **the agentic-economy demand side (live x402 buyer · Agent Marketplace · Circle webhooks · durable receipts)**, Circle SCP deploy, the verification surface, **and a "PLAIN ENGLISH" glossary panel**. Open at excalidraw.com. |
 | `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. Rendered live at [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion) — and the Terminal masthead's one-click **plain** edition re-sets the whole site in this register. |
+| `acr_flows.excalidraw` | **"How each piece works, step by step"** — 180 elements, six end-to-end flows (hourly oracle press · x402 sale · venue keeper · autonomous hedger · attack demo · verification), one box per step with the real component name in every box. The companion to the architecture canvas: that one shows *what exists*, this one shows *what happens*. |
 | `acr_architecture_v1_blueprint.excalidraw` | The original 143-element blueprint (kept for reference). |
-| `Readme.md` | This document. |
+| `docs/ARCHITECTURE-DIAGRAM.md` | This document. |
+| `README.md` | The project README — what ACR is, quickstart, what is live. |
 
 **Where the built system lives** (the canvas, implemented):
 

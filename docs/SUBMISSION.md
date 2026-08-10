@@ -6,7 +6,7 @@
 >
 > *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
-This is the one-page status for judges. For depth: [`Readme.md`](../Readme.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (how to run), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) (full status), [`docs/presentation.md`](presentation.md) (the pitch deck — `make deck` renders HTML + PDF).
+This is the one-page status for judges. For depth: [`docs/ARCHITECTURE-DIAGRAM.md`](ARCHITECTURE-DIAGRAM.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (how to run), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) (full status), [`docs/presentation.md`](presentation.md) (the pitch deck — `make deck` renders HTML + PDF).
 
 ---
 
@@ -157,6 +157,7 @@ Full go-live sequence on Arc testnet: [`docs/TESTNET_RUNBOOK.md`](TESTNET_RUNBOO
 - **Cloud cold start.** The public API runs on a 512MB free tier that can still restart. Mitigated three ways: a 10-minute keep-alive ping, a post-on-wake oracle catch-up, and — on the dashboard side — the Terminal's connection ladder, which paints its shell instantly, labels the tier truthfully ("waking the press · ~60s"), and serves **direct ACROracle reads** until the full feed returns. Not a correctness issue at any tier — the fallback path is itself on-chain data.
 - **Public Arc RPC rate-limits** (429/413) under heavy scanning; mitigated with caches, adaptive range-shrink, and paced sequential reads with a retry pass on the Terminal's direct-read route.
 - **Next.js pinned at 14.2.x** — upgrade to 15 to clear the Dec-2025 advisory before a fully public production launch.
+- **CI actions are pinned several majors behind.** `actions/checkout@v4`, `actions/setup-node@v4` and `astral-sh/setup-uv@v5` are current-at-v7 / v7 / v9, so every run logs a Node-20 deprecation warning and GitHub force-runs them on Node 24. All four jobs pass today; the bump is deliberately deferred rather than risked on submission day, when a green pipeline is worth more than a clean warning log.
 
 **Two Circle products we did NOT use, said plainly rather than implied:**
 

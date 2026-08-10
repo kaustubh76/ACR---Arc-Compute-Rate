@@ -91,7 +91,7 @@ dead series.
    it. If the count moved, update **every** doc that states it, in the same
    commit — and search for the **number**, not for a sentence:
    - `docs/SUBMISSION.md` §4 — the receipts count and the payer split
-   - `Readme.md` Zone H — "real Gateway x402 settlements"
+   - `README.md` "Measured numbers" — "real Gateway x402 settlements"
    - `docs/IMPLEMENTATION_STATUS.md` TL;DR — "`receipts_live.jsonl`, N rows"
    - `docs/ENDGAME-PLAN.md` §2 — the Nanopayments row
    - `docs/agent-runbook.md` §4 — the durable-proof sentence

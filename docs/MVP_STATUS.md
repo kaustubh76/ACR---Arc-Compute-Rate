@@ -170,7 +170,7 @@ claim gets re-checked rather than re-asserted.
 
 ## 8. Roadmap (7-week hackathon) & the funky-UI hook
 
-**Roadmap** (from `Readme.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ live on-chain (`ACRFutures` `0x29d9…42fe`, three books traded hourly) · W7 SHIP ✅ shipped** (repo pushed, CI green, cloud hardened + posting re-enabled, deck re-rendered 2026-08-04).
+**Roadmap** (from `docs/ARCHITECTURE-DIAGRAM.md` §Zone I / `SUBMISSION.md`): **W1 TAPE ✅ · W2 ESTIMATOR ✅ · W3 ON-CHAIN ✅ · W4 ADOPTION ★ ✅ · W5 RED TEAM ✅ · W6 INSTRUMENT ✅ live on-chain (`ACRFutures` `0x29d9…42fe`, three books traded hourly) · W7 SHIP ✅ shipped** (repo pushed, CI green, cloud hardened + posting re-enabled, deck re-rendered 2026-08-04).
 
 **Funky-UI hook — shipped:** the first-viewport moment exists now. `/` opens on a full-viewport landing hero (`HomeHero`) — the signature `--dawn-full` gradient + rising-sun/arc SVG, a **giant live-ticking flagship rate** (ACR-INF, honestly badged live/on-chain/archived), the tagline, the **562× resistance stat**, and a "Watch the attack →" CTA. Fully reduced-motion-safe; the other pages kept their editorial grid.
 
