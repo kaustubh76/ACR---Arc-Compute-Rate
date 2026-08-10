@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
 import { WebhookActivity } from "@/components/WebhookActivity";
@@ -9,44 +9,86 @@ import { ContractRegister } from "@/components/chain/ContractRegister";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
-import { useRevenue, useTerminal, useX402Info } from "@/lib/useLive";
+import { useMarketReceipts, useRevenue, useTerminal, useX402Info } from "@/lib/useLive";
 import { fmtInt, money, shortAddr } from "@/lib/format";
-import { INDICES, PRICE_FALLBACK_USDC } from "@/lib/indices";
-import type { Envelope, TerminalData } from "@/lib/types";
+import { PRICE_FALLBACK_USDC } from "@/lib/indices";
+import { ENDPOINTS, FAMILIES, type EndpointRow, type Family } from "@/lib/endpoints";
+import type { Envelope, MarketReceipt, TerminalData } from "@/lib/types";
 
-// method, path, gate, description, plain description, console-loadable path
-// (null = not queryable here)
-const ENDPOINTS: Array<[string, string, string, string, string, string | null]> = [
-  ["GET", "/prints", "x402", "All latest prints + CI + attack cost", "Every current rate, its wiggle room, and the cost to bend it", "/prints"],
-  ["GET", "/prints/{index_id}", "x402", "One index, with diagnostics", "One rate, with its health checks", `/prints/${INDICES[0]}`],
-  ["GET", "/curve/{index_id}", "x402", "Term structure (A-S mids by tenor)", "Forward prices, week by week", `/curve/${INDICES[0]}`],
-  ["GET", "/vol/{index_id}", "x402", "Realized annualized vol", "How jumpy the price has been (yearly figure)", `/vol/${INDICES[0]}`],
-  ["GET", "/seller-scores/{index_id}", "x402", "Seller reliability", "Which sellers to trust", `/seller-scores/${INDICES[0]}`],
-  ["GET", "/", "public", "Service card · indices, pricing, marketplace pointers", "The menu · what is sold here and for how much", null],
-  ["GET", "/onchain/{index_id}", "public", "Settlement-grade print from ACROracle", "The official rate, read off the blockchain", null],
-  ["GET", "/futures", "public", "The whole venue · every desk and the on-chain fill tape", "The trading desk and every recent trade", null],
-  ["GET", "/futures/{index_id}", "public", "One index's live series, read from ACRFutures", "One market's trading desk, read off the blockchain", null],
-  ["GET", "/marketplace/catalog", "public", "Machine-readable listings (Bazaar-shaped)", "The shop's listings, in a shape robots can read", null],
-  ["GET", "/marketplace/receipts", "public", "The settlement tape · recent x402 receipts", "The receipt roll · who paid for what", null],
-  ["GET", "/terminal/data", "public", "The human terminal feed (this site)", "Everything this website shows, as data", null],
-  ["POST", "/demo/attack/start", "public", "Kick a live wash-attack run (Attack Lab)", "Start a live cheating attempt (the lab)", null],
-  ["GET", "/demo/attack/status", "public", "Attack run progress + verdict", "How the cheating attempt is going", null],
-  ["POST", "/demo/buyer/start", "public", "Release the floor buyer (Exchange demo)", "Let the robot shopper loose (shop demo)", null],
-  ["GET", "/demo/buyer/status", "public", "Floor-buyer run progress", "How the robot shopper is doing", null],
-  ["GET", "/revenue", "public", "Paid queries + revenue (the dogfood metric)", "Questions paid for + money earned", null],
-  ["GET", "/x402/info", "public", "The payment gate, described", "How the paywall works, in plain data", null],
-  ["POST", "/webhooks/circle", "public", "Inbound Circle webhook receiver (signed)", "Where Circle reports each settled payment", null],
-  ["GET", "/webhooks/recent", "public", "Recent Circle webhook events", "Circle's latest payment reports", null],
-  ["GET", "/health", "public", "Liveness", "Is the server awake?", null],
-  // The Public Desk. All POST, so the console (which replays GETs) can't load
-  // them — but an integrator still needs to know the surface exists.
-  ["POST", "/desk/session", "public", "Open/resume a Circle user-controlled wallet session", "Start your own wallet on the trading desk", null],
-  ["POST", "/desk/wallet", "public", "That session's SCA + its USDC stake", "Your desk wallet and what's in it", null],
-  ["POST", "/desk/faucet", "public", "Drip the one-per-wallet testnet stake", "Get the 50-cent test stake, once per wallet", null],
-  ["POST", "/desk/limits", "public", "Live per-direction size caps (both margin checks)", "The biggest trade you could place right now", null],
-  ["POST", "/desk/withdrawable", "public", "What this wallet can take back out, per series", "How much of your money you can take back", null],
-  ["POST", "/desk/challenge", "public", "Mint a PIN challenge: approve / collateral / trade / withdraw", "Ask for the PIN prompt that authorizes one action", null],
-];
+/** What /api/probe answers with. `detail` replaces the rest on a refusal or a
+ *  press that did not wake in time. */
+interface ProbeResult {
+  path: string;
+  status?: number;
+  ms?: number;
+  body?: string;
+  truncated?: boolean;
+  detail?: string;
+}
+
+/* What each route sells, keyed by the register's path.
+ *
+ * Kept here as JSX rather than beside the paths in lib/endpoints.ts, and the
+ * reason is a gate rather than taste: coverage.test.ts counts edition markers
+ * and lints `p="…"` only under app/ and components/, so this copy moved into a
+ * .ts would stop being counted and stop being checked for banned jargon.
+ * ContractRegister's GLOSS map sits here for the same reason. chain.test.ts
+ * asserts every register path has an entry, so the two halves cannot drift. */
+const DESC: Record<string, React.ReactNode> = {
+  "/prints": <Ed x="All latest prints + CI + attack cost" p="Every current rate, its wiggle room, and the cost to bend it" />,
+  "/prints/{index_id}": <Ed x="One index, with diagnostics" p="One rate, with its health checks" />,
+  "/curve/{index_id}": <Ed x="Term structure (A-S mids by tenor)" p="Forward prices, week by week" />,
+  "/vol/{index_id}": <Ed x="Realized annualized vol" p="How jumpy the price has been (yearly figure)" />,
+  "/seller-scores/{index_id}": <Ed x="Seller reliability" p="Which sellers to trust" />,
+  "/": <Ed x="Service card · indices, pricing, marketplace pointers" p="The menu · what is sold here and for how much" />,
+  "/onchain/{index_id}": <Ed x="Settlement-grade print from ACROracle" p="The official rate, read off the blockchain" />,
+  "/futures": <Ed x="The whole venue · every desk and the on-chain fill tape" p="The trading desk and every recent trade" />,
+  "/futures/{index_id}": <Ed x="One index's live series, read from ACRFutures" p="One market's trading desk, read off the blockchain" />,
+  "/marketplace/catalog": <Ed x="Machine-readable listings (Bazaar-shaped)" p="The shop's listings, in a shape robots can read" />,
+  "/marketplace/receipts": <Ed x="The settlement tape · recent receipts" p="The receipt roll · who paid for what" />,
+  "/terminal/data": <Ed x="The human terminal feed (this site)" p="Everything this website shows, as data" />,
+  "/demo/attack/start": <Ed x="Kick a live wash-attack run (Attack Lab)" p="Start a live cheating attempt (the lab)" />,
+  "/demo/attack/status": <Ed x="Attack run progress + verdict" p="How the cheating attempt is going" />,
+  "/demo/buyer/start": <Ed x="Release the floor buyer (Exchange demo)" p="Let the robot shopper loose (shop demo)" />,
+  "/demo/buyer/status": <Ed x="Floor-buyer run progress" p="How the robot shopper is doing" />,
+  "/revenue": <Ed x="Paid queries + revenue (the dogfood metric)" p="Questions paid for + money earned" />,
+  "/x402/info": <Ed x="The payment gate, described" p="How the paywall works, in plain data" />,
+  "/webhooks/circle": <Ed x="Inbound Circle webhook receiver (signed)" p="Where Circle reports each settled payment" />,
+  "/webhooks/recent": <Ed x="Recent Circle webhook events" p="Circle's latest payment reports" />,
+  "/health": <Ed x="Liveness" p="Is the server awake?" />,
+  "/desk/session": <Ed x="Open/resume a Circle user-controlled wallet session" p="Start your own wallet on the trading desk" />,
+  "/desk/wallet": <Ed x="That session's SCA + its USDC stake" p="Your desk wallet and what's in it" />,
+  "/desk/faucet": <Ed x="Drip the one-per-wallet testnet stake" p="Get the 50-cent test stake, once per wallet" />,
+  "/desk/limits": <Ed x="Live per-direction size caps (both margin checks)" p="The biggest trade you could place right now" />,
+  "/desk/withdrawable": <Ed x="What this wallet can take back out, per series" p="How much of your money you can take back" />,
+  "/desk/challenge": <Ed x="Mint a PIN challenge: approve / collateral / trade / withdraw" p="Ask for the PIN prompt that authorizes one action" />,
+};
+
+/** Settlements the tape can attribute to a documented path.
+ *
+ *  Template-aware, and that is the whole difficulty: the register documents
+ *  `/prints/{index_id}` while a receipt records the concrete `/prints/ACR-INF`,
+ *  so a plain equality would attribute nothing. Matches the placeholder against
+ *  one path segment only, so `/prints/{index_id}` never swallows `/prints`.
+ *
+ *  A row with none prints nothing rather than 0: the seller only began stamping
+ *  the bought path partway through, so most archived receipts carry no resource
+ *  at all, and "the tape cannot say" is a different claim from "nobody bought
+ *  it". Same rule the exchange listings follow. */
+function salesFor(path: string, receipts: MarketReceipt[] | undefined): MarketReceipt[] {
+  const re = new RegExp("^" + path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace("\\{index_id\\}", "[^/]+") + "$");
+  return (receipts ?? []).filter((r) => r.resource && re.test(r.resource));
+}
+
+/** The heading over each family. */
+const FAMILY_HEAD: Record<Family, React.ReactNode> = {
+  paid: <Ed x="Paid · the index itself" p="Paid · the rates themselves" />,
+  venue: <Ed x="The venue · free to read" p="The market · free to read" />,
+  market: <Ed x="The marketplace · free to read" p="The shop · free to read" />,
+  demo: <Ed x="The demos" p="The demos" />,
+  desk: <Ed x="The public desk · session required" p="Your own wallet · needs a session" />,
+  ops: <Ed x="Operations" p="Housekeeping" />,
+};
 
 export function DevelopersView({ initial }: { initial: Envelope<TerminalData> }) {
   const env = useTerminal(initial);
@@ -64,6 +106,56 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
   const c = chainFacts(env.data.chain);
   const explorer = c.explorer;
   const [loadPath, setLoadPath] = useState<string | null>(null);
+
+  /* --- the endpoints table, made answerable ---
+     Twenty-two of the twenty-seven rows were inert, and every one of those is
+     a FREE route: nothing was stopping a reader from calling them except the
+     absence of a button. Now each runnable row fetches through /api/probe and
+     shows what came back, so the table is evidence rather than documentation.
+
+     `selected` also fixes a quieter defect: clicking a paid row set two
+     dropdowns inside a console five sections above the table, with no scroll
+     and no feedback, so the click was a no-op from where the reader was
+     sitting. That is most of why this section read as static. */
+  const [selected, setSelected] = useState<string | null>(null);
+  const [probing, setProbing] = useState<string | null>(null);
+  const [probeOut, setProbeOut] = useState<Record<string, ProbeResult>>({});
+  const { tape } = useMarketReceipts();
+
+  const loadIntoConsole = useCallback((path: string, run: string) => {
+    setSelected(path);
+    setLoadPath(run + "#" + Date.now());
+    // The console is above the table and the reader is not. Bring it to them.
+    document.getElementById("console")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const probe = useCallback(async (path: string, run: string) => {
+    setSelected(path);
+    setProbing(path);
+    try {
+      const res = await fetch("/api/probe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: run }),
+      });
+      const body = (await res.json()) as ProbeResult & { detail?: string };
+      setProbeOut((o) => ({ ...o, [path]: body }));
+    } catch {
+      setProbeOut((o) => ({
+        ...o,
+        [path]: { path: run, detail: "could not reach the press from here. Press again" },
+      }));
+    } finally {
+      setProbing(null);
+    }
+  }, []);
+
+  /** One handler for both kinds of row. A paid path goes to the console, which
+   *  shows the 402 before anything is paid; a free one runs right here. */
+  const fire = (e: EndpointRow) => {
+    if (e.console) loadIntoConsole(e.path, e.console);
+    else if (e.run) void probe(e.path, e.run);
+  };
 
   return (
     <>
@@ -231,50 +323,151 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                   <Ed x="Gate" p="Cost" />
                 </th>
                 <th>Returns</th>
+                <th>
+                  <Ed x="Try" p="Try" />
+                </th>
               </tr>
             </thead>
             <tbody>
-              {ENDPOINTS.map(([method, path, gate, desc, plainDesc, load]) => (
-                <tr
-                  key={path}
-                  className={load ? "row-link" : undefined}
-                  role={load ? "button" : undefined}
-                  tabIndex={load ? 0 : undefined}
-                  aria-label={load ? `load ${path} into the console` : undefined}
-                  onClick={load ? () => setLoadPath(load + "#" + Date.now()) : undefined}
-                  onKeyDown={
-                    load
-                      ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            setLoadPath(load + "#" + Date.now());
-                          }
-                        }
-                      : undefined
-                  }
-                  title={load ? "load into the console above" : undefined}
-                >
-                  <td>{method}</td>
-                  <td className="mono" style={{ fontWeight: 600 }}>
-                    {path}
-                    {load && <span className="muted"> ↑</span>}
-                  </td>
-                  <td>
-                    {gateFor(path, gate) === "x402" ? (
-                      <span className="gold">
-                        <Ed x={<>402 · ${price}</>} p={<>${price} to ask</>} />
-                      </span>
-                    ) : (
-                      <span className="muted">
-                        <Ed x="public" p="free" />
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ textAlign: "left" }} className="muted">
-                    <Ed x={desc} p={plainDesc} />
-                  </td>
-                </tr>
-              ))}
+              {FAMILIES.map((fam) => {
+                const rows = ENDPOINTS.filter((e) => e.family === fam);
+                if (!rows.length) return null;
+                return (
+                  <Fragment key={fam}>
+                    {/* Twenty-seven rows in one flat list, ordered by nothing a
+                        reader could see. The families were already there in the
+                        paths; they just were not drawn. */}
+                    <tr>
+                      <td colSpan={5} style={{ paddingTop: 18, borderBottom: 0 }}>
+                        <span className="label">{FAMILY_HEAD[fam]}</span>
+                      </td>
+                    </tr>
+                    {rows.map((e) => {
+                      const paid = gateFor(e.path, e.gate) === "x402";
+                      const isSel = selected === e.path;
+                      const out = probeOut[e.path];
+                      // A paid row goes to the console (it has to show the 402
+                      // before anything is paid); a free row runs right here.
+                      const act = e.console ? "console" : e.run ? "probe" : null;
+                      const sold = paid ? salesFor(e.path, tape?.data?.receipts).length : 0;
+                      return (
+                        <Fragment key={e.path}>
+                          <tr
+                            className={act ? "row-link" : undefined}
+                            role={act ? "button" : undefined}
+                            tabIndex={act ? 0 : undefined}
+                            aria-current={isSel ? "true" : undefined}
+                            aria-label={
+                              act === "console"
+                                ? `load ${e.path} into the console`
+                                : act === "probe"
+                                  ? `call ${e.path} now`
+                                  : undefined
+                            }
+                            onClick={act ? () => fire(e) : undefined}
+                            onKeyDown={
+                              act
+                                ? (ev) => {
+                                    if (ev.key === "Enter" || ev.key === " ") {
+                                      ev.preventDefault();
+                                      fire(e);
+                                    }
+                                  }
+                                : undefined
+                            }
+                          >
+                            <td className="mono">{e.method}</td>
+                            <td className="mono" style={{ fontWeight: 600 }}>
+                              {/* The caret, not a dimmed arrow. The old marker
+                                  was className="muted", so the one interactive
+                                  glyph in the row was its lowest-contrast
+                                  character. */}
+                              {act ? <span aria-hidden>{isSel ? "▾ " : "▸ "}</span> : null}
+                              {e.path}
+                            </td>
+                            <td>
+                              {paid ? (
+                                <span className="gold">
+                                  <Ed x={<>402 · ${price}</>} p={<>${price} to ask</>} />
+                                </span>
+                              ) : (
+                                <span className="muted">
+                                  <Ed x="public" p="free" />
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "left" }} className="muted">
+                              {DESC[e.path]}
+                            </td>
+                            <td className="mono">
+                              {act === "probe" ? (
+                                <button
+                                  className="mini-btn"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    void probe(e.path, e.run!);
+                                  }}
+                                  disabled={probing !== null}
+                                >
+                                  {probing === e.path ? "…" : "run"}
+                                </button>
+                              ) : act === "console" ? (
+                                <span className="muted">
+                                  {sold > 0 ? (
+                                    <span className="green">{fmtInt(sold)} sold</span>
+                                  ) : (
+                                    <Ed x="console ↑" p="try it ↑" />
+                                  )}
+                                </span>
+                              ) : (
+                                // Not a button that could only ever fail — and
+                                // the right reason, not one blanket sentence:
+                                // the webhook is Circle calling us, and the
+                                // demo starters just want a body.
+                                <span className="muted" style={{ fontSize: 11.5 }}>
+                                  {e.why === "inbound" ? (
+                                    <Ed x="Circle calls this" p="Circle calls this" />
+                                  ) : e.why === "post" ? (
+                                    <Ed x="POST · needs a body" p="needs a form filled in" />
+                                  ) : (
+                                    <Ed x="needs a session" p="needs a session" />
+                                  )}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                          {out ? (
+                            <tr>
+                              <td colSpan={5} style={{ paddingTop: 0 }}>
+                                {out.detail ? (
+                                  <p className="mono muted" role="status" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
+                                    {out.detail}
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="mono" style={{ fontSize: 12.5, margin: "0 0 6px" }}>
+                                      <span className={out.status === 200 ? "green" : "gold"}>
+                                        {out.status}
+                                      </span>{" "}
+                                      <span className="muted">
+                                        · {fmtInt(out.ms ?? 0)} ms
+                                        {out.truncated ? " · preview" : ""}
+                                      </span>
+                                    </p>
+                                    <div className="specimen" style={{ marginBottom: 10 }}>
+                                      <pre style={{ maxHeight: 220, overflow: "auto" }}>{out.body}</pre>
+                                    </div>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

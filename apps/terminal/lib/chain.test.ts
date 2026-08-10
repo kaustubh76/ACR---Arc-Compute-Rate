@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MAX_SETTLE_AGE_S, deployedContracts } from "./chain";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, schemaFromBytes32 } from "./registryCodec";
 import { DEMO_LABELS, KEY_PREFIX, deriveDemoSellers } from "./sellerKeys";
+import { ENDPOINTS, RUNNABLE } from "./endpoints";
 
 test("the freshness window matches the contract it copies", () => {
   // A constant that is right when typed is the shape of the `multiplier` bug:
@@ -126,4 +127,25 @@ test("the freshness window matches the contract it copies", () => {
   const chain = bundle.chain;
   const keys = deployedContracts(chain, bundle.oracle).map((r) => r.key);
   assert.deepEqual(keys, ["oracle", "futures", "registry", "attestor", "usdc", "gateway"]);
+
+  /* The endpoint register, and the two halves it was split into.
+     Paths live in lib/endpoints.ts so the table and the probe's allowlist
+     cannot disagree; the prose stays in the .tsx so coverage.test.ts can still
+     count it and lint it for banned jargon. That split is only safe if nothing
+     can fall through the gap between them. */
+  const view = readFileSync(join(__dirname, "..", "app", "developers", "view.tsx"), "utf8");
+  const described = new Set([...view.matchAll(/^\s{2}"([^"]+)":\s*<Ed /gm)].map((m) => m[1]));
+  const undescribed = ENDPOINTS.filter((e) => !described.has(e.path)).map((e) => e.path);
+  assert.deepEqual(undescribed, [], "every endpoint needs a DESC entry in developers/view.tsx");
+
+  // A paid path must never reach the probe: that route does a bare GET, so a
+  // gated path in its allowlist would either 402 in the reader's face or, if
+  // the gate were ever misconfigured, serve paid data for free.
+  const paidLeak = ENDPOINTS.filter((e) => e.gate === "x402" && e.run !== null).map((e) => e.path);
+  assert.deepEqual(paidLeak, [], "a paid endpoint must not be probe-runnable");
+  for (const e of ENDPOINTS) {
+    if (e.run) assert.ok(RUNNABLE.has(e.run), `${e.path} is runnable but missing from RUNNABLE`);
+    // A POST has a body the probe cannot invent, so it is never runnable.
+    if (e.method === "POST") assert.equal(e.run, null, `${e.path} is a POST and cannot be probed`);
+  }
 });

@@ -296,7 +296,10 @@ export function ApiConsole({
   }, [agentAllowed, agentOn]);
 
   return (
-    <section className="section">
+    /* `id` + anchor-target: the endpoints table sits five sections below this
+       and hands a path up to it. Without a scroll target, clicking a row set
+       two dropdowns the reader could not see and looked like nothing at all. */
+    <section className="section anchor-target" id="console">
       <div className="section-head">
         <Ed
           x="The wire · query the index"
