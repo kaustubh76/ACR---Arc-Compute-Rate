@@ -53,11 +53,12 @@ DECK = ROOT / "docs" / "presentation.md"
 #: the PDF a judge downloads. Guarded from the source; the generated copies
 #: cannot disagree with it because build_pitch.py never edits the numbers.
 PITCH = ROOT / "docs" / "pitch" / "deck.html"
-#: The submission brief answers the form's nine fields and states the same
-#: suite counts in §6, in the same `<b>367</b> py` markup — one guard loop
-#: covers both, and the brief is also rendered to docs/submission-brief.pdf,
-#: where a stale count would outlive every redeploy.
-BRIEF = ROOT / "docs" / "pitch" / "brief.html"
+#: The submission brief answers the form's nine fields. Its source is
+#: MARKDOWN (docs/SUBMISSION-BRIEF.md — the file a human pastes from), and it
+#: is rendered to docs/submission-brief.pdf, where a stale count would outlive
+#: every redeploy. It states the suite counts in the deck's markdown phrasing
+#: (`**367 py**`), so the deck patterns re-apply verbatim.
+BRIEF = ROOT / "docs" / "SUBMISSION-BRIEF.md"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -261,25 +262,23 @@ def main() -> None:
         )
 
     # The eight-slide pitch deck states the same suite sizes on its proof
-    # slide, and the submission brief repeats them in §6 — both in the same
-    # markup (`<b>367</b> py`), so one loop holds both. Same measurements,
-    # parsed from that markup — the lesson at the top of this block was that a
-    # deck goes stale for exactly as long as nothing parses it, and these two
-    # are generated into PDFs, where a wrong number outlives every redeploy.
-    print("\nthe pitch pages (docs/pitch/deck.html + brief.html — what is presented and attached)")
-    for name, body in (("pitch deck", pitch), ("submission brief", brief)):
-        if not body:
-            check(False, f"the {name} is missing from docs/pitch/")
-            continue
+    # slide, in its own markup (`<b>367</b> py`). Same measurements, parsed
+    # from that markup — the lesson at the top of this block was that a deck
+    # goes stale for exactly as long as nothing parses it, and this one is
+    # generated into a PDF, where a wrong number outlives every redeploy.
+    print("\nthe pitch deck (docs/pitch/deck.html — the one actually presented)")
+    if not pitch:
+        check(False, "docs/pitch/deck.html is missing")
+    else:
         for label, pattern, measure, costly in (
-            (f"{name} python count", r"<b>(\d+)</b> py\b", measured_pytest, False),
-            (f"{name} forge count", r"<b>(\d+)</b> forge\b", measured_forge, True),
-            (f"{name} terminal count", r"<b>(\d+)</b> terminal\b", measured_terminal, True),
-            (f"{name} glossary count", r"<b>(\d+)</b>/\d+ glossary\b", measured_glossary, False),
+            ("pitch python count", r"<b>(\d+)</b> py\b", measured_pytest, False),
+            ("pitch forge count", r"<b>(\d+)</b> forge\b", measured_forge, True),
+            ("pitch terminal count", r"<b>(\d+)</b> terminal\b", measured_terminal, True),
+            ("pitch glossary count", r"<b>(\d+)</b>/\d+ glossary\b", measured_glossary, False),
         ):
-            stated = claim(body, pattern)
+            stated = claim(pitch, pattern)
             if stated is None:
-                check(False, f"{label}: no claim found — has its counts line been reworded?")
+                check(False, f"{label}: no claim found — has the proof slide been reworded?")
                 continue
             if FAST and costly:
                 print(f"  · {label}: claims {stated} (not measured)")
@@ -288,7 +287,39 @@ def main() -> None:
             if actual is None:
                 check(False, f"{label}: could not measure (toolchain missing?)")
                 continue
-            check(actual == stated, f"{label}: the {name} says {stated}, measured {actual}")
+            check(actual == stated, f"{label}: the pitch deck says {stated}, measured {actual}")
+
+    # The submission brief is markdown, states the counts in the long deck's
+    # phrasing, and carries one extra promise the others don't: no connector
+    # dashes in its content (the product's own name is the single exception).
+    # That was a review requirement, so it is held here rather than remembered.
+    print("\nthe submission brief (docs/SUBMISSION-BRIEF.md — the form's source of truth)")
+    if not brief:
+        check(False, "docs/SUBMISSION-BRIEF.md is missing")
+    else:
+        for label, pattern, measure, costly in (
+            ("brief python count", r"\*\*(\d+) py\*\*", measured_pytest, False),
+            ("brief forge count", r"\*\*(\d+) forge\*\*", measured_forge, True),
+            ("brief terminal count", r"\*\*(\d+) terminal\*\*", measured_terminal, True),
+            ("brief glossary count", r"glossary \*\*(\d+)/\d+\*\*", measured_glossary, False),
+        ):
+            stated = claim(brief, pattern)
+            if stated is None:
+                check(False, f"{label}: no claim found — has the counts row been reworded?")
+                continue
+            if FAST and costly:
+                print(f"  · {label}: claims {stated} (not measured)")
+                continue
+            actual = measure()
+            if actual is None:
+                check(False, f"{label}: could not measure (toolchain missing?)")
+                continue
+            check(actual == stated, f"{label}: the brief says {stated}, measured {actual}")
+        residue = brief.replace("ACR — Arc Compute Rate", "")
+        check(
+            "—" not in residue and "–" not in residue,
+            "the brief keeps its no-connector-dash rule (the product name is the one exception)",
+        )
 
     print("\nglossary")
     stated = claim(sub, r"(\d+)/\d+ diagram terms")
@@ -460,7 +491,7 @@ def main() -> None:
         "a live acr-inf series": "there are three live series, not one",
     }
     for doc in ("SUBMISSION.md", "IMPLEMENTATION_STATUS.md", "MVP_STATUS.md", "presentation.md",
-                "PITCH.md"):
+                "PITCH.md", "SUBMISSION-BRIEF.md"):
         body = (_P("docs") / doc).read_text().lower() if (_P("docs") / doc).exists() else ""
         for phrase, why in STALE_VENUE.items():
             check(phrase not in body, f"{doc} no longer says '{phrase}' — {why}")

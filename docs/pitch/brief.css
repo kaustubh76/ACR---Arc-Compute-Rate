@@ -1,0 +1,170 @@
+/* The submission brief's page styles. The SOURCE is docs/SUBMISSION-BRIEF.md;
+   scripts/build_pitch.py runs it through marked, wraps it with this sheet and
+   docs/pitch/fonts.css, and prints docs/submission-brief.pdf at A4. This file
+   styles marked's plain output (h1, h2, pre, table, blockquote, hr, img), so
+   the markdown needs no classes.
+
+   It is the paper edition: the terminal's light editorial voice, painted
+   explicitly because the PDF commits to one look. */
+
+:root {
+  color-scheme: light;
+  --paper: #f7f5f0;
+  --paper-2: #efece4;
+  --ink: #16233a;
+  --ink-70: rgba(22, 35, 58, 0.74);
+  --ink-45: rgba(22, 35, 58, 0.52);
+  --rule: rgba(22, 35, 58, 0.16);
+  --rule-strong: rgba(22, 35, 58, 0.34);
+  --gold: #a06915;
+  --gold-bright: #e9a13f;
+  --teal: #226b62;
+  --navy: #1b3158;
+  --display: "Space Grotesk", "Helvetica Neue", Helvetica, sans-serif;
+  --body: "DM Sans", "Helvetica Neue", Helvetica, sans-serif;
+  --eyebrow: "Space Mono", ui-monospace, Menlo, monospace;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet { max-width: 820px; margin: 0 auto; padding: 34px 26px 80px; }
+
+a { color: var(--navy); text-decoration: none; border-bottom: 1px solid rgba(27, 49, 88, 0.3); }
+
+/* the masthead */
+h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(30px, 5vw, 40px);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 3px double var(--rule-strong);
+  text-wrap: balance;
+}
+
+/* one field per heading */
+h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.012em;
+  margin: 30px 0 12px;
+}
+h2 code { background: transparent; border: 0; }
+
+p { margin: 0 0 12px; max-width: 74ch; }
+strong { font-weight: 600; }
+em { color: var(--ink-70); }
+
+/* the paste blocks: the literal text for each form field */
+pre {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: #fffdf8;
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--gold-bright);
+  padding: 12px 14px 12px 16px;
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+}
+pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: rgba(22, 35, 58, 0.06);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+
+/* the standfirst at the top and the video slot in field 6 */
+blockquote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--teal);
+  color: var(--ink-70);
+  font-size: 13.5px;
+  max-width: 72ch;
+  break-inside: avoid;
+}
+blockquote p { margin: 0 0 6px; }
+
+hr { border: 0; border-top: 1px solid var(--rule-strong); margin: 26px 0; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 14px;
+  font-size: 12.5px;
+}
+th {
+  font-family: var(--eyebrow);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-70);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  padding: 6px 9px;
+}
+td { border: 1px solid var(--rule); padding: 6px 9px; vertical-align: top; }
+tr { break-inside: avoid; }
+
+ul { margin: 0 0 12px; padding-left: 20px; max-width: 74ch; }
+li { margin: 5px 0; }
+li::marker { color: var(--gold-bright); }
+
+img {
+  max-width: 100%;
+  display: block;
+  border: 1px solid var(--rule-strong);
+  background: #ffffff;
+  padding: 8px;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  break-inside: avoid;
+}
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--rule-strong);
+  background: #ffffff;
+  padding: 8px;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  break-inside: avoid;
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 14mm 13mm; }
+  html, body {
+    background: var(--paper) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet { max-width: none; padding: 0; }
+  a { border-bottom: none; }
+  /* each field opens a fresh page, so the PDF reads in chapters */
+  h2 { break-before: page; }
+  hr { display: none; }
+}
