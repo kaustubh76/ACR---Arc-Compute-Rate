@@ -167,6 +167,41 @@ def test_receipts_ledger_shape_and_order():
     assert ledger["receipts"][0]["tx_ref"] == "dev-3"
     assert all("timestamp" not in r and "date" not in r for r in ledger["receipts"])
 
+    # --- the join between the catalog and the tape ---
+    # PaymentReceipt has stamped the bought path for a while, but this builder
+    # dropped it, so /exchange could list thirteen resources and prove
+    # thirty-four settlements with nothing connecting the two. The rule is
+    # "emit it when it exists, omit it when it does not": most archived rows
+    # predate the stamp, and an empty string would attribute all of them to one
+    # nameless listing. Asserted here rather than as a new test() because
+    # pytest's count is stated in six docs plus the architecture diagram.
+    from index_api.x402 import PaymentReceipt
+
+    fac.recent.append(
+        PaymentReceipt(
+            payer="0xbuyer",
+            amount_usdc=0.0001,
+            tx_ref="dev-4",
+            network="eip155:5042002",
+            scheme="exact",
+            resource="/curve/ACR-GPU",
+        )
+    )
+    rows = build_receipts(fac)["receipts"]
+    stamped = next(r for r in rows if r["tx_ref"] == "dev-4")
+    assert stamped["resource"] == "/curve/ACR-GPU"
+    # ...and the three rows above it carry no resource at all, not "".
+    assert all("resource" not in r for r in rows if r["tx_ref"] != "dev-4")
+
+    # The catalog cannot advertise a gate that does not exist, nor miss one
+    # that does: ENDPOINT_FAMILIES and app.GATED_ENDPOINTS are two lists
+    # maintained by hand, and a sixth paid endpoint would otherwise ship
+    # charged-but-unlisted with nothing failing.
+    from index_api.app import GATED_ENDPOINTS
+    from index_api.marketplace import ENDPOINT_FAMILIES
+
+    assert {f["template"] for f in ENDPOINT_FAMILIES} == set(GATED_ENDPOINTS)
+
 
 def test_receipts_empty_state():
     ledger = build_receipts(DevFacilitator())

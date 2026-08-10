@@ -417,6 +417,14 @@ def build_receipts(fac: Facilitator) -> dict:
     invites a reader to assume it was recent. The row is true either way; the
     timestamp is what makes it unambiguous. (Omitted when zero, so a receipt
     from before the field existed does not claim to have settled at the epoch.)
+
+    Carries ``resource`` on the same terms. ``PaymentReceipt`` has stamped the
+    bought path since the field was added, but this builder dropped it, so the
+    catalog could list thirteen resources and the tape could prove thirty-four
+    settlements with nothing joining the two — the marketplace had listings and
+    sales and no way to say which listing sold. Emitted only when non-empty:
+    most archived rows predate the stamp, and an empty string rendered as a
+    resource would attribute every one of them to the same nameless listing.
     """
     receipts = list(fac.recent)
     # Clamped: a paid query landing between the two reads above can skew the
@@ -431,6 +439,7 @@ def build_receipts(fac: Facilitator) -> dict:
             "network": r.network,
             "scheme": r.scheme,
             **({"settled_at": r.settled_at} if r.settled_at else {}),
+            **({"resource": r.resource} if r.resource else {}),
         }
         for i, r in enumerate(receipts)
     ]

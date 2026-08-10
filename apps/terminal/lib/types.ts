@@ -484,6 +484,11 @@ export interface CatalogItem {
   resource: string;
   type: string;
   x402Version: number;
+  /** ISO-8601, stamped when the seller last rebuilt its catalog (i.e. at
+   *  deploy). On the wire since the catalog existed; typed only now, because
+   *  a listing that cannot say when it was last published is a listing a
+   *  crawler has to re-read every time. */
+  lastUpdated?: string;
   accepts: CatalogAccepts[];
   metadata: {
     family: string;
@@ -508,6 +513,16 @@ export interface MarketReceipt {
   tx_ref: string;
   network: string;
   scheme: string;
+  /** Unix seconds. Absent on rows settled before the field existed. */
+  settled_at?: number;
+  /** The catalog resource this settlement bought, e.g. `/curve/ACR-GPU`.
+   *
+   *  Optional and often absent, deliberately: the seller stamps it at settle
+   *  time but most archived rows predate the stamp, and the builder omits the
+   *  key rather than sending "". So a listing with no attributed sales means
+   *  "the tape cannot say", never "nobody bought it" — the two are different
+   *  claims and the page must not merge them. */
+  resource?: string;
 }
 
 export interface MarketReceiptsData {

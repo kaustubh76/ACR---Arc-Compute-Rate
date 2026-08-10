@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
+import { AddressChip } from "@/components/chain/AddressChip";
 import { ChainFactsStrip } from "@/components/chain/ChainFactsStrip";
 import { PaymentToast, type ToastPayload } from "@/components/chain/PaymentToast";
 import { SettlementTape } from "@/components/chain/SettlementTape";
@@ -21,7 +22,15 @@ import {
   useTerminal,
 } from "@/lib/useLive";
 import { fmtInt } from "@/lib/format";
-import type { CatalogItem, Envelope, LiveBuyResponse, LiveBuyResult, TerminalData } from "@/lib/types";
+import { fmtPrice, shortAddr } from "@/lib/format";
+import type {
+  CatalogItem,
+  Envelope,
+  LiveBuyResponse,
+  LiveBuyResult,
+  MarketReceipt,
+  TerminalData,
+} from "@/lib/types";
 
 function priceUsdc(item: CatalogItem): string {
   const atomic = item.accepts[0]?.amount ?? item.accepts[0]?.maxAmountRequired;
@@ -38,6 +47,31 @@ function unitOf(item: CatalogItem): string | null {
   if (!units) return null;
   const id = Object.keys(units).find((iid) => item.resource.endsWith(`/${iid}`));
   return id ? units[id] : null;
+}
+
+/** The top-level field names a listing returns, from its own JSON Schema.
+ *
+ *  The footnote under this table has always promised that every listing
+ *  "carries its full x402 payment terms and schemas". The terms were on the
+ *  wire and half-rendered; the schemas were on the wire and rendered nowhere,
+ *  so the sentence was a promise the table broke. This is the cheapest honest
+ *  way to keep it: the names of what you get, before you pay for it.
+ */
+function returnsFields(item: CatalogItem): string[] {
+  const out = item.metadata.output as { properties?: Record<string, unknown> } | undefined;
+  const props = out?.properties;
+  return props && typeof props === "object" ? Object.keys(props) : [];
+}
+
+/** Settlements the tape can attribute to one listing, newest first.
+ *
+ *  "Cannot attribute" is not "never sold": the seller only began stamping the
+ *  bought path onto a receipt partway through, so most archived rows carry no
+ *  resource at all and every caller has to say so rather than print a zero.
+ */
+function salesFor(resource: string, receipts: MarketReceipt[] | undefined): MarketReceipt[] {
+  const path = pathOf(resource);
+  return (receipts ?? []).filter((r) => r.resource && pathOf(r.resource) === path);
 }
 
 export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
@@ -137,6 +171,56 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
     }
   }, [mutate, refreshBalances]);
 
+  /* --- buying ONE listing, the one the reader opened ---
+     The button above releases the buyer at `{count: 3}` with no paths, so it
+     has never bought the listing anybody was looking at: the catalog and the
+     purchase were two unrelated things on one page. /api/buy already takes
+     `paths`, and lib/buyPlan's allowlist is exactly these thirteen resources,
+     so the storefront was one argument away the whole time. Same route, same
+     two spend caps, one query instead of three. */
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [buyOut, setBuyOut] = useState<Record<string, LiveBuyResult>>({});
+  const [buyErr, setBuyErr] = useState<Record<string, string>>({});
+
+  const buyOne = useCallback(
+    async (resource: string) => {
+      const path = pathOf(resource);
+      setBuying(path);
+      setBuyErr((e) => ({ ...e, [path]: "" }));
+      try {
+        const res = await fetch("/api/buy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ count: 1, paths: [path] }),
+        });
+        const body = (await res.json()) as LiveBuyResponse & { detail?: string };
+        if (!res.ok) {
+          setBuyErr((e) => ({ ...e, [path]: String(body.detail ?? `refused (${res.status})`) }));
+          return;
+        }
+        const r = body.results?.[0] ?? null;
+        if (r) setBuyOut((o) => ({ ...o, [path]: r }));
+        if (r && r.status === 200 && r.tx_ref) {
+          setToast({ amountUsdc: r.price_usdc, txRef: r.tx_ref, key: ++toastSeq.current });
+          // The three surfaces this purchase just changed. Without these the
+          // reader has to reload to see their own settlement, which is the
+          // whole thing this page is trying to prove.
+          void mutate("/api/marketplace/receipts");
+          void mutate("/api/revenue");
+          void refreshBalances();
+        } else if (r?.error) {
+          setBuyErr((e) => ({ ...e, [path]: r.error as string }));
+        }
+      } catch {
+        setBuyErr((e) => ({ ...e, [path]: "could not reach the buyer from here. Press again" }));
+      } finally {
+        setBuying(null);
+      }
+    },
+    [mutate, refreshBalances],
+  );
+
   return (
     <>
       <div className="standfirst-block" style={{ marginTop: 40 }}>
@@ -168,6 +252,17 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
             ) : null}
           </span>
           <span className="label">
+            {/* Stated once, where it is true. It used to be a column repeating
+                the identical string on all thirteen rows, because the same
+                provider object is embedded in every item: it describes the
+                seller, not any one listing. */}
+            {attestation ? (
+              <span className="muted">
+                <Ed x="seller " p="seller " />
+                {fmtInt(attestation.sellers_attested)}
+                <Ed x=" attested on-chain · " p=" sworn records on the blockchain · " />
+              </span>
+            ) : null}
             {tape == null || ledger == null ? (
               <span className="muted">
                 <Ed x="gate · awaiting API" p="paywall · waiting for our server" />
@@ -199,36 +294,196 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                     <th>
                       <Ed x="Price / query" p="Price / question" />
                     </th>
-                    <th>Network</th>
+                    {/* The Provenance column used to sit here printing
+                        "attested · 4 sellers" on all thirteen rows: every item
+                        embeds the same provider object, so it described the
+                        seller, not the listing. It is stated once in the head
+                        note instead. Network went the same way (identical on
+                        every row) and now lives inside the open row, beside
+                        the rest of the payment terms it belongs with. */}
                     <th>
-                      <Ed x="Provenance" p="Seller proof" />
+                      <Ed x="Sold" p="Bought" />
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
-                    <tr key={item.resource}>
-                      <td className="mono">{pathOf(item.resource)}</td>
-                      <td>
-                        {item.metadata.description}
-                        {unitOf(item) ? <span className="muted"> · {unitOf(item)}</span> : null}
-                      </td>
-                      <td className="mono">{priceUsdc(item)}</td>
-                      <td className="mono">{item.accepts[0]?.network ?? "…"}</td>
-                      <td>
-                        {item.metadata.provider.attestation ? (
-                          <span className="green">
-                            <Ed x="attested" p="sworn records" /> ·{" "}
-                            {item.metadata.provider.attestation.sellers_attested} sellers
-                          </span>
-                        ) : (
-                          <span className="muted">
-                            <Ed x="registry not connected" p="register not connected" />
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((item) => {
+                    const path = pathOf(item.resource);
+                    const open = expanded === path;
+                    const terms = item.accepts[0];
+                    const sales = salesFor(item.resource, ledger?.receipts);
+                    const out = buyOut[path];
+                    const err = buyErr[path];
+                    return (
+                      <Fragment key={item.resource}>
+                        <tr
+                          className="row-link"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={open}
+                          aria-label={`show the payment terms for ${path}`}
+                          onClick={() => setExpanded(open ? null : path)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setExpanded(open ? null : path);
+                            }
+                          }}
+                        >
+                          <td className="mono">
+                            <span className="muted">{open ? "▾" : "▸"}</span> {path}
+                          </td>
+                          <td>
+                            {item.metadata.description}
+                            {unitOf(item) ? <span className="muted"> · {unitOf(item)}</span> : null}
+                          </td>
+                          <td className="mono">{priceUsdc(item)}</td>
+                          {/* An unattributed listing prints nothing, never 0:
+                              the tape only names the resource on settlements
+                              recorded since the seller began stamping it, so a
+                              zero here would say "nobody bought this" when the
+                              truth is "this tape cannot say". */}
+                          <td className="mono">
+                            {sales.length ? (
+                              <span className="green">{fmtInt(sales.length)}</span>
+                            ) : (
+                              <span className="muted">·</span>
+                            )}
+                          </td>
+                        </tr>
+                        {open ? (
+                          <tr>
+                            <td colSpan={4} style={{ paddingTop: 0 }}>
+                              <div className="provenance" style={{ padding: "4px 0 14px" }}>
+                                <div className="provenance-row">
+                                  <span className="label">
+                                    <Ed x="you pay" p="you pay" />
+                                  </span>
+                                  <span className="val">
+                                    {priceUsdc(item)} <span className="muted">USDC</span>
+                                    {terms ? (
+                                      <span className="muted">
+                                        {" "}
+                                        · {terms.scheme} · {terms.network}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </div>
+                                <div className="provenance-row">
+                                  <span className="label">
+                                    <Ed x="paid to" p="money goes to" />
+                                  </span>
+                                  <span className="val">
+                                    {terms?.payTo ? (
+                                      <AddressChip address={terms.payTo} explorer={explorer} />
+                                    ) : (
+                                      "…"
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="provenance-row">
+                                  <span className="label">
+                                    <Ed x="settled through" p="handled by" />
+                                  </span>
+                                  <span className="val">
+                                    {(terms?.extra as { name?: string } | undefined)?.name ??
+                                      "Gateway"}
+                                    {(terms?.extra as { verifyingContract?: string } | undefined)
+                                      ?.verifyingContract ? (
+                                      <span className="muted">
+                                        {" "}
+                                        ·{" "}
+                                        {shortAddr(
+                                          (terms!.extra as { verifyingContract: string })
+                                            .verifyingContract,
+                                        )}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </div>
+                                {returnsFields(item).length ? (
+                                  <div className="provenance-row">
+                                    <span className="label">
+                                      <Ed x="you get back" p="you get back" />
+                                    </span>
+                                    <span className="val">{returnsFields(item).join(" · ")}</span>
+                                  </div>
+                                ) : null}
+                                {item.lastUpdated ? (
+                                  <div className="provenance-row">
+                                    <span className="label">
+                                      <Ed x="listed since" p="on sale since" />
+                                    </span>
+                                    <span className="val">
+                                      {item.lastUpdated.replace("T", " ").slice(0, 16)} UTC
+                                    </span>
+                                  </div>
+                                ) : null}
+                                {sales.length ? (
+                                  <div className="provenance-row">
+                                    <span className="label">
+                                      <Ed x="last settlement" p="last sale" />
+                                    </span>
+                                    <span className="val">
+                                      {sales[0].tx_ref.slice(0, 8)}…{" "}
+                                      <span className="muted">
+                                        {fmtPrice(sales[0].amount_usdc, 2)} USDC
+                                      </span>
+                                    </span>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* The whole point: buy THIS one. Same route and
+                                  the same two spend caps as the button below,
+                                  one query instead of three. */}
+                              <div className="btn-row" style={{ marginBottom: 10 }}>
+                                <button
+                                  className="btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void buyOne(item.resource);
+                                  }}
+                                  disabled={!buyerReady?.buyer_ready || buying !== null}
+                                >
+                                  {buying === path ? (
+                                    <Ed x="settling…" p="paying…" />
+                                  ) : (
+                                    <>
+                                      <Ed x="buy this one" p="buy this one" /> · {priceUsdc(item)}
+                                    </>
+                                  )}
+                                </button>
+                                {!buyerReady?.buyer_ready ? (
+                                  <span className="muted" style={{ fontSize: 12.5 }}>
+                                    <Ed
+                                      x="this deployment has no funded buyer key, so nothing here can settle"
+                                      p="this copy of the site has no funded shopper, so it cannot buy"
+                                    />
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {out && out.status === 200 ? (
+                                <p className="mono green" style={{ fontSize: 12.5, margin: 0 }}>
+                                  ✓ {fmtPrice(out.price_usdc, 2)} USDC · {out.tx_ref}
+                                </p>
+                              ) : null}
+                              {err ? (
+                                <p
+                                  className="mono vermilion"
+                                  role="alert"
+                                  style={{ fontSize: 12.5, margin: 0, maxWidth: 68 * 9 }}
+                                >
+                                  {err}
+                                </p>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -238,23 +493,17 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
               style={{ fontSize: 13, marginTop: 16, maxWidth: 68 * 9 }}
               x={
                 <>
-                  Each listing carries its full x402 payment terms and schemas.{" "}
-                  {attestation
-                    ? `Backed by ${fmtInt(attestation.sellers_attested)} EIP-712 seller attestations read from the on-chain registry.`
-                    : "Seller provenance lights up with a deployed AttestationRegistry."}
+                  Open a listing for the x402 terms the gate itself enforces, and buy it here: one
+                  query, settled through Circle Gateway, capped. The Sold column counts settlements
+                  the tape can name, and it can only name the ones recorded since the seller began
+                  stamping the bought path onto each receipt.
                 </>
               }
               p={
                 <>
-                  Every listing shows its price terms and the shape of the answer.{" "}
-                  {attestation ? (
-                    <>
-                      Backed by {fmtInt(attestation.sellers_attested)}{" "}
-                      <Term k="attestation">sworn seller records</Term> on the public register.
-                    </>
-                  ) : (
-                    <>Sworn seller records appear once the register is live.</>
-                  )}
+                  Open any row to see its price terms and what you get back, then buy just that one.
+                  The Bought column counts only sales our receipt list can trace to a listing, so a
+                  blank means we cannot say, not that nobody bought it.
                 </>
               }
             />
