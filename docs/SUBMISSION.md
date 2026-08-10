@@ -6,7 +6,7 @@
 >
 > *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
-This is the one-page status for judges. For depth: [`docs/ARCHITECTURE-DIAGRAM.md`](ARCHITECTURE-DIAGRAM.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (how to run), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) (full status), [`docs/presentation.md`](presentation.md) (the pitch deck — `make deck` renders HTML + PDF).
+This is the one-page status for judges. For depth: [`docs/ARCHITECTURE-DIAGRAM.md`](ARCHITECTURE-DIAGRAM.md) (architecture blueprint), [`docs/methodology.md`](methodology.md) (estimator spec), [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) (how to run), [`docs/IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) (full status), [`docs/presentation.md`](presentation.md) (the long-form deck — `make deck` renders HTML + PDF). **The deck actually presented** is the 8-slide [`docs/pitch/deck.html`](pitch/deck.html) (`make pitch` → [`docs/pitch/index.html`](pitch/index.html) + [`docs/pitch.pdf`](pitch.pdf)), with the spoken argument, objection handlers and frozen facts in [`docs/PITCH.md`](PITCH.md).
 
 ---
 

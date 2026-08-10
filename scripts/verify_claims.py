@@ -46,6 +46,13 @@ MVP = ROOT / "docs" / "MVP_STATUS.md"
 #: 273 / 386 / 55, and narrated a series that had already been rolled twice.
 #: It went unchecked for the dullest reason — nothing parsed it.
 DECK = ROOT / "docs" / "presentation.md"
+#: The eight-slide deck that replaced the long one as the thing actually
+#: presented. It states the same four suite counts on its proof slide, in HTML
+#: rather than markdown, and it is generated into two more files — so an
+#: undercount here would be wrong in the deck, in docs/pitch/index.html and in
+#: the PDF a judge downloads. Guarded from the source; the generated copies
+#: cannot disagree with it because build_pitch.py never edits the numbers.
+PITCH = ROOT / "docs" / "pitch" / "deck.html"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -171,6 +178,7 @@ def main() -> None:
     status = STATUS.read_text()
     mvp = MVP.read_text() if MVP.exists() else ""
     deck = DECK.read_text() if DECK.exists() else ""
+    pitch = PITCH.read_text() if PITCH.exists() else ""
 
     print("ACR claim audit — do the docs still tell the truth?")
     if FAST:
@@ -245,6 +253,34 @@ def main() -> None:
             "series 0" not in deck.lower(),
             "the deck does not narrate the venue's first, long-settled series",
         )
+
+    # The eight-slide pitch deck states the same suite sizes on its proof
+    # slide, in its own markup (`<b>367</b> py`). Same measurements, parsed
+    # from that markup — the lesson at the top of this block was that a deck
+    # goes stale for exactly as long as nothing parses it, and this one is
+    # generated into a PDF, where a wrong number outlives every redeploy.
+    print("\nthe pitch deck (docs/pitch/deck.html — the one actually presented)")
+    if not pitch:
+        check(False, "docs/pitch/deck.html is missing")
+    else:
+        for label, pattern, measure, costly in (
+            ("pitch python count", r"<b>(\d+)</b> py\b", measured_pytest, False),
+            ("pitch forge count", r"<b>(\d+)</b> forge\b", measured_forge, True),
+            ("pitch terminal count", r"<b>(\d+)</b> terminal\b", measured_terminal, True),
+            ("pitch glossary count", r"<b>(\d+)</b>/\d+ glossary\b", measured_glossary, False),
+        ):
+            stated = claim(pitch, pattern)
+            if stated is None:
+                check(False, f"{label}: no claim found — has the proof slide been reworded?")
+                continue
+            if FAST and costly:
+                print(f"  · {label}: claims {stated} (not measured)")
+                continue
+            actual = measure()
+            if actual is None:
+                check(False, f"{label}: could not measure (toolchain missing?)")
+                continue
+            check(actual == stated, f"{label}: the pitch deck says {stated}, measured {actual}")
 
     print("\nglossary")
     stated = claim(sub, r"(\d+)/\d+ diagram terms")
@@ -415,7 +451,8 @@ def main() -> None:
         "series 0 seeded": "the venue is well past series 0",
         "a live acr-inf series": "there are three live series, not one",
     }
-    for doc in ("SUBMISSION.md", "IMPLEMENTATION_STATUS.md", "MVP_STATUS.md", "presentation.md"):
+    for doc in ("SUBMISSION.md", "IMPLEMENTATION_STATUS.md", "MVP_STATUS.md", "presentation.md",
+                "PITCH.md"):
         body = (_P("docs") / doc).read_text().lower() if (_P("docs") / doc).exists() else ""
         for phrase, why in STALE_VENUE.items():
             check(phrase not in body, f"{doc} no longer says '{phrase}' — {why}")

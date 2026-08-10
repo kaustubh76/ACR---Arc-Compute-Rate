@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -11,7 +11,8 @@ help:
 	@echo "  make eval-gate       assert the headline resistance claims (CI gate)"
 	@echo "  make ci              lint + full test suite + eval gate (mirrors GitHub CI)"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
-	@echo "  make deck            render the submission slide deck (docs/presentation.html + .pdf)"
+	@echo "  make deck            render the long-form slide deck (docs/presentation.html + .pdf)"
+	@echo "  make pitch           render the 8-slide pitch deck (docs/pitch/index.html + docs/pitch.pdf)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -331,6 +332,11 @@ deck:
 	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
 	npx -y @marp-team/marp-cli --html docs/presentation.md -o docs/presentation.html
 	npx -y @marp-team/marp-cli --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
+
+# The short deck, from its one source: docs/pitch/deck.html is what a judge is
+# shown; index.html and the PDF are generated from it and never hand-edited.
+pitch:
+	uv run python scripts/build_pitch.py
 
 clean:
 	rm -rf .venv contracts/out contracts/cache apps/terminal/.next apps/agent/node_modules scripts/_out
