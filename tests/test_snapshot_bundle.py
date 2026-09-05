@@ -103,6 +103,20 @@ def test_fallback_futures_sections_are_not_silently_empty():
     # height is the only ordering the offline chart can trust.
     assert len({t["block"] for t in trades}) > 1, "archived fills must span more than one block"
 
+    # The desks and the tape must describe the SAME venue. `markSeries` in
+    # apps/terminal/lib/futuresBook.ts filters the tape to each desk's current
+    # series, so a bundle pairing live desks with a stale tape matches nothing
+    # and renders an empty venue on every desk — while passing every assertion
+    # above, because the tape is non-empty and the desks are real. That is the
+    # exact hole `carry_venue_forward` closes by moving the two together, and
+    # this is what stops a later edit from splitting them again.
+    desk_series = {row["series_id"] for row in desks.values()}
+    tape_series = {t["series_id"] for t in trades}
+    assert desk_series & tape_series, (
+        f"no desk series {sorted(desk_series)} appears in the tape "
+        f"{sorted(tape_series)} — the offline venue would render no fills at all"
+    )
+
 
 def test_fallback_hedger_section_still_carries_its_agent():
     """The archived edition must keep the product's protagonist.

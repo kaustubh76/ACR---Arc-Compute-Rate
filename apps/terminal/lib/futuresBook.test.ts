@@ -22,6 +22,22 @@ import type { FuturesTradeRow } from "./types";
 
 const TAPE = fallback.futures_trades as FuturesTradeRow[];
 
+/** The bundle's best-represented series — derived, not hardcoded.
+ *
+ * This used to be the literal `3`, which pinned the test to one historical
+ * capture: any regenerated bundle carrying a fresh tape (the venue is on series
+ * 6/8/7 now) would fail it for the wrong reason. The invariant being tested is
+ * "a series in the tape has more than one fill and they ascend by block", which
+ * is true of whichever series the bundle happens to hold.
+ */
+const BUSIEST_SERIES = (() => {
+  const counts = new Map<number, number>();
+  for (const t of TAPE) counts.set(t.series_id, (counts.get(t.series_id) ?? 0) + 1);
+  let best = TAPE[0]?.series_id ?? 0;
+  for (const [series, n] of counts) if (n > (counts.get(best) ?? 0)) best = series;
+  return best;
+})();
+
 test("a fractional fill keeps its size — the tape said BUY 0 for a real trade", () => {
   // The defect, pinned. These are the actual qty values on the venue's tape.
   assert.equal(formatQty(0.25), "0.25");
@@ -102,10 +118,10 @@ test("basis is the gap to the rate the contract settles against", () => {
 });
 
 test("the chart series is one series, deduped, and runs oldest-first by block", () => {
-  const rows = markSeries(TAPE, 3);
-  assert.ok(rows.length > 1, "series 3 should have fills");
+  const rows = markSeries(TAPE, BUSIEST_SERIES);
+  assert.ok(rows.length > 1, `series ${BUSIEST_SERIES} should have fills`);
   assert.ok(
-    rows.every((r) => r.series_id === 3),
+    rows.every((r) => r.series_id === BUSIEST_SERIES),
     "no foreign series",
   );
   for (let i = 1; i < rows.length; i++) {
