@@ -67,16 +67,28 @@ query Settlements($first: Int!, $skip: Int!) {
 }
 """
 
+#: One row per SELLER, carrying that seller's CURRENT attestation — deliberately
+#: not the `attestations` collection, which is one row per `Attested` EVENT.
+#:
+#: `RegistryClient.all_attestations()` — the on-chain path this mirrors — walks
+#: `sellerAt(i)` and reads `getAttestation(seller)`, so it returns exactly one
+#: current record per seller. Paging `attestations` instead returned every
+#: historical posting: on the live registry that was 12 rows for 6 sellers, so a
+#: seller who had re-attested appeared several times in the hedonic feature
+#: matrix, weighted once per re-attestation and mixed with its own superseded
+#: metadata. The mappings already maintain `Seller.latestAttestation`; use it.
 _ATTESTATIONS_QUERY = """
-query Attestations($first: Int!, $skip: Int!) {
-  attestations(first: $first, skip: $skip, orderBy: timestamp, orderDirection: asc) {
+query SellerAttestations($first: Int!, $skip: Int!) {
+  sellers(first: $first, skip: $skip, orderBy: id, orderDirection: asc) {
     id
-    seller { id }
-    service
-    modelClass
-    latencySloMs
-    schemaId
-    timestamp
+    latestAttestation {
+      id
+      service
+      modelClass
+      latencySloMs
+      schemaId
+      timestamp
+    }
   }
 }
 """
@@ -159,21 +171,23 @@ class GraphSource(TapeSource):
             )
 
     def attestations(self) -> list[SellerAttestation]:
-        """Seller metadata as the subgraph indexed it.
-
-        The same records ``ArcSource`` reads over 1 + 2N rate-limited RPC calls,
-        in one query — which is most of why the subgraph is worth having even
-        before TCA.
+        """Seller metadata as the subgraph indexed it — one CURRENT record per
+        seller, exactly what ``ArcSource`` reads over 1 + 2N rate-limited RPC
+        calls, in one query. That parity is the point, and it is why this reads
+        ``Seller.latestAttestation`` rather than the `attestations` event log.
         """
         from acr_core import ModelClass
         from acr_oracle_client.registry import CODE_TO_CLASS, CODE_TO_SERVICE
 
         out: list[SellerAttestation] = []
-        for r in self._paged(_ATTESTATIONS_QUERY, "attestations"):
+        for row in self._paged(_ATTESTATIONS_QUERY, "sellers"):
+            r = row.get("latestAttestation")
+            if not r:
+                continue  # a seller seen only through settlements has never attested
             try:
                 out.append(
                     SellerAttestation(
-                        seller=str(r["seller"]["id"]),
+                        seller=str(row["id"]),
                         service=CODE_TO_SERVICE.get(int(r["service"]), Service.INFERENCE),
                         # Same defaults as RegistryClient's on-chain decode, so
                         # the two paths cannot disagree about an unknown code.

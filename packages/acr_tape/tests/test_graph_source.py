@@ -50,9 +50,12 @@ class _Recorded(GraphSource):
         if self._fail or self._errors:
             return {}
         skip = int(variables["skip"])
-        rows = self._settlements if "settlements" in query else self._attestations
+        settlements = "settlements(" in query
+        rows = self._settlements if settlements else self._attestations
         page = rows[skip : skip + int(variables["first"])]
-        return {"settlements" if "settlements" in query else "attestations": page}
+        # Attestations are read through `sellers { latestAttestation }`, one
+        # current record per seller — not the `attestations` event log.
+        return {"settlements" if settlements else "sellers": page}
 
 
 def test_settlements_decode_into_tape_events():
@@ -147,13 +150,15 @@ def test_attestations_decode_with_the_registrys_own_enum_codes():
     src = _Recorded(
         attestations=[
             {
-                "id": "0xatt",
-                "seller": {"id": "0xseller"},
-                "service": 1,
-                "modelClass": 0,
-                "latencySloMs": "2500",
-                "schemaId": "0xdeadbeef",
-                "timestamp": "1785000000",
+                "id": "0xseller",
+                "latestAttestation": {
+                    "id": "0xatt",
+                    "service": 1,
+                    "modelClass": 0,
+                    "latencySloMs": "2500",
+                    "schemaId": "0xdeadbeef",
+                    "timestamp": "1785000000",
+                },
             }
         ]
     )
@@ -168,8 +173,11 @@ def test_an_unknown_enum_code_defaults_the_same_way_the_chain_decode_does():
     src = _Recorded(
         attestations=[
             {
-                "id": "0xatt", "seller": {"id": "0xs"}, "service": 99, "modelClass": 99,
-                "latencySloMs": "100", "schemaId": "0x", "timestamp": "1",
+                "id": "0xs",
+                "latestAttestation": {
+                    "id": "0xatt", "service": 99, "modelClass": 99,
+                    "latencySloMs": "100", "schemaId": "0x", "timestamp": "1",
+                },
             }
         ]
     )
@@ -196,3 +204,34 @@ def test_the_query_is_valid_json_and_asks_only_for_benchmarked_rows():
 
     assert "benchmarked: true" in _SETTLEMENTS_QUERY
     json.dumps({"query": _SETTLEMENTS_QUERY})  # must survive transport encoding
+
+
+def test_one_current_record_per_seller_not_one_per_posting():
+    """Parity with ``RegistryClient.all_attestations()``, which walks
+    ``sellerAt(i)`` and reads the seller's CURRENT record.
+
+    Reading the `attestations` event log instead returned every historical
+    posting — on the live registry, 12 rows for 6 sellers. A seller that had
+    re-attested then entered the hedonic feature matrix once per re-attestation,
+    weighted several times and mixed with its own superseded metadata.
+    """
+    src = _Recorded(
+        attestations=[
+            {
+                "id": "0xseller1",
+                "latestAttestation": {
+                    "id": "0xatt-new", "service": 0, "modelClass": 1,
+                    "latencySloMs": "250", "schemaId": "0x", "timestamp": "2000",
+                },
+            },
+            # A seller seen only through settlements has never attested. It must
+            # be skipped, not decoded into a default-valued attestation that the
+            # hedonic stage would treat as real quality metadata.
+            {"id": "0xseller2", "latestAttestation": None},
+        ]
+    )
+    out = src.attestations()
+    assert len(out) == 1
+    assert out[0].seller == "0xseller1"
+    assert out[0].ts == 2000.0
+    assert len({a.seller for a in out}) == len(out)
