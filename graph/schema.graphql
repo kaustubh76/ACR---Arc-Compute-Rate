@@ -1,0 +1,332 @@
+# ACR tape — the public basis for Machine TCA.
+#
+# Everything a payer is measured against is derived here, in the mappings, from
+# indexed chain events. The keeper never supplies an arrival price: it supplies
+# only the settlement's own timestamp, and the mapping chooses which print that
+# timestamp fell under (see PrintRing / pickArrival in src/tca.ts).
+
+# ── Prints ────────────────────────────────────────────────────────────────────
+
+"One ACROracle print. Immutable: a print is never revised, only superseded."
+type Print @entity(immutable: true) {
+  id: Bytes!                    # txHash-logIndex
+  "The deduplicated print this posting is one witness to."
+  economic: EconomicPrint!
+  index: String!                # decoded from the bytes32 indexId
+  indexId: Bytes!
+  value: BigInt!                # WAD 1e18
+  ciLo: BigInt!                 # WAD 1e18
+  ciHi: BigInt!                 # WAD 1e18
+  attackCostPerBp: BigInt!      # USDC 1e6
+  "Economic timestamp the signer signed (may lead block time by <= MAX_TS_SKEW)."
+  timestamp: BigInt!
+  "Block time of the posting tx — the staleness anchor an arrival lookup uses."
+  postedAt: BigInt!
+  signer: Bytes!
+  oracle: Bytes!
+  "1 today; 2 once the policyHash-bearing oracle is live. v2-only fields stay null on v1 prints."
+  oracleVersion: Int!
+  policyHash: Bytes
+  humanAdjustedBound: BigInt
+  windowStart: BigInt
+  windowEnd: BigInt
+  block: BigInt!
+}
+
+"""
+The deduplicated economic print — the thing the arrival ring points at.
+
+Both oracles publish the SAME hourly print during the v1→v2 overlap, seconds to
+minutes apart. They are not two prints and they are not a tie: they share an
+economic `timestamp`, which is the correct identity. Collapsing them here means
+`postedAt` — the arrival anchor — is set once, by whichever oracle posted first,
+and never moved. Without that, a settlement landing between the two postings
+would flip from being benchmarked against this hour's print to last hour's,
+purely because we chose to dual-post. A deployment decision must not move a
+payer-facing number.
+"""
+type EconomicPrint @entity(immutable: false) {
+  id: String!                   # "<index>-<timestamp>"
+  index: String!
+  timestamp: BigInt!
+  "First posting only. The arrival anchor, never rewritten by the second oracle."
+  postedAt: BigInt!
+  value: BigInt!
+  ciLo: BigInt!
+  ciHi: BigInt!
+  attackCostPerBp: BigInt!
+  humanAdjustedBound: BigInt
+  policyHash: Bytes
+  windowStart: BigInt
+  windowEnd: BigInt
+  "Bit 0 = v1 posted this print, bit 1 = v2 did. 3 = both agreed it existed."
+  oracleMask: Int!
+  """
+  The two oracles disagreed on the pricing fields for the same economic print.
+  Recorded, never resolved: two independently signed oracles disagreeing is
+  evidence, and it is the only automatic detector for a mis-scaled v2 payload.
+  Picking a winner would hide exactly the thing worth seeing.
+  """
+  divergent: Boolean!
+  sources: [Print!]! @derivedFrom(field: "economic")
+}
+
+"""
+A bounded ring of the most recent prints per index, newest first.
+
+A `LatestPrint` singleton alone cannot answer the only question that matters —
+"which print could this payer have seen at the moment they paid?" — because a
+settlement is mirrored on chain some seconds after it happened, by which time a
+newer print may already have landed. Keeping a short history lets the mapping
+select on the payer's own settlement time instead of on the keeper's block.
+"""
+type PrintRing @entity(immutable: false) {
+  id: String!                   # the index id, e.g. "ACR-INF"
+  "Print ids, newest first, capped at RING_DEPTH."
+  printIds: [Bytes!]!
+  "Denormalised, index-aligned with printIds, so selection needs no loads."
+  postedAts: [BigInt!]!
+  values: [BigInt!]!
+  latest: Print
+  updatedAt: BigInt!
+}
+
+# ── Settlements ───────────────────────────────────────────────────────────────
+
+"""
+A settlement the keeper has mirrored but not yet finalized: the quantity bought
+is decoded from the x402 receipt after the payment settles, so amount arrives
+before unit price can exist. Mutable, and kept after finalize as an audit trail.
+"""
+type PendingSettlement @entity(immutable: false) {
+  id: Bytes!                    # settlementId
+  payer: Bytes!
+  seller: Bytes!
+  amount: BigInt!               # USDC 1e6
+  gatewayRef: Bytes!
+  "Off-chain settlement time supplied by the keeper — what arrival selection keys on."
+  settledAt: BigInt!
+  "blockTime - settledAt. Published so the keeper's lateness is queryable, not asserted."
+  mirrorLagSeconds: BigInt!
+  "Mirrored through the owner-only late path after an outage. Disclosed, not hidden."
+  late: Boolean!
+  index: String!
+  arrivalPrint: Print
+  arrivalValue: BigInt
+  arrivalCiLow: BigInt
+  arrivalCiHigh: BigInt
+  "settledAt - arrivalPrint.postedAt. Exposed so a reader can judge staleness itself."
+  arrivalAgeSeconds: BigInt
+  benchmarked: Boolean!
+  """
+  Why there is no benchmark, when there is none. One boolean would let an outage
+  render as market history: NO_PRINT_YET means the settlement predates the feed;
+  RING_UNDERFLOW means the keeper was down longer than the ring is deep.
+  """
+  unbenchmarkedReason: String
+  synthetic: Boolean!
+  finalized: Boolean!
+  blockTime: BigInt!
+}
+
+"An immutable, benchmarked settlement — one row of the TCA tape."
+type Settlement @entity(immutable: true) {
+  id: Bytes!
+  pending: PendingSettlement!
+  payer: Payer!
+  seller: Seller!
+  amount: BigInt!               # USDC 1e6
+  unit: Int!
+  quantity: BigInt!             # WAD 1e18, in the index's own unit
+  "amount * 1e30 / quantity — WAD 1e18 USD per unit."
+  unitPrice: BigInt!
+  arrivalPrint: Print
+  arrivalValue: BigInt
+  "False when no print preceded this settlement — slippage is then null, never 0."
+  benchmarked: Boolean!
+  unbenchmarkedReason: String
+  """
+  Signed, truncated toward zero. BigInt and not Int for two reasons: graph-ts
+  generates a NON-nullable `i32` setter for a nullable `Int`, so "no benchmark"
+  would silently become 0 bp — and a pathological quantity would wrap an i32,
+  rendering the worst overpayer in the tape as the best.
+  """
+  slippageBp: BigInt
+  """
+  The same figure at tenth-of-a-bp resolution. Volume-weighted means are summed
+  from THIS, never from slippageBp: a mean built out of per-settlement values
+  already rounded to whole basis points carries that rounding into the headline.
+  """
+  slippageTenthBp: BigInt
+  arrivalAgeSeconds: BigInt
+  """
+  The arrival print was older than ACRFutures.MAX_SETTLE_AGE (7200s) at trade
+  time — the subgraph declines to claim freshness for a print the venue itself
+  would refuse to settle against. A FLAG, not an exclusion: the mapping records
+  and the reader decides, because a mapping cannot be re-run and every
+  irreversible judgement it makes is one no later query can revise.
+  """
+  staleArrival: Boolean!
+  index: String!
+  gatewayRef: Bytes!
+  settledAt: BigInt!
+  mirrorLagSeconds: BigInt!
+  finalizeLagSeconds: BigInt!
+  late: Boolean!
+  human: Boolean!
+  synthetic: Boolean!
+  blockTime: BigInt!
+}
+
+# ── Parties ───────────────────────────────────────────────────────────────────
+
+type Payer @entity(immutable: false) {
+  id: Bytes!
+  humanId: Bytes
+  totalVolume: BigInt!
+  benchmarkedVolume: BigInt!
+  "Sum of amount * slippageTenthBp over benchmarked settlements; / benchmarkedVolume / 10 = vw bp."
+  weightedSlipTenthBp: BigInt!
+  settlementCount: Int!
+  syntheticVolume: BigInt!
+  firstSeen: BigInt!
+  lastSeen: BigInt!
+  settlements: [Settlement!]! @derivedFrom(field: "payer")
+}
+
+type Seller @entity(immutable: false) {
+  id: Bytes!
+  domain: String
+  latestAttestation: Attestation
+  totalVolume: BigInt!
+  benchmarkedVolume: BigInt!
+  weightedSlipTenthBp: BigInt!
+  settlementCount: Int!
+  syntheticVolume: BigInt!
+  distinctPayers: Int!
+  distinctHumans: Int!
+  firstSeen: BigInt!
+  lastSeen: BigInt!
+  attestations: [Attestation!]! @derivedFrom(field: "seller")
+  settlements: [Settlement!]! @derivedFrom(field: "seller")
+}
+
+"Set membership for distinctPayers — an entity because a mapping cannot hold state between handlers."
+type SellerPayerLink @entity(immutable: true) {
+  id: Bytes!                    # seller ++ payer
+  seller: Seller!
+  payer: Payer!
+}
+
+type Attestation @entity(immutable: true) {
+  id: Bytes!
+  seller: Seller!
+  service: Int!
+  modelClass: Int!
+  latencySloMs: Int!
+  schemaId: Bytes!
+  timestamp: BigInt!
+  blockTime: BigInt!
+}
+
+# ── Futures — a second, fully real tape ───────────────────────────────────────
+
+"A real on-chain fill on the ACR futures venue. No mirror, no keeper, no synthetic flag."
+type FuturesFill @entity(immutable: true) {
+  id: Bytes!
+  seriesId: BigInt!
+  index: String!
+  taker: Bytes!
+  "Signed contract quantity — negative is a sell."
+  qty: BigInt!
+  "Fill price, WAD 1e18."
+  mark: BigInt!
+  arrivalPrint: Print
+  benchmarked: Boolean!
+  slippageBp: BigInt
+  blockTime: BigInt!
+  block: BigInt!
+}
+
+type Series @entity(immutable: false) {
+  id: String!                   # seriesId, decimal
+  seriesId: BigInt!
+  index: String!
+  expiryTs: BigInt!
+  multiplier: BigInt!
+  maker: Bytes!
+  settled: Boolean!
+  settlementPrice: BigInt
+  fillCount: Int!
+  openedAt: BigInt!
+}
+
+"Paid feed access, mirrored on chain by FeedAccessAttestor. Already live — free data."
+type FeedAccess @entity(immutable: true) {
+  id: Bytes!
+  beneficiary: Bytes!
+  payer: Bytes!
+  paidUntil: BigInt!
+  amountUsdc: BigInt!
+  nonce: BigInt!
+  blockTime: BigInt!
+}
+
+# ── Daily rollups ─────────────────────────────────────────────────────────────
+#
+# Plain entities accumulated in the mapping, NOT `@entity(timeseries: true)` +
+# `@aggregation`. Three reasons, in order of weight:
+#
+#  1. matchstick (0.6.0, the latest) panics on a timeseries write — "value 9 is
+#     out of range for StoreValueKind" — so a native rollup could only ship with
+#     no test coverage at all, in a repo whose entire argument is that its
+#     numbers are checkable and whose CI exists to stop claims drifting.
+#  2. `@aggregate(fn: "count")` DISCARDS its `arg` and emits `count(*)`
+#     (graph-node, store/postgres/src/relational/rollup.rs). A conditional count
+#     compiles, deploys, and silently returns the bucket's total row count —
+#     seven histogram buckets all equal to n. Doing the arithmetic here removes
+#     that entire class of silent-wrong-answer.
+#  3. Arithmetic inside `arg` runs under Postgres numeric semantics, where
+#     `numeric / integer` is not integer division. `BigInt.div` here is.
+#
+# The field names are what a consumer would have queried either way.
+
+"Days since the unix epoch — `blockTime / 86400`, the bucket key for both rollups."
+type SellerDay @entity(immutable: false) {
+  id: String!                   # "<seller>-<day>"
+  seller: Seller!
+  day: Int!
+  dayStart: BigInt!             # unix seconds at 00:00 UTC
+  volume: BigInt!               # USDC 1e6
+  bmVolume: BigInt!             # volume that carried a benchmark
+  "Sum of amount * slippageTenthBp over benchmarked settlements. / bmVolume / 10 = vw bp."
+  wSlipTenthBp: BigInt!
+  humanVolume: BigInt!
+  synthVolume: BigInt!
+  "volume - synthVolume. The number a mainnet rating is allowed to use."
+  realVolume: BigInt!
+  n: Int!                       # benchmarked settlements
+  nAll: Int!                    # every settlement, benchmarked or not
+  nStale: Int!                  # benchmarked against an already-stale print
+  b0: Int!                      # slippageBp < -100
+  b1: Int!                      # -100 <= bp < 0
+  b2: Int!                      # 0 <= bp < 50
+  b3: Int!                      # 50 <= bp < 100
+  b4: Int!                      # 100 <= bp < 200
+  b5: Int!                      # 200 <= bp < 500
+  b6: Int!                      # bp >= 500
+}
+
+type PayerDay @entity(immutable: false) {
+  id: String!                   # "<payer>-<day>"
+  payer: Payer!
+  day: Int!
+  dayStart: BigInt!
+  spent: BigInt!                # USDC 1e6
+  bmSpent: BigInt!
+  wSlipTenthBp: BigInt!
+  "USDC 1e6 paid above arrival, over the settlements that came in above it."
+  overpay: BigInt!
+  n: Int!
+  nAll: Int!
+}
