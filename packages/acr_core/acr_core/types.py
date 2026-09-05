@@ -101,6 +101,19 @@ class ACRPrint(BaseModel):
     n_obs: int = 0
     #: α used by the trimmed estimator (for reproducibility).
     trim_alpha: float = 0.0
+    #: Digest of the cleaning policy this print was made under. What turns "the
+    #: keeper decides what is wash" from an objection into a re-derivable claim.
+    #: None on a print made before the policy was committed anywhere.
+    policy_hash: str | None = None
+    #: USDC to move the print 1bp via VERIFIED HUMANS rather than wallets.
+    #: None = not computed. Never zero-as-a-placeholder: identities are the
+    #: scarce input, so a human-denominated bound is by construction at least
+    #: the wallet one, and a zero would understate the cost of moving the index.
+    human_adjusted_bound: float | None = None
+    #: The nominal span this print summarizes (unix seconds), so a verifier
+    #: recomputes over the same window instead of guessing it.
+    window_start: float | None = None
+    window_end: float | None = None
 
     @model_validator(mode="after")
     def _check_ci(self) -> ACRPrint:

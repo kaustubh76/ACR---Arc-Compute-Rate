@@ -18,6 +18,12 @@ from .futures import (
     descale_series,
     select_series_for_index,
 )
+from .mirror import (
+    MIRROR_ABI,
+    MirrorClient,
+    settlement_id,
+    to_bytes32,
+)
 from .registry import (
     REGISTRY_ABI,
     RegistryClient,
@@ -45,6 +51,10 @@ __all__ = [
     "REGISTRY_ABI",
     "schema_to_bytes32",
     "bytes32_to_schema",
+    "MirrorClient",
+    "MIRROR_ABI",
+    "settlement_id",
+    "to_bytes32",
     "FuturesClient",
     "FUTURES_ABI",
     "bytes32_to_index_id",

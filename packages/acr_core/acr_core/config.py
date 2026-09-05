@@ -68,6 +68,20 @@ class ACRSettings(BaseSettings):
     #: name the fourth contract instead of pretending it does not exist.
     #: Empty → the chip stays off rather than rendering a zero address.
     attestor_address: str = ""
+    #: Deployed ``ACROracleV2`` — the oracle whose prints carry the cleaning
+    #: policy hash, the estimation window and the human-denominated bound, so a
+    #: print can be re-derived rather than trusted. Deployed ALONGSIDE v1, never
+    #: instead of it: ``ACRFutures.oracle`` is immutable and the venue refuses a
+    #: print older than two hours, so if v1 stopped printing every expired open
+    #: series would be unsettleable and its collateral stranded. Empty → the
+    #: poster posts to v1 only, exactly as before.
+    oracle_v2_address: str = ""
+    #: Deployed ``ReceiptMirror`` — the contract that puts an off-chain Gateway
+    #: settlement on chain so the subgraph has a tape to index. Circle settles
+    #: x402 off-chain and returns a batch UUID, not a transaction, so without
+    #: this there is no settlement event on Arc at all and TCA has no basis.
+    #: Empty → the mirror keeper stands down rather than writing nowhere.
+    receipt_mirror_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
@@ -154,10 +168,22 @@ class ACRSettings(BaseSettings):
     #: Terminal's origin(s) to lock it down. Empty disables CORS entirely.
     cors_origins: str = "*"
 
+    # --- The Graph ---
+    #: Subgraph query URL (Subgraph Studio). Empty → every subgraph-backed
+    #: surface reports itself unavailable rather than serving a zero, because a
+    #: TCA of "0 bp" and a TCA of "we could not read the tape" are different
+    #: facts and a reader must never see one rendered as the other.
+    subgraph_url: str = ""
+    #: Studio API key. SERVER-SIDE ONLY — it is why the read proxy exists; a key
+    #: shipped to a browser is a key anyone can spend the quota of.
+    graph_api_key: str = ""
+
     # --- tape source selection ---
     #: "sim" (default, calibrated simulator), "arc" (live Arc testnet USDC scan),
-    #: or "receipts" (the authoritative x402 settlement ledger — needs
-    #: receipt_log_path populated by a live seller).
+    #: "receipts" (the authoritative x402 settlement ledger — needs
+    #: receipt_log_path populated by a live seller), or "graph" (the indexed
+    #: settlement tape, which is the only source carrying a per-seller unit
+    #: price and so the only one TCA can be computed from).
     tape_source: str = "sim"
     #: Events per service the simulator generates for the default sim tape. The
     #: rich local default (24k) is memory-heavy; small cloud instances (e.g. a
