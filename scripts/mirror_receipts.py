@@ -16,8 +16,11 @@ a local JSONL with ``--ledger``. Needs a signer: ``ACR_POSTER_PRIVATE_KEY`` or
 the Circle poster wallet — the same wallet that signs oracle prints, so the tape
 and the prints it is measured against share one trust anchor.
 
-Exit codes: 0 = mirrored something, or a dry run produced one; 1 = nothing could
-be mirrored (no signer, no address, no eligible receipts).
+Exit codes: 0 = the tape is up to date (something was mirrored, or there was
+nothing eligible left to mirror); 1 = it could not be brought up to date — no
+address, no signer, or an unreadable ledger. "Nothing to mirror" is the normal
+steady state of a recurring chore, so it is a success: a wrapper that treats a
+caught-up mirror as a failure teaches its operator to ignore the exit code.
 """
 
 from __future__ import annotations
@@ -102,8 +105,11 @@ def main() -> int:
 
     verdict = mirror_once(receipts, client=client, dry_run=args.dry_run)
     if verdict is None:
-        print("\n  nothing to mirror")
-        return 1
+        # Distinct from the failures above (no address / no signer), which have
+        # already returned 1 with their own reason. Reaching here means the
+        # ledger was read and nothing in it still needs mirroring.
+        print("\n  ✓ nothing to mirror — every eligible settlement is already on chain")
+        return 0
     print(f"\n  {verdict}")
     if args.dry_run:
         print("  dry run — signed and self-checked, nothing broadcast")
