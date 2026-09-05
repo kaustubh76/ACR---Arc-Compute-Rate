@@ -121,7 +121,7 @@ dead series.
    `make deck` (commit `presentation.md` + `.html` + `.pdf` together — the
    rendered artifacts otherwise keep the old date). If nothing moved, the
    existing evidence date stands and is honest.
-8. Commit, push. GitHub Actions **4/4 green**. Then deploy what changed:
+8. Commit, push. GitHub Actions **6/6 green**. Then deploy what changed:
    terminal → `npx vercel --prod`; press only if server code changed.
 9. Production click-through of the judge path above, both editions, desk
    visible on `/curve`.

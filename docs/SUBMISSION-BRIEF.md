@@ -136,7 +136,7 @@ Reproduce locally: make setup && make ci && make demo
 | Three settled rounds | `#2 @ 0.49533` (tx `0xf094befc…`) · `#1 @ 0.49533` (tx `0x5351bd0c…`) · `#0 @ 0.49270` · cash, final, collateral released. Two of the cleared wallets are outside the operator set. |
 | The hedger's fill | `buy 0.24 @ 0.49773` · tx `0x22772154ff8deb5ef43001af8c98fecd36ae2dc70cfe437965c90f68d0041834` · position 2.47 → 2.71 |
 | Resistance ($8,000 wash attack) | naive VWAP +110.8% vs ACR +0.20%, which is 562×. The 12-hour eval: 5703.9 bp vs 124.1 bp, which is 46×. CI-gated by `make eval-gate`. |
-| Suites, all green | **367 py** · **60 forge** · **95 terminal** · **10 agent** · glossary **423/423** · GitHub CI 4/4 |
+| Suites, all green | **445 py** · **114 forge** · **95 terminal** · **10 agent** · glossary **426/426** · GitHub CI 6/6 |
 
 **Honesty, stated before it is asked.** The price tape is a *labelled* simulator
 (`tape_source: sim`): about 18,500 real Arc settlements collapse to a single price, so no index
@@ -151,7 +151,7 @@ The architecture in three readable bands, freshly rendered from the live canvas
 (`acr_architecture.excalidraw` in the repo root). The full canvas, with every box mapped to the
 module that implements it, is `docs/ARCHITECTURE-DIAGRAM.md`. It earns the phrase implementation
 accurate because CI holds it to that: `make verify-claims` re-measures the suite counts the
-canvas states, and `make glossary-check` requires all 423 of its terms to be defined.
+canvas states, and `make glossary-check` requires all 426 of its terms to be defined.
 
 **Band 1 · from exhaust to print, under attack.** Market exhaust and ingestion feed the
 four-pillar estimator core: observation model, cleaning stack, hedonic adjustment, manipulation
@@ -193,7 +193,7 @@ Judge's one-pager: docs/SUBMISSION.md, where every claim sits beside its evidenc
 | `docs/acr-openapi.md` | The API endpoint by endpoint, mirrored live at `/developers`, where every free endpoint runs from the page. |
 | `docs/WALLETS.md` | Which Circle wallet product does which job, and the constraint that forced each choice. |
 | `docs/agent-runbook.md` | The Circle CLI path: create, fund, deposit, pay. Proven end to end. |
-| `docs/GLOSSARY.md` | 423 terms, CI-gated against the diagram, so no jargon goes undefined. |
+| `docs/GLOSSARY.md` | 426 terms, CI-gated against the diagram, so no jargon goes undefined. |
 | `docs/TESTNET_RUNBOOK.md` · `DEPLOY.md` | The ordered operator sequences for going live on Arc and deploying the cloud pair. |
 | `docs/PITCH.md` · the pitch deck | The 8-slide deck (`docs/pitch`, rendered by `make pitch`) and the spoken argument with objection handlers. |
 | `docs/DEMO-SCRIPT.md` · teleprompter | The 3-minute video beat by beat, re-verified against production on 10 Aug. |

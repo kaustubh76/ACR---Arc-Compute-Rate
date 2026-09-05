@@ -142,7 +142,7 @@ Ops (allowed post-freeze): agent buyer batches across ~8 of 13 priced resources 
 
 ## 7. Verification
 
-1. **Gates green on the frozen commit:** `make ci` 4/4 · `make verify-claims` · `VERIFY_STRICT=1 make verify-live` (contingent on O3 funding).
+1. **Gates green on the frozen commit:** `make ci` 6/6 · `make verify-claims` · `VERIFY_STRICT=1 make verify-live` (contingent on O3 funding).
 2. **UBK:** one real Gateway deposit visible in `app/api/circle/balances` output; `make gateway-deposit` documented.
 3. **Production click-through both editions** after Render→Vercel deploy; snapshot diff shows the hedger configured.
 4. **Sunday ritual steps 1–10** gate the submission; receipts ≥30 in the same capture; every link clicked once; hash recorded.

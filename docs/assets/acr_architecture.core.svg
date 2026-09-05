@@ -88,7 +88,7 @@
 <text x="1593" y="496.2" font-size="13" fill="#1e1e1e">attestWithSig — seller signs, relayer pays</text>
 <text x="1593" y="509.2" font-size="13" fill="#1e1e1e">→ one relayer registers many sellers</text>
 <text x="1593" y="588.5" font-size="15" fill="#e8590c">FOUNDRY</text>
-<text x="1593" y="610.3" font-size="12" fill="#1e1e1e">60 tests · oracle · registry · futures · FeedAccessAttestor</text>
+<text x="1593" y="610.3" font-size="12" fill="#1e1e1e">80 tests · oracle · registry · futures · attestor · receipt mirror</text>
 <text x="1593" y="622.3" font-size="12" fill="#1e1e1e">invariants: netOI=0 · collateral-backed · fail_on_revert</text>
 <text x="1593" y="692.5" font-size="15" fill="#e8590c">CIRCLE DEPLOY</text>
 <text x="1593" y="714.3" font-size="12" fill="#1e1e1e">Smart Contract Platform + Gas Station</text>

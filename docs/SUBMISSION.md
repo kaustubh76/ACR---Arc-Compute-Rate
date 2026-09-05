@@ -104,17 +104,19 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Desk preflight | `make desk-preflight` | ✅ CLEAR TO RUN — series life, margin capacity both directions, custody funding, faucet slots |
 | Desk round trip on Arc | `make desk-e2e` → `make desk-evidence` | ✅ stake → collateral → trade → **withdraw**, confirmed by four independent witnesses (venue balance, contract state, wallet balance, `CollateralWithdrawn` + paymaster) |
 | Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~18.5k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
-| Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 423/423 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **367 passed** — including 9 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
+| Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 426/426 diagram terms defined |
+| Python suite | `pytest packages services tests` | ✅ **445 passed** — including 9 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
-| Contracts | `forge test -vvv` | ✅ **60 passed** (17 oracle + 10 registry + 16 futures + 10 feed-access attestor + 7 invariants, `fail_on_revert=true`) |
+| Contracts | `forge test -vvv` | ✅ **114 passed** (17 oracle + 26 oracle-v2 + 10 registry + 16 futures + 10 feed-access attestor + 20 receipt mirror + 15 invariants, `fail_on_revert=true`) |
+| Subgraph mappings | `cd graph && npx graph test` | ✅ **40 matchstick** — arrival selection across the ring boundary, the unbenchmarked path, unit-price and slippage arithmetic, bucket exclusivity, finalize-without-open and reorg-replay idempotence. `graph build` is the schema gate that runs alongside it |
+| MCP plugin | `cd mcp && npx tsc --noEmit && npm test` | ✅ tsc clean, **8/8** — the tool contract: an operation name is forwarded, caller query text never is |
 | Buyer agent | `npm run build && npm test` | ✅ tsc clean, **10/10** |
 | Terminal | `npm test && next build` | ✅ **95/95 node tests** (12 suites: buy plan · connection ladder · oracle codec · futures codec · edition · glossary · plain-edition coverage · desk phase · futures book · read result · chain constants · price formatting) + clean build (9 pages + 18 API routes) |
 | Buyer-SDK interop | `make interop` | ✅ **12/12** (our 402 parses exactly as Circle's `GatewayClient` — re-run **2026-08-06** against the **deployed** gate) |
 | On-chain read | `make verify-testnet` | ✅ chain id + contracts' bytecode + 3 live prints read from Arc (+ `cast code` shows bytecode at ACRFutures) |
 | Press cadence | `GAP_PAGES=24 make print-gaps` (re-measured **2026-08-06**, read off the chain, not the API) | ⚠️ **37.2 h window, 48 press runs: median gap 60.3 min, mean 47.5, max 153.3 — one gap over the 120-min settle window** (08-05 18:38 → 21:11 UTC, all three indices). The 08-05 reading of this row was 18.8 h / 19 runs / max 60.6 / zero breaches; it was true when taken and the breach happened after it. Reported rather than quietly re-scoped to a window that excludes it: for those 2.5 hours the venue could not have been settled. The self-ping fixed the *systemic* 216-minute gaps (the pre-fix tape) — it does not make a single miss impossible, and `/ops` now carries this measurement continuously instead of only when someone runs the command |
 | Strict liveness | `VERIFY_STRICT=1 make verify-live` (2026-08-05 — strict mode also fails on funding runway and book capacity, not just outages) | ✅ **ALL PILLARS LIVE** (re-run 2026-08-06 against the redeployed press) — oracle, venue, tape, seller, x402, public desk, hedger, terminal, funding (custody 16 days of runway; maker and taker above their floors), keeper traded within the hour. **One strict-mode warning stands: the ACR-GPU book is ~3.2 reader-trades from freezing** and deepening it would take the maker below the 2.50 floor that funds the next roll — a funding decision, not a code one, so it is reported rather than papered over |
-| GitHub CI | push to `main` | ✅ 4/4 jobs green |
+| GitHub CI | push to `main` | ✅ 6/6 jobs green |
 
 **The headline claim — manipulation resistance** (`make demo`, $8,000 wash-attack budget, 36,000 adversarial authorizations, attacker burned **$147.60**):
 
@@ -192,7 +194,7 @@ Kept because judges scoring against the original scope need it, and moved out of
 | **W4** ★ | ADOPTION | Sellers attest + x402 index API live | ✅ Done — x402 gate live on Circle Gateway; **real machine-to-machine settlement proven on-chain**; 4 seller attestations on-chain; public cloud API |
 | **W5** | RED TEAM | Manipulation bound + attack own index | ✅ Done — `redteam/` wash + optimal-attack harnesses; attack-cost-per-bp on every print; CI-gated resistance claims |
 | **W6** | INSTRUMENT | Weekly cash-settled future + A-S MM | ✅ **Live** — `ACRFutures` deployed on Arc ([`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe)): **three live books** — ACR-INF, ACR-GPU and ACR-DATA, 10× multiplier each — cash-settling against the oracle print, with an in-process keeper rotating an hourly fill across them. The maker standing behind the book is a **Circle developer-controlled wallet** and an **autonomous agent** buys the print over x402 then trades on it; `acr_instrument` (Avellaneda–Stoikov MM) serves the term structure |
-| **W7** | SHIP | Freeze + paper polish + rehearse | ✅ Done — repo 100% pushed; 4-job GitHub CI green; Terminal hardened (connection ladder, instant shell, direct on-chain reads) and redeployed; cloud posting re-enabled via Circle custody + keep-alive; deck re-rendered at final submission |
+| **W7** | SHIP | Freeze + paper polish + rehearse | ✅ Done — repo 100% pushed; GitHub CI green; Terminal hardened (connection ladder, instant shell, direct on-chain reads) and redeployed; cloud posting re-enabled via Circle custody + keep-alive; deck re-rendered at final submission |
 
 ---
 
