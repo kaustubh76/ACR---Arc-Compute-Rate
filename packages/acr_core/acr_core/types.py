@@ -39,7 +39,15 @@ class TapeEvent(BaseModel):
     """
 
     event_id: str
-    ts: float = Field(description="Economic timestamp (unix seconds).")
+    #: Economic timestamp, in the index's own clock: ``k·step_s``, i.e. the
+    #: Fixing number × 3600. NOT unix time — it is seeded from the newest
+    #: on-chain print and only ever moves forward, so it stays monotone across
+    #: restarts and tape wraps. The wall-clock anchor is the oracle's
+    #: ``postedAt`` (block time), which is what freshness and arrival
+    #: selection are measured against.
+    ts: float = Field(
+        description="Economic timestamp — the index's Fixing clock (k·step_s), not unix seconds."
+    )
     service: Service
     seller: str
     buyer: str
@@ -110,8 +118,9 @@ class ACRPrint(BaseModel):
     #: scarce input, so a human-denominated bound is by construction at least
     #: the wallet one, and a zero would understate the cost of moving the index.
     human_adjusted_bound: float | None = None
-    #: The nominal span this print summarizes (unix seconds), so a verifier
-    #: recomputes over the same window instead of guessing it.
+    #: The nominal span this print summarizes, in the SAME clock as ``ts``
+    #: (Fixing seconds, not unix), so a verifier recomputes over the same window
+    #: instead of guessing it. ``window_end == ts`` by construction.
     window_start: float | None = None
     window_end: float | None = None
 

@@ -46,9 +46,9 @@ services:
       # ACR_ORACLE_ADDRESS above stays on v1 — ACRFutures settles against it and
       # its oracle pointer is immutable. v2 is ADDITIONAL, never a replacement.
       - key: ACR_ORACLE_V2_ADDRESS
-        value: ""
+        value: "0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA"
       - key: ACR_RECEIPT_MIRROR_ADDRESS
-        value: ""
+        value: "0xA9CD5b9503aeA88EB343333E842D2860b263DB65"
       # Empty → the mirror chore stands down and /tca reports itself unavailable,
       # rather than the service coming back from a deploy silently blind to the
       # whole tape.

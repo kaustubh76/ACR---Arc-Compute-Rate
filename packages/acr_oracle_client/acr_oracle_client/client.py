@@ -641,27 +641,63 @@ class OracleClient:
             self.last_receipt = {"tx": str(tx_hash), "block": None, "gas_used": None}
         return tx_hash
 
+    def _print_field_names(self) -> list[str]:
+        """The ``latestPrint`` tuple's field names, taken from THIS client's
+        schema rather than assumed.
+
+        v2 returns eleven fields where v1 returns seven, and the four new ones
+        sit *before* ``timestamp`` — so a positional unpack written against v1
+        does not mislabel a v2 read, it raises, and ``read_latest``'s
+        except-branch turns that into a silent ``None`` indistinguishable from
+        "no print yet". That is not hypothetical: it left the backfill's resume
+        floor at 0 so a re-run re-posted every print it had already posted, and
+        it made ``verify_live`` report an oracle holding 131 prints as empty.
+        """
+        for entry in self.schema.abi:
+            if entry.get("name") != "latestPrint":
+                continue
+            outputs = entry.get("outputs") or []
+            if len(outputs) == 1 and outputs[0].get("type") == "tuple":
+                return [c["name"] for c in outputs[0]["components"]]
+            return [o.get("name", "") for o in outputs]
+        return []
+
     def read_latest(self, index_id: str) -> dict | None:  # pragma: no cover - live chain
-        """Read back the latest on-chain print for ``index_id`` (WAD-descaled)."""
+        """Read back the latest on-chain print for ``index_id`` (WAD-descaled).
+
+        The v1 keys come back unchanged whatever the schema, so every existing
+        caller is untouched; a v2 print ADDS the four fields that make it
+        reproducible (``human_adjusted_bound``, ``policy_hash``,
+        ``window_start``, ``window_end``).
+        """
         if self._connect() is None or not self.oracle_address:
             return None
         c = self._contract()
         idx = index_id_to_bytes32(index_id)
         try:
-            v, lo, hi, bound, ts, posted_at, exists = c.functions.latestPrint(idx).call()
+            row = c.functions.latestPrint(idx).call()
         except Exception:
             return None  # contract reverts "no print" when none exists yet
-        if not exists:
+        # strict: a length mismatch means the ABI and the deployed contract
+        # disagree, which must be loud. Swallowing it is the bug above.
+        fields = dict(zip(self._print_field_names(), row, strict=True))
+        if not fields.get("exists"):
             return None
-        return {
+        out = {
             "index_id": index_id,
-            "value": v / WAD,
-            "ci_lo": lo / WAD,
-            "ci_hi": hi / WAD,
-            "attack_cost_per_bp": bound / USDC,
-            "timestamp": ts,
-            "posted_at": posted_at,
+            "value": fields["value"] / WAD,
+            "ci_lo": fields["ciLo"] / WAD,
+            "ci_hi": fields["ciHi"] / WAD,
+            "attack_cost_per_bp": fields["attackCostPerBp"] / USDC,
+            "timestamp": fields["timestamp"],
+            "posted_at": fields["postedAt"],
         }
+        if "policyHash" in fields:  # v2 — same units as attackCostPerBp
+            out["human_adjusted_bound"] = fields["humanAdjustedBound"] / USDC
+            out["policy_hash"] = "0x" + fields["policyHash"].hex()
+            out["window_start"] = fields["windowStart"]
+            out["window_end"] = fields["windowEnd"]
+        return out
 
     def is_stale(self, index_id: str, max_age: int) -> bool | None:  # pragma: no cover - live chain
         """True/False if the on-chain print is older than ``max_age`` seconds;

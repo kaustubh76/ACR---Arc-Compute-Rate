@@ -49,14 +49,13 @@ dataSources:
   # overlap, and src/oracle.ts collapses them onto one EconomicPrint so the
   # second posting cannot move the arrival anchor.
   #
-  # PLACEHOLDER address and startBlock: fill both from `make deploy-oracle-v2`.
   - kind: ethereum/contract
     name: ACROracleV2
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA"
       abi: ACROracleV2
-      startBlock: 0
+      startBlock: 60541786
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -158,7 +157,6 @@ dataSources:
           handler: handleAttestorSignerSet
 
   # --- the settlement tape ---------------------------------------------------
-  # PLACEHOLDER address and startBlock: fill both from `make deploy-mirror`
   # before deploying. `make graph-deploy` refuses to run while the address is
   # still zero, because a subgraph pointed at 0x0 indexes nothing and says so
   # nowhere — it just serves an empty tape that looks like a quiet market.
@@ -166,9 +164,9 @@ dataSources:
     name: ReceiptMirror
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xA9CD5b9503aeA88EB343333E842D2860b263DB65"
       abi: ReceiptMirror
-      startBlock: 0
+      startBlock: 60541749
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

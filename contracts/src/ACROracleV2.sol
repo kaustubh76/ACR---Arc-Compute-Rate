@@ -46,8 +46,10 @@ contract ACROracleV2 {
         uint256 attackCostPerBp; // USDC 1e6-scaled — cost per bp via WALLETS
         uint256 humanAdjustedBound; // USDC 1e6-scaled — via verified HUMANS; 0 = not computed
         bytes32 policyHash; // the cleaning policy this print was made under
-        uint64 windowStart; // the span summarized, inclusive
-        uint64 windowEnd; // …exclusive
+        // The span summarized, in the SAME clock as `timestamp` (the index's
+        // own Fixing clock, not unix time). windowEnd == timestamp in practice.
+        uint64 windowStart; // inclusive
+        uint64 windowEnd; // exclusive
         uint64 timestamp; // economic timestamp of the print (signed)
         uint64 postedAt; // block.timestamp when posted — the staleness anchor
         bool exists;

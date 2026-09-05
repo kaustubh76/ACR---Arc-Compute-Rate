@@ -69,6 +69,11 @@ def main() -> int:
 
     c1 = v1._contract()
     plan: list[ACRPrint] = []
+    # How many indices we actually managed to READ. An empty plan means two
+    # opposite things — "v2 is already level" and "the RPC refused every read" —
+    # and reporting the first when the second happened is a lie an operator
+    # acts on. Count the successes so the two can be told apart.
+    inspected = 0
     # Per INDEX, not global. Each oracle enforces monotonicity per index, so a
     # single max across all three compares every print against whichever index
     # happens to be furthest ahead — which every print already satisfies, making
@@ -82,6 +87,7 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"  {iid}: could not read history ({str(exc)[:70]})")
             continue
+        inspected += 1
         if n == 0:
             print(f"  {iid}: v1 has no history")
             continue
@@ -94,12 +100,21 @@ def main() -> int:
         existing = v2.read_latest(iid)
         floor = int(existing["timestamp"]) if existing else 0
 
+        # Walk BACKWARDS from the newest and stop at the cutoff. Forwards from 0
+        # meant one RPC round trip per print ever published — ~4,700 calls
+        # against a throttled endpoint to find the ~144 that matter, which took
+        # longer than the window it was trying to read.
         taken = 0
-        for i in range(n):
+        rows: list[tuple[int, list]] = []
+        for i in range(n - 1, -1, -1):
             row = c1.functions.historyAt(key, i).call()
             ts = int(row[4])
-            if ts < cutoff or ts <= floor:
+            if ts < cutoff:
+                break
+            if ts <= floor:
                 continue
+            rows.append((ts, row))
+        for ts, row in reversed(rows):
             plan.append(
                 ACRPrint(
                     index_id=iid,
@@ -120,8 +135,13 @@ def main() -> int:
         print(f"  {iid}: {taken} print(s) to re-sign (v1 has {n}, v2 stands at {floor})")
 
     if not plan:
-        print("\n  nothing to backfill — v2 is already level with v1")
-        return 1
+        if not inspected:
+            print("\n  ✗ could not read any index's history from v1 — not a no-op, a failure")
+            return 1
+        # Idempotent: the runbook tells an operator to run this, and re-running
+        # a completed backfill is the normal case. Green, not red.
+        print("\n  ✓ nothing to backfill — v2 is already level with v1")
+        return 0
 
     # Ascending, because postPrint refuses a timestamp at or below the last one
     # for that index. Sorting by (index, ts) keeps each index's run monotone.
