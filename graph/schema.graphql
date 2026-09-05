@@ -235,6 +235,8 @@ type Attestation @entity(immutable: true) {
 type FuturesFill @entity(immutable: true) {
   id: Bytes!
   seriesId: BigInt!
+  "The series this fill belongs to. A bare id could not be walked."
+  series: Series
   index: String!
   taker: Bytes!
   "Signed contract quantity — negative is a sell."
@@ -259,6 +261,60 @@ type Series @entity(immutable: false) {
   settlementPrice: BigInt
   fillCount: Int!
   openedAt: BigInt!
+}
+
+"""
+Collateral entering or leaving the futures venue.
+
+The only events that witness money moving on the book. Without them the tape can
+say a fill happened but not that anyone funded it or got paid out — and the
+desk's round trip is documented elsewhere as having four independent witnesses,
+none of which could be the subgraph.
+"""
+type CollateralFlow @entity(immutable: true) {
+  id: Bytes!                    # txHash ++ logIndex
+  series: Series!
+  trader: Bytes!
+  amount: BigInt!               # USDC 1e6
+  "true = posted into the venue, false = withdrawn from it."
+  deposited: Boolean!
+  blockTime: BigInt!
+  block: BigInt!
+}
+
+"""
+A change to who may sign for a contract.
+
+The whole trust argument is that the SIGNATURE authenticates a print or a
+settlement, not `msg.sender`. Without this, "was this signer authorized at the
+time it signed?" cannot be answered from the tape at all — which is a strange
+gap in an integration whose central claim is exactly that.
+"""
+type SignerChange @entity(immutable: true) {
+  id: Bytes!                    # txHash ++ logIndex
+  contract: Bytes!
+  "Which contract, by name, so a reader need not memorise addresses."
+  contractName: String!
+  signer: Bytes!
+  allowed: Boolean!
+  blockTime: BigInt!
+  block: BigInt!
+}
+
+"""
+An oracle or the venue being paused or unpaused.
+
+A gap in prints during a pause is a deliberate stop; a gap without one is an
+outage. `unbenchmarkedReason` can distinguish NO_PRINT_YET from RING_UNDERFLOW
+but has no way to say "the feed was paused" — this is how a reader tells.
+"""
+type PauseChange @entity(immutable: true) {
+  id: Bytes!                    # txHash ++ logIndex
+  contract: Bytes!
+  contractName: String!
+  paused: Boolean!
+  blockTime: BigInt!
+  block: BigInt!
 }
 
 "Paid feed access, mirrored on chain by FeedAccessAttestor. Already live — free data."

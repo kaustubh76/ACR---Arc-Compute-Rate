@@ -28,8 +28,6 @@ pragma solidity 0.8.24;
 ///         one signing path serves both. Domain version is bumped to "2" so a
 ///         human reading a signature can tell the two apart at a glance.
 contract ACROracleV2 {
-    uint256 internal constant WAD = 1e18;
-
     /// @notice An economic timestamp may lead block time by at most this many
     ///         seconds. Bounds the monotonicity-brick DoS.
     uint64 public constant MAX_TS_SKEW = 900; // 15 minutes

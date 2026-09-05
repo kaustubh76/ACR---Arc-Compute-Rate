@@ -69,7 +69,11 @@ def main() -> int:
 
     c1 = v1._contract()
     plan: list[ACRPrint] = []
-    ceiling = 0
+    # Per INDEX, not global. Each oracle enforces monotonicity per index, so a
+    # single max across all three compares every print against whichever index
+    # happens to be furthest ahead — which every print already satisfies, making
+    # the guard below vacuous.
+    ceiling: dict[str, int] = {}
 
     for iid in ALL_INDEX_IDS:
         key = index_id_to_bytes32(iid)
@@ -83,7 +87,7 @@ def main() -> int:
             continue
 
         newest = int(c1.functions.historyAt(key, n - 1).call()[4])  # .timestamp
-        ceiling = max(ceiling, newest)
+        ceiling[iid] = newest
         cutoff = newest - int(args.hours * 3600)
 
         # Where v2 already stands, so a re-run resumes instead of reverting.
@@ -123,13 +127,15 @@ def main() -> int:
     # for that index. Sorting by (index, ts) keeps each index's run monotone.
     plan.sort(key=lambda p: (p.index_id, p.ts))
 
-    # A print at or beyond v1's newest would put v2 AHEAD, and the poster seeds
-    # its cursor from the max across both — so the next live cycle would pick a
-    # timestamp v2 has already used and revert forever. Refuse rather than
-    # create an unrecoverable state.
-    over = [p for p in plan if p.ts > ceiling]
+    # A print beyond v1's newest FOR ITS OWN INDEX would put v2 ahead there, and
+    # the poster seeds its cursor from the max across both oracles — so the next
+    # live cycle would pick a timestamp v2 has already used and revert forever.
+    # Refuse rather than create a state no later post can dig out of.
+    over = [p for p in plan if p.ts > ceiling.get(p.index_id, 0)]
     if over:
         print(f"\n  ✗ {len(over)} print(s) would put v2 ahead of v1 — refusing")
+        for p in over[:3]:
+            print(f"    {p.index_id} ts={int(p.ts)} > v1 newest {ceiling.get(p.index_id, 0)}")
         return 1
 
     print(f"\n  {len(plan)} print(s), policy {BACKFILL_POLICY[:18]}…")

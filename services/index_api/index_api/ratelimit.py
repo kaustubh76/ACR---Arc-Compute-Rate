@@ -74,6 +74,9 @@ _limiter = RateLimiter()
 #: must not lock themselves out of the demo.
 DESK_BUDGETS: dict[str, tuple[int, float]] = {
     "faucet": (3, 3600.0),
+    # The tape proxy spends OUR Studio quota, so it gets a real per-person
+    # budget rather than falling through to the catch-all default.
+    "graph": (300, 3600.0),
     "session": (12, 3600.0),
     "challenge": (40, 3600.0),
     "wallet": (60, 3600.0),
@@ -91,6 +94,7 @@ DESK_BUDGETS: dict[str, tuple[int, float]] = {
 #: ("the faucet is out of funds") instead of "try again later".
 HOST_BUDGETS: dict[str, tuple[int, float]] = {
     "faucet": (40, 3600.0),
+    "graph": (3000, 3600.0),
     "session": (60, 3600.0),
     "challenge": (300, 3600.0),
     "wallet": (600, 3600.0),

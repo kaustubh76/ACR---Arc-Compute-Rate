@@ -26,7 +26,10 @@ directly. This skill is the schema map you need either way.
 
 | Entity | One row is | The fields that matter |
 |---|---|---|
-| `Print` | one `PricePosted` from `ACROracle` | `index`, `value`, `ciLo`/`ciHi`, `attackCostPerBp`, `postedAt` |
+| `Print` | one `PricePosted`, from either oracle | `index`, `value`, `ciLo`/`ciHi`, `attackCostPerBp`, `postedAt`, `oracleVersion` |
+| `EconomicPrint` | the deduplicated print both oracles posted | `postedAt` (first posting only), `policyHash`, `windowStart`/`windowEnd`, `oracleMask`, `divergent` |
+| `SignerChange` / `PauseChange` | who could sign, and when a feed stopped | `contractName`, `signer`, `allowed`, `paused` |
+| `CollateralFlow` | money entering or leaving the venue | `trader`, `amount`, `deposited` |
 | `Settlement` | one mirrored x402 purchase, benchmarked | `unitPrice`, `arrivalValue`, `slippageBp`, `benchmarked`, `synthetic` |
 | `PendingSettlement` | a purchase whose quantity has not been decoded yet | `settledAt`, `mirrorLagSeconds`, `unbenchmarkedReason` |
 | `SellerDay` / `PayerDay` | a day of flow, rolled up in the mapping | `volume`, `bmVolume`, `wSlipTenthBp`, `synthVolume`, `n`, `b0..b6` |
@@ -49,7 +52,7 @@ these out; never read them as fair pricing.
 
 ```graphql
 { payerDays(orderBy: overpay, orderDirection: desc, first: 5) {
-    payer spent bmSpent overpay n } }
+    payer { id } spent bmSpent overpay n } }
 ```
 Expect USDC-1e6 integers. `overpay / 1e6` is dollars paid above arrival. A payer
 with `n: 0` bought nothing benchmarkable — not "bought perfectly".
@@ -67,7 +70,7 @@ while its slippage climbed is the interesting case.
 **3 — How much of this tape is ours?**
 
 ```graphql
-{ sellerDays(first: 100) { seller volume synthVolume realVolume } }
+{ sellerDays(first: 100) { seller { id } volume synthVolume realVolume } }
 ```
 `synthVolume / volume` is the grader-controlled share. On testnet expect this to
 be high, and say so: it is disclosed on chain per settlement, not inferred.
@@ -86,12 +89,13 @@ public tape supports.
 
 ```graphql
 { settlements(where: {payer: "0x…", benchmarked: true}, first: 500) {
-    seller { id } amount slippageTenthBp index } }
+    seller { id latestAttestation { modelClass } } amount slippageTenthBp index } }
 ```
 Group by seller, take `sum(amount × slippageTenthBp) / sum(amount) / 10` for each,
-and compare the dearest against the cheapest **of the same `modelClass`**. Across
-classes the gap is quality, which the hedonic stage adjusts away — it is not
-evidence anyone overcharged.
+and compare the dearest against the cheapest **of the same `modelClass`** — which
+is why the query reaches through to the attestation rather than stopping at the
+seller id. Across classes the gap is quality, which the hedonic stage adjusts
+away; it is not evidence anyone overcharged.
 
 **6 — Is the tape actually fresh?**
 
@@ -115,9 +119,9 @@ pooling it back in would flatter every seller grade.
 **A rating is not a market verdict.** Every rating carries `n`, the synthetic
 share, and `weight_covered_pct` — the share of the published methodology the
 grade actually rests on. Components with no data yet (cleanliness, human depth)
-are excluded from the weighting rather than scored zero, so a grade over 40% of
-the weights is a narrower claim than one over 100%. Quote the coverage with the
-letter.
+are excluded from the weighting rather than scored zero. So today a grade rests
+on **55%** of the published weights for an attested seller, and 40% for one that
+has never attested — never 100%. Quote the coverage with the letter.
 
 ## The repo
 

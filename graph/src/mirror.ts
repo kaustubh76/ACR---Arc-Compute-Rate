@@ -1,7 +1,8 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 import {
-  SettlementOpened,
   SettlementFinalized,
+  SettlementOpened,
+  SignerSet,
 } from "../generated/ReceiptMirror/ReceiptMirror";
 import {
   PendingSettlement,
@@ -17,6 +18,7 @@ import {
   unbenchmarkedReason,
 } from "./tca";
 import { loadPayer, loadSeller, linkSellerPayer } from "./parties";
+import { recordSigner } from "./witness";
 import { rollUp } from "./rollup";
 
 const ZERO = BigInt.zero();
@@ -172,4 +174,8 @@ export function handleSettlementFinalized(event: SettlementFinalized): void {
     slipTenth,
     benchmarked ? bucketOf(s.slippageBp!) : -1
   );
+}
+
+export function handleMirrorSignerSet(event: SignerSet): void {
+  recordSigner(event, "ReceiptMirror", event.params.signer, event.params.allowed);
 }

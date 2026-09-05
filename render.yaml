@@ -36,6 +36,29 @@ services:
       # The futures venue. Without this the Public Desk 503s on every action.
       - key: ACR_FUTURES_ADDRESS
         value: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
+      - key: ACR_ATTESTOR_ADDRESS
+        value: "0xe671a8E73900F1186448cFFeA9e730F5E50DFD47"
+
+      # --- the tape ----------------------------------------------------------
+      # Filled at deploy. Tracked here for the same reason the file exists at
+      # all: values that live only in the dashboard are lost with the service.
+      #
+      # ACR_ORACLE_ADDRESS above stays on v1 — ACRFutures settles against it and
+      # its oracle pointer is immutable. v2 is ADDITIONAL, never a replacement.
+      - key: ACR_ORACLE_V2_ADDRESS
+        value: ""
+      - key: ACR_RECEIPT_MIRROR_ADDRESS
+        value: ""
+      # Empty → the mirror chore stands down and /tca reports itself unavailable,
+      # rather than the service coming back from a deploy silently blind to the
+      # whole tape.
+      - key: ACR_SUBGRAPH_URL
+        value: ""
+      - key: ACR_KEEPER_MIRROR_S
+        value: "120"
+      # Server-side only — a Studio key in a browser is a key anyone can spend.
+      - key: ACR_GRAPH_API_KEY
+        sync: false
 
       # --- Circle: the custody wallet that signs prints and funds the desk --
       - key: ACR_CIRCLE_API_KEY

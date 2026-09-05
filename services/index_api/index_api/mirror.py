@@ -43,6 +43,50 @@ MAX_MIRROR_LAG_S = 3600
 BATCH = 8
 
 
+def is_synthetic(payer: str) -> bool:
+    """Whether this buyer is one we control.
+
+    The flag is a disclosure, so it has to be derived rather than asserted.
+    Hardcoding it True made `SellerDay.realVolume` — the figure the schema
+    documents as "the number a mainnet rating is allowed to use" — structurally
+    zero for every seller, and told an analyst querying it that no real flow
+    exists when the truth was that nothing had ever been marked real.
+
+    Grader-controlled means: any wallet whose key this deployment holds. Anyone
+    else paying the fleet is real flow and is recorded as such.
+    """
+    import os
+
+    from acr_core import get_settings
+
+    s = get_settings()
+    ours = set()
+    # ACR_BUYER_PRIVATE_KEY is NOT an ACRSettings field — it is read from the
+    # raw environment by the Terminal's buy route. Reading it only through
+    # settings would silently miss the demo buyer and mark its flow as real,
+    # which is the same one-field-via-settings-one-via-environ split that once
+    # shipped a live venue beside `configured: false`.
+    for key in (s.poster_private_key, os.environ.get("ACR_BUYER_PRIVATE_KEY", "")):
+        if not key:
+            continue
+        try:
+            from eth_account import Account
+
+            ours.add(Account.from_key(key if key.startswith("0x") else "0x" + key).address.lower())
+        except Exception:  # noqa: BLE001 - a malformed key must not stop mirroring
+            continue
+    for addr in (s.x402_pay_to, s.hedger_payer, s.hedger_address):
+        if addr:
+            ours.add(addr.lower())
+    try:
+        from acr_oracle_client.demo_sellers import DEMO_SELLERS
+
+        ours.update(d.address.lower() for d in DEMO_SELLERS)
+    except Exception:  # noqa: BLE001
+        pass
+    return (payer or "").lower() in ours
+
+
 def mirrorable(r: PaymentReceipt, now: float | None = None) -> tuple[bool, str]:
     """Whether this receipt may be mirrored, and why not when it may not."""
     now = time.time() if now is None else now
@@ -107,7 +151,7 @@ def mirror_once(
                     index_id=listing.index_id,
                     amount_usdc=r.amount_usdc,
                     settled_at=r.settled_at,
-                    synthetic=True,
+                    synthetic=is_synthetic(r.payer),
                     dry_run=dry_run,
                 )
                 opened += 1

@@ -135,9 +135,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - uses: astral-sh/setup-uv@v3
       - name: Install
         run: npm ci --no-audit --no-fund
         working-directory: graph
+      # graph_abis.py claims a contract change that is not reflected in the
+      # mappings fails at codegen. That was only true if someone remembered to
+      # regenerate: CI ran codegen against the COMMITTED abis, so drift passed
+      # green. Regenerate from the forge artifacts and fail on any diff.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: ABIs match the contracts
+        run: |
+          # forge-std is gitignored, so a fresh checkout has to fetch it before
+          # anything compiles — same step the contracts job runs.
+          cd contracts && forge install --no-git foundry-rs/forge-std || true
+          forge build && cd ..
+          uv sync --all-packages
+          uv run python scripts/graph_abis.py
+          git diff --exit-code -- graph/abis \
+            || { echo "::error::graph/abis is stale — run 'make graph-abis' and commit"; exit 1; }
       - name: Codegen
         run: npx graph codegen
         working-directory: graph

@@ -3,13 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "ACR Machine TCA over MCP — benchmark a machine purchase, grade a seller, verify a print.",
-  "bin": {
-    "acr-mcp": "src/server.ts"
-  },
+  "description": "ACR Machine TCA over MCP \u2014 benchmark a machine purchase, grade a seller, verify a print.",
   "scripts": {
     "start": "tsx src/server.ts",
-    "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/tools.test.ts"
   },
   "dependencies": {

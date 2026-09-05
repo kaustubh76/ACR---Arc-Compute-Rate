@@ -249,6 +249,67 @@ contract ReceiptMirrorTest is Test {
         mirror.finalizeSettlement(sid, 0, 0, v, r, s);
     }
 
+    /// `openSettlementLate` is onlyOwner, so a botched handover bricks the only
+    /// path a backlog can be recovered through. The oracle's copy of this
+    /// pattern is tested; the mirror's was not.
+    function test_two_step_ownership() public {
+        address next = address(0xC0FFEE);
+        mirror.transferOwnership(next);
+        assertEq(mirror.owner(), address(this), "not transferred until accepted");
+        assertEq(mirror.pendingOwner(), next);
+
+        vm.prank(address(0xDEAD));
+        vm.expectRevert("not pending owner");
+        mirror.acceptOwnership();
+
+        vm.prank(next);
+        mirror.acceptOwnership();
+        assertEq(mirror.owner(), next);
+        assertEq(mirror.pendingOwner(), address(0));
+    }
+
+    /// The off-chain client rebuilds this domain from scratch
+    /// (`MirrorClient._domain`). If the two ever disagree the signature recovers
+    /// to a stranger and every mirror reverts "bad signer" — after the gas.
+    function test_the_domain_binds_this_contract_and_chain() public view {
+        bytes32 expected = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes("ACR Receipt Mirror")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(mirror)
+            )
+        );
+        assertEq(mirror.DOMAIN_SEPARATOR(), expected);
+    }
+
+    /// The replay guard, read directly rather than only inferred from a revert.
+    function test_the_gateway_ref_is_recorded_as_used() public {
+        bytes32 ref2 = keccak256("gateway-ref-unused");
+        assertFalse(mirror.refUsed(ref), "clean before");
+        _open(sid, 100, uint64(block.timestamp - 60), ref);
+        assertTrue(mirror.refUsed(ref), "the mirrored ref is burned");
+        assertFalse(mirror.refUsed(ref2), "an unrelated ref is untouched");
+    }
+
+    /// G3's floor, read directly. It is per-payer, and it moves forward only.
+    function test_the_backdating_floor_is_recorded_per_payer() public {
+        uint64 settledAt = uint64(block.timestamp - 60);
+        assertEq(mirror.lastSettledAt(payer), 0, "no floor before the first mirror");
+        _open(sid, 100, settledAt, ref);
+        assertEq(mirror.lastSettledAt(payer), settledAt);
+        assertEq(mirror.lastSettledAt(address(0xBEEF)), 0, "another payer is unaffected");
+    }
+
+    function test_the_deployer_is_authorized_and_others_are_not() public view {
+        assertTrue(mirror.isSigner(address(this)), "constructor trusts its deployer");
+        assertTrue(mirror.isSigner(signerAddr));
+        assertFalse(mirror.isSigner(vm.addr(impostorKey)));
+    }
+
     function test_only_owner_sets_signers() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert("not owner");

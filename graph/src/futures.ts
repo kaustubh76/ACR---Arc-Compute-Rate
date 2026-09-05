@@ -1,5 +1,7 @@
 import { BigInt } from "@graphprotocol/graph-ts";
 import {
+  CollateralPosted,
+  CollateralWithdrawn,
   SeriesOpened,
   Settled,
   Traded,
@@ -7,6 +9,7 @@ import {
 import { FuturesFill, Series } from "../generated/schema";
 import { decodeIndexId } from "./indices";
 import { loadRing, pickArrival, slippageBp } from "./tca";
+import { recordCollateral } from "./witness";
 
 export function handleSeriesOpened(event: SeriesOpened): void {
   const s = new Series(event.params.seriesId.toString());
@@ -42,6 +45,7 @@ export function handleTraded(event: Traded): void {
   const id = event.transaction.hash.concatI32(event.logIndex.toI32());
   const fill = new FuturesFill(id);
   fill.seriesId = event.params.seriesId;
+  fill.series = series == null ? null : series.id;
   fill.index = index;
   fill.taker = event.params.taker;
   fill.qty = event.params.qty;
@@ -78,4 +82,17 @@ export function handleSettled(event: Settled): void {
   s.settled = true;
   s.settlementPrice = event.params.settlementPrice;
   s.save();
+}
+
+// Money entering and leaving the book. `Series.fillCount` says trades happened;
+// only these say anyone funded them or was paid out.
+export function handleCollateralPosted(event: CollateralPosted): void {
+  recordCollateral(
+    event, event.params.seriesId.toString(), event.params.trader, event.params.amount, true
+  );
+}
+export function handleCollateralWithdrawn(event: CollateralWithdrawn): void {
+  recordCollateral(
+    event, event.params.seriesId.toString(), event.params.trader, event.params.amount, false
+  );
 }

@@ -1,9 +1,18 @@
 import { BigInt, Bytes, log } from "@graphprotocol/graph-ts";
-import { PricePosted as PricePostedV1 } from "../generated/ACROracle/ACROracle";
-import { PricePosted as PricePostedV2 } from "../generated/ACROracleV2/ACROracleV2";
+import {
+  PricePosted as PricePostedV1,
+  PausedSet as PausedSetV1,
+  SignerSet as SignerSetV1,
+} from "../generated/ACROracle/ACROracle";
+import {
+  PricePosted as PricePostedV2,
+  PausedSet as PausedSetV2,
+  SignerSet as SignerSetV2,
+} from "../generated/ACROracleV2/ACROracleV2";
 import { EconomicPrint, Print } from "../generated/schema";
 import { decodeIndexId } from "./indices";
 import { loadRing, pushPrint } from "./tca";
+import { recordPause, recordSigner } from "./witness";
 
 /**
  * ACROracle v1 carries six signed fields; policyHash, humanAdjustedBound and
@@ -152,4 +161,20 @@ function upsert(
     pushPrint(ring, print);
     ring.save();
   }
+}
+
+// Who may sign a print, and when the feed was deliberately stopped. Neither is
+// a price, and without both the tape cannot answer "was this signer authorized
+// then?" or tell a pause apart from an outage.
+export function handleSignerSetV1(event: SignerSetV1): void {
+  recordSigner(event, "ACROracle", event.params.signer, event.params.allowed);
+}
+export function handleSignerSetV2(event: SignerSetV2): void {
+  recordSigner(event, "ACROracleV2", event.params.signer, event.params.allowed);
+}
+export function handlePausedSetV1(event: PausedSetV1): void {
+  recordPause(event, "ACROracle", event.params.paused);
+}
+export function handlePausedSetV2(event: PausedSetV2): void {
+  recordPause(event, "ACROracleV2", event.params.paused);
 }

@@ -142,7 +142,7 @@ deploy-oracle-v2:
 # live v2 post: postPrint enforces strictly monotone timestamps, so an earlier
 # print can never be inserted afterwards.
 backfill-oracle-v2:
-	uv run python scripts/backfill_oracle_v2.py
+	uv run python scripts/backfill_oracle_v2.py $(ARGS)
 
 deploy-mirror-dry:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
@@ -246,10 +246,10 @@ post-once:
 	uv run python scripts/post_once.py
 
 recompute:
-	uv run python scripts/recompute.py
+	uv run python scripts/recompute.py $(ARGS)
 
 mirror-receipts:
-	uv run python scripts/mirror_receipts.py
+	uv run python scripts/mirror_receipts.py $(ARGS)
 
 attest-once:
 	uv run python scripts/attest_once.py
@@ -379,7 +379,14 @@ graph-test:
 # quiet market. Fail here instead.
 graph-deploy: graph-build
 	@grep -q '"0x0000000000000000000000000000000000000000"' graph/subgraph.yaml \
-	  && { echo "graph/subgraph.yaml still has a placeholder address — run 'make deploy-mirror' and fill in the address AND its block"; exit 1; } || true
+	  && { echo "graph/subgraph.yaml still holds a placeholder ADDRESS."; \
+	       echo "Deploy the contracts first (make deploy-mirror, make deploy-oracle-v2),"; \
+	       echo "then fill in each address AND its deploy block."; exit 1; } || true
+	@grep -q 'startBlock: 0$$' graph/subgraph.yaml \
+	  && { echo "graph/subgraph.yaml still holds 'startBlock: 0'."; \
+	       echo "That is not a small mistake: block 0 makes the indexer scan the whole"; \
+	       echo "chain (60M+ blocks) instead of starting at the deploy. Fill in the real"; \
+	       echo "block for every data source."; exit 1; } || true
 	cd graph && npx graph deploy acr-tape --network arc-testnet
 
 lint: glossary-check

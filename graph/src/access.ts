@@ -1,6 +1,10 @@
 import { BigInt } from "@graphprotocol/graph-ts";
-import { AccessGranted } from "../generated/FeedAccessAttestor/FeedAccessAttestor";
+import {
+  AccessGranted,
+  SignerSet,
+} from "../generated/FeedAccessAttestor/FeedAccessAttestor";
 import { FeedAccess } from "../generated/schema";
+import { recordSigner } from "./witness";
 
 /** Paid feed access, already mirrored on chain since block 55149161. */
 export function handleAccessGranted(event: AccessGranted): void {
@@ -13,4 +17,8 @@ export function handleAccessGranted(event: AccessGranted): void {
   fa.nonce = event.params.nonce;
   fa.blockTime = event.block.timestamp;
   fa.save();
+}
+
+export function handleAttestorSignerSet(event: SignerSet): void {
+  recordSigner(event, "FeedAccessAttestor", event.params.signer, event.params.allowed);
 }

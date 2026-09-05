@@ -66,6 +66,51 @@ OPERATIONS: dict[str, str] = {
         }
       }
     """,
+    "futuresFills": """
+      query FuturesFills($first: Int!) {
+        fills: futuresFills(orderBy: blockTime, orderDirection: desc, first: $first) {
+          id index taker qty mark benchmarked slippageBp blockTime
+          series { id expiryTs settled settlementPrice }
+        }
+      }
+    """,
+    "economicPrints": """
+      query EconomicPrints($index: String!, $first: Int!) {
+        economicPrints(where: { index: $index }, orderBy: timestamp, orderDirection: desc, first: $first) {
+          id index timestamp postedAt value ciLo ciHi attackCostPerBp
+          humanAdjustedBound policyHash windowStart windowEnd oracleMask divergent
+        }
+      }
+    """,
+    "collateralFlows": """
+      query CollateralFlows($first: Int!) {
+        collateralFlows(orderBy: blockTime, orderDirection: desc, first: $first) {
+          id trader amount deposited blockTime series { id index }
+        }
+      }
+    """,
+    "signerChanges": """
+      query SignerChanges($first: Int!) {
+        signerChanges(orderBy: blockTime, orderDirection: desc, first: $first) {
+          id contract contractName signer allowed blockTime
+        }
+      }
+    """,
+    "pauseChanges": """
+      query PauseChanges($first: Int!) {
+        pauseChanges(orderBy: blockTime, orderDirection: desc, first: $first) {
+          id contract contractName paused blockTime
+        }
+      }
+    """,
+    "pendingSettlements": """
+      query PendingSettlements($first: Int!) {
+        pendingSettlements(where: { finalized: false }, orderBy: blockTime, orderDirection: desc, first: $first) {
+          id payer seller index amount settledAt mirrorLagSeconds late
+          benchmarked unbenchmarkedReason arrivalValue arrivalAgeSeconds
+        }
+      }
+    """,
     "meta": """
       query Meta {
         _meta { block { number timestamp } hasIndexingErrors deployment }

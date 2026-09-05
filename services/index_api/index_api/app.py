@@ -256,7 +256,14 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     reader, futures = get_reader(), get_futures()
     # The self-ping has to run even with no chain configured — keeping the box
     # awake is not an on-chain concern.
-    if not (reader.configured or futures.configured or SELF_URL):
+    # The mirror keeps the tape fed and depends on neither the oracle reader nor
+    # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
+    # `futures.configured` branch below was not enough: this outer guard would
+    # still have returned first on a mirror-only deployment.
+    from acr_core import get_settings as _gs
+
+    mirror_configured = bool(_gs().receipt_mirror_address)
+    if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
         return
     while not stop.is_set():
         try:
@@ -849,8 +856,13 @@ def graph_proxy_query(body: dict, request: Request) -> dict:
     browser reader arrives through the same edge proxy, so an IP-keyed limit is
     a global limit wearing a per-person costume (see ratelimit.py).
     """
-    ident = str(body.get("as") or "").strip() or None
-    ratelimit.check(request, "graph", ident=ident)
+    # NO caller-supplied identity. `ratelimit.py` is explicit that an identity
+    # must never be derived from something the caller controls — a body field
+    # rotated per request would mint a fresh per-person bucket every time and
+    # leave only the loose host ceiling, which is the exact hole the two-bucket
+    # split exists to close. This endpoint is unauthenticated, so the host
+    # ceiling is the honest limit until it carries a real identity.
+    ratelimit.check(request, "graph")
     return graph_proxy.run(
         str(body.get("operation") or ""), body.get("variables") or {}
     )
@@ -889,8 +901,18 @@ def fleet_listings() -> dict:
     openly so anyone can see what a buyer could have chosen between, and check a
     reroute suggestion against it themselves.
     """
+    # Grouped by index AND model class, because that is the only grouping a
+    # reroute suggestion may be built on: across classes a price gap is quality,
+    # which the hedonic stage adjusts away. Publishing the comparable sets makes
+    # the like-for-like pairs checkable instead of asserted.
+    comparable: dict[str, dict[str, list[str]]] = {}
+    for listing in fleet_summary():
+        comparable.setdefault(listing["index_id"], {}).setdefault(
+            listing["model_class"], []
+        ).append(listing["label"])
     return {
         "listings": fleet_summary(),
+        "comparable_sets": comparable,
         "note": (
             "Unit prices differ by seller. Compare only within a model_class — "
             "across classes the difference is quality, which the hedonic stage "

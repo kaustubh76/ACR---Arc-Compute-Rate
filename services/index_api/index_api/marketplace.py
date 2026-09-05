@@ -440,6 +440,14 @@ def build_receipts(fac: Facilitator) -> dict:
             "scheme": r.scheme,
             **({"settled_at": r.settled_at} if r.settled_at else {}),
             **({"resource": r.resource} if r.resource else {}),
+            # Who was paid and what was bought. Omitted while every settlement
+            # went to one platform wallet at one flat price; carried now that a
+            # seller fleet exists, because without them a receipt has no unit
+            # price — and `scripts/mirror_receipts.py`, which reads THIS payload,
+            # could not mirror a single row.
+            **({"seller": r.seller} if r.seller else {}),
+            **({"unit": r.unit} if r.unit else {}),
+            **({"quantity": r.quantity} if r.quantity else {}),
         }
         for i, r in enumerate(receipts)
     ]

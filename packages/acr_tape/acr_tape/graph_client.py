@@ -51,24 +51,3 @@ def graph_query(
         log.warning("graph: GraphQL errors: %s", payload["errors"][:2])
         return {}
     return payload.get("data") or {}
-
-
-def graph_paged(url: str, query: str, field: str, api_key: str = "") -> list[dict]:
-    """Walk every page of ``field``. Stops at the endpoint's skip ceiling.
-
-    A window large enough to hit the ceiling is the caller's to narrow — better
-    an explicit warning than a silently truncated tape that reads as a quiet
-    market.
-    """
-    out: list[dict] = []
-    skip = 0
-    while True:
-        data = graph_query(url, query, {"first": PAGE, "skip": skip}, api_key)
-        rows = data.get(field) or []
-        out.extend(rows)
-        if len(rows) < PAGE:
-            return out
-        skip += PAGE
-        if skip > SKIP_CEILING:
-            log.warning("graph: %s exceeded the pagination ceiling; tape truncated", field)
-            return out

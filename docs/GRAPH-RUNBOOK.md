@@ -37,6 +37,7 @@ attested set out of `fallback.json`. Until this runs, the terminal CI job is red
 on that one test. The `95 terminal` figure in the docs is already correct for
 the post-attestation state; do not lower it.
 
+
 ## 2 · Deploy the ReceiptMirror
 
 Circle Gateway settles x402 off-chain and returns a batch UUID, not a
@@ -56,24 +57,8 @@ Then record it in **two** places:
 - `graph/subgraph.yaml` → the `ReceiptMirror` data source's `address` **and**
   its `startBlock` (the deploy's block number).
 
-## 3 · Deploy the subgraph
 
-```bash
-# create `acr-tape` at https://thegraph.com/studio, then:
-cd graph && npx graph auth <deploy-key> && cd ..
-make graph-deploy
-```
-
-`make graph-deploy` refuses to run while any data source still holds the
-placeholder zero address — a subgraph pointed at `0x0` indexes nothing, reports
-no error, and serves an empty tape that reads exactly like a quiet market.
-
-Then set `ACR_SUBGRAPH_URL` (and `ACR_GRAPH_API_KEY`, server-side only), and
-record in `docs/SPIKE-LOG.md`: `_meta.block` against RPC head, whether
-`hasIndexingErrors` is false, and how long the backfill from block 53066540
-actually took. If it is slow, raise `startBlock` and say so there.
-
-## 4 · Deploy oracle v2
+## 3 · Deploy oracle v2
 
 ```bash
 export ACR_ORACLE_V2_SIGNER=0x…   # the same print signer
@@ -85,10 +70,11 @@ Set `ACR_ORACLE_V2_ADDRESS`. **Leave `ACR_ORACLE_ADDRESS` on v1.** Add the v2
 data source's `address` and `startBlock` to `graph/subgraph.yaml` and redeploy
 the subgraph.
 
-## 5 · Backfill v2 — before any live post
+
+## 4 · Backfill v2 — before any live post
 
 ```bash
-make backfill-oracle-v2 -- --dry-run   # read the plan first
+make backfill-oracle-v2 ARGS=--dry-run   # read the plan first
 make backfill-oracle-v2
 ```
 
@@ -103,6 +89,27 @@ forever.
 Only after this should the poster be allowed to take a live v2 print — which it
 does automatically, on the next cycle, once `ACR_ORACLE_V2_ADDRESS` is set.
 
+
+## 5 · Deploy the subgraph
+
+```bash
+# create `acr-tape` at https://thegraph.com/studio, then:
+cd graph && npx graph auth <deploy-key> && cd ..
+make graph-deploy
+```
+
+`make graph-deploy` refuses while **any** data source still holds a placeholder
+address *or* `startBlock: 0`. That is why it comes last: a subgraph pointed at
+`0x0` indexes nothing, reports no error, and serves an empty tape that reads
+exactly like a quiet market — and a `startBlock` of 0 makes the indexer scan the
+whole chain instead of starting at the deploy.
+
+Then set `ACR_SUBGRAPH_URL` (and `ACR_GRAPH_API_KEY`, server-side only), and
+record in `docs/SPIKE-LOG.md`: `_meta.block` against RPC head, whether
+`hasIndexingErrors` is false, and how long the backfill from block 53066540
+actually took. If it is slow, raise `startBlock` and say so there.
+
+
 ---
 
 ## Checking it worked
@@ -110,7 +117,7 @@ does automatically, on the next cycle, once `ACR_ORACLE_V2_ADDRESS` is set.
 ```bash
 make verify-live                  # v1 freshness is a hard fail; v2 is a warn
 make recompute                    # recomputed value within the on-chain CI
-make recompute -- --rederive-cleaning
+make recompute ARGS=--rederive-cleaning
 curl -s $ACR_API/tca/<payer>      # carries n and the synthetic share
 curl -s $ACR_API/rating/<seller>  # plus weight_covered_pct
 curl -s -X POST $ACR_API/graph/query -H 'content-type: application/json' \

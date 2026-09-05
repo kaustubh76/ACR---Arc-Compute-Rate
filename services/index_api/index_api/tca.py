@@ -43,13 +43,18 @@ WEIGHTS = {
     "attestation_freshness": 15,
 }
 
+# Two variables for one address, deliberately: `where:` filters a relation by
+# Bytes, while the singular entity query takes ID!. Passing one Bytes! variable
+# to both is the kind of type slip graph-node may coerce through or may reject —
+# and a rejection here degrades to "the subgraph did not answer", which reads
+# exactly like an outage.
 _SELLER_DAYS = """
-query SellerDays($seller: Bytes!, $since: Int!) {
+query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!) {
   sellerDays(where: { seller: $seller, day_gte: $since }, orderBy: day, orderDirection: desc, first: 400) {
     day volume bmVolume wSlipTenthBp humanVolume synthVolume realVolume
     n nAll nStale b0 b1 b2 b3 b4 b5 b6
   }
-  seller(id: $seller) {
+  seller(id: $sellerId) {
     id distinctPayers distinctHumans totalVolume benchmarkedVolume settlementCount
     latestAttestation { modelClass latencySloMs timestamp blockTime }
   }
@@ -131,7 +136,10 @@ def seller_rating(seller: str, days: int = 7) -> dict:
     if not url:
         return _unavailable("ACR_SUBGRAPH_URL is unset")
     data = graph_query(
-        url, _SELLER_DAYS, {"seller": seller.lower(), "since": _day_now() - days}, key
+        url,
+        _SELLER_DAYS,
+        {"seller": seller.lower(), "sellerId": seller.lower(), "since": _day_now() - days},
+        key,
     )
     if not data:
         return _unavailable("the subgraph did not answer")

@@ -22,8 +22,6 @@ import { Print, PrintRing } from "../generated/schema";
 export const RING_DEPTH = 48;
 
 export const BP = BigInt.fromI32(10000);
-/** Prints are WAD 1e18; USDC and unit prices are 1e6. */
-export const WAD_PER_USDC6 = BigInt.fromString("1000000000000");
 
 export function loadRing(index: string): PrintRing {
   let ring = PrintRing.load(index);
@@ -133,10 +131,6 @@ export function slippageBp(paid: BigInt, arrival: BigInt): BigInt {
   return divRound(paid.minus(arrival).times(BP), arrival);
 }
 
-/** A WAD 1e18 print value in the USDC 1e6 scale unit prices are quoted in. */
-export function wadToUsdc6(wad: BigInt): BigInt {
-  return divRound(wad, WAD_PER_USDC6);
-}
 
 /** Which histogram bucket a slippage falls in — b0..b6, matching SettlementData. */
 export function bucketOf(bp: BigInt): i32 {

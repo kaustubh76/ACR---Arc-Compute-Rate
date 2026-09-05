@@ -28,13 +28,20 @@ dataSources:
       file: ./src/oracle.ts
       entities:
         - Print
+        - EconomicPrint
         - PrintRing
+        - SignerChange
+        - PauseChange
       abis:
         - name: ACROracle
           file: ./abis/ACROracle.json
       eventHandlers:
         - event: PricePosted(indexed bytes32,uint256,uint256,uint256,uint256,uint64,indexed address)
           handler: handlePricePosted
+        - event: SignerSet(indexed address,bool)
+          handler: handleSignerSetV1
+        - event: PausedSet(bool)
+          handler: handlePausedSetV1
 
   # --- oracle v2 -------------------------------------------------------------
   # Deployed ALONGSIDE v1, not instead of it: ACRFutures settles against v1 and
@@ -59,12 +66,18 @@ dataSources:
         - Print
         - EconomicPrint
         - PrintRing
+        - SignerChange
+        - PauseChange
       abis:
         - name: ACROracleV2
           file: ./abis/ACROracleV2.json
       eventHandlers:
         - event: PricePosted(indexed bytes32,indexed bytes32,indexed address,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint64)
           handler: handlePricePostedV2
+        - event: SignerSet(indexed address,bool)
+          handler: handleSignerSetV2
+        - event: PausedSet(bool)
+          handler: handlePausedSetV2
 
   - kind: ethereum/contract
     name: AttestationRegistry
@@ -103,7 +116,8 @@ dataSources:
       entities:
         - FuturesFill
         - Series
-        - Print
+        - CollateralFlow
+        - PrintRing
       abis:
         - name: ACRFutures
           file: ./abis/ACRFutures.json
@@ -114,6 +128,10 @@ dataSources:
           handler: handleTraded
         - event: Settled(indexed uint256,uint256,uint256)
           handler: handleSettled
+        - event: CollateralPosted(indexed uint256,indexed address,uint256)
+          handler: handleCollateralPosted
+        - event: CollateralWithdrawn(indexed uint256,indexed address,uint256)
+          handler: handleCollateralWithdrawn
 
   - kind: ethereum/contract
     name: FeedAccessAttestor
@@ -129,12 +147,15 @@ dataSources:
       file: ./src/access.ts
       entities:
         - FeedAccess
+        - SignerChange
       abis:
         - name: FeedAccessAttestor
           file: ./abis/FeedAccessAttestor.json
       eventHandlers:
         - event: AccessGranted(indexed address,indexed address,uint64,uint256,uint256)
           handler: handleAccessGranted
+        - event: SignerSet(indexed address,bool)
+          handler: handleAttestorSignerSet
 
   # --- the settlement tape ---------------------------------------------------
   # PLACEHOLDER address and startBlock: fill both from `make deploy-mirror`
@@ -156,10 +177,14 @@ dataSources:
       entities:
         - PendingSettlement
         - Settlement
-        - SettlementData
+        - SellerDay
+        - PayerDay
         - Payer
         - Seller
         - SellerPayerLink
+        - SignerChange
+        - Print
+        - PrintRing
       abis:
         - name: ReceiptMirror
           file: ./abis/ReceiptMirror.json
@@ -168,3 +193,5 @@ dataSources:
           handler: handleSettlementOpened
         - event: SettlementFinalized(indexed bytes32,indexed address,indexed address,uint8,uint256,uint64)
           handler: handleSettlementFinalized
+        - event: SignerSet(indexed address,bool)
+          handler: handleMirrorSignerSet
