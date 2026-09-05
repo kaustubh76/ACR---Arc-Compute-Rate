@@ -40,6 +40,34 @@ export async function fetchLive<T>(path: string, timeoutMs = 5000): Promise<T | 
   return (await fetchLiveMeta<T>(path, timeoutMs)).data;
 }
 
+/** The same contract for a POST body — the tape's read proxy is a POST, because
+ *  the query text lives server-side and the caller names an allowlisted
+ *  operation rather than sending GraphQL. Same timeout, same one-line log, same
+ *  `upstream` stamp, so a subgraph outage is diagnosable exactly like a press
+ *  outage instead of arriving as an unexplained empty page. */
+export async function postLiveMeta<T>(
+  path: string,
+  body: unknown,
+  timeoutMs = 8000,
+): Promise<{ data: T | null; upstream: UpstreamStatus }> {
+  try {
+    const res = await fetch(`${API}${path}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.ok) return { data: (await res.json()) as T, upstream: "ok" };
+    console.warn(`[terminal] upstream ${res.status} on POST ${path}`);
+    return { data: null, upstream: "error" };
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "TimeoutError";
+    console.warn(`[terminal] upstream ${timedOut ? "timeout" : "unreachable"} on POST ${path}`);
+    return { data: null, upstream: timedOut ? "timeout" : "error" };
+  }
+}
+
 /** Bundled snapshot sections (marketplace / revenue / x402 / exchange sample)
  *  so the crypto-dense proxies never fall back to null. Optional keys — an
  *  older fallback.json just yields undefined and the proxy keeps its legacy

@@ -9,6 +9,7 @@
    say "press unreachable" instead. */
 
 import useSWR from "swr";
+import type { TapeData } from "./tape";
 import type {
   AttackStatus,
   BalancesData,
@@ -236,6 +237,26 @@ export function useAttackRun() {
 /** The systems ledger (/ops). Recomputes upstream every 15 minutes, so this
  *  polls slowly — and carries no bundle tier by design: a stale VERDICT would
  *  assert the health of a press that is, right then, not answering. */
+/** The indexed tape: what an agent paid against what it could have seen.
+ *
+ * 30s, not the 15s of the press feed: the tape moves when a settlement is
+ * mirrored, which is minutes apart at best, and each poll costs the subgraph
+ * several queries. Never 0 — SWR reads 0 as "never poll again", which once left
+ * a whole page silently static (see useAttackRun below).
+ *
+ * `error` is exposed because this hook's empty state can lie: a page rendering
+ * "no settlements" when the subgraph is unreachable would report an outage as a
+ * quiet market, which is the failure the tape exists to make impossible. */
+export function useTape(payer?: string) {
+  const key = payer ? `/api/tape?payer=${payer}` : "/api/tape";
+  const { data, error, mutate } = useSWR<Envelope<TapeData>>(key, fetcher, {
+    refreshInterval: 30_000,
+    revalidateOnFocus: true,
+    ...RETRY,
+  });
+  return { tape: data, error: error as Error | undefined, refresh: mutate };
+}
+
 export function useOps() {
   const { data, error, mutate } = useSWR<Envelope<OpsLedger | null>>("/api/ops", fetcher, {
     refreshInterval: 60_000,

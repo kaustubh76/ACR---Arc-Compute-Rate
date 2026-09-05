@@ -32,6 +32,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Was 8 against an actual 15 — a floor that had stopped holding anything,
   // which is part of why this page's attestation copy rotted unnoticed.
   "app/sellers/view.tsx": 44,
+  // The tape: every figure is a measurement of how well an agent traded, so
+  // both editions carry the whole page rather than the expert one plus labels.
+  "app/tape/view.tsx": 40,
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
@@ -88,6 +91,8 @@ const EXEMPT: Record<string, string> = {
   "app/curve/loading.tsx": "skeleton",
   "app/exchange/loading.tsx": "skeleton",
   "app/sellers/loading.tsx": "skeleton",
+  "app/tape/loading.tsx": "skeleton",
+  "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
   "app/ops/loading.tsx": "skeleton",
   "app/index/[id]/loading.tsx": "skeleton",

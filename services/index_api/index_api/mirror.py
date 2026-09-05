@@ -136,13 +136,23 @@ def mirror_once(
         and mirrorable(r, now)[1].startswith("older than")
     )
 
-    for r in eligible[:BATCH]:
+    # BATCH bounds the WORK, not the candidate list. Slicing `eligible[:BATCH]`
+    # instead meant a backlog larger than BATCH could never drain: the first
+    # BATCH stay eligible for the whole mirror window, are re-examined every
+    # tick as already-finalized no-ops, and the next one is never reached. The
+    # keeper never noticed because live receipts arrive a few at a time and age
+    # out; the operator's documented backlog path stalled at exactly BATCH.
+    sent = 0
+    for r in eligible:
+        if sent >= BATCH:
+            break
         listing = listing_for_resource(r.resource)
         if listing is None:
             skipped += 1
             continue
         try:
             state = client.state_for(r.tx_ref)
+            worked = False
             if state is None:
                 client.open_settlement(
                     tx_ref=r.tx_ref,
@@ -155,6 +165,7 @@ def mirror_once(
                     dry_run=dry_run,
                 )
                 opened += 1
+                worked = True
                 state = {"opened": True, "finalized": False}
             if not state.get("finalized"):
                 client.finalize_settlement(
@@ -164,6 +175,12 @@ def mirror_once(
                     dry_run=dry_run,
                 )
                 finalized += 1
+                worked = True
+            # Counted per SETTLEMENT, not per transaction: BATCH is two txs each
+            # by design, and a settlement already fully mirrored costs nothing
+            # and must not consume a slot the backlog needs.
+            if worked:
+                sent += 1
         except Exception as exc:  # noqa: BLE001 — the reason matters, not the trace
             failed += 1
             log.warning("mirror %s failed: %s", r.tx_ref[:12], str(exc)[:160])

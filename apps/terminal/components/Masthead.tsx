@@ -23,6 +23,9 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   ["/curve", "Curve", "Future Prices"],
   ["/exchange", "Exchange", "The Shop Floor"],
   ["/sellers", "Registry", "Sellers"],
+  // The tape sits after the sellers it grades: a reader meets the sellers, then
+  // asks what buying from them actually cost.
+  ["/tape", "The Tape", "Receipts"],
   ["/developers", "Developers", "For Coders"],
 ];
 

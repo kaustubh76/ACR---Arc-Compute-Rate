@@ -47,6 +47,11 @@ const DESC: Record<string, React.ReactNode> = {
   "/marketplace/catalog": <Ed x="Machine-readable listings (Bazaar-shaped)" p="The shop's listings, in a shape robots can read" />,
   "/marketplace/receipts": <Ed x="The settlement tape · recent receipts" p="The receipt roll · who paid for what" />,
   "/terminal/data": <Ed x="The human terminal feed (this site)" p="Everything this website shows, as data" />,
+  "/tca/{payer}": <Ed x="What one wallet paid, against the rate it could have seen" p="What one wallet paid, next to the fair rate at the time" />,
+  "/rating/{seller}": <Ed x="A seller's grade, its parts, and how much of the scoring it covers" p="A seller's score, what went into it, and how complete it is" />,
+  "/graph/operations": <Ed x="The named reads the tape proxy will run" p="The list of questions you may ask the record" />,
+  "/graph/query": <Ed x="Run one named read against the indexed tape" p="Ask the record one of those questions" />,
+  "/fleet": <Ed x="The seller listings, each with its own price and payee" p="Who is selling, at what price, paid to which wallet" />,
   "/demo/attack/start": <Ed x="Kick a live wash-attack run (Attack Lab)" p="Start a live cheating attempt (the lab)" />,
   "/demo/attack/status": <Ed x="Attack run progress + verdict" p="How the cheating attempt is going" />,
   "/demo/buyer/start": <Ed x="Release the floor buyer (Exchange demo)" p="Let the robot shopper loose (shop demo)" />,
@@ -429,6 +434,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                     <Ed x="Circle calls this" p="Circle calls this" />
                                   ) : e.why === "post" ? (
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
+                                  ) : e.why === "address" ? (
+                                    <Ed x="needs a wallet in the path" p="needs a wallet address" />
                                   ) : (
                                     <Ed x="needs a session" p="needs a session" />
                                   )}

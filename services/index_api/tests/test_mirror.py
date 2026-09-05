@@ -50,12 +50,18 @@ class _FakeClient:
         if self._fail_on == "open":
             raise RuntimeError("chain said no")
         self.opened.append(tx_ref)
+        # Remember it, because the chain does. A fake that forgets what it
+        # opened re-opens the same settlement every tick and can therefore never
+        # model a backlog — which is precisely why the drain bug below was
+        # invisible to this suite until the operator hit it on real receipts.
+        self._already[tx_ref] = {"opened": True, "finalized": False}
         return "0xopen"
 
     def finalize_settlement(self, tx_ref, **kw):
         if self._fail_on == "finalize":
             raise RuntimeError("chain said no")
         self.finalized.append(tx_ref)
+        self._already[tx_ref] = {"opened": True, "finalized": True}
         return "0xfinalize"
 
 
@@ -141,6 +147,32 @@ def test_the_sweep_is_bounded_per_tick():
     many = [_receipt(tx_ref=f"ref-{i}") for i in range(BATCH + 5)]
     mirror_once(many, client=c, now=NOW)
     assert len(c.opened) == BATCH
+
+
+def test_a_backlog_larger_than_one_tick_actually_drains():
+    """BATCH bounds the WORK, not the candidate list.
+
+    It used to slice `eligible[:BATCH]`, so a backlog larger than BATCH could
+    never drain: the first BATCH stay eligible for the whole mirror window, are
+    re-examined every tick as already-finalized no-ops, and the next one is
+    never reached. The keeper never noticed because live receipts arrive a few
+    at a time and age out — but `make mirror-receipts`, whose whole documented
+    purpose includes "a backlog", stalled at exactly BATCH forever.
+    """
+    c = _FakeClient()
+    many = [_receipt(tx_ref=f"ref-{i}") for i in range(BATCH * 2 + 3)]
+
+    mirror_once(many, client=c, now=NOW)
+    assert len(c.opened) == BATCH, "first tick does one batch"
+
+    mirror_once(many, client=c, now=NOW)
+    assert len(c.opened) == BATCH * 2, "second tick must reach past the first batch"
+
+    mirror_once(many, client=c, now=NOW)
+    assert len(c.opened) == len(many), "the backlog drains"
+
+    # And once drained it is quiet, rather than re-reporting work it did not do.
+    assert mirror_once(many, client=c, now=NOW) is None
 
 
 def test_a_backlog_past_the_window_is_reported_not_silently_dropped():

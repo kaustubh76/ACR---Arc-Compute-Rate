@@ -93,6 +93,11 @@ export const PLAIN_GLOSSARY = {
     gloss: "one hundredth of one percent: a penny on a hundred dollars",
     theme: "statistics",
   },
+  "arrival-price": {
+    term: "the price at the time",
+    gloss: "the published rate a buyer could already see when it bought: the fair mark to judge a purchase against",
+    theme: "statistics",
+  },
   hedonic: {
     term: "like-for-like",
     gloss: "strip quality differences first, so a studio and a penthouse compare fairly",

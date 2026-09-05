@@ -41,12 +41,13 @@ export interface EndpointRow {
    *  `{index_id}` is resolved to the first index; the console lets a reader
    *  change it afterwards. */
   console?: string;
-  /** Why an unrunnable row is unrunnable. Three different reasons, and the
+  /** Why an unrunnable row is unrunnable. Four different reasons, and the
    *  page prints the right one: a uniform "needs a session" would be false for
-   *  the webhook (Circle calls it) and for the demo starters (they just want a
-   *  body). A row that explains itself wrongly is worse than one that says
-   *  nothing. */
-  why?: "session" | "post" | "inbound";
+   *  the webhook (Circle calls it), for the demo starters (they just want a
+   *  body), and for the tape reads (they want a wallet in the path, and there
+   *  is no sensible default to probe with). A row that explains itself wrongly
+   *  is worse than one that says nothing. */
+  why?: "session" | "post" | "inbound" | "address";
 }
 
 const i0 = INDICES[0];
@@ -68,6 +69,15 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "GET", path: "/marketplace/catalog", gate: "public", family: "market", run: "/marketplace/catalog" },
   { method: "GET", path: "/marketplace/receipts", gate: "public", family: "market", run: "/marketplace/receipts" },
   { method: "GET", path: "/terminal/data", gate: "public", family: "market", run: "/terminal/data" },
+
+  // The indexed tape. Public reads over an allowlist of named operations —
+  // the query text lives server-side, so a caller names an operation rather
+  // than sending GraphQL, and the read key is never exposed.
+  { method: "GET", path: "/tca/{payer}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },
+  { method: "POST", path: "/graph/query", gate: "public", family: "market", run: null, why: "post" },
+  { method: "GET", path: "/fleet", gate: "public", family: "market", run: "/fleet" },
 
   { method: "POST", path: "/demo/attack/start", gate: "public", family: "demo", run: null, why: "post" },
   { method: "GET", path: "/demo/attack/status", gate: "public", family: "demo", run: "/demo/attack/status" },
