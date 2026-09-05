@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -126,6 +126,36 @@ deploy-futures:
 	@echo "  ACRFutures live — code shows at https://testnet.arcscan.app/address/<ACRFutures>"
 	@echo "  now set ACR_FUTURES_ADDRESS=0x<address above> in .env + on the Render seller."
 
+deploy-oracle-v2-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-oracle-v2:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ACROracleV2 live. Set ACR_ORACLE_V2_ADDRESS — and LEAVE ACR_ORACLE_ADDRESS"
+	@echo "  on v1: ACRFutures settles against it and cannot be repointed."
+	@echo "  Then run 'make backfill-oracle-v2' BEFORE the poster takes a live v2 print."
+
+# Re-sign v1's recent history under the v2 typehash. MUST run before the first
+# live v2 post: postPrint enforces strictly monotone timestamps, so an earlier
+# print can never be inserted afterwards.
+backfill-oracle-v2:
+	uv run python scripts/backfill_oracle_v2.py
+
+deploy-mirror-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-mirror:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ReceiptMirror live — the subgraph's settlement tape."
+	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
+	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
+
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
@@ -214,6 +244,12 @@ desk-evidence:
 
 post-once:
 	uv run python scripts/post_once.py
+
+recompute:
+	uv run python scripts/recompute.py
+
+mirror-receipts:
+	uv run python scripts/mirror_receipts.py
 
 attest-once:
 	uv run python scripts/attest_once.py
@@ -314,6 +350,38 @@ gateway-balance:
 skills-install: circle-check
 	circle skill install --tool claude-code
 
+# --- the tape subgraph (graph/) -----------------------------------------------
+# The Graph indexes the live Arc contracts; `slippageBp` is computed in the
+# mappings, not handed to them. ABIs are GENERATED from contracts/out so a
+# contract change breaks codegen instead of breaking a query.
+
+graph-abis: build-contracts
+	uv run python scripts/graph_abis.py
+
+graph-install:
+	cd graph && npm ci --no-audit --no-fund
+
+graph-codegen: graph-abis
+	cd graph && npx graph codegen
+
+# `graph build` is itself the schema gate: it rejects a malformed @aggregation,
+# an `arg` naming a field that does not exist, or a non-numeric aggregated field.
+graph-build: graph-codegen
+	cd graph && npx graph build
+
+graph-test:
+	cd graph && npx graph test
+
+# Studio deploy is an operator step: it needs network access and a Studio key.
+#   cd graph && npx graph auth <deploy-key>
+# The zero-address guard is not pedantry: a subgraph pointed at 0x0 indexes
+# nothing, reports no error, and serves an empty tape that reads exactly like a
+# quiet market. Fail here instead.
+graph-deploy: graph-build
+	@grep -q '"0x0000000000000000000000000000000000000000"' graph/subgraph.yaml \
+	  && { echo "graph/subgraph.yaml still has a placeholder address — run 'make deploy-mirror' and fill in the address AND its block"; exit 1; } || true
+	cd graph && npx graph deploy acr-tape --network arc-testnet
+
 lint: glossary-check
 	uv run ruff check packages services scripts redteam
 
@@ -329,6 +397,12 @@ diagram-preview:
 deck:
 	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --scale 0.5
 	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 700,280,2120,950 --name core
+	# The band crops the brief inlines. They were one-off invocations nobody wrote
+	# down, so `chain.svg` sat two test-counts stale while every other artifact
+	# had moved on — a generated file with an unrecorded recipe is a hand-edited
+	# file that nobody admits to. Recorded now, and regenerated with the rest.
+	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 2150,260,1350,1720 --name chain
+	rm -f docs/assets/acr_architecture.core.png docs/assets/acr_architecture.chain.png
 	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
 	npx -y @marp-team/marp-cli --html docs/presentation.md -o docs/presentation.html
 	npx -y @marp-team/marp-cli --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"

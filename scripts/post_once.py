@@ -37,17 +37,26 @@ def _explorer(settings) -> str:
 
 
 def _next_monotone_ts(poster: OraclePoster, store: PrintStore) -> float | None:
-    """The smallest ``k·step_s`` strictly beyond every on-chain print timestamp.
+    """The smallest ``k·step_s`` strictly beyond every on-chain print timestamp,
+    across EVERY oracle the poster writes to.
 
-    ``None`` (→ the store's own cursor) when offline or the oracle is empty.
+    ``None`` (→ the store's own cursor) when offline or every oracle is empty.
+
+    The max over both matters. Each contract enforces its own strict
+    monotonicity, so a timestamp seeded from v1 alone is safe only while v1 is
+    the furthest ahead — and if a backfill ever leaves v2 beyond v1's latest,
+    every subsequent v2 post reverts "non-monotone ts" forever. That is a
+    permanent stall, not a gap, and no later post can dig out of it.
     """
-    if not poster.client.can_post():
+    clients = [c for c in (poster.client, poster.v2) if c is not None and c.can_post()]
+    if not clients:
         return None
     latest = 0
-    for iid in ALL_INDEX_IDS:
-        back = poster.client.read_latest(iid)
-        if back:
-            latest = max(latest, int(back["timestamp"]))
+    for client in clients:
+        for iid in ALL_INDEX_IDS:
+            back = client.read_latest(iid)
+            if back:
+                latest = max(latest, int(back["timestamp"]))
     if latest <= 0:
         return None
     return float((int(latest // store.step_s) + 1) * store.step_s)
