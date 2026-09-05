@@ -93,10 +93,26 @@ does automatically, on the next cycle, once `ACR_ORACLE_V2_ADDRESS` is set.
 ## 5 · Deploy the subgraph
 
 ```bash
-# create `acr-tape` at https://thegraph.com/studio, then:
-cd graph && npx graph auth <deploy-key> && cd ..
-make graph-deploy
+# The slug must ALREADY EXIST in Studio — the CLI cannot create one, and an
+# unknown slug answers with a bare "Subgraph not found" that is identical to
+# what a bad deploy key returns. Create it at https://thegraph.com/studio.
+npx graph auth <deploy-key>
+make graph-deploy SUBGRAPH=<slug>        # default slug: ethonline
 ```
+
+Do **not** run `graph init` from Studio's onboarding panel: it scaffolds a fresh
+boilerplate subgraph, and this one already exists in `graph/`. Only the slug and
+the deploy key from that panel matter here.
+
+Deployed 2026-09-05 as `ethonline`, deployment
+`Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`, query endpoint:
+
+```
+https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0
+```
+
+That is the Studio *development* endpoint and needs no gateway API key. A
+`ACR_GRAPH_API_KEY` only matters once the subgraph is published to the network.
 
 `make graph-deploy` refuses while **any** data source still holds a placeholder
 address *or* `startBlock: 0`. That is why it comes last: a subgraph pointed at
@@ -122,7 +138,21 @@ curl -s $ACR_API/tca/<payer>      # carries n and the synthetic share
 curl -s $ACR_API/rating/<seller>  # plus weight_covered_pct
 curl -s -X POST $ACR_API/graph/query -H 'content-type: application/json' \
   -d '{"operation":"meta"}'       # _meta.block vs head, hasIndexingErrors
+curl -s $ACR_API/graph/operations  # every operation the proxy will run
 ```
+
+**Arguments go in `variables`, not at the top level.** Four operations need one
+(`prints`/`economicPrints` take `index`, `sellerDays` takes `seller`,
+`payerDays` takes `payer`); the rest only take the optional `first`:
+
+```bash
+curl -s -X POST $ACR_API/graph/query -H 'content-type: application/json' \
+  -d '{"operation":"prints","variables":{"index":"ACR-INF","first":5}}'
+```
+
+Omit a required one and the proxy names it (`needs variable(s) index`) rather
+than reporting the subgraph as unreachable — the two are very different
+problems and used to produce the same message.
 
 The mirror keeper runs on its own timer inside the service (`ACR_KEEPER_MIRROR_S`,
 120s default) and reports on `/health` under `keeper.mirror`. For a first run or

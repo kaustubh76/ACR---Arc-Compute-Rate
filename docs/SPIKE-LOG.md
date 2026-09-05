@@ -162,7 +162,50 @@ key not found` for both. A Studio *development* deployment is queried at
 not need a gateway key; a gateway key becomes relevant only once the subgraph is
 published to the network.
 
-*Still to fill on the first successful deploy:*
+### Deployed and synced (2026-09-05)
+
+Slug `ethonline` — Studio's own onboarding panel names it, and it is the slug,
+not the descriptive name, that a deploy needs.
+
+| | |
+|---|---|
+| deployment id | `Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf` |
+| query endpoint | `https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0` |
+| data sources | 6 · earliest `startBlock` 53,066,540 |
+| `hasIndexingErrors` | **false**, throughout the sync |
+| sync rate | ~1,578 blocks/s measured over a 60 s window |
+| caught up | reached head (60,570,098) from 53,066,540 — ~7.5M blocks |
+
+`graph init` from the Studio panel was deliberately NOT run: it scaffolds a
+fresh boilerplate subgraph, and this one already exists in `graph/`.
+
+### The mappings reproduce the hand computation
+
+The three mirrored settlements, read back out of the subgraph, against the
+figures computed by hand above before it was ever deployed:
+
+| listing | hand-computed | subgraph `slippageBp` |
+|---|---|---|
+| `acr-seller-inf-mid-a` | +647.9 bp | **647** |
+| `acr-seller-inf-mid-b` | +386.0 bp | **387** |
+| `acr-seller-data-small` | −836.7 bp | **−836** |
+
+The ±1 bp is not drift: the mapping derives `unitPrice` from the USDC 1e6 amount
+that is actually on chain (0.005229 / 0.01 = 0.5229), while the hand figure used
+the fleet's unrounded float (0.52294118). The chain's number is the right one.
+
+All three came back `benchmarked: true`, `staleArrival: false`, arrival age
+~3,200 s. Arrival resolved to the **v1** print (0.49112047) on both ACR-INF
+rows — exactly as predicted above, because v1 and v2 sit at different economic
+timestamps until the live press dual-posts.
+
+Surfaces, against the live subgraph: `/tca/<payer>` returns per-seller
+`vw_slippage_bp`, volume share, `n` and synthetic share; `/rating/<seller>`
+returns `available: true` and then **declines to grade** — `"grade": "Unrated",
+"unrated_reason": "thin tape (n=1 < 20)"` — which is the honest answer on one
+settlement, and `weight_covered_pct: 55`.
+
+*Still to fill when the live service dual-posts and mirrors on its own:*
 
 | | |
 |---|---|

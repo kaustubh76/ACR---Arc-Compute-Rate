@@ -151,3 +151,50 @@ def test_the_checker_actually_reaches_the_queries():
         text = path.read_text()
         seen += sum(1 for m in re.finditer(r"\b(\w+)\s*\(", text) if m.group(1) in roots)
     assert seen >= 12, f"only found {seen} root queries across {len(QUERY_SOURCES)} files"
+
+
+def test_every_required_variable_is_either_supplied_or_demanded():
+    """A query's declared variables and the proxy's contract must agree.
+
+    The gap this closes: `prints` declares `$index: String!`, `run` only ever
+    guarantees `first`, and a caller who omitted `index` got the subgraph's
+    "No value provided for required variable" turned into `the subgraph did not
+    answer` — the OUTAGE message. The reader is then debugging our indexer
+    instead of their own request. Every operation must either need nothing
+    beyond `first`, or say precisely what it needs.
+    """
+    from index_api.graph_proxy import OPERATIONS, required_vars
+
+    known = {"index", "seller", "payer"}
+    for name, query in OPERATIONS.items():
+        needed = required_vars(query)
+        assert set(needed) <= known, (
+            f"{name} requires {needed}; a variable outside {sorted(known)} has no "
+            "documented way for a caller to supply it"
+        )
+        # `first` is supplied by run() and must never be demanded of a caller.
+        assert "first" not in needed
+
+
+def test_a_missing_variable_is_reported_as_the_callers_problem():
+    from index_api import graph_proxy
+
+    for op in ("prints", "economicPrints", "sellerDays", "payerDays"):
+        out = graph_proxy.run(op, {})
+        assert out["available"] is False
+        # Names the variable, and does NOT blame the subgraph.
+        assert "needs variable" in out["reason"], out
+        assert out["required"], out
+        assert "did not answer" not in out["reason"]
+
+
+def test_an_operation_that_needs_nothing_is_not_blocked(monkeypatch):
+    """The guard must not turn a fully-specified call into a refusal."""
+    from index_api import graph_proxy
+
+    monkeypatch.setattr(graph_proxy, "graph_query", lambda *a, **k: {"sellers": []})
+    monkeypatch.setattr(
+        graph_proxy, "get_settings", lambda: type("S", (), {"subgraph_url": "http://x", "graph_api_key": ""})()
+    )
+    assert graph_proxy.run("sellers", {})["available"] is True
+    assert graph_proxy.run("prints", {"index": "ACR-INF"})["available"] is True

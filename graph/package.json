@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
-  "description": "The ACR tape — prints, attestations, futures fills and mirrored x402 settlements, indexed on Arc.",
+  "description": "The ACR tape \u2014 prints, attestations, futures fills and mirrored x402 settlements, indexed on Arc.",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
     "test": "graph test",
-    "deploy": "graph deploy acr-tape",
+    "deploy": "graph deploy ethonline",
     "auth": "graph auth"
   },
   "dependencies": {

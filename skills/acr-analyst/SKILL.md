@@ -1,6 +1,6 @@
 ---
 name: acr-analyst
-description: Interrogate the ACR machine-TCA tape on The Graph in plain English — what an AI agent paid for compute, how that compares to the benchmark it could have seen, which sellers are dear, and whether a published print reproduces from public data. Use with The Graph's Subgraph MCP against the acr-tape subgraph, or with ACR's own read proxy. Triggers on: machine TCA, transaction cost analysis for agents, ACR tape, slippage vs arrival, seller rating, acr-tape subgraph, which seller overcharged.
+description: Interrogate the ACR machine-TCA tape on The Graph in plain English — what an AI agent paid for compute, how that compares to the benchmark it could have seen, which sellers are dear, and whether a published print reproduces from public data. Use with The Graph's Subgraph MCP against the ACR tape subgraph (Studio slug `ethonline`), or with ACR's own read proxy. Triggers on: machine TCA, transaction cost analysis for agents, ACR tape, slippage vs arrival, seller rating, acr-tape subgraph, which seller overcharged.
 ---
 
 # Ask the ACR tape
@@ -17,10 +17,19 @@ Two ways in. Either works; the first needs no key.
 curl -s https://acr-api-1fto.onrender.com/graph/operations
 curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
   -H 'content-type: application/json' -d '{"operation":"meta"}'
+
+# Arguments go in `variables`, NOT at the top level. `prints` and
+# `economicPrints` take `index`; `sellerDays` takes `seller`; `payerDays` takes
+# `payer`; everything else takes only the optional `first` (clamped to 200).
+curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
+  -H 'content-type: application/json' \
+  -d '{"operation":"prints","variables":{"index":"ACR-INF","first":5}}'
 ```
 
-Or point The Graph's **Subgraph MCP** at the `acr-tape` deployment and query it
-directly. This skill is the schema map you need either way.
+Or point The Graph's **Subgraph MCP** straight at the deployment — slug
+`ethonline`, `Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`, queryable at
+`https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0` — and ask it
+anything. This skill is the schema map you need either way.
 
 ## What the tape holds
 

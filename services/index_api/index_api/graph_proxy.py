@@ -15,6 +15,7 @@ shape without breaking every reader.
 from __future__ import annotations
 
 import logging
+import re
 
 from acr_core import get_settings
 from acr_tape import graph_query
@@ -119,6 +120,28 @@ OPERATIONS: dict[str, str] = {
 }
 
 
+#: Declared variables of an operation: `query Prints($index: String!, $first: Int!)`
+#: → {"index": True, "first": True} where the value is "required" (a trailing !).
+_VAR_DECL = re.compile(r"\$(\w+)\s*:\s*([^,)]+)")
+
+
+def required_vars(query: str) -> list[str]:
+    """The variables a caller MUST supply for this operation.
+
+    `first` is excluded because ``run`` always supplies it. Everything else with
+    a trailing `!` has to come from the caller, and when it did not, the
+    subgraph answered "No value provided for required variable" and this module
+    reported "the subgraph did not answer" — the OUTAGE message. A reader who
+    forgot an argument was told the tape was down.
+    """
+    header = query.split("{", 1)[0]
+    return [
+        name
+        for name, typ in _VAR_DECL.findall(header)
+        if typ.strip().endswith("!") and name != "first"
+    ]
+
+
 def run(operation: str, variables: dict | None = None) -> dict:
     """Execute an allowlisted operation. Never forwards caller-supplied text."""
     # The caller's mistake is reported before ours: an unknown operation is
@@ -131,6 +154,20 @@ def run(operation: str, variables: dict | None = None) -> dict:
             "reason": f"unknown operation {operation!r}",
             "operations": sorted(OPERATIONS),
         }
+    # Also the caller's mistake, so it is also reported before ours — and before
+    # the settings read, so the answer does not change with our deployment
+    # state. Naming the variable sends the reader to their own request;
+    # "the subgraph did not answer" (what this used to become) sends them to our
+    # status page for a typo of their own.
+    supplied = variables or {}
+    missing = [v for v in required_vars(query) if supplied.get(v) in (None, "")]
+    if missing:
+        return {
+            "available": False,
+            "reason": f"operation {operation!r} needs variable(s) {', '.join(missing)}",
+            "required": required_vars(query),
+        }
+
     s = get_settings()
     if not s.subgraph_url:
         return {"available": False, "reason": "ACR_SUBGRAPH_URL is unset"}
