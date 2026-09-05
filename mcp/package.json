@@ -1,0 +1,23 @@
+{
+  "name": "acr-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ACR Machine TCA over MCP — benchmark a machine purchase, grade a seller, verify a print.",
+  "bin": {
+    "acr-mcp": "src/server.ts"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "build": "tsc",
+    "test": "node --import tsx --test src/tools.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
