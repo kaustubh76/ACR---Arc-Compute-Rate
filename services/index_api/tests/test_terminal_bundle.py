@@ -21,6 +21,7 @@ from acr_sim import SimConfig
 from acr_tape import SimSource
 from fastapi.testclient import TestClient
 from index_api.app import app, build_terminal_payload, reset_poster, set_poster
+from index_api.fleet import FLEET
 from index_api.onchain import get_reader
 from index_api.poster import OraclePoster
 from index_api.store import PrintStore
@@ -229,7 +230,7 @@ def test_snapshot_builder_embeds_bundle_sections():
 
     # Marketplace: the live catalog builder at resource base "" + sim ledger.
     cat = payload["marketplace"]["catalog"]
-    assert cat["x402Version"] == 2 and len(cat["items"]) == 13
+    assert cat["x402Version"] == 2 and len(cat["items"]) == 13 + len(FLEET)
     assert all(i["resource"].startswith("/") for i in cat["items"])  # host-less
     # EVERY row must be honestly labelled — which is a stronger guarantee than
     # the old "row 0 is sim". The ledger now leads with the real Circle Gateway

@@ -371,7 +371,90 @@ def build_catalog(base_url: str, settings=None, registry=None) -> dict:
                 },
             }
         )
+    items.extend(_fleet_items(base, provider, s))
     return {"x402Version": X402_CATALOG_VERSION, "provider": provider, "items": items}
+
+
+#: What one fleet call returns — thin on purpose (the point is the settlement,
+#: not the payload), but declared so an agent knows before paying.
+_COMPUTE_OUTPUT = {
+    "type": "object",
+    "properties": {
+        "seller": {"type": "string"},
+        "label": {"type": "string"},
+        "index_id": {"type": "string"},
+        "unit": {"type": "string"},
+        "unit_price_usdc": {"type": "number"},
+        "quantity": {"type": "number"},
+        "amount_usdc": {"type": "number"},
+        "model_class": {"type": "string"},
+        "settlement": {
+            "type": "object",
+            "properties": {"tx_ref": {"type": "string"}, "payer": {"type": "string"}},
+        },
+    },
+}
+
+
+def _fleet_items(base: str, provider: dict, s) -> list[dict]:
+    """The seller fleet, as discoverable listings.
+
+    Without this the fleet is unreachable: a buyer agent discovers what to buy
+    from THIS catalog, and `/compute/{label}` appeared in no listing, no doc and
+    no client. The endpoints were live and tested, and nothing could ever route
+    a payment to one — so every settlement in the system kept going to the one
+    platform wallet at the one flat price, which is exactly the degenerate tape
+    the fleet was built to end. Downstream that is not a cosmetic gap: with no
+    per-seller settlement there is no unit-price dispersion, so `slippageBp` is
+    identically zero, `SellerDay`/`realVolume` stay empty and a seller rating
+    has nothing to rank.
+
+    The terms are built by the SAME `build_payment_requirements` the gate uses,
+    with the same per-listing payee and amount, so what the catalog advertises
+    and what the 402 charges cannot drift apart.
+    """
+    from .fleet import FLEET
+
+    out = []
+    for listing in FLEET.values():
+        resource = base + listing.resource
+        out.append(
+            {
+                "resource": resource,
+                "type": "http",
+                "x402Version": X402_CATALOG_VERSION,
+                "lastUpdated": _BUILT_AT,
+                "accepts": [
+                    build_payment_requirements(
+                        resource, s, pay_to=listing.seller, price=listing.amount_usdc
+                    )
+                ],
+                "metadata": {
+                    "family": "compute",
+                    "description": (
+                        f"Metered {listing.service.value.lower()} from {listing.label} "
+                        f"({listing.model_class.value}), priced per {listing.unit} and "
+                        f"settled to the seller's own wallet."
+                    ),
+                    "input": {"type": "object", "properties": {}},
+                    "output": _COMPUTE_OUTPUT,
+                    "provider": provider,
+                    # The comparison an agent needs BEFORE paying: two sellers of
+                    # the same model_class pricing the same index are the
+                    # like-for-like pair, and the cheaper one is a real choice.
+                    "seller": listing.seller,
+                    "label": listing.label,
+                    "index_id": listing.index_id,
+                    "service": listing.service.value,
+                    "model_class": listing.model_class.value,
+                    "unit": listing.unit,
+                    "unit_price_usdc": listing.unit_price_usdc,
+                    "quantity": listing.quantity,
+                    "amount_usdc": listing.amount_usdc,
+                },
+            }
+        )
+    return out
 
 
 def build_sim_receipts(n: int = 24, settings=None) -> dict:

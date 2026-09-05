@@ -48,9 +48,18 @@ def test_fallback_marketplace_section_is_usable():
     and shaped like the live endpoints."""
     snapshot = json.loads(FALLBACK.read_text())
     market = snapshot["marketplace"]
-    assert len(market["catalog"]["items"]) == 13
-    first = market["catalog"]["items"][0]
-    assert first["accepts"][0]["scheme"] == "exact"
+    # Shape, not a magic count: the live catalog gained one listing per fleet
+    # seller, and an exact number here would only say when the bundle was last
+    # regenerated. What the offline page actually needs is that every row it
+    # renders is payable-looking, so assert that of ALL of them.
+    catalog_items = market["catalog"]["items"]
+    assert len(catalog_items) >= 13, "bundled catalog is missing index resources"
+    for item in catalog_items:
+        assert item["resource"], "a catalog row with no resource renders as a dead link"
+        acc = item["accepts"][0]
+        assert acc["scheme"] == "exact"
+        assert acc["payTo"].startswith("0x")
+        assert int(acc["amount"]) > 0
     receipts = market["receipts"]["receipts"]
     assert receipts, "bundled settlement tape is empty"
     # Honestly labeled sim rows, ordinals not wall-clock (The Fixing rules).

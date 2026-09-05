@@ -14,7 +14,7 @@ import { webcrypto } from "node:crypto";
 if (!globalThis.crypto) (globalThis as unknown as { crypto: Crypto }).crypto = webcrypto as unknown as Crypto;
 
 import { AgentConfig, parseArgs } from "./config.js";
-import { fetchCatalog, pickResources } from "./catalog.js";
+import { fetchCatalog, maxAdvertisedPrice, pickResources } from "./catalog.js";
 import { DevPayer, FetchLike, GatewayPayer, Payer, PaymentResult, priceFromChallenge } from "./payer.js";
 import { printReceipt, printSummary, summarize } from "./receipts.js";
 
@@ -53,6 +53,14 @@ export async function runAgent(cfg: AgentConfig, deps: RunDeps): Promise<Payment
     log(`discovered ${items.length} listings, buying from ${targets.length}`);
     if (cfg.requireAttested && targets.length < items.length) {
       log(`  (skipped ${items.length - targets.length} unattested listings)`);
+    }
+    // Check the cap against the DEAREST listing, not the first one: the fleet
+    // prices per seller, so `targets[0]` no longer speaks for the rest.
+    const dearest = maxAdvertisedPrice(items);
+    if (dearest !== null && dearest > cfg.limitUsdc + 1e-12) {
+      throw new Error(
+        `dearest listing $${dearest} exceeds the spend cap $${cfg.limitUsdc} — nothing bought`,
+      );
     }
   } else {
     targets = cfg.paths.map((p) => `${cfg.api}${p}`);
