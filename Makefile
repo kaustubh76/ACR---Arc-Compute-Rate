@@ -385,6 +385,14 @@ graph-test:
 # The zero-address guard is not pedantry: a subgraph pointed at 0x0 indexes
 # nothing, reports no error, and serves an empty tape that reads exactly like a
 # quiet market. Fail here instead.
+#: Version label for the Studio deployment; override per release.
+VERSION ?= v0.1.0
+#: The Studio SLUG to deploy to. It must already exist — the CLI cannot create
+#: one, and Studio answers an unknown slug with a bare "Subgraph not found"
+#: that looks exactly like a bad deploy key. Create it at thegraph.com/studio,
+#: then `make graph-deploy SUBGRAPH=<slug>`.
+SUBGRAPH ?= acr-tape
+
 graph-deploy: graph-build
 	@grep -q '"0x0000000000000000000000000000000000000000"' graph/subgraph.yaml \
 	  && { echo "graph/subgraph.yaml still holds a placeholder ADDRESS."; \
@@ -395,7 +403,14 @@ graph-deploy: graph-build
 	       echo "That is not a small mistake: block 0 makes the indexer scan the whole"; \
 	       echo "chain (60M+ blocks) instead of starting at the deploy. Fill in the real"; \
 	       echo "block for every data source."; exit 1; } || true
-	cd graph && npx graph deploy acr-tape --network arc-testnet
+	# `-l` is not optional in practice: without a version label the CLI opens an
+	# interactive prompt, and the runbook's own step then hangs forever in CI or
+	# under any non-tty caller. Override with `make graph-deploy VERSION=v0.2.0`.
+	# No `--network`: that flag rewrites each source's address from networks.json,
+	# which does not exist here and, if it did, would OVERWRITE the addresses the
+	# two guards above just checked. subgraph.yaml declares arc-testnet on every
+	# data source and holds the real deploy blocks — it is the single source.
+	cd graph && npx graph deploy $(SUBGRAPH) -l $(VERSION)
 
 lint: glossary-check
 	uv run ruff check packages services scripts redteam

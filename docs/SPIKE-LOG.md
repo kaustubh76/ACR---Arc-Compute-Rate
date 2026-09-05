@@ -126,7 +126,43 @@ the subgraph reproduces until then.
 
 ## Subgraph deployment
 
-*Pending — fill on the first `make graph-deploy`.*
+### Build is deployable; the Studio record is not there yet (2026-09-05)
+
+`make graph-deploy` ran the whole path for real. Codegen, WASM compile and the
+IPFS upload all succeeded — the compiled subgraph is
+**`Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`**, six data sources, mappings
+built against the checked-in ABIs. Studio then refused the final step:
+
+```
+✖ Failed to deploy to Graph node https://api.studio.thegraph.com/deploy/: Subgraph not found.
+```
+
+Three things were learned by running it, each of which had cost a deploy:
+
+* **`--network arc-testnet` breaks the deploy.** That flag rewrites every data
+  source's address from `networks.json`, which does not exist here — and if it
+  did, it would overwrite the addresses the target's own placeholder guards had
+  just checked. `subgraph.yaml` declares the network on all six sources and
+  holds the real deploy blocks, so the flag is removed.
+* **A missing `-l` opens an interactive prompt**, so the runbook's own step
+  hangs under any non-tty caller. Now `-l $(VERSION)`, default `v0.1.0`.
+* **"Subgraph not found" does not mean the deploy key is wrong.** A control
+  deploy to a deliberately nonsense slug returns the identical message, so the
+  error cannot distinguish a bad key from a slug that was never created. The
+  slug must exist in Studio first; the CLI cannot create one.
+
+The account's subgraphs cannot be enumerated with a deploy key either —
+`authUserSubgraphs` answers `Please login first`, as does `subgraph(name:)`. So
+the slug has to come from whoever holds the browser session.
+
+Also measured: neither supplied key authenticates at the query gateway —
+`https://gateway.thegraph.com/api/<key>/subgraphs/id/…` answers `auth error: API
+key not found` for both. A Studio *development* deployment is queried at
+`https://api.studio.thegraph.com/query/<account-id>/<slug>/<version>` and does
+not need a gateway key; a gateway key becomes relevant only once the subgraph is
+published to the network.
+
+*Still to fill on the first successful deploy:*
 
 | | |
 |---|---|
