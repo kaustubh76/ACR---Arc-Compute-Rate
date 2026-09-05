@@ -21,10 +21,32 @@ from .store import PrintStore
 log = logging.getLogger("index_api.poster")
 
 
+def _build_v2_client() -> OracleClient | None:
+    """The v2 oracle client, or None when no v2 address is configured."""
+    from acr_core import get_settings
+    from acr_oracle_client.client import ORACLE_V2
+
+    s = get_settings()
+    if not getattr(s, "oracle_v2_address", ""):
+        return None
+    return OracleClient(oracle_address=s.oracle_v2_address, schema=ORACLE_V2)
+
+
 class OraclePoster:
-    def __init__(self, store: PrintStore, client: OracleClient | None = None) -> None:
+    def __init__(
+        self,
+        store: PrintStore,
+        client: OracleClient | None = None,
+        v2_client: OracleClient | None = None,
+    ) -> None:
         self.store = store
         self.client = client or OracleClient()
+        #: The v2 oracle, built from settings rather than passed in. Every entry
+        #: point that posts — the service loop and ``scripts/post_once.py`` —
+        #: constructs an ``OraclePoster`` the same way, so building it here means
+        #: there is no path where one of them dual-posts and the other silently
+        #: does not. None until ``ACR_ORACLE_V2_ADDRESS`` is set.
+        self.v2 = v2_client if v2_client is not None else _build_v2_client()
         self.posts = 0
         #: Per-index provenance of the latest post attempt — {tx, block, at_wall}
         #: from the client's receipt on success; a "offline"/"error" note otherwise.
@@ -77,6 +99,24 @@ class OraclePoster:
                                         "block": rcpt.get("block"),
                                         "at_wall": time.time()}
             self.posts += 1
+
+            # --- the v2 mirror, deliberately ASYMMETRIC -----------------------
+            # v1 is the venue's feed: ACRFutures.settle() refuses a print older
+            # than two hours and its oracle pointer is immutable, so a stale v1
+            # strands collateral in every expired series. v2 is the tape's
+            # feed: a gap there only makes the arrival ring sparse, which the
+            # subgraph already reports honestly as `benchmarked: false`.
+            #
+            # So a v1 failure aborts this index's cycle (above, unchanged) and a
+            # v2 failure is recorded and stepped over. A tape problem must never
+            # be able to stop the press.
+            if self.v2 is not None:
+                try:
+                    v2_tx = self.v2.post(p)
+                    self.last_posts[iid]["v2"] = v2_tx or "offline"
+                except Exception as exc:  # noqa: BLE001 — the reason, not the trace
+                    log.warning("v2 post failed for %s: %s", iid, str(exc)[:160])
+                    self.last_posts[iid]["v2"] = f"error: {str(exc)[:80]}"
         return refs
 
     def post_once(self, ts: float | None = None) -> list[str]:

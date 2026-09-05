@@ -28,10 +28,12 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from . import ratelimit
+from . import graph_proxy, ratelimit
+from .fleet import fleet_summary, listing_for
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
+from .tca import payer_tca, seller_rating
 from .x402 import (
     PAY_TO,
     CircleFacilitator,
@@ -283,6 +285,10 @@ async def _warm_chain(stop: asyncio.Event) -> None:
                 # /futures, the endpoint the venue's liveness is judged by.
                 await asyncio.to_thread(futures.recent_trades, use_cache=False)
                 await _run_keeper(futures)
+            # OUTSIDE the futures guard, deliberately. Mirroring settlements has
+            # no venue dependency, and a deployment with no ACR_FUTURES_ADDRESS
+            # would otherwise stop feeding the tape without ever saying so.
+            await _run_mirror()
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
 
@@ -316,6 +322,27 @@ async def _ops_loop(stop: asyncio.Event) -> None:
             await asyncio.wait_for(stop.wait(), timeout=ops.OPS_VERIFY_S)
         except TimeoutError:
             pass
+
+
+async def _run_mirror() -> None:
+    """The mirror chore, on its own call site.
+
+    Same containment as the venue chores — a failure is recorded and logged, and
+    never propagates into the warm loop, because the tape falling behind must
+    not be able to stop the press.
+    """
+    from . import keeper
+
+    if not keeper.enabled():
+        return
+    try:
+        verdict = await asyncio.to_thread(keeper.mirror_once)
+        keeper.record("mirror", verdict)
+        if verdict:
+            log.info("keeper mirror: %s", verdict)
+    except Exception as exc:  # pragma: no cover - a chore must never cost a beat
+        keeper.record("mirror", f"failed: {exc}")
+        log.warning("keeper mirror failed", exc_info=True)
 
 
 async def _run_keeper(futures) -> None:
@@ -484,6 +511,18 @@ GATED_ENDPOINTS = [
     "/vol/{index_id}",
     "/seller-scores/{index_id}",
 ]
+
+
+def require_known_seller(label: str) -> str:
+    """404 for an unknown fleet seller, for the same reason as the index guard
+    below: a Circle settlement is irrevocable, so a buyer must never be able to
+    pay for a seller that does not exist. Without this the 402 fires first, the
+    payment settles to the PLATFORM wallet (the fleet lookup having found
+    nothing to override it), and the request then 404s — money taken for a
+    resource that was never going to answer."""
+    if listing_for(label) is None:
+        raise HTTPException(status_code=404, detail=f"unknown seller {label}")
+    return label
 
 
 def require_known_index(index_id: str) -> str:
@@ -795,6 +834,98 @@ def seller_scores(
 ) -> dict:
     return {"index_id": index_id, "sellers": store.seller_scores(index_id),
             "provenance": provenance()}
+
+
+@app.post("/graph/query")
+def graph_proxy_query(body: dict, request: Request) -> dict:
+    """Read the tape through ACR's Studio key, over an allowlist of operations.
+
+    Not a passthrough: the query text lives server-side and the caller names an
+    operation. A proxy that forwarded arbitrary GraphQL would be the API key
+    with extra steps — anyone could spend our quota on nested queries, or relay
+    through us to a different subgraph entirely.
+
+    Rate-limited on IDENTITY where one is offered, not only on host: every
+    browser reader arrives through the same edge proxy, so an IP-keyed limit is
+    a global limit wearing a per-person costume (see ratelimit.py).
+    """
+    ident = str(body.get("as") or "").strip() or None
+    ratelimit.check(request, "graph", ident=ident)
+    return graph_proxy.run(
+        str(body.get("operation") or ""), body.get("variables") or {}
+    )
+
+
+@app.get("/graph/operations")
+def graph_operations() -> dict:
+    """What the proxy will run — the tape's public read API, named."""
+    return {"operations": sorted(graph_proxy.OPERATIONS), "max_first": graph_proxy.MAX_FIRST}
+
+
+@app.get("/tca/{payer}")
+def tca(payer: str, days: int = 7) -> dict:
+    """What this payer's purchases cost against the benchmark they could see.
+
+    Ungated like the rest of the marketplace surfaces: a benchmark nobody can
+    check for free is a benchmark nobody checks.
+    """
+    return payer_tca(payer, days=days)
+
+
+@app.get("/rating/{seller}")
+def rating(seller: str, days: int = 7) -> dict:
+    """Grade a seller from the same tape, with `n` and the synthetic share on
+    every card so a reader can discount it without being told to."""
+    return seller_rating(seller, days=days)
+
+
+@app.get("/fleet")
+def fleet_listings() -> dict:
+    """The seller fleet and its price spread — ungated, like the catalog.
+
+    The spread IS the point. Before the fleet, every settlement in the system
+    paid one wallet one flat price, so no payer could have paid more than
+    another and transaction-cost analysis had nothing to measure. Published
+    openly so anyone can see what a buyer could have chosen between, and check a
+    reroute suggestion against it themselves.
+    """
+    return {
+        "listings": fleet_summary(),
+        "note": (
+            "Unit prices differ by seller. Compare only within a model_class — "
+            "across classes the difference is quality, which the hedonic stage "
+            "adjusts away, not overcharging."
+        ),
+        "provenance": provenance(),
+    }
+
+
+@app.get("/compute/{label}")
+def compute(
+    label: str = Depends(require_known_seller),
+    receipt: PaymentReceipt = Depends(require_payment),
+) -> dict:
+    """A fleet seller's metered endpoint — the thing that produces a priced tape.
+
+    The response is deliberately thin: this exists to make a REAL Gateway
+    settlement happen at a REAL per-seller unit price, which is the input TCA
+    needs. It returns the terms it just charged so a buyer can reconcile its own
+    receipt without trusting ours.
+    """
+    listing = listing_for(label)
+    assert listing is not None  # require_known_seller ran first
+    return {
+        "seller": listing.seller,
+        "label": listing.label,
+        "index_id": listing.index_id,
+        "unit": listing.unit,
+        "unit_price_usdc": listing.unit_price_usdc,
+        "quantity": listing.quantity,
+        "amount_usdc": listing.amount_usdc,
+        "model_class": listing.model_class.value,
+        "settlement": {"tx_ref": receipt.tx_ref, "payer": receipt.payer},
+        "provenance": provenance(),
+    }
 
 
 @app.get("/marketplace/catalog")
