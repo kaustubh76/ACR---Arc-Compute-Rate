@@ -52,6 +52,7 @@ jobs:
           uv run pytest services/index_api/tests/test_desk_onchain.py \
             services/index_api/tests/test_futures_roll_onchain.py \
             packages/acr_oracle_client/tests/test_onchain.py \
+            packages/acr_oracle_client/tests/test_mirror_onchain.py \
             -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
           # A skip is the failure mode that matters here: these suites skip
           # silently without a node, which is exactly how a broken one stayed
@@ -122,3 +123,48 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: apps/terminal
+
+  subgraph:
+    # The tape's mappings. `graph build` is itself the schema gate — it rejects
+    # a malformed manifest, an aggregation arg naming a field that does not
+    # exist, or a non-numeric aggregated field — and matchstick pins the
+    # arithmetic the mappings do. Hermetic: no Studio key, no RPC, no chain.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: graph
+      - name: Codegen
+        run: npx graph codegen
+        working-directory: graph
+      - name: Build
+        run: npx graph build
+        working-directory: graph
+      - name: Tests
+        run: npx graph test
+        working-directory: graph
+
+  mcp:
+    # The plugin is a thin HTTP client by design, so its tests are about the
+    # tool contract: that it forwards an operation NAME and never caller-supplied
+    # query text, and that "no suggestion" stays distinguishable from "the tape
+    # was unreadable".
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: mcp
+      - name: Type-check
+        run: npx tsc --noEmit
+        working-directory: mcp
+      - name: Tests
+        run: npm test
+        working-directory: mcp

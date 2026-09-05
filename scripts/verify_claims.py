@@ -163,6 +163,19 @@ def measured_glossary() -> int | None:
     return int(m.group(1)) if m else None
 
 
+def measured_matchstick() -> int | None:
+    """The subgraph mappings' own suite.
+
+    A fifth measurement rather than a fifth column across seven docs: the file
+    already argues that a claim should be parsed out of the docs rather than
+    carried twice, and the same logic says one new checker beats one new number
+    in every deck. Costly — `graph test` compiles WASM — so CLAIMS_FAST skips it.
+    """
+    out = run(["npx", "graph", "test"], cwd=ROOT / "graph")
+    m = re.search(r"All (\d+) tests passed", out)
+    return int(m.group(1)) if m else None
+
+
 def measured_ci_jobs() -> int:
     """Jobs in ci.yml — top-level keys under `jobs:`, counted from the file so a
     new job shows up here without anyone remembering to say so."""
@@ -212,6 +225,10 @@ def main() -> None:
         ("forge suite", r"\*\*(\d+) passed\*\*.*?oracle", measured_forge,
          (("SUBMISSION", sub),), True),
         ("terminal suite", r"\*\*(\d+)/\d+ node tests\*\*", measured_terminal,
+         (("SUBMISSION", sub),), True),
+        # The subgraph mappings are the Graph track's whole claim; a suite that
+        # nothing measures is a suite that quietly stops running.
+        ("subgraph suite", r"\*\*(\d+) matchstick\*\*", measured_matchstick,
          (("SUBMISSION", sub),), True),
     ):
         stated = [(name, c) for name, t in texts if (c := claim(t, pattern)) is not None]
@@ -434,10 +451,16 @@ def main() -> None:
     from acr_core import get_settings
 
     s = get_settings()
+    # Every contract the service is CONFIGURED to talk to, not a chosen three:
+    # a live address nobody's docs name is exactly the drift this gate exists to
+    # catch, and the attestor sat outside it for months.
     for label, addr in (
         ("oracle", s.oracle_address),
+        ("oracle v2", getattr(s, "oracle_v2_address", "")),
         ("registry", s.registry_address),
         ("futures venue", s.futures_address),
+        ("feed-access attestor", s.attestor_address),
+        ("receipt mirror", getattr(s, "receipt_mirror_address", "")),
     ):
         if not addr:
             continue
