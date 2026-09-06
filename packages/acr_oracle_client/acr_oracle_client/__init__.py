@@ -18,6 +18,16 @@ from .futures import (
     descale_series,
     select_series_for_index,
 )
+from .humanid import (
+    HUMANID_ABI,
+    RATING_WINDOW_S,
+    HumanIdMirrorClient,
+    as_bytes32,
+    cluster_id,
+    current_window,
+    salt_commitment,
+    window_of,
+)
 from .mirror import (
     MIRROR_ABI,
     MirrorClient,
@@ -61,6 +71,14 @@ __all__ = [
     "descale_series",
     "descale_position",
     "select_series_for_index",
+    "RATING_WINDOW_S",
+    "HumanIdMirrorClient",
+    "HUMANID_ABI",
+    "cluster_id",
+    "salt_commitment",
+    "window_of",
+    "current_window",
+    "as_bytes32",
     "Signer",
     "LocalKeySigner",
     "CircleWalletSigner",

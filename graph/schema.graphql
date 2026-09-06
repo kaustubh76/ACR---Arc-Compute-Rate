@@ -182,7 +182,25 @@ type Settlement @entity(immutable: true) {
 
 type Payer @entity(immutable: false) {
   id: Bytes!
-  humanId: Bytes
+  """
+  This wallet's grouping key for `clusterWindow` — window-rotated, and never a
+  World ID nullifier. Null until a resolution lands, and null again once the
+  window rolls: a cluster only means anything inside the window it was minted for.
+  """
+  cluster: HumanCluster
+  clusterWindow: BigInt
+  """
+  The resolution arrived after this payer had already settled.
+
+  `Settlement.human` is stamped at finalize and the entity is immutable, so those
+  earlier settlements stay non-human forever and this payer's human volume is
+  understated for good. A FLAG, not a repair — repairing the count while the
+  rollups it must agree with cannot be repaired would produce two numbers that
+  contradict each other. Resolve humans BEFORE generating tape.
+  """
+  resolvedLate: Boolean!
+  "The rotation window this payer most recently settled in. Null until it settles."
+  lastSettledWindow: BigInt
   totalVolume: BigInt!
   benchmarkedVolume: BigInt!
   "Sum of amount * slippageTenthBp over benchmarked settlements; / benchmarkedVolume / 10 = vw bp."
@@ -204,11 +222,11 @@ type Seller @entity(immutable: false) {
   settlementCount: Int!
   syntheticVolume: BigInt!
   distinctPayers: Int!
-  distinctHumans: Int!
   firstSeen: BigInt!
   lastSeen: BigInt!
   attestations: [Attestation!]! @derivedFrom(field: "seller")
   settlements: [Settlement!]! @derivedFrom(field: "seller")
+  windows: [SellerWindow!]! @derivedFrom(field: "seller")
 }
 
 "Set membership for distinctPayers — an entity because a mapping cannot hold state between handlers."
@@ -216,6 +234,69 @@ type SellerPayerLink @entity(immutable: true) {
   id: Bytes!                    # seller ++ payer
   seller: Seller!
   payer: Payer!
+}
+
+"""
+One verified human, inside one rotation window.
+
+The id is `keccak256(nullifier, salt, window)`, computed off-chain and recorded by
+`HumanIdMirror`. Within a window it groups a person's wallets; across windows it
+changes, so the durable World ID never reaches the chain and this tape cannot be
+joined to another service's data keyed by the same human.
+
+It does NOT make a fleet unlinkable: wallets are the join key and they do not
+rotate, so a wallet seen under two windows chains them together. What rotation
+prevents is cross-service correlation. HumanIdMirror.sol carries the full
+argument, and the README states the limit rather than implying it away.
+"""
+type HumanCluster @entity(immutable: false) {
+  id: Bytes!                    # the cluster id
+  window: BigInt!
+  """
+  A World ID Sandbox identity rather than an Orb-verified person.
+
+  On the tape rather than in a config file, for the same reason
+  `Settlement.synthetic` is: a demo identity is not a person, and a benchmark
+  that counted one silently would be claiming security it does not have. A
+  reader discounts it from the tape itself, without having to trust the operator.
+  """
+  sandbox: Boolean!
+  walletCount: Int!
+  firstSeen: BigInt!
+  wallets: [Payer!]! @derivedFrom(field: "cluster")
+}
+
+"""
+A seller's rotation window — the bucket distinct COUNTS live in.
+
+Volumes roll up daily (`SellerDay`) because sums are associative. Counts of
+distinct things are not: one human appearing on three days is one human, so a
+count cannot be summed across day buckets the way volume can. They are kept per
+ROTATION window instead — the same span a cluster id is minted for and the same
+span the seller rating is computed over, so "distinct clusters here" IS "distinct
+humans", exactly, with no double counting to correct for.
+"""
+type SellerWindow @entity(immutable: false) {
+  id: String!                   # "<seller>-<window>"
+  seller: Seller!
+  window: BigInt!
+  windowStart: BigInt!          # unix seconds at the window boundary
+  volume: BigInt!               # USDC 1e6
+  humanVolume: BigInt!          # volume from wallets resolved in THIS window
+  distinctPayers: Int!
+  distinctHumans: Int!
+  "How many of `distinctHumans` are Sandbox identities. Equal to it means the whole count is demo."
+  sandboxHumans: Int!
+}
+
+"Set membership for SellerWindow.distinctPayers."
+type SellerWindowPayer @entity(immutable: true) {
+  id: String!                   # "<seller>-<window>-<payer>"
+}
+
+"Set membership for SellerWindow.distinctHumans. Keyed on the cluster, which already encodes its window."
+type SellerWindowHuman @entity(immutable: true) {
+  id: String!                   # "<seller>-<cluster>"
 }
 
 type Attestation @entity(immutable: true) {

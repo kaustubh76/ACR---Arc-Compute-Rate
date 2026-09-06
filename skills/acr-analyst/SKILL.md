@@ -127,7 +127,7 @@ pooling it back in would flatter every seller grade.
 
 **A rating is not a market verdict.** Every rating carries `n`, the synthetic
 share, and `weight_covered_pct` — the share of the published methodology the
-grade actually rests on. Components with no data yet (cleanliness, human depth)
+grade actually rests on. Components with no data yet (cleanliness)
 are excluded from the weighting rather than scored zero. So today a grade rests
 on **55%** of the published weights for an attested seller, and 40% for one that
 has never attested — never 100%. Quote the coverage with the letter.

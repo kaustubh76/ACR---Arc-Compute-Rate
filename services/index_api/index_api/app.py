@@ -30,10 +30,18 @@ from pydantic import BaseModel
 
 from . import graph_proxy, ratelimit
 from .fleet import fleet_summary, listing_for
+from .humanid import (
+    AgentKitVerifier,
+    HumanProof,
+    HumanProofRequired,
+    HumanVerifier,
+    get_verifier,
+    require_human,
+)
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
-from .tca import payer_tca, seller_rating
+from .tca import RATING_WINDOW_DAYS, human_tca, payer_tca, seller_rating
 from .x402 import (
     PAY_TO,
     CircleFacilitator,
@@ -502,6 +510,18 @@ if _cors:
     )
 
 
+@app.exception_handler(HumanProofRequired)
+async def _human_proof_required_handler(request, exc: HumanProofRequired):
+    """Render the 401 challenge: the nonce to sign and what to sign it for.
+
+    401, not 403 — the caller is unauthenticated rather than forbidden, and
+    `WWW-Authenticate` is how a client is told what to present.
+    """
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=exc.status_code, content=exc.body, headers=exc.headers)
+
+
 @app.exception_handler(PaymentRequired)
 async def _payment_required_handler(request, exc: PaymentRequired):
     """Render the 402 challenge as its Gateway-shaped x402 JSON body
@@ -554,6 +574,9 @@ def root() -> dict:
         },
         "gated_endpoints": GATED_ENDPOINTS,
         "marketplace": {"catalog": "/marketplace/catalog", "receipts": "/marketplace/receipts"},
+        # Not in `gated_endpoints`: that list means "x402 paid", and this one is
+        # gated by a human proof rather than by money.
+        "human": {"tca": "/tca/human", "info": "/humanid/info"},
     }
 
 
@@ -872,6 +895,51 @@ def graph_proxy_query(body: dict, request: Request) -> dict:
 def graph_operations() -> dict:
     """What the proxy will run — the tape's public read API, named."""
     return {"operations": sorted(graph_proxy.OPERATIONS), "max_first": graph_proxy.MAX_FIRST}
+
+
+@app.get("/humanid/info")
+def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
+    """The human-proof gate, described dynamically (ungated).
+
+    Reports the backend honestly, including that demo identities are Sandbox
+    ones rather than Orb-verified people — the limit of what "verified human"
+    means in this deployment, stated where a reader will actually see it.
+    """
+    s = get_settings()
+    return {
+        "backend": "agentkit" if isinstance(verifier, AgentKitVerifier) else "dev",
+        "sandbox": s.humanid_sandbox,
+        "app_id": s.humanid_app_id or None,
+        "proof_header": "HUMAN-PROOF",
+        "rotation_window_days": RATING_WINDOW_DAYS,
+        # None when there is nothing to compare against; False is a
+        # misconfiguration that would otherwise read as "this human never traded".
+        "salt_matches_commitment": verifier.salt_ok(),
+        "verified_proofs": verifier.verified,
+    }
+
+
+# REGISTERED BEFORE `/tca/{payer}` ON PURPOSE. FastAPI matches in declaration
+# order, so with the parametrized route first this path would bind `payer` to the
+# literal string "human" and quietly return a TCA for a wallet that cannot exist.
+@app.get("/tca/human")
+def tca_human(
+    request: Request,
+    days: int = 7,
+    proof: HumanProof = Depends(require_human),
+) -> dict:
+    """This human's purchases, unioned across every wallet resolved to them.
+
+    The proof is not what makes this free — `/tca/{payer}` is ungated too. It is
+    what makes the aggregation safe to offer: without it this endpoint would take
+    a cluster id, and anyone passing one could enumerate a stranger's whole
+    wallet fleet. There is no request shape here that returns someone else's.
+    """
+    # Per-human, not per-IP: a shared proxy makes an IP-keyed limit a global one.
+    # The nullifier is hashed rather than used raw — `ratelimit.py` keeps bearer
+    # credentials out of its key table, and this is the more sensitive one.
+    ratelimit.check(request, "humanid", ratelimit.session_ident(proof.nullifier))
+    return human_tca(proof.cluster, proof.window, days=days)
 
 
 @app.get("/tca/{payer}")

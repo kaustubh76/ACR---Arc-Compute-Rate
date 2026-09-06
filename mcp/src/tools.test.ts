@@ -96,3 +96,86 @@ test("an unknown tool names the ones that exist", async () => {
   const out = (await callTool("nope", {}, { fetchImpl: fake({}) })) as { tools: string[] };
   assert.ok(out.tools.includes("my_tca"));
 });
+
+/** The human gate: a 401 carrying a nonce, then the answer. */
+function humanGate(union: unknown, seen: Array<{ url: string; headers?: Record<string, string> }> = []) {
+  let calls = 0;
+  return async (url: string, init?: { headers?: Record<string, string> }) => {
+    seen.push({ url, headers: init?.headers });
+    calls += 1;
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "human proof required", nonce: "n0nce" }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => union };
+  };
+}
+
+test('my_tca("me") answers the challenge rather than reusing a static credential', async () => {
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  const out = await callTool(
+    "my_tca",
+    { target: "me", days: 7 },
+    {
+      api: "https://acr.test",
+      fetchImpl: humanGate({ available: true, human: { wallet_count: 3 } }, seen),
+      nullifier: "0xnull",
+    },
+  );
+  assert.deepEqual(out, { available: true, human: { wallet_count: 3 } });
+  // Two calls: take a challenge, then answer THAT nonce. The nonce is
+  // single-use, so a credential held across calls would stop working.
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].url, "https://acr.test/tca/human?days=7");
+  assert.equal(seen[1].headers?.["HUMAN-PROOF"], "humanid 0xnull:n0nce");
+});
+
+test('my_tca("me") sends the credential in a header, never in the URL', async () => {
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  await callTool(
+    "my_tca",
+    { target: "me" },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen), nullifier: "0xsecret" },
+  );
+  for (const call of seen) {
+    assert.ok(!call.url.includes("0xsecret"), "a nullifier in a URL lands in every access log");
+  }
+});
+
+test('my_tca("me") says why it cannot answer, rather than looking unverified-but-fine', async () => {
+  const out = (await callTool(
+    "my_tca",
+    { target: "me" },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }) },
+  )) as { available: boolean; reason: string };
+  assert.equal(out.available, false);
+  // An AgentKit proof comes from the agent's own World credential; the plugin
+  // cannot mint one, and pretending otherwise would be the failure.
+  assert.match(out.reason, /cannot be created here/);
+});
+
+test('my_tca with an address does not touch the human gate', async () => {
+  const seen: string[] = [];
+  await callTool(
+    "my_tca",
+    { target: "0xabc" },
+    { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: true } }, seen) },
+  );
+  assert.equal(seen[0], "GET https://acr.test/tca/0xabc?days=7");
+});
+
+test('reroute_suggestion("me") reroutes the fleet as one book', async () => {
+  const out = await callTool(
+    "reroute_suggestion",
+    { target: "me" },
+    {
+      api: "https://acr.test",
+      fetchImpl: humanGate({ available: true, reroute: { from: "0xdear", to: "0xcheap" } }),
+      nullifier: "0xnull",
+    },
+  );
+  assert.deepEqual(out, { from: "0xdear", to: "0xcheap" });
+});

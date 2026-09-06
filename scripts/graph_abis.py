@@ -30,6 +30,7 @@ CONTRACTS = {
     "FeedAccessAttestor": "FeedAccessAttestor.sol/FeedAccessAttestor.json",
     "ReceiptMirror": "ReceiptMirror.sol/ReceiptMirror.json",
     "ACROracleV2": "ACROracleV2.sol/ACROracleV2.json",
+    "HumanIdMirror": "HumanIdMirror.sol/HumanIdMirror.json",
 }
 
 

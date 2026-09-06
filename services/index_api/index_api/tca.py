@@ -24,6 +24,7 @@ import logging
 import time
 
 from acr_core import get_settings
+from acr_oracle_client.humanid import RATING_WINDOW_S, current_window
 from acr_tape import graph_query
 
 log = logging.getLogger("index_api.tca")
@@ -31,6 +32,13 @@ log = logging.getLogger("index_api.tca")
 #: Below this many benchmarked settlements a grade is noise. "Unrated (thin
 #: tape)" is an honest answer; a letter derived from nine fills is not.
 MIN_RATED_N = 20
+
+#: The human-cluster rotation period, re-exported from the one Python definition
+#: in `acr_oracle_client.humanid` — the resolver and this layer must agree to the
+#: second, and two constants that must match are one constant with extra steps.
+#: Pinned against the Solidity and AssemblyScript copies by
+#: tests/test_human_window_parity.py.
+RATING_WINDOW_DAYS = RATING_WINDOW_S // 86400
 
 #: Rating weights, per the published methodology. Components that no data
 #: supports yet are marked unavailable and their weight is EXCLUDED from the
@@ -55,8 +63,11 @@ query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!) {
     n nAll nStale b0 b1 b2 b3 b4 b5 b6
   }
   seller(id: $sellerId) {
-    id distinctPayers distinctHumans totalVolume benchmarkedVolume settlementCount
+    id distinctPayers totalVolume benchmarkedVolume settlementCount
     latestAttestation { modelClass latencySloMs timestamp blockTime }
+  }
+  sellerWindow(id: $windowId) {
+    window distinctPayers distinctHumans sandboxHumans volume humanVolume
   }
 }
 """
@@ -76,6 +87,30 @@ query PayerDays($payer: Bytes!, $since: Int!) {
 """
 
 
+_HUMAN_CLUSTER = """
+query HumanCluster($cluster: ID!) {
+  humanCluster(id: $cluster) {
+    id window walletCount
+    wallets { id }
+  }
+}
+"""
+
+_HUMAN_DAYS = """
+query HumanDays($payers: [Bytes!]!, $since: Int!) {
+  payerDays(where: { payer_in: $payers, day_gte: $since }, orderBy: day, orderDirection: desc, first: 800) {
+    day spent bmSpent wSlipTenthBp overpay n nAll
+  }
+  settlements(
+    where: { payer_in: $payers, benchmarked: true }
+    orderBy: settledAt orderDirection: desc first: 2000
+  ) {
+    seller { id } amount slippageTenthBp synthetic index
+  }
+}
+"""
+
+
 def _cfg() -> tuple[str, str]:
     s = get_settings()
     return s.subgraph_url, s.graph_api_key
@@ -83,6 +118,11 @@ def _cfg() -> tuple[str, str]:
 
 def _unavailable(reason: str) -> dict:
     return {"available": False, "reason": reason, "source": "subgraph"}
+
+
+def _window_now() -> int:
+    """The rotation window in progress — the bucket distinct-human counts live in."""
+    return current_window()
 
 
 def _day_now() -> int:
@@ -138,7 +178,12 @@ def seller_rating(seller: str, days: int = 7) -> dict:
     data = graph_query(
         url,
         _SELLER_DAYS,
-        {"seller": seller.lower(), "sellerId": seller.lower(), "since": _day_now() - days},
+        {
+            "seller": seller.lower(),
+            "sellerId": seller.lower(),
+            "since": _day_now() - days,
+            "windowId": f"{seller.lower()}-{_window_now()}",
+        },
         key,
     )
     if not data:
@@ -158,6 +203,10 @@ def seller_rating(seller: str, days: int = 7) -> dict:
     vw = _vw_bp(w_slip, bm_volume)
     p50 = _p50_bp(buckets)
     synthetic_share = (synth / volume) if volume else None
+    # Volume IS summable across rotation windows even though distinct-human
+    # counts are not, so this stays answerable over any span the caller asks for
+    # — including the longer ones where `human_depth` has to decline.
+    human_share = (human_volume / volume) if volume else None
 
     components: dict[str, dict] = {}
 
@@ -181,17 +230,46 @@ def seller_rating(seller: str, days: int = 7) -> dict:
         "reason": "no re-derived wash flags on the tape yet (needs policyHash on chain)",
     }
 
-    # Human depth — needs AgentBook humanIds, which nothing resolves yet.
-    if entity.get("distinctHumans"):
-        depth = int(entity["distinctHumans"]) / max(1, int(entity.get("distinctPayers") or 1))
+    # Human depth — counted over ONE rotation window, never summed across them.
+    # A cluster id is minted per window, so the same human carries a different id
+    # in each: adding the counts up would multiply one person into several. That
+    # is also why a longer request is refused rather than served — blending a 30d
+    # fairness with a 7d human depth is a methodology smell wearing a number.
+    win = data.get("sellerWindow") or {}
+    win_humans = int(win.get("distinctHumans") or 0)
+    if days > RATING_WINDOW_DAYS:
         components["human_depth"] = {
-            "available": True, "score": round(min(1.0, depth), 4),
-            "distinct_humans": int(entity["distinctHumans"]),
-            "human_volume_share": round(human_volume / volume, 4) if volume else None,
+            "available": False,
+            "reason": (
+                f"human depth is counted over one {RATING_WINDOW_DAYS}d rotation window "
+                f"and cannot be summed across windows; asked for {days}d"
+            ),
+        }
+    elif win_humans > 0:
+        win_payers = max(1, int(win.get("distinctPayers") or 1))
+        win_volume = int(win.get("volume") or 0)
+        win_human_volume = int(win.get("humanVolume") or 0)
+        win_sandbox = int(win.get("sandboxHumans") or 0)
+        components["human_depth"] = {
+            "available": True,
+            "score": round(min(1.0, win_humans / win_payers), 4),
+            "distinct_humans": win_humans,
+            "distinct_payers": win_payers,
+            # Every human count carries how much of it is demo, for the same
+            # reason every rating carries its synthetic share: a number that
+            # cannot be discounted invites being read as more than it is.
+            "sandbox_humans": win_sandbox,
+            "sandbox_share": round(win_sandbox / win_humans, 4) if win_humans else None,
+            "human_volume_share": (
+                round(win_human_volume / win_volume, 4) if win_volume else None
+            ),
+            "window": int(win.get("window") or _window_now()),
+            "window_days": RATING_WINDOW_DAYS,
         }
     else:
         components["human_depth"] = {
-            "available": False, "reason": "no humanId resolutions on the tape yet"
+            "available": False,
+            "reason": "no human resolutions on the tape for this window",
         }
 
     att = entity.get("latestAttestation")
@@ -222,6 +300,7 @@ def seller_rating(seller: str, days: int = 7) -> dict:
         "n_all": n_all,
         "volume_usdc": volume / 1e6,
         "synthetic_share": None if synthetic_share is None else round(synthetic_share, 4),
+        "human_share": None if human_share is None else round(human_share, 4),
         "grade": _grade(score) if rated else "Unrated",
         "unrated_reason": None if rated else f"thin tape (n={n} < {MIN_RATED_N})",
         "score": None if score is None else round(score, 4),
@@ -256,6 +335,18 @@ def payer_tca(payer: str, days: int = 7) -> dict:
     if not data:
         return _unavailable("the subgraph did not answer")
 
+    return {**_card(data, days), "payer": payer}
+
+
+def _card(data: dict, days: int) -> dict:
+    """Fold day rollups and settlements into the TCA shape both views return.
+
+    Shared by the per-wallet and per-human surfaces so a fleet is aggregated by
+    exactly the same arithmetic as a single payer — and, more to the point, so
+    the reroute sees the fleet as ONE book. Unioning several finished TCA cards
+    afterwards would rank each wallet's sellers separately and could recommend a
+    move the fleet as a whole had already made.
+    """
     rows = data.get("payerDays") or []
     spent = sum(int(r["spent"]) for r in rows)
     bm_spent = sum(int(r["bmSpent"]) for r in rows)
@@ -264,7 +355,6 @@ def payer_tca(payer: str, days: int = 7) -> dict:
     n = sum(int(r["n"]) for r in rows)
     n_all = sum(int(r["nAll"]) for r in rows)
 
-    # Per-seller breakdown, from the payer's own settlements.
     per_seller: dict[str, dict] = {}
     for st in data.get("settlements") or []:
         sid = str(st["seller"]["id"])
@@ -291,20 +381,59 @@ def payer_tca(payer: str, days: int = 7) -> dict:
         })
     breakdown.sort(key=lambda b: (b["vw_slippage_bp"] is None, -(b["vw_slippage_bp"] or 0)))
 
+    vw_total = _vw_bp(w_slip, bm_spent)
     return {
         "available": True,
         "source": "subgraph",
-        "payer": payer,
         "window_days": days,
         "purchases": n_all,
         "benchmarked": n,
         "spent_usdc": spent / 1e6,
-        "vw_slippage_bp": None if _vw_bp(w_slip, bm_spent) is None
-        else round(_vw_bp(w_slip, bm_spent), 1),
+        "vw_slippage_bp": None if vw_total is None else round(vw_total, 1),
         "overpaid_usdc": overpay / 1e6,
         "by_seller": breakdown,
         "reroute": _reroute(breakdown),
     }
+
+
+def human_tca(cluster: str, window: int, days: int = 7) -> dict:
+    """One TCA across every wallet a verified human is resolved to.
+
+    Takes a CLUSTER, never a wallet list: the caller proved a nullifier and the
+    cluster was derived from it, so there is no request shape that asks for
+    somebody else's fleet. The wallet set is read from the public tape for the
+    duration of this query and is not returned — the caller already knows their
+    own wallets, and a response that enumerated them would hand a fleet to anyone
+    who later saw it.
+    """
+    url, key = _cfg()
+    if not url:
+        return _unavailable("ACR_SUBGRAPH_URL is unset")
+    if days > RATING_WINDOW_DAYS:
+        # A cluster is minted per rotation window, so the wallet set behind it
+        # describes THIS window. Reaching further back would union today's fleet
+        # over a period it may not have been the fleet for.
+        return _unavailable(
+            f"a human's wallet set is resolved per {RATING_WINDOW_DAYS}d rotation "
+            f"window and cannot describe a longer one; asked for {days}d"
+        )
+
+    found = graph_query(url, _HUMAN_CLUSTER, {"cluster": cluster.lower()}, key)
+    if not found:
+        return _unavailable("the subgraph did not answer")
+    entity = found.get("humanCluster") or {}
+    wallets = [str(w["id"]) for w in (entity.get("wallets") or [])]
+    human = {"cluster": cluster, "window": window, "wallet_count": len(wallets)}
+    if not wallets:
+        # Distinguishable from "no trades": this human has no wallets on the tape
+        # for this window at all, which usually means the resolver has not run.
+        return {**_unavailable("no wallets are resolved to this human in this window"),
+                "human": human}
+
+    data = graph_query(url, _HUMAN_DAYS, {"payers": wallets, "since": _day_now() - days}, key)
+    if not data:
+        return {**_unavailable("the subgraph did not answer"), "human": human}
+    return {**_card(data, days), "human": human}
 
 
 def _reroute(breakdown: list[dict]) -> dict | None:

@@ -112,6 +112,62 @@ def test_unsupported_components_are_excluded_from_the_weight_not_scored_zero(mon
     assert r["grade"] in {"A", "B", "C", "D"}
 
 
+def _seller_window(**over) -> dict:
+    win = {"window": 2951, "distinctPayers": 2, "distinctHumans": 1,
+           "volume": "1000000", "humanVolume": "500000"}
+    win.update(over)
+    return win
+
+
+def test_human_depth_counts_a_fleet_once(monkeypatch):
+    """Two wallets, one verified human. The component's whole reason to exist is
+    that those are different numbers — a seller that has met one person is not
+    one that has met two."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day(humanVolume="500000")],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(),
+    })
+    r = tca_mod.seller_rating(SELLER)
+    depth = r["components"]["human_depth"]
+    assert depth["available"] is True
+    assert depth["distinct_humans"] == 1
+    assert depth["distinct_payers"] == 2
+    assert depth["score"] == pytest.approx(0.5)
+    assert depth["human_volume_share"] == pytest.approx(0.5)
+    # The grade now rests on fairness AND human depth, and says so.
+    assert r["weight_covered_pct"] == WEIGHTS["fairness"] + WEIGHTS["human_depth"]
+
+
+def test_human_depth_is_refused_rather_than_blended_over_a_longer_window(monkeypatch):
+    """A cluster id is minted per rotation window, so distinct humans cannot be
+    summed across windows. Serving a 30d fairness beside a 7d human depth would
+    be one grade quietly built out of two different spans."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day()],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(),
+    })
+    r = tca_mod.seller_rating(SELLER, days=30)
+    depth = r["components"]["human_depth"]
+    assert depth["available"] is False
+    assert "rotation window" in depth["reason"]
+    assert r["weight_covered_pct"] == WEIGHTS["fairness"]
+
+
+def test_a_window_with_no_resolutions_is_unavailable_not_zero(monkeypatch):
+    """Nobody resolved is not the same fact as nobody human, and a seller must
+    not be marked down for the difference."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day()],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(distinctHumans=0, humanVolume="0"),
+    })
+    depth = tca_mod.seller_rating(SELLER)["components"]["human_depth"]
+    assert depth["available"] is False
+    assert "this window" in depth["reason"]
+
+
 def test_a_seller_paying_the_benchmark_exactly_grades_top(monkeypatch):
     _fake_graph(
         monkeypatch,

@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -179,6 +179,30 @@ deploy-mirror:
 	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
 	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
 
+# The human-grouping mirror. Records WINDOW-ROTATED CLUSTER IDS, never a World ID
+# nullifier — see contracts/src/HumanIdMirror.sol for why rotation prevents
+# cross-service correlation but not within-tape fleet linkage.
+# ACR_HUMANID_SALT_COMMITMENT is keccak256(salt) and is REQUIRED. Never pass the
+# salt itself: constructor args land in contracts/broadcast/, which is committed.
+deploy-humanid-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
+	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-humanid:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
+	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  HumanIdMirror live — the tape's record of who is one human."
+	@echo "  Set ACR_HUMANID_MIRROR_ADDRESS in .env + on the Render seller, then put"
+	@echo "  the address AND this deploy's block number into graph/subgraph.yaml"
+	@echo "  and redeploy the subgraph with a NEW VERSION (it re-indexes)."
+	@echo "  Then 'make resolve-humans' BEFORE generating any further tape:"
+	@echo "  Settlement.human is stamped at finalize and cannot be revised."
+
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
@@ -273,6 +297,9 @@ recompute:
 
 mirror-receipts:
 	uv run python scripts/mirror_receipts.py $(ARGS)
+
+resolve-humans:
+	uv run python scripts/resolve_humans.py $(ARGS)
 
 attest-once:
 	uv run python scripts/attest_once.py

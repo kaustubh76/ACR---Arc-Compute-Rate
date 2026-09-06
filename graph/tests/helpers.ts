@@ -4,6 +4,10 @@ import { PricePosted } from "../generated/ACROracle/ACROracle";
 import { Traded, SeriesOpened } from "../generated/ACRFutures/ACRFutures";
 import { SettlementOpened, SettlementFinalized } from "../generated/ReceiptMirror/ReceiptMirror";
 import { PricePosted as PricePostedV2 } from "../generated/ACROracleV2/ACROracleV2";
+import {
+  HumanClusterResolved,
+  HumanClusterRebound,
+} from "../generated/HumanIdMirror/HumanIdMirror";
 
 export const PAYER = Address.fromString("0x00000000000000000000000000000000000000a1");
 export const SELLER = Address.fromString("0x00000000000000000000000000000000000000b2");
@@ -106,7 +110,8 @@ export function settlementOpened(
   blockTs: i32,
   logIndex: i32,
   synthetic: boolean = true,
-  late: boolean = false
+  late: boolean = false,
+  payerAddr: Address = PAYER
 ): SettlementOpened {
   const mock = newMockEvent();
   const ev = new SettlementOpened(
@@ -118,7 +123,7 @@ export function settlementOpened(
   ev.logIndex = BigInt.fromI32(logIndex);
   ev.parameters = new Array<ethereum.EventParam>();
   ev.parameters.push(new ethereum.EventParam("settlementId", ethereum.Value.fromFixedBytes(sidBytes(sid))));
-  ev.parameters.push(new ethereum.EventParam("payer", ethereum.Value.fromAddress(PAYER)));
+  ev.parameters.push(new ethereum.EventParam("payer", ethereum.Value.fromAddress(payerAddr)));
   ev.parameters.push(new ethereum.EventParam("seller", ethereum.Value.fromAddress(SELLER)));
   ev.parameters.push(new ethereum.EventParam("indexId", ethereum.Value.fromFixedBytes(indexIdBytes(index))));
   ev.parameters.push(new ethereum.EventParam("amountUsdc", ethereum.Value.fromUnsignedBigInt(amountUsdc)));
@@ -134,7 +139,8 @@ export function settlementFinalized(
   sid: string,
   quantity: BigInt,
   blockTs: i32,
-  logIndex: i32
+  logIndex: i32,
+  payerAddr: Address = PAYER
 ): SettlementFinalized {
   const mock = newMockEvent();
   const ev = new SettlementFinalized(
@@ -146,7 +152,7 @@ export function settlementFinalized(
   ev.logIndex = BigInt.fromI32(logIndex);
   ev.parameters = new Array<ethereum.EventParam>();
   ev.parameters.push(new ethereum.EventParam("settlementId", ethereum.Value.fromFixedBytes(sidBytes(sid))));
-  ev.parameters.push(new ethereum.EventParam("payer", ethereum.Value.fromAddress(PAYER)));
+  ev.parameters.push(new ethereum.EventParam("payer", ethereum.Value.fromAddress(payerAddr)));
   ev.parameters.push(new ethereum.EventParam("seller", ethereum.Value.fromAddress(SELLER)));
   ev.parameters.push(new ethereum.EventParam("unit", ethereum.Value.fromI32(0)));
   ev.parameters.push(new ethereum.EventParam("quantity", ethereum.Value.fromUnsignedBigInt(quantity)));
@@ -188,5 +194,62 @@ export function pricePostedV2(
   ev.parameters.push(new ethereum.EventParam("windowStart", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(economicTs - 3600))));
   ev.parameters.push(new ethereum.EventParam("windowEnd", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(economicTs))));
   ev.parameters.push(new ethereum.EventParam("timestamp", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(economicTs))));
+  return ev;
+}
+
+/**
+ * A HumanIdMirror resolution — a wallet joining a human's cluster for one window.
+ *
+ * `cluster` is a label, not a nullifier: the on-chain value is already
+ * `keccak256(nullifier, salt, window)`, so a test that could name a nullifier
+ * would be testing a design the contract does not have.
+ */
+export function humanClusterResolved(
+  cluster: string,
+  wallet: Address,
+  window: i32,
+  blockTs: i32,
+  logIndex: i32,
+  sandbox: boolean = true
+): HumanClusterResolved {
+  const mock = newMockEvent();
+  const ev = new HumanClusterResolved(
+    mock.address, BigInt.fromI32(logIndex), mock.transactionLogIndex,
+    mock.logType, mock.block, mock.transaction, mock.parameters, mock.receipt
+  );
+  ev.block.timestamp = BigInt.fromI32(blockTs);
+  ev.block.number = BigInt.fromI32(6000 + logIndex);
+  ev.logIndex = BigInt.fromI32(logIndex);
+  ev.parameters = new Array<ethereum.EventParam>();
+  ev.parameters.push(new ethereum.EventParam("clusterId", ethereum.Value.fromFixedBytes(sidBytes(cluster))));
+  ev.parameters.push(new ethereum.EventParam("wallet", ethereum.Value.fromAddress(wallet)));
+  ev.parameters.push(new ethereum.EventParam("window", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(window))));
+  ev.parameters.push(new ethereum.EventParam("sandbox", ethereum.Value.fromBoolean(sandbox)));
+  ev.parameters.push(new ethereum.EventParam("resolver", ethereum.Value.fromAddress(Address.fromString("0x0000000000000000000000000000000000000abc"))));
+  return ev;
+}
+
+export function humanClusterRebound(
+  wallet: Address,
+  window: i32,
+  from: string,
+  to: Bytes,
+  blockTs: i32,
+  logIndex: i32
+): HumanClusterRebound {
+  const mock = newMockEvent();
+  const ev = new HumanClusterRebound(
+    mock.address, BigInt.fromI32(logIndex), mock.transactionLogIndex,
+    mock.logType, mock.block, mock.transaction, mock.parameters, mock.receipt
+  );
+  ev.block.timestamp = BigInt.fromI32(blockTs);
+  ev.block.number = BigInt.fromI32(6000 + logIndex);
+  ev.logIndex = BigInt.fromI32(logIndex);
+  ev.parameters = new Array<ethereum.EventParam>();
+  ev.parameters.push(new ethereum.EventParam("wallet", ethereum.Value.fromAddress(wallet)));
+  ev.parameters.push(new ethereum.EventParam("window", ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(window))));
+  ev.parameters.push(new ethereum.EventParam("from", ethereum.Value.fromFixedBytes(sidBytes(from))));
+  ev.parameters.push(new ethereum.EventParam("to", ethereum.Value.fromFixedBytes(to)));
+  ev.parameters.push(new ethereum.EventParam("owner", ethereum.Value.fromAddress(Address.fromString("0x0000000000000000000000000000000000000dad"))));
   return ev;
 }

@@ -32,8 +32,20 @@ export const TOOLS: ToolDef[] = [
     description:
       "Transaction-cost analysis for a payer: what its purchases cost against the ACR print " +
       "it could have seen at the moment of each trade. Returns volume-weighted slippage in " +
-      "basis points, USDC overpaid, and a per-seller breakdown.",
-    inputSchema: { type: "object", properties: { target: ADDRESS, days: DAYS }, required: ["target"] },
+      'basis points, USDC overpaid, and a per-seller breakdown. Pass "me" to get one figure ' +
+      "across every wallet a verified human is resolved to, without naming any of them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        target: {
+          type: "string",
+          description:
+            'an 0x address, or "me" for the calling human\'s own wallets unioned together',
+        },
+        days: DAYS,
+      },
+      required: ["target"],
+    },
   },
   {
     name: "reroute_suggestion",
@@ -88,21 +100,61 @@ export const TOOLS: ToolDef[] = [
   },
 ];
 
-async function readJson(fetchImpl: Fetchish, url: string): Promise<unknown> {
-  const res = await fetchImpl(url);
+async function readJson(
+  fetchImpl: Fetchish,
+  url: string,
+  headers?: Record<string, string>,
+): Promise<unknown> {
+  const res = await fetchImpl(url, headers ? { headers } : undefined);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     // A 402 is not a failure here — it is the gate telling an agent the price.
+    // Nor is a 401: it is the human gate handing back a nonce to answer.
     return { error: `HTTP ${res.status}`, body };
   }
   return body;
+}
+
+/**
+ * Ask /tca/human, answering its challenge.
+ *
+ * The nonce is single-use, so a proof cannot be a static credential in an env
+ * var — every call has to take a fresh challenge and answer that one. In dev
+ * the answer is derived from a nullifier the host supplies.
+ *
+ * A real AgentKit proof cannot be minted here at all: it comes from the agent's
+ * own World credential, and this plugin has no access to one. Saying so beats
+ * returning something that looks like a verified answer and is not.
+ */
+async function humanTca(
+  f: Fetchish,
+  api: string,
+  days: number,
+  nullifier?: string,
+): Promise<unknown> {
+  const url = `${api}/tca/human?days=${days}`;
+  const challenge = await f(url);
+  const body = (await challenge.json().catch(() => ({}))) as { nonce?: string };
+  if (challenge.ok) return body; // already authorized upstream
+  if (!nullifier) {
+    return {
+      available: false,
+      reason:
+        "no human proof available to this plugin. Set ACR_HUMAN_NULLIFIER for the dev " +
+        "gate, or call /tca/human directly with a proof minted from your own World " +
+        "credential — an AgentKit proof cannot be created here.",
+      challenge: body,
+    };
+  }
+  if (!body?.nonce) return { available: false, reason: "the gate issued no challenge", body };
+  return readJson(f, url, { "HUMAN-PROOF": `humanid ${nullifier}:${body.nonce}` });
 }
 
 /** Dispatch one tool call. Returns the payload the host will render. */
 export async function callTool(
   name: string,
   args: Record<string, unknown>,
-  opts: { api?: string; fetchImpl?: Fetchish } = {},
+  opts: { api?: string; fetchImpl?: Fetchish; nullifier?: string } = {},
 ): Promise<unknown> {
   const api = (opts.api ?? DEFAULT_API).replace(/\/$/, "");
   const f = opts.fetchImpl ?? (globalThis.fetch as unknown as Fetchish);
@@ -110,10 +162,14 @@ export async function callTool(
 
   switch (name) {
     case "my_tca":
-      return readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
+      return String(args.target) === "me"
+        ? humanTca(f, api, days, opts.nullifier)
+        : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
 
     case "reroute_suggestion": {
-      const tca = (await readJson(f, `${api}/tca/${String(args.target)}?days=${days}`)) as {
+      const tca = (await (String(args.target) === "me"
+        ? humanTca(f, api, days, opts.nullifier)
+        : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`))) as {
         available?: boolean;
         reroute?: unknown;
       };

@@ -17,7 +17,14 @@ import {
   pickArrival,
   unbenchmarkedReason,
 } from "./tca";
-import { loadPayer, loadSeller, linkSellerPayer } from "./parties";
+import {
+  clusterFor,
+  linkSellerPayer,
+  linkSellerWindow,
+  loadPayer,
+  loadSeller,
+  windowOf,
+} from "./parties";
 import { recordSigner } from "./witness";
 import { rollUp } from "./rollup";
 
@@ -132,9 +139,14 @@ export function handleSettlementFinalized(event: SettlementFinalized): void {
 
   const payer = loadPayer(ps.payer, event.block.timestamp);
   const seller = loadSeller(ps.seller, event.block.timestamp);
+  const window = windowOf(event.block.timestamp);
   s.payer = payer.id;
   s.seller = seller.id;
-  s.human = payer.humanId !== null;
+  // Human-backed for the window this settlement lands IN, not "ever resolved".
+  // A cluster is minted per rotation window, so one from a previous window has
+  // expired — carrying it forward would leave a payer looking human-backed long
+  // after the proof that said so stopped applying.
+  s.human = clusterFor(payer, window) !== null;
   s.save();
 
   ps.finalized = true;
@@ -157,10 +169,16 @@ export function handleSettlementFinalized(event: SettlementFinalized): void {
     payer.weightedSlipTenthBp = payer.weightedSlipTenthBp.plus(w);
     seller.weightedSlipTenthBp = seller.weightedSlipTenthBp.plus(w);
   }
+  // Which window this payer most recently traded in, so a resolution landing
+  // afterwards can tell that it was too late to be stamped on these fills.
+  payer.lastSettledWindow = window;
   payer.save();
   // `distinctPayers` needs set membership, which a handler cannot hold between
   // invocations — an entity is the store's version of a set.
   linkSellerPayer(seller, payer);
+  // The same problem again, per rotation window, for the counts a seller grade's
+  // human-depth component reads. Counts do not sum across day buckets.
+  linkSellerWindow(seller, payer, event.block.timestamp, s.amount);
   seller.save();
 
   // ── the daily rollups ─────────────────────────────────────────────────────
