@@ -14,6 +14,7 @@ around by wash flow.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -78,7 +79,11 @@ def _bar_series(
     kept = np.where(weights > 0)[0]
     if kept.size == 0:
         return np.empty(0), 1.0
-    order = kept[np.argsort([events[i].ts for i in kept])]
+    # kind="stable": ts ties are common once a tape rounds to whole seconds, and
+    # the default quicksort permutes the tied block, changing which bar each
+    # event lands in. `kept` already arrives in the canonical (ts, event_id)
+    # order estimate_index established, so a stable sort preserves it exactly.
+    order = kept[np.argsort([events[i].ts for i in kept], kind="stable")]
     ts = np.array([events[i].ts for i in order])
     w = weights[order]
     pr = adjusted[order]
@@ -107,18 +112,51 @@ def estimate_index(
     attestations: list[SellerAttestation],
     ts: float | None = None,
     settings=None,
+    seed: int | None = None,
 ) -> tuple[ACRPrint, PrintDiagnostics]:
-    """Produce one ACR print for ``index_id`` from a window of events."""
+    """Produce one ACR print for ``index_id`` from a window of events.
+
+    ``seed`` overrides ``settings.estimator_seed`` for the two stages that draw
+    randomly — the Louvain partition and the bootstrap CI. It is threaded rather
+    than defaulted per-function so the value that produced a print is the value
+    the policy hash records, and a caller sweeping seeds cannot silently leave
+    one stage behind on 0.
+    """
     settings = settings or get_settings()
+    seed = settings.estimator_seed if seed is None else seed
     spec = spec_for(index_id)
     svc = spec.service
-    window = [e for e in events if e.service == svc]
+    # Canonical order, before anything reads the list.
+    #
+    # Every downstream stage is order-sensitive in a way no seed fixes: the
+    # funding graph is built by iterating events, so `list(G.nodes)` — which is
+    # what Louvain shuffles and then visits greedily — is the arrival order; the
+    # community edge-weight sums accumulate in that order and feed a threshold
+    # comparison; the cluster-cap sums do the same; and the bootstrap's `p`
+    # vector is positional, so a permutation redraws the same indices onto
+    # different prices.
+    #
+    # Measured before this line existed, on the frozen scenario, forward vs
+    # reversed: ACR-DATA moved 2.3 bp on value, 19.8 bp on ci_hi, and 37% on
+    # attack_cost_per_bp — the last because an ULP in `raw_total` crosses a
+    # `math.ceil` in the cluster count and moves the bound a whole cluster.
+    # A published rate that depends on the order settlements happened to arrive
+    # in is not a published rate.
+    #
+    # Sorted by (ts, event_id): ts alone ties constantly (the simulator draws
+    # timestamps from a continuous distribution but the tape sources round), and
+    # event_id is unique by construction, so this is a total order.
+    window = sorted((e for e in events if e.service == svc), key=lambda e: (e.ts, e.event_id))
     if not window:
         raise ValueError(f"no events for {index_id}")
-    print_ts = ts if ts is not None else max(e.settled_ts or e.ts for e in window)
+    # `or` would treat a settled_ts of 0.0 — a legitimate timestamp, and the
+    # first second of any tape-relative clock — as missing.
+    print_ts = ts if ts is not None else max(
+        (e.settled_ts if e.settled_ts is not None else e.ts) for e in window
+    )
 
     # ④ Clean.
-    cr = clean(window, cluster_cap=settings.cluster_volume_cap)
+    cr = clean(window, cluster_cap=settings.cluster_volume_cap, seed=seed)
     kept_idx = np.where(cr.weights > 0)[0]
     kept_events = [window[i] for i in kept_idx]
     kept_weights = cr.weights[kept_idx]
@@ -134,6 +172,7 @@ def estimate_index(
         alpha=settings.trim_alpha,
         n_bootstrap=settings.ci_bootstrap,
         ci_level=settings.ci_level,
+        seed=seed,
     )
     value = rob.value
 
@@ -171,7 +210,10 @@ def estimate_index(
     ci_hi = max(ci_hi, value)
 
     # ⑦ Manipulation bound — cap-aware, on the defended distribution.
-    raw_total = float(sum(e.notional for e in window))
+    # fsum, not sum: this feeds `math.ceil` on the cluster count in bound.py,
+    # so a last-bit difference in the total is not a last-bit difference in the
+    # answer — it is one whole sybil cluster, and a visible step in cost_per_bp.
+    raw_total = math.fsum(e.notional for e in window)
     mb = manipulation_bound(
         adjusted,
         kept_weights,

@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -67,6 +67,14 @@ test: test-py test-contracts test-agent test-terminal
 test-py:
 	uv run pytest packages services tests -q -p no:cacheprovider --import-mode=importlib
 
+# The estimator's frozen output. `--check` fails when a published number moves;
+# re-bless with `make golden` in the SAME commit as the change that moved it.
+golden:
+	uv run python scripts/gen_golden.py
+
+golden-check:
+	uv run python scripts/gen_golden.py --check
+
 test-contracts:
 	cd contracts && forge test
 
@@ -79,7 +87,7 @@ test-terminal:
 eval-gate:
 	uv run python scripts/eval.py --hours 12 --check
 
-ci: lint test eval-gate
+ci: lint test eval-gate golden-check
 
 build-contracts:
 	cd contracts && forge build

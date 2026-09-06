@@ -23,7 +23,16 @@ def weighted_median(values: ArrayLike, weights: ArrayLike) -> float:
         raise ValueError("weighted_median of empty input")
     if np.any(w < 0):
         raise ValueError("weights must be non-negative")
-    order = np.argsort(v)
+    # lexsort by (value, then weight), not a stable argsort.
+    #
+    # The default quicksort permutes tied values arbitrarily, and while the tied
+    # VALUES are equal the weights ride along — so the cumulative sum below adds
+    # the same numbers in a different order and rounds differently. A stable sort
+    # fixes that only relative to the CALLER's order, which makes this function a
+    # function of how the caller happened to arrange its input. Sorting on the
+    # weight as the second key makes the sorted arrays a function of the multiset
+    # alone, so the answer is the same however the pairs arrived.
+    order = np.lexsort((w, v))
     v, w = v[order], w[order]
     cw = np.cumsum(w)
     total = cw[-1]
@@ -31,9 +40,22 @@ def weighted_median(values: ArrayLike, weights: ArrayLike) -> float:
         raise ValueError("weights sum to zero")
     cutoff = 0.5 * total
     idx = int(np.searchsorted(cw, cutoff))
-    # Exact-midpoint tie: average the two straddling values (even-weight case).
-    if idx > 0 and np.isclose(cw[idx - 1], cutoff):
-        return float(0.5 * (v[idx - 1] + v[idx]))
+    # The lower weighted median: the first value whose cumulative weight reaches
+    # half. No interpolation and no tolerance.
+    #
+    # There used to be a tie-break here that averaged the two straddling values
+    # when `np.isclose(cw[idx - 1], cutoff)`. It was wrong twice over. It could
+    # not fire on an exact tie at all — searchsorted(side="left") returns the
+    # LEFTMOST index with cw[i] >= cutoff, so cw[idx-1] == cutoff is
+    # unreachable — so it only ever fired on INEXACT matches inside its 1e-5
+    # relative band. And inside that band it was discontinuous: with values
+    # [1, 2] and weights [w, 1], the result was 1.0 at w=1.0, 1.5 at w=0.9999999
+    # and 2.0 at w=0.9999. A 1e-7 nudge to one weight moved the estimator 50%,
+    # and 1e-7 is exactly the scale the cap-scaling multiply produces.
+    #
+    # Averaging is also the wrong answer for this estimator on its own terms: a
+    # published rate should be a price somebody actually paid, not the midpoint
+    # of two prices nobody paid.
     return float(v[min(idx, v.size - 1)])
 
 
@@ -51,7 +73,16 @@ def weighted_quantile(values: ArrayLike, weights: ArrayLike, q: float) -> float:
     total = float(np.sum(w))
     if total <= 0:
         raise ValueError("weights sum to zero")
-    order = np.argsort(v)
+    # Zero-weight entries make `cw` non-strictly-increasing, and np.interp's
+    # behaviour on duplicate xp is unspecified — it picked the LAST of a tied run,
+    # so weights [0, 0, 1] over values [1, 2, 3] returned 3.0 for the median.
+    # A zero-weight observation is one the cleaning stage excluded; it must not
+    # be able to become the trim boundary.
+    keep = w > 0
+    if not np.any(keep):  # pragma: no cover - guarded by the total check above
+        raise ValueError("weights sum to zero")
+    v, w = v[keep], w[keep]
+    order = np.lexsort((w, v))
     v, w = v[order], w[order]
     cw = (np.cumsum(w) - 0.5 * w) / total
     return float(np.interp(q, cw, v))

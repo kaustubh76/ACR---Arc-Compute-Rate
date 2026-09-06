@@ -34,7 +34,17 @@ SYBIL_MAX_SIZE = 40
 #: events survive, even if no parameter moved. Without it a code change would
 #: keep the same policy hash and a re-derivation would silently disagree with
 #: the keeper for reasons the hash claimed were impossible.
-POLICY_VERSION = 1
+#:
+#: 2 (2026-09-06): the estimator seed joined the hash. It was always part of the
+#: rule — Louvain's partition depends on it, and the partition decides which
+#: events are excluded — but it was a hidden default argument, so the hash
+#: claimed to cover something it did not. Nothing on chain is orphaned by the
+#: bump: the 131 backfilled prints carry BACKFILL_POLICY (a fixed sentinel in
+#: scripts/backfill_oracle_v2.py, never this hash), and a live v2 print
+#: legitimately carries the hash of the policy it was actually made under.
+#: ACROracleV2 stores policyHash per print, so a verifier can always tell which
+#: rule applied to which print.
+POLICY_VERSION = 2
 
 
 def policy_hash(settings=None) -> str:
@@ -57,6 +67,7 @@ def policy_hash(settings=None) -> str:
         "sybil_max_size": SYBIL_MAX_SIZE,
         "cluster_volume_cap": s.cluster_volume_cap,
         "trim_alpha": s.trim_alpha,
+        "estimator_seed": s.estimator_seed,
     }
     canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"))
     return "0x" + hashlib.sha256(canonical.encode()).hexdigest()

@@ -64,6 +64,13 @@ jobs:
       - name: Eval gate (headline claims)
         run: uv run python scripts/eval.py --hours 12 --check
 
+      # The eval gate is one-sided with 1.4-4x headroom, so the measured 124.1 bp
+      # could double and still pass it. This is the other half: the estimator's
+      # exact output, pinned. A deliberate change re-blesses with `make golden`
+      # in the same commit; an accidental one stops here.
+      - name: Golden estimator output
+        run: uv run python scripts/gen_golden.py --check
+
       # The docs quote numbers — suite sizes, glossary coverage, deployed
       # addresses — and every one of them was true the day it was typed. Five
       # had silently rotted before anything noticed, in a project whose whole

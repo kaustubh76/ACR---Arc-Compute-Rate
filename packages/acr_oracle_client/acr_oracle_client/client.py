@@ -33,10 +33,24 @@ def index_id_to_bytes32(index_id: str) -> bytes:
 
 
 def to_wad(x: float) -> int:
+    """Scale to the contract's 1e18 fixed point.
+
+    Python's ``round`` is half-to-EVEN, so ``to_usdc(2.5e-6) == 2`` and
+    ``to_usdc(1.5e-6) == 2``. That is the documented tie rule, not an accident:
+    half-up would bias every rounded print in one direction, and over a year of
+    hourly prints a one-sided tie rule is a drift.
+
+    Note the scaling adds precision the float never had. A float64 near 0.5
+    carries ~16 significant digits; the WAD integer has 18, so the last two
+    decimal digits of every posted price are padding. That is harmless for a
+    published rate and fatal for anything that must round-trip — never reverse
+    this to reconstruct an input.
+    """
     return int(round(x * WAD))
 
 
 def to_usdc(x: float) -> int:
+    """Scale to USDC's 1e6 fixed point. Half-to-even, as ``to_wad``."""
     return int(round(x * USDC))
 
 
@@ -62,12 +76,24 @@ class PostPayload:
         # 0, which the contract reads as the same thing. It is NOT defaulted to
         # the wallet bound: that would publish a number claiming humans are as
         # cheap to buy as wallets, which is false.
+        # Each of the three is rounded INDEPENDENTLY, so a float triple that
+        # satisfies ci_lo <= value <= ci_hi can come out of the scaling inverted
+        # when two of them sit within one WAD ulp — which is exactly the case
+        # `pipeline.py` produces on purpose, since it clamps ci_lo to value. The
+        # contract rejects that with "value outside CI", so the ordering is
+        # re-established here rather than discovered on a reverting broadcast.
+        value = to_wad(p.value)
+        ci_lo = min(to_wad(p.ci_lo), value)
+        ci_hi = max(to_wad(p.ci_hi), value)
         return cls(
             index_id=index_id_to_bytes32(p.index_id),
-            value=to_wad(p.value),
-            ci_lo=to_wad(p.ci_lo),
-            ci_hi=to_wad(p.ci_hi),
+            value=value,
+            ci_lo=ci_lo,
+            ci_hi=ci_hi,
             attack_cost_per_bp=max(1, to_usdc(p.attack_cost_per_bp or 0.0)),
+            # Truncation, not rounding: rounding a fractional economic timestamp
+            # UP could push it past the contract's MAX_TS_SKEW, and the Fixing
+            # clock is integral by construction anyway.
             timestamp=int(p.ts),
             human_adjusted_bound=(
                 None if p.human_adjusted_bound is None else to_usdc(p.human_adjusted_bound)
