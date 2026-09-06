@@ -99,6 +99,24 @@ recompute the trimmed median, take empirical quantiles. The Pillar-1 smoother
 flows into the interval — the CI reflects deconvolution uncertainty rather than
 being silently widened. See `acr_estimator/robust.py` and `pipeline.py`.
 
+> **The interval is not yet calibrated, and this is the honest number.** Measured
+> over 36 hourly windows (three indices × 12 hours, seed 21), the nominal 95%
+> interval contains the ground-truth level **8 times — 22%**. The diagnosis is
+> in the widths: the mean interval is 52–57 bp against a mean absolute error of
+> 83–90 bp, so the interval is *narrower than the typical error*. The bootstrap
+> measures the sampling variability of the trimmed median within a window; the
+> dominant error is drift the bootstrap cannot see, and the signed means
+> (+61, +40, −71 bp) show the interval is off-centre as well as tight. One
+> window has a 123 bp interval, a 4.3 bp error, and still misses, because the
+> band sits entirely on one side of truth.
+>
+> Read `ci_lo`/`ci_hi` as a dispersion estimate of the estimator, not as a 95%
+> containment guarantee. `make rate` scores this with the Winkler interval score
+> — which charges for width and for missing together, so it cannot be improved
+> by widening the band alone — and it is the argmin of the quality score on every
+> index. Reproduce with `uv run python scripts/eval.py --index ACR-INF`, which
+> now reports `ci_coverage`, `mean_ci_width_bp` and `mean_winkler_bp`.
+
 ## 5. Hedonic adjustment (Pillar 2)
 
 Observed prices mix the market level with the *quality mix* of who traded
@@ -190,6 +208,49 @@ from the code. The attacker's spend is reported next to the move.
 
 The same estimator runs, byte-for-byte, on real Arc testnet flow via
 `acr_tape.ArcSource`; methodology-first, liquidity-second.
+
+Three gates hold the estimator in place, and they ask different questions.
+`make golden-check` pins its exact output on a fixed scenario at zero tolerance,
+so a change to the published rate cannot land unobserved. `make eval-gate` asserts
+the headline claims above, on all three indices. `make rate` scores quality
+per-component against a blessed baseline — accuracy, resistance, separation, tail
+and calibration, across five scenarios per index of which three use **held-out
+seeds**, because seed 21 is the one the claims above are measured on and it is
+the favourable one: ACR-INF's resistance ratio is 46× there and 24× on a seed
+nobody chose. The gate is a vector, not an average, and the reported score is the
+*minimum* component — the weakest guarantee, which is what a manipulation-
+resistance claim is.
+
+## 9. Anchoring, and what the reference levels are not
+
+Each index carries a `reference_level` — 0.50 $/1k tokens, 0.011 $/GPU-sec,
+0.002 $/MB — that seeds the simulator's central level, the seller fleet's quotes
+and the tape's price pin. They are **nominal**, and until now they were also
+uncited. Measured against real public prices (`make anchors-fetch`, sources and
+per-row citations in `anchors/`):
+
+| index | reference | market anchor | gap |
+|---|---|---|---|
+| ACR-INF | 0.50 $/1k tokens | 0.000431 | **1159×** |
+| ACR-GPU | 0.011 $/GPU-sec | 0.000553 ($1.99/GPU-hr) | **20×** |
+| ACR-DATA | 0.002 $/MB | 0.00009 ($0.09/GB) | **22×** |
+
+The levels are deliberately **not** changed. They pin the price in the Arc and
+receipt tape sources, so moving them would break comparability with the prints
+already on chain — a separate decision, recorded here rather than taken quietly.
+
+What this does not affect is anything in §6 or §8. The simulator draws notional
+first and derives size, so weights, the funding graph and the cluster caps never
+see the price level, and every basis-point figure is exactly scale-invariant:
+re-anchoring ACR-INF by 667× moves `attack_acr_err_bp`, `resistance_ratio` and
+`attack_cost_per_bp` by zero, and the price level by exactly 1/667. The
+resistance claims are statements about a ratio, and they survive the scale being
+wrong.
+
+The gap is also not a single number — it is a function of the aggregation rule,
+which is why each anchor records its own basket and rule. The same catalogue
+gives roughly 1000× on a prompt-only median and 335× on a trimmed mean over every
+priced model; `anchors/GAP.md` states which rule produced which figure.
 
 ---
 
