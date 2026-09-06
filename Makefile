@@ -84,8 +84,15 @@ test-agent:
 test-terminal:
 	cd apps/terminal && npm test && npm run build
 
+# All THREE indices. It ran ACR-INF only for months, so ACR-GPU and ACR-DATA
+# were gated by nothing but the paired-swing tests — which measure a swing
+# against a clean run, not error against truth. Both clear the same thresholds
+# today with margin (GPU 63.2 bp / 87.5x, DATA 106.1 bp / 48.7x), so this costs
+# nothing but the runtime and closes the hole.
 eval-gate:
-	uv run python scripts/eval.py --hours 12 --check
+	uv run python scripts/eval.py --hours 12 --check --index ACR-INF
+	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
+	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
 ci: lint test eval-gate golden-check
 

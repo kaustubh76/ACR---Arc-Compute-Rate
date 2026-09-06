@@ -79,14 +79,17 @@ def run_optimal_attack(
     t0, t1 = (min(ts), max(ts)) if ts else (0.0, 1.0)
 
     adj0, _ = adjust_prices(win, attestations)
-    cr0 = clean(win, cluster_cap=settings.cluster_volume_cap)
+    # seed=, like the pipeline. Without it this harness partitions under seed 0
+    # while the estimator it is validating partitions under the configured one,
+    # and policy_hash asserts they agree. Silent while both default to 0.
+    cr0 = clean(win, cluster_cap=settings.cluster_volume_cap, seed=settings.estimator_seed)
     kept0 = np.where(cr0.weights > 0)[0]
     m0 = trimmed_weighted_median(adj0[kept0], cr0.weights[kept0], settings.trim_alpha)
 
     injection = build_injection(m0, notional, direction, n_clusters, svc, t0, t1, rel_move=rel_move)
     merged = win + injection
     adj, _ = adjust_prices(merged, attestations)
-    cr = clean(merged, cluster_cap=settings.cluster_volume_cap)
+    cr = clean(merged, cluster_cap=settings.cluster_volume_cap, seed=settings.estimator_seed)
     kept = np.where(cr.weights > 0)[0]
     m1 = trimmed_weighted_median(adj[kept], cr.weights[kept], settings.trim_alpha)
 

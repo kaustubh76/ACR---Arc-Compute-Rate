@@ -28,7 +28,7 @@ def _cleaned(index_id: str, seed: int = 11):
     res = simulate(SimConfig(seed=seed, horizon=HOUR, events_per_service=2500))
     win = res.events_for(index_id)
     adj, _ = adjust_prices(win, res.attestations)
-    cr = clean(win, cluster_cap=s.cluster_volume_cap)
+    cr = clean(win, cluster_cap=s.cluster_volume_cap, seed=s.estimator_seed)
     kept = np.where(cr.weights > 0)[0]
     raw_total = float(sum(e.notional for e in win))
     return res, adj[kept], cr.weights[kept], raw_total, s

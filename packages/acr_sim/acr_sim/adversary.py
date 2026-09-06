@@ -102,6 +102,15 @@ def generate_wash_flow(
     buyer_ids = [f"0xsybilB{i:03d}" for i in range(cfg.n_sybil_buyers)]
     t0 = 0.0 if cfg.t_start is None else cfg.t_start
     t1 = horizon if cfg.t_end is None else cfg.t_end
+    # An empty window means no attack, not an attack of zero width.
+    #
+    # `t = rng.uniform(t0, t1)` returns t0 for EVERY draw when t0 == t1, so a
+    # caller asking for a quiet scenario the obvious way — attack_from ==
+    # attack_to — got the full 36,000 wash prints stacked on a single instant,
+    # and every hour of it labelled `attack=False`. The most adversarial window
+    # in the repo, silently pinned as the clean baseline.
+    if t1 <= t0:
+        return [], 0.0
 
     # Two disjoint sybil sub-clusters so the whole stack is exercised, not just
     # one filter: the "cycle" cluster does reciprocal 2-cycles (caught by the
