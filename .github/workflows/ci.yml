@@ -71,6 +71,12 @@ jobs:
       - name: Golden estimator output
         run: uv run python scripts/gen_golden.py --check
 
+      # Offline. Asserts the anchor gap is DECLARED and reproducible, never that
+      # it is small — a test red at 1159x is red forever and teaches its reader
+      # to ignore it. The size is held by a per-file ratchet instead.
+      - name: Anchor gap declared
+        run: uv run python scripts/anchors.py --check
+
       # The docs quote numbers — suite sizes, glossary coverage, deployed
       # addresses — and every one of them was true the day it was typed. Five
       # had silently rotted before anything noticed, in a project whose whole

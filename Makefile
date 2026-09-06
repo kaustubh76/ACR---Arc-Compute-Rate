@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -94,7 +94,7 @@ eval-gate:
 	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
 	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
-ci: lint test eval-gate golden-check
+ci: lint test eval-gate golden-check anchors-check
 
 build-contracts:
 	cd contracts && forge build
@@ -460,3 +460,17 @@ pitch:
 clean:
 	rm -rf .venv contracts/out contracts/cache apps/terminal/.next apps/agent/node_modules scripts/_out
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+# ── anchors ──────────────────────────────────────────────────────────────────
+# Real public prices for the three indices, dated and cited. `--fetch` is manual
+# and hits the network; it writes anchors/ and NEVER touches indices.py, because
+# re-anchoring moves the tape's price pin and breaks comparability with the
+# prints already on chain. `--check` is offline and belongs in CI.
+anchors-fetch:
+	uv run python scripts/anchors.py --fetch
+
+anchors-report:
+	uv run python scripts/anchors.py --report
+
+anchors-check:
+	uv run python scripts/anchors.py --check

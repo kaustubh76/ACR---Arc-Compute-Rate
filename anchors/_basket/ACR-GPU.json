@@ -1,0 +1,24 @@
+{
+  "schema": "acr.basket/1",
+  "version": 1,
+  "index_id": "ACR-GPU",
+  "unit": "$/GPU-sec",
+  "note": "No GPU cloud publishes a clean unauthenticated price JSON, so these rows are curated from published on-demand rate cards and each carries the URL a human can check. On-demand only: spot and marketplace bids are a different product with a different risk, and mixing them would make the aggregate a blend of two markets. Verify the quoted figures when re-fetching — a curated row goes stale silently in a way an HTTP row does not.",
+  "source": { "kind": "curated", "auth": "none" },
+  "rule": {
+    "aggregate": "median",
+    "trim": 0.0,
+    "unit_conversion": "usd_per_gpu_hour / 3600",
+    "note": "Median across providers for a comparable accelerator tier."
+  },
+  "rows": [
+    { "id": "runpod/h100-pcie", "label": "RunPod H100 PCIe (community)", "usd_per_gpu_hour": 1.99,
+      "url": "https://www.runpod.io/pricing", "quoted": "H100 PCIe $1.99/hr" },
+    { "id": "lambda/h100-sxm", "label": "Lambda H100 SXM on-demand", "usd_per_gpu_hour": 3.99,
+      "url": "https://lambda.ai/service/gpu-cloud", "quoted": "H100 SXM $3.99/GPU-hour" },
+    { "id": "runpod/a100-pcie", "label": "RunPod A100 PCIe", "usd_per_gpu_hour": 1.19,
+      "url": "https://www.runpod.io/pricing", "quoted": "A100 PCIe $1.19/hr" },
+    { "id": "lambda/a100-40gb", "label": "Lambda A100 40GB on-demand", "usd_per_gpu_hour": 1.99,
+      "url": "https://lambda.ai/service/gpu-cloud", "quoted": "A100 40GB $1.99/hr" }
+  ]
+}
