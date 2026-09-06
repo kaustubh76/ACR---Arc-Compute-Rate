@@ -77,6 +77,14 @@ jobs:
       - name: Anchor gap declared
         run: uv run python scripts/anchors.py --check
 
+      # ~150s: five scenarios x three indices. A step, never a job — verify_claims
+      # counts top-level jobs in this file and asserts the number against the docs.
+      - name: Frozen eval sets
+        run: uv run python scripts/gen_evalset.py --check
+
+      - name: Quality gate (auto-rater)
+        run: uv run python scripts/rate.py
+
       # The docs quote numbers — suite sizes, glossary coverage, deployed
       # addresses — and every one of them was true the day it was typed. Five
       # had silently rotted before anything noticed, in a project whose whole

@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -474,3 +474,24 @@ anchors-report:
 
 anchors-check:
 	uv run python scripts/anchors.py --check
+
+# ── the auto-rater ───────────────────────────────────────────────────────────
+# Frozen eval sets on five scenarios per index (three of them held-out seeds),
+# and a per-component quality gate against a blessed baseline. Distinct from the
+# other two: eval-gate asks whether the published claims still hold, golden-check
+# whether the engine's output moved at all, and this whether quality regressed.
+# Demonstrated non-overlap: turning the sybil cap off PASSES eval-gate and fails
+# here with nine named regressions.
+evalset:
+	uv run python scripts/gen_evalset.py
+
+evalset-check:
+	uv run python scripts/gen_evalset.py --check
+
+rate:
+	uv run python scripts/rate.py
+
+# NOTE is required and the script refuses an empty one: a baseline without a
+# stated reason is a number whose provenance died with the shell that made it.
+rate-bless:
+	uv run python scripts/rate.py --bless "$(NOTE)"
