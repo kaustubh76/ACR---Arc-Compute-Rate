@@ -152,7 +152,12 @@ def measured_forge() -> int | None:
 @cache
 def measured_terminal() -> int | None:
     out = run(["npm", "test"], cwd=ROOT / "apps" / "terminal")
-    m = re.search(r"^# pass (\d+)$", out, re.M)
+    # `node --test` reports TAP ("# pass 12") on node 20, which is what CI pins,
+    # and the spec reporter ("i pass 12") on newer node. Accept both: matching
+    # only CI's format meant a developer on a current runtime saw every terminal
+    # claim reported as unmeasurable, which reads exactly like documentation
+    # that has drifted — and the fix for that looks like editing the docs.
+    m = re.search(r"^# pass (\d+)$", out, re.M) or re.search(r"^\D? ?pass (\d+)$", out, re.M)
     return int(m.group(1)) if m else None
 
 
