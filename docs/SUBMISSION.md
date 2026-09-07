@@ -91,13 +91,13 @@ Counters survive a restart: production has no persistent disk, so `/revenue` rea
 ---
 
 
-## 5. Verification evidence (each gate dated where it differs; suites re-measured 2026-09-06)
+## 5. Verification evidence (each gate dated where it differs; suites re-measured 2026-09-07)
 
 Every gate below was executed and its result captured verbatim. The dates are
 deliberately not uniform: a row says when *that* gate last ran, because a single
 banner date across rows measured days apart would be the kind of claim this
 section exists to prevent. The suite counts, the build shape and the lint were
-re-measured on 2026-09-06; the on-chain ceremonies carry their own dates. The same gates
+re-measured on 2026-09-07; the on-chain ceremonies carry their own dates. The same gates
 run on every push as **GitHub Actions CI — 4 jobs (python / contracts / agent /
 terminal), all green** (`.github/workflows/ci.yml`).
 
@@ -108,7 +108,7 @@ terminal), all green** (`.github/workflows/ci.yml`).
 | Desk round trip on Arc | `make desk-e2e` → `make desk-evidence` | ✅ stake → collateral → trade → **withdraw**, confirmed by four independent witnesses (venue balance, contract state, wallet balance, `CollateralWithdrawn` + paymaster) |
 | Real-tape audit | `scripts/tape_audit.py` | ✅ measured: ~18.5k real Arc settlements collapse to **one** price, so no index is publishable from them — the `sim` label is earned, not assumed |
 | Glossary coverage | `scripts/check_glossary_coverage.py` | ✅ 426/426 diagram terms defined |
-| Python suite | `pytest packages services tests` | ✅ **533 passed** — including 9 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
+| Python suite | `pytest packages services tests` | ✅ **535 passed** — including 20 anvil-gated on-chain tests that CI now genuinely runs (a node is started in the job) rather than silently skipping |
 | Resistance gate | `scripts/eval.py --hours 12 --check` | ✅ all 4 checks PASS |
 | Contracts | `forge test -vvv` | ✅ **156 passed** (17 oracle + 26 oracle-v2 + 10 registry + 16 futures + 10 feed-access attestor + 25 receipt mirror + 37 human-id mirror + 15 invariants, `fail_on_revert=true`) |
 | Subgraph mappings | `cd graph && npx graph test` | ✅ **57 matchstick** — arrival selection across the ring boundary, the unbenchmarked path, unit-price and slippage arithmetic, bucket exclusivity, finalize-without-open and reorg-replay idempotence, and the human-cluster rules: a fleet counted once, a cluster that does not survive its rotation window, and a resolution arriving after the settlements it should have stamped. `graph build` is the schema gate that runs alongside it |

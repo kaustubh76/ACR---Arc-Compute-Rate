@@ -363,7 +363,7 @@ The pre-broadcast check is stronger than `MirrorClient`'s: it compares our EIP-7
 the contract's own `resolutionDigest` view, so agreeing with ourselves is not mistaken for
 agreeing with the chain.
 
-Suites after W4: **533 pytest · 156 forge · 57 matchstick · 13 MCP**.
+Suites after W4: **535 pytest · 156 forge · 57 matchstick · 13 MCP**.
 
 **Floor if time runs short: W0 + W1 + W2 + W3 + W5.** Those are what make the track claim true.
 W6 and W8 are what make it memorable.

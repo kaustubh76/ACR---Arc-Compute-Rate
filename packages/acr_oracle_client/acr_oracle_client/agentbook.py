@@ -69,9 +69,10 @@ class WorldChainAgentBook:
     NOT YET EXERCISED AGAINST A LIVE AGENTBOOK. Sandbox access was still pending
     when this was written, so the one call that touches the chain is isolated in
     `_registrations` and the class is documented as unproven rather than left to
-    look tested. `sandbox` comes from settings here: an Orb-verified deployment
-    sets `ACR_HUMANID_SANDBOX=false`, and until it does, claiming otherwise would
-    put an unearned word on the tape.
+    look tested. Until it lands, a configured book stands down to resolving
+    nobody rather than raising through the resolver loop. `sandbox` comes from
+    settings here: an Orb-verified deployment sets `ACR_HUMANID_SANDBOX=false`,
+    and until it does, claiming otherwise would put an unearned word on the tape.
     """
 
     source = "world-chain"
@@ -109,8 +110,20 @@ class WorldChainAgentBook:
         if not self.configured() or self._connect() is None:
             log.info("AgentBook offline — resolving nobody this run")
             return []
+        try:
+            registrations = self._registrations()
+        except NotImplementedError as exc:
+            # Configured and reachable, but the reader underneath does not exist
+            # yet. WARNING rather than info: an outage is not the operator's
+            # doing, whereas this state is reached only by setting
+            # ACR_WORLD_RPC_URL and ACR_AGENTBOOK_ADDRESS, and nothing else will
+            # tell them why a live endpoint enrolled nobody. Standing down is
+            # the same steady state an outage produces — declining to invent
+            # data when a source is absent, exactly as the module docstring says.
+            log.warning("AgentBook reader unavailable — resolving nobody this run (%s)", exc)
+            return []
         by_nullifier: dict[str, list[str]] = {}
-        for nullifier, wallet in self._registrations():  # pragma: no cover
+        for nullifier, wallet in registrations:  # pragma: no cover
             by_nullifier.setdefault(nullifier, []).append(wallet)
         return [
             Human(nullifier=n, wallets=tuple(ws), sandbox=self.sandbox)

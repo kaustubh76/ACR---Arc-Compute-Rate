@@ -102,5 +102,45 @@ def test_an_unconfigured_world_book_is_not_configured():
     assert book.humans() == []
 
 
+def _a_configured_book() -> WorldChainAgentBook:
+    """Configured and past the offline branch, without a network round trip.
+
+    `_connect` returns a cached handle when one is already set, so seeding it
+    isolates the reader itself — which is the part under test.
+    """
+    book = WorldChainAgentBook(
+        rpc_url="https://world.invalid",
+        address="0x" + "ab" * 20,
+        settings=ACRSettings(_env_file=None),
+    )
+    book._w3 = object()
+    return book
+
+
+def test_a_configured_reader_that_does_not_exist_yet_stands_down():
+    """The failure this guards is env-shaped, not code-shaped.
+
+    `.env.example` invites the operator to set ACR_WORLD_RPC_URL and
+    ACR_AGENTBOOK_ADDRESS. The moment they do, `build_agentbook` stops handing
+    back the fixture roster and `configured()` flips True — while
+    `_registrations` is still unbuilt. Before this stood down, that combination
+    took the resolver from a working demo to an uncaught NotImplementedError:
+    the environment claiming a pillar that is not actually there.
+    """
+    book = _a_configured_book()
+    assert book.configured() is True
+    assert book.humans() == []
+
+
+def test_standing_down_says_why(caplog):
+    """A live endpoint that enrolls nobody is indistinguishable from an AgentBook
+    with no registrations in it. The warning is the only thing that tells the
+    operator which of the two they are looking at, so it carries the reason."""
+    with caplog.at_level("WARNING", logger="acr_oracle_client.agentbook"):
+        _a_configured_book().humans()
+    assert any("AgentBook reader unavailable" in r.message for r in caplog.records)
+    assert any("Sandbox access" in r.message for r in caplog.records)
+
+
 def test_a_human_with_no_buyers_has_no_wallets():
     assert DemoHuman("nobody", ()).wallets == []
