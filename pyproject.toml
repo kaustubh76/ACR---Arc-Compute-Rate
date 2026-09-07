@@ -2,7 +2,7 @@
 name = "acr"
 version = "0.1.0"
 description = "ACR — The Arc Compute Rate: a manipulation-resistant benchmark family for machine commerce"
-readme = "Readme.md"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "acr-core",

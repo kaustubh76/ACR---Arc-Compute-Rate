@@ -13,7 +13,7 @@ WORKDIR /app
 
 # Lockfile + workspace sources (the uv workspace is packages/* + services/*;
 # apps/ and contracts/ are not Python members and stay out of the image).
-COPY pyproject.toml uv.lock Readme.md ./
+COPY pyproject.toml uv.lock README.md ./
 COPY packages/ packages/
 COPY services/ services/
 
