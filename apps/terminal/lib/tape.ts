@@ -199,6 +199,34 @@ export interface TapeData {
   payer: string | null;
 }
 
+/** The `human_depth` rating component — who traded here, counted in PEOPLE.
+ *
+ * Three states, and collapsing any two of them is the bug this models around:
+ *
+ *   absent            no resolved human has traded with this seller yet. The
+ *                     press omits the key entirely (`elif win_humans > 0`), so
+ *                     `undefined` here means "not measured", never "zero people".
+ *   available: false  a window longer than the 7-day rotation was asked for, and
+ *                     human counts cannot be summed across windows. Carries why.
+ *   available: true   measured, for ONE rotation window.
+ *
+ * `sandbox_humans` rides along for the same reason `synthetic_share` does: a
+ * count that cannot be discounted gets read as more than it is, and every demo
+ * identity here is a World ID Sandbox identity rather than an Orb-verified
+ * person. */
+export interface HumanDepth {
+  available: boolean;
+  reason?: string;
+  score?: number | null;
+  distinct_humans?: number;
+  distinct_payers?: number;
+  sandbox_humans?: number;
+  sandbox_share?: number | null;
+  human_volume_share?: number | null;
+  window?: number;
+  window_days?: number;
+}
+
 export interface SellerRating {
   available: boolean;
   reason?: string;
@@ -211,6 +239,48 @@ export interface SellerRating {
   volume_usdc?: number;
   synthetic_share?: number | null;
   histogram?: BucketRow;
+  /** Per-component detail. Only `human_depth` is read here; the rest exist. */
+  components?: { human_depth?: HumanDepth };
+}
+
+/** What a cell should SAY about human depth, as a decision rather than a render.
+ *
+ * MEASURED AGAINST THE LIVE PRESS, not assumed from reading the branch. The key
+ * is ALWAYS present — `tca.py` has an `else` that reports
+ * `available:false, "no human resolutions on the tape for this window"` — so a
+ * model built on "absent means nobody" would have had a state that never fires
+ * and a label that was wrong about the one that does. What actually varies is
+ * whether a count exists, and the press's own reason says why when it does not:
+ *
+ *   count       available, and at least one resolved person bought here
+ *   unmeasured  everything else, carrying the press's reason verbatim
+ *
+ * Two states, because that is how many there are. The reason is never synthesised
+ * here: "nobody has bought here yet" and "this window cannot be summed" are the
+ * press's distinctions to draw, and inventing our own phrasing for them is how a
+ * surface starts disagreeing with the service behind it. */
+export type HumanCell =
+  | { kind: "unmeasured"; note: string }
+  | { kind: "count"; humans: number; payers: number | null; allSandbox: boolean };
+
+const NOT_MEASURED = "no verified-person count for this seller";
+
+export function humanCell(rating: SellerRating | undefined): HumanCell {
+  const hd = rating?.components?.human_depth;
+  if (hd == null) return { kind: "unmeasured", note: NOT_MEASURED };
+  if (!hd.available) return { kind: "unmeasured", note: hd.reason ?? NOT_MEASURED };
+  const humans = Number(hd.distinct_humans ?? 0);
+  // A present-but-zero count is still not a count. Rendering "0 people" would
+  // claim we looked and found nobody, which is a different fact from the press
+  // declining to measure.
+  if (!Number.isFinite(humans) || humans <= 0) {
+    return { kind: "unmeasured", note: hd.reason ?? NOT_MEASURED };
+  }
+  const sandbox = Number(hd.sandbox_humans ?? 0);
+  const payers = Number.isFinite(Number(hd.distinct_payers))
+    ? Number(hd.distinct_payers)
+    : null;
+  return { kind: "count", humans, payers, allSandbox: humans > 0 && sandbox === humans };
 }
 
 /** One row of the `settlements` operation — the tape at its finest grain. */

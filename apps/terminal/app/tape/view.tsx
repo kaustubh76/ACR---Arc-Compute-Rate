@@ -11,10 +11,135 @@ import {
   bucketBars,
   bucketTotal,
   byWorstFirst,
+  humanCell,
   usdc6,
 } from "@/lib/tape";
 import type { SellerRating, TapeSeller, TcaCard } from "@/lib/tape";
 import { useTape } from "@/lib/useLive";
+import { useEffect, useState } from "react";
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** Grade any agent, not just the one the page picked.
+ *
+ *  The whole read path for this already existed — `useTape(payer)` builds
+ *  `?payer=`, the route prefers an explicit param over the busiest payer on the
+ *  tape, and `/tca/{payer}` is public. What was missing was somewhere to type an
+ *  address, so the page could only ever show you someone else's fills.
+ *
+ *  Validated here rather than upstream: a typo is the common case, and a
+ *  malformed address should cost nothing and reach nothing. The URL carries the
+ *  answer so a result can be linked to rather than re-typed. */
+function PayerField({
+  value,
+  onPick,
+  onReset,
+}: {
+  value: string | null;
+  onPick: (addr: string) => void;
+  onReset: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [bad, setBad] = useState(false);
+
+  return (
+    <form
+      style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const addr = text.trim();
+        if (!ADDRESS.test(addr)) {
+          setBad(true);
+          return;
+        }
+        setBad(false);
+        onPick(addr.toLowerCase());
+      }}
+    >
+      <input
+        className="mono"
+        aria-label="agent address"
+        placeholder="0x…"
+        value={text}
+        spellCheck={false}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (bad) setBad(false);
+        }}
+        style={{
+          font: "inherit",
+          fontSize: 12,
+          padding: "4px 8px",
+          width: 260,
+          border: `1px solid ${bad ? "var(--breach)" : "var(--rule)"}`,
+          background: "transparent",
+          color: "inherit",
+        }}
+      />
+      <button type="submit" className="chip" style={{ cursor: "pointer" }}>
+        <Ed x="Grade it" p="Check it" />
+      </button>
+      {value ? (
+        <button
+          type="button"
+          className="chip muted"
+          style={{ cursor: "pointer" }}
+          onClick={() => {
+            setText("");
+            setBad(false);
+            onReset();
+          }}
+        >
+          <Ed x="Busiest" p="Back to the busiest" />
+        </button>
+      ) : null}
+      {bad ? (
+        <span className="muted" style={{ fontSize: 12, color: "var(--breach)" }}>
+          <Ed
+            x="Not an address: 0x and 40 hex characters."
+            p="That is not an address. It needs 0x and 40 characters."
+          />
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
+/** How many PEOPLE bought here, when that is a thing we know.
+ *
+ *  `humanCell` decides, this only renders. The split exists because "0 people"
+ *  and "we did not count" are different facts, and a ternary inside a table cell
+ *  is where they quietly become one. The dash carries the press's own reason as
+ *  its title rather than a phrasing invented here. */
+function HumanCell({ rating }: { rating: SellerRating | undefined }) {
+  const cell = humanCell(rating);
+  if (cell.kind === "unmeasured") {
+    return (
+      <span className="muted" title={cell.note}>
+        —
+      </span>
+    );
+  }
+  return (
+    <span>
+      <span className="mono num">
+        {cell.humans}
+        {cell.payers != null ? (
+          <span className="muted">/{cell.payers}</span>
+        ) : null}
+      </span>
+      {cell.allSandbox ? (
+        <span
+          className="chip chip-sim"
+          style={{ marginLeft: 6 }}
+          title="Every one of these is a World ID Sandbox identity, not an Orb-verified person."
+        >
+          sim
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 /** A distribution strip: where a seller's fills landed, in basis points.
  *
@@ -59,7 +184,25 @@ function GradeChip({ rating }: { rating: SellerRating | undefined }) {
 }
 
 export function TapeView() {
-  const { tape, error } = useTape();
+  /* `null` means "whoever the tape says is busiest" — the page's own default,
+     kept so clearing the field returns to it rather than to an empty page. */
+  const [payer, setPayer] = useState<string | null>(null);
+
+  // A linked result must survive a reload, so the URL is the source on mount.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("payer");
+    if (q && ADDRESS.test(q)) setPayer(q.toLowerCase());
+  }, []);
+
+  function pick(addr: string | null) {
+    setPayer(addr);
+    const url = new URL(window.location.href);
+    if (addr) url.searchParams.set("payer", addr);
+    else url.searchParams.delete("payer");
+    window.history.replaceState(null, "", url.toString());
+  }
+
+  const { tape, error } = useTape(payer ?? undefined);
   const env = tape;
   const data = env?.data;
   const meta = data?.meta ?? null;
@@ -166,11 +309,14 @@ export function TapeView() {
           <h2 className="display" style={{ fontSize: 22 }}>
             <Ed x="What it cost" p="What the robot paid" />
           </h2>
-          {card ? (
-            <span className="label">
-              <Ed x="window" p="looking back" /> {card.window_days}d
-            </span>
-          ) : null}
+          <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+            <PayerField value={payer} onPick={(a) => pick(a)} onReset={() => pick(null)} />
+            {card ? (
+              <span className="label">
+                <Ed x="window" p="looking back" /> {card.window_days}d
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {card ? (
@@ -246,6 +392,9 @@ export function TapeView() {
                     <th style={{ textAlign: "right" }}>
                       <Ed x="Ours" p="Our own money" />
                     </th>
+                    <th style={{ textAlign: "right" }}>
+                      <Ed x="People" p="Verified people" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -277,6 +426,9 @@ export function TapeView() {
                         {r.synthetic_share === null
                           ? "…"
                           : `${(r.synthetic_share * 100).toFixed(0)}%`}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <HumanCell rating={ratings[r.seller.toLowerCase()]} />
                       </td>
                     </tr>
                   ))}
@@ -315,6 +467,21 @@ export function TapeView() {
               x="The tape did not answer, so no cost is shown. An outage is not a clean bill."
               p="We could not reach the record, so nothing is shown. No news is not good news."
             />
+          </p>
+        ) : tca != null && !tca.available ? (
+          /* The state this page could not previously express. A wallet with no
+             priced fills used to fall through to "Reading settlements…" and sit
+             there forever, which reads as a slow page rather than as an answer.
+             "Nothing to measure" and "we could not measure" are different facts
+             and the reason says which one this is. */
+          <p className="muted">
+            <Ed
+              x="Nothing to grade for this wallet on the indexed tape: "
+              p="There is nothing to check for this wallet yet: "
+            />
+            <span className="mono" style={{ fontSize: 13 }}>
+              {tca.reason}
+            </span>
           </p>
         ) : (
           <div className="awaiting">

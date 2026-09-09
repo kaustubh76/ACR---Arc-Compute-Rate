@@ -11,6 +11,7 @@ import {
   bucketTotal,
   byWorstFirst,
   gradeOf,
+  humanCell,
   sellersFromSettlements,
   usdc6,
   wad18,
@@ -196,4 +197,89 @@ test("settlements with no seller are skipped, not grouped under undefined", () =
   ]);
   assert.deepEqual(out, []);
   assert.deepEqual(sellersFromSettlements([]), []);
+});
+
+
+/* --- human depth: a count, or the press's reason for there not being one -----
+
+   Measured against the live press rather than inferred from the branch: the
+   `human_depth` key is ALWAYS present. tca.py has an `else` that reports
+   available:false with "no human resolutions on the tape for this window", so an
+   earlier version of this model had a third state for an absent key that never
+   fires, and the label on the state that DOES fire was wrong. */
+
+test("the live state today: a reason, carried verbatim, never a zero", () => {
+  // Exactly what /rating returns for every seller right now — the four demo
+  // wallets are resolved on chain but none has settled.
+  const cell = humanCell({
+    available: true,
+    components: {
+      human_depth: {
+        available: false,
+        reason: "no human resolutions on the tape for this window",
+      },
+    },
+  });
+  assert.deepEqual(cell, {
+    kind: "unmeasured",
+    note: "no human resolutions on the tape for this window",
+  });
+});
+
+test("an over-long window is the press's distinction to draw, not ours", () => {
+  const cell = humanCell({
+    available: true,
+    components: {
+      human_depth: { available: false, reason: "cannot be summed across windows" },
+    },
+  });
+  // The note is the upstream string untouched. Re-phrasing it here is how a
+  // surface starts disagreeing with the service behind it.
+  assert.equal(cell.kind === "unmeasured" && cell.note, "cannot be summed across windows");
+});
+
+test("a present-but-zero count is not a count", () => {
+  // "0 people" claims we looked and found nobody. Declining to measure is a
+  // different fact, and this is the cell where they would merge.
+  const cell = humanCell({
+    available: true,
+    components: { human_depth: { available: true, distinct_humans: 0, distinct_payers: 3 } },
+  });
+  assert.equal(cell.kind, "unmeasured");
+});
+
+test("no component at all still renders, with a stated fallback", () => {
+  assert.equal(humanCell(undefined).kind, "unmeasured");
+  assert.equal(humanCell({ available: true }).kind, "unmeasured");
+  assert.equal(humanCell({ available: true, components: {} }).kind, "unmeasured");
+});
+
+test("a real count carries its payers and whether every one is sandbox", () => {
+  assert.deepEqual(
+    humanCell({
+      available: true,
+      components: {
+        human_depth: { available: true, distinct_humans: 2, distinct_payers: 5, sandbox_humans: 2 },
+      },
+    }),
+    { kind: "count", humans: 2, payers: 5, allSandbox: true },
+  );
+
+  const mixed = humanCell({
+    available: true,
+    components: {
+      human_depth: { available: true, distinct_humans: 3, distinct_payers: 4, sandbox_humans: 1 },
+    },
+  });
+  assert.equal(mixed.kind === "count" && mixed.allSandbox, false);
+});
+
+test("a count with no payer figure is still a count, with payers null", () => {
+  assert.deepEqual(
+    humanCell({
+      available: true,
+      components: { human_depth: { available: true, distinct_humans: 1 } },
+    }),
+    { kind: "count", humans: 1, payers: null, allSandbox: false },
+  );
 });

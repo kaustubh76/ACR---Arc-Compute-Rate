@@ -232,3 +232,61 @@ def test_no_reroute_when_the_cheapest_seller_is_the_one_already_used():
         {"seller": OTHER, "vw_slippage_bp": 10.0, "n": 4, "volume_usdc": 1.0},
     ]
     assert _reroute(same) is None
+
+
+# --- the queries themselves --------------------------------------------------
+
+
+def _operations(*modules):
+    """Every GraphQL operation a module defines, however it stores them.
+
+    Two shapes in this codebase: `tca.py` uses module-level string constants and
+    `graph_proxy.py` keeps a dict of named operations. Both are walked, because a
+    guard that only understood one of them would pass while checking half the
+    queries — and "it enumerated nothing" is the failure this test exists to stop
+    one level down.
+    """
+    for mod in modules:
+        for name, value in vars(mod).items():
+            if isinstance(value, str) and "query " in value:
+                yield mod.__name__, name, value
+            elif isinstance(value, dict):
+                for key, text in value.items():
+                    if isinstance(text, str) and "query " in text:
+                        yield mod.__name__, f"{name}[{key!r}]", text
+
+
+def test_every_query_declares_the_variables_it_uses():
+    """An undeclared `$var` is not a syntax error — graph-node resolves it to
+    null and rejects the operation on the ARGUMENT, so the failure surfaces as
+    "Invalid value provided for argument `id`: Null" and this service degrades it
+    to "the subgraph did not answer".
+
+    That is indistinguishable from an outage, which is how `_SELLER_DAYS` shipped
+    using `$windowId` without declaring it: every seller's rating came back
+    unavailable, `GradeChip` rendered a muted ellipsis, and nothing anywhere said
+    the query was malformed. The comment above that query had even predicted the
+    failure mode; predicting it did not prevent it.
+
+    Static on purpose — no network, no fixture, no live schema. It catches the
+    whole class at import time rather than this one instance, and it runs in CI
+    where a real graph-node does not.
+    """
+    import re
+
+    from index_api import graph_proxy
+
+    seen = 0
+    for mod_name, const, text in _operations(tca_mod, graph_proxy):
+        sig = re.search(r"query\s+\w*\s*\(([^)]*)\)", text)
+        declared = set(re.findall(r"\$(\w+)", sig.group(1))) if sig else set()
+        used = set(re.findall(r"\$(\w+)", text)) - declared
+        assert not used, (
+            f"{mod_name}.{const} uses undeclared variable(s) {sorted(used)}. "
+            "graph-node will resolve them to null and reject the operation; the "
+            "caller will report it as an outage."
+        )
+        seen += 1
+    # A guard that enumerates nothing passes vacuously, which is the failure
+    # shape this whole test exists to catch one level down.
+    assert seen >= 10, f"only found {seen} operations — the scan stopped matching"

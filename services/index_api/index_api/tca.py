@@ -56,8 +56,16 @@ WEIGHTS = {
 # to both is the kind of type slip graph-node may coerce through or may reject —
 # and a rejection here degrades to "the subgraph did not answer", which reads
 # exactly like an outage.
+#
+# THAT PREDICTION CAME TRUE, FOR A NEIGHBOURING REASON. `$windowId` was used by
+# `sellerWindow` below and never declared here, so graph-node resolved it to null
+# and rejected the whole operation with "Invalid value provided for argument
+# `id`: Null". Every seller's rating came back "the subgraph did not answer" —
+# indistinguishable from an outage, exactly as the paragraph above warns, and the
+# warning did not stop it shipping. `test_every_query_declares_the_variables_it_uses`
+# now asserts this statically for every query in this module.
 _SELLER_DAYS = """
-query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!) {
+query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!, $windowId: ID!) {
   sellerDays(where: { seller: $seller, day_gte: $since }, orderBy: day, orderDirection: desc, first: 400) {
     day volume bmVolume wSlipTenthBp humanVolume synthVolume realVolume
     n nAll nStale b0 b1 b2 b3 b4 b5 b6
