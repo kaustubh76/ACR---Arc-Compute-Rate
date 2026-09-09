@@ -38,6 +38,49 @@ import sys
 from acr_core import get_settings
 from acr_oracle_client.agentbook import build_agentbook
 from acr_oracle_client.humanid import HumanIdMirrorClient, cluster_id
+from acr_tape import graph_query
+
+#: The payers the tape actually has. AgentBook answers "who is this wallet?",
+#: not "list every human", so the honest enrollment set is the wallets that have
+#: really settled — not a roster we hope will go on to trade.
+_PAYERS = """
+query Payers($first: Int!) {
+  payers(orderBy: totalVolume, orderDirection: desc, first: $first) {
+    id totalVolume settlementCount
+  }
+}
+"""
+
+
+def _from_tape(book, s, limit: int) -> list[tuple[str, str, bool]]:
+    """(wallet, nullifier, sandbox) for every tape payer AgentBook recognises."""
+    if not s.subgraph_url:
+        print("  ✗ ACR_SUBGRAPH_URL is unset — cannot read the tape's payers")
+        return []
+    data = graph_query(s.subgraph_url, _PAYERS, {"first": limit}, s.graph_api_key)
+    if not data:
+        print("  ✗ the subgraph did not answer — resolving nobody this run")
+        return []
+    payers = data.get("payers") or []
+    out, unresolved = [], 0
+    for row in payers:
+        wallet = str(row["id"])
+        reg = book.lookup(wallet)
+        if reg is None:
+            unresolved += 1
+            continue
+        out.append((wallet, reg.nullifier, reg.sandbox))
+    print(f"  tape: {len(payers)} payer(s), {len(out)} registered, {unresolved} not")
+    return out
+
+
+def _from_roster(book) -> list[tuple[str, str, bool]]:
+    """Every wallet of every human the book can enumerate."""
+    roster = book.roster()
+    if roster is None:
+        print("  this book cannot be enumerated — use --from-tape")
+        return []
+    return [(w, h.nullifier, h.sandbox) for h in roster for w in h.wallets]
 
 
 def main() -> int:
@@ -46,6 +89,10 @@ def main() -> int:
                     help="sign and self-check against the chain, but do not broadcast")
     ap.add_argument("--commit", action="store_true",
                     help="actually broadcast (the default is a dry run)")
+    ap.add_argument("--from-tape", action="store_true",
+                    help="enroll the payers the tape already has, rather than a roster")
+    ap.add_argument("--limit", type=int, default=100,
+                    help="how many tape payers to consider (--from-tape only)")
     args = ap.parse_args()
     # Dry by default: this writes identity to a public chain, and the one thing
     # that cannot be undone there is having published.
@@ -71,6 +118,17 @@ def main() -> int:
         print(f"  ✗ cannot reach {client.rpc_url} — resolving nobody")
         return 1
 
+    authorized = client.signer_authorized()
+    if authorized is False:
+        print(f"  ✗ {client.signer.address} is not in the mirror's signer set.")
+        print("    Every record() would revert 'bad signer' — and the revert names the")
+        print("    signature, not the signer set, so it points at the wrong thing.")
+        print("    From the owner:")
+        print(f"      cast send {client.mirror_address} 'setSigner(address,bool)' \\")
+        print(f"        {client.signer.address} true --rpc-url $ACR_ARC_RPC_URL \\")
+        print("        --private-key <owner key>")
+        return 1
+
     matches = client.salt_matches(s.humanid_salt)
     if matches is False:
         print("  ✗ ACR_HUMANID_SALT does not hash to the mirror's SALT_COMMITMENT.")
@@ -79,27 +137,36 @@ def main() -> int:
         return 1
 
     book = build_agentbook(s)
-    humans = book.humans()
-    print(f"  agentbook: {book.source}, {len(humans)} human(s), window {window}")
+    print(f"  agentbook: {book.source}, window {window}")
+    pairs = _from_tape(book, s, args.limit) if args.from_tape else _from_roster(book)
+
+    # Group by human so the output reads as people rather than as rows, and so a
+    # fleet's shared cluster is derived once.
+    by_nullifier: dict[str, list[str]] = {}
+    sandbox_of: dict[str, bool] = {}
+    for wallet, nullifier, sandbox in pairs:
+        by_nullifier.setdefault(nullifier, []).append(wallet)
+        sandbox_of[nullifier] = sandbox
 
     wrote = skipped = 0
-    for human in humans:
-        cluster = cluster_id(human.nullifier, s.humanid_salt, window)
-        tag = "sandbox" if human.sandbox else "orb-verified"
-        print(f"\n  human ••••{human.nullifier[-3:]} · {tag} · {len(human.wallets)} wallet(s)")
+    for nullifier, wallets in by_nullifier.items():
+        sandbox = sandbox_of[nullifier]
+        cluster = cluster_id(nullifier, s.humanid_salt, window)
+        tag = "sandbox" if sandbox else "orb-verified"
+        print(f"\n  human ••••{nullifier[-3:]} · {tag} · {len(wallets)} wallet(s)")
         print(f"    cluster 0x{cluster.hex()}")
-        for wallet in human.wallets:
+        for wallet in wallets:
             already = client.cluster_of(wallet, window)
             if already == cluster:
                 print(f"    = {wallet}  already resolved")
                 skipped += 1
                 continue
-            tx = client.record(wallet, cluster, window, human.sandbox, dry_run=dry_run)
+            tx = client.record(wallet, cluster, window, sandbox, dry_run=dry_run)
             print(f"    + {wallet}  {tx or '(not broadcast)'}")
             wrote += 1
 
-    if not humans:
-        print("\n  ✓ nothing to resolve — the agentbook lists no humans")
+    if not by_nullifier:
+        print("\n  ✓ nothing to resolve — no wallet the book recognises")
         return 0
     print(f"\n  {wrote} to record, {skipped} already on chain")
     if dry_run:

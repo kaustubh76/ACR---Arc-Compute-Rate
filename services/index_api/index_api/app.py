@@ -37,6 +37,7 @@ from .humanid import (
     HumanVerifier,
     get_verifier,
     require_human,
+    stray_world_credentials,
 )
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
@@ -916,6 +917,10 @@ def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
         # misconfiguration that would otherwise read as "this human never traded".
         "salt_matches_commitment": verifier.salt_ok(),
         "verified_proofs": verifier.verified,
+        # Names only, never values. A credential under a name nothing reads is
+        # discarded in silence, so the operator sees "unset" while looking at
+        # the value in their own .env — worth surfacing where they will look.
+        "unrecognised_env": stray_world_credentials(),
     }
 
 

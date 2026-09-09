@@ -206,6 +206,10 @@ class ACRSettings(BaseSettings):
     #: Sandbox access exists.
     world_rpc_url: str = ""
     agentbook_address: str = ""
+    #: Which AgentBook to read: "auto" (the real one iff an endpoint or address
+    #: is named), "fixture" (the demo roster), or "worldchain" (the live
+    #: contract, which needs no configuration — address and RPC are constants).
+    agentbook_mode: str = "auto"
 
     #: Comma-separated allowed CORS origins for the public API (so the dashboard
     #: /any browser can query it cross-origin). "*" = allow all (the testnet-demo

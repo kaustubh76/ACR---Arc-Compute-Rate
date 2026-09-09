@@ -165,6 +165,13 @@ HUMANID_ABI = [
     },
     {
         "type": "function",
+        "name": "isSigner",
+        "stateMutability": "view",
+        "inputs": [{"name": "", "type": "address"}],
+        "outputs": [{"name": "", "type": "bool"}],
+    },
+    {
+        "type": "function",
         "name": "SALT_COMMITMENT",
         "stateMutability": "view",
         "inputs": [],
@@ -297,6 +304,26 @@ class HumanIdMirrorClient:
             return None
         deployed = bytes(self._contract().functions.SALT_COMMITMENT().call())
         return deployed == salt_commitment(salt)
+
+    def signer_authorized(self) -> bool | None:
+        """Is our signer in the contract's signer set? None if unreachable.
+
+        A dry run that only checked the digest would report success for a key the
+        contract will reject: the digest is a statement about ENCODING, and
+        authorization is a different fact entirely. Getting that wrong costs a
+        reverted transaction and its gas, and the revert reason ("bad signer")
+        points at the signature rather than at the signer set, which is the wrong
+        place to start looking.
+        """
+        if not self.configured() or self._connect() is None:
+            return None
+        from web3 import Web3
+
+        return bool(
+            self._contract().functions.isSigner(
+                Web3.to_checksum_address(self.signer.address)
+            ).call()
+        )
 
     def record(
         self,

@@ -325,9 +325,12 @@ def test_mode_dev_wins_over_agentkit_config(monkeypatch):
         reset_verifier()
 
 
-def test_auto_mode_requires_a_real_verifier_url(monkeypatch):
+def test_auto_mode_stays_on_the_mock_until_something_is_configured(monkeypatch):
+    """AgentKit needs no verifier URL — AgentBook's address and RPC are public
+    constants — so the old rule (a URL must look real) no longer decides
+    anything. What decides is whether the operator configured an app at all."""
     _env(monkeypatch, ACR_HUMANID_MODE="auto", ACR_HUMANID_VERIFIER_URL="",
-         ACR_HUMANID_APP_ID="app_123")
+         ACR_HUMANID_APP_ID="")
     try:
         assert isinstance(get_verifier(), DevHumanVerifier)
     finally:
@@ -335,9 +338,8 @@ def test_auto_mode_requires_a_real_verifier_url(monkeypatch):
         reset_verifier()
 
 
-def test_auto_mode_selects_agentkit_when_configured(monkeypatch):
-    _env(monkeypatch, ACR_HUMANID_MODE="auto",
-         ACR_HUMANID_VERIFIER_URL="https://verifier.example", ACR_HUMANID_APP_ID="app_123")
+def test_auto_mode_selects_agentkit_once_an_app_is_configured(monkeypatch):
+    _env(monkeypatch, ACR_HUMANID_MODE="auto", ACR_HUMANID_APP_ID="app_123")
     try:
         assert isinstance(get_verifier(), AgentKitVerifier)
     finally:
@@ -345,67 +347,218 @@ def test_auto_mode_selects_agentkit_when_configured(monkeypatch):
         reset_verifier()
 
 
-def test_agentkit_fails_closed_when_unconfigured(monkeypatch):
-    _env(monkeypatch, ACR_HUMANID_MODE="agentkit", ACR_HUMANID_VERIFIER_URL="",
-         ACR_HUMANID_APP_ID="")
+class _StubBook:
+    """An AgentBook that knows exactly one wallet."""
+
+    source = "stub"
+
+    def __init__(self, wallet: str | None = None, nullifier: str = "0x" + "11" * 32):
+        self._wallet = (wallet or "").lower()
+        self._nullifier = nullifier
+
+    def lookup(self, wallet: str):
+        from acr_oracle_client.agentbook import Registration
+
+        if wallet.lower() != self._wallet:
+            return None
+        return Registration(wallet=wallet, human_id=int(self._nullifier, 16), sandbox=True)
+
+    def roster(self):
+        return None
+
+
+def _agentkit_header(key, *, nonce, uri="/tca/human", issued=None, expires=None,
+                     address=None, sigtype="eip191", tamper_msg=None):
+    """A signed CAIP-122/SIWE payload, base64-JSON, as World's header carries it."""
+    import base64 as b64
+    import datetime as dt
+    import json as js
+
+    from eth_account import Account
+    from eth_account.messages import encode_defunct
+
+    acct = Account.from_key(key)
+    issued = issued or dt.datetime.now(dt.UTC).isoformat()
+    raw = tamper_msg or (
+        f"acr.test wants you to sign in with your account:\n{acct.address}\n\n"
+        f"URI: {uri}\nVersion: 1\nChain ID: 480\nNonce: {nonce}\nIssued At: {issued}"
+    )
+    sig = Account.sign_message(encode_defunct(text=raw), private_key=key).signature.hex()
+    payload = {
+        "address": address or acct.address, "nonce": nonce, "issuedAt": issued,
+        "uri": uri, "chainId": "eip155:480", "signedMessage": raw,
+        "signature": sig if sig.startswith("0x") else "0x" + sig, "type": sigtype,
+    }
+    if expires:
+        payload["expirationTime"] = expires
+    return b64.b64encode(js.dumps(payload).encode()).decode(), acct.address
+
+
+def _agentkit(monkeypatch, wallet_known: bool = True):
+    """A verifier wired to a stub book, plus a fresh challenge nonce."""
+    import types as _t
+
+    from eth_account import Account
+    from index_api.humanid import AgentKitVerifier
+
+    key = "0x" + "77" * 32
+    address = Account.from_key(key).address
+    v = AgentKitVerifier(book=_StubBook(address if wallet_known else None))
+    req = _t.SimpleNamespace(url=_t.SimpleNamespace(path="/tca/human"))
+    return v, key, address, req
+
+
+def test_agentkit_accepts_a_signed_message_from_a_registered_wallet(monkeypatch):
+    """The real flow: recover the signer, then ask AgentBook whose wallet it is."""
+    import asyncio
+
+    _env(monkeypatch)
     try:
-        client = _client()
-        r = client.get("/tca/human", headers={"HUMAN-PROOF": "anything"})
-        assert r.status_code == 503
+        v, key, address, req = _agentkit(monkeypatch)
+        header, _ = _agentkit_header(key, nonce=v.nonces.issue())
+        nullifier, observed = asyncio.run(v.nullifier_of(req, header))
+        assert nullifier == "0x" + "11" * 32
+        # AgentBook stores a nullifier and nothing about how the human proved
+        # themselves, so provenance is NOT observable on this path.
+        assert observed is None
     finally:
         monkeypatch.undo()
         reset_verifier()
 
 
-def test_agentkit_rejects_a_proof_scoped_to_another_app(monkeypatch):
+def test_agentkit_refuses_a_wallet_nobody_registered(monkeypatch):
+    """`lookupHuman` returns 0 for an unregistered wallet. That is the common
+    case and an honest answer, not an error on our side."""
     import asyncio
-    import base64
-    import json
-    import types
 
-    _env(monkeypatch, ACR_HUMANID_MODE="agentkit",
-         ACR_HUMANID_VERIFIER_URL="https://verifier.example", ACR_HUMANID_APP_ID="app_ours")
+    _env(monkeypatch)
     try:
-        v = AgentKitVerifier()
-        nonce = v.nonces.issue()
-        header = base64.b64encode(
-            json.dumps({"nonce": nonce, "app_id": "app_theirs"}).encode()
-        ).decode()
-        req = types.SimpleNamespace(url=types.SimpleNamespace(path="/tca/human"))
+        v, key, _, req = _agentkit(monkeypatch, wallet_known=False)
+        header, _ = _agentkit_header(key, nonce=v.nonces.issue())
         with pytest.raises(HTTPException) as e:
             asyncio.run(v.nullifier_of(req, header))
         assert e.value.status_code == 401
-        assert "another app" in e.value.detail
+        assert "not registered in AgentBook" in e.value.detail
     finally:
         monkeypatch.undo()
         reset_verifier()
 
 
-def test_agentkit_fails_closed_on_a_transport_error(monkeypatch):
-    """An unverified human must never be served as a verified one."""
+def test_agentkit_refuses_a_signature_from_another_key(monkeypatch):
+    """Claiming an address you cannot sign for must not resolve to its human."""
     import asyncio
-    import base64
-    import json
-    import types
 
-    _env(monkeypatch, ACR_HUMANID_MODE="agentkit",
-         ACR_HUMANID_VERIFIER_URL="https://verifier.example", ACR_HUMANID_APP_ID="app_ours")
+    _env(monkeypatch)
     try:
-        v = AgentKitVerifier()
-
-        async def boom(payload, nonce):
-            raise ConnectionError("network down")
-
-        v._verify_remote = boom
-        nonce = v.nonces.issue()
-        header = base64.b64encode(json.dumps({"nonce": nonce}).encode()).decode()
-        req = types.SimpleNamespace(url=types.SimpleNamespace(path="/tca/human"))
+        v, _, address, req = _agentkit(monkeypatch)
+        # Signed by an impostor, but naming the registered address.
+        header, _ = _agentkit_header("0x" + "99" * 32, nonce=v.nonces.issue(), address=address)
         with pytest.raises(HTTPException) as e:
             asyncio.run(v.nullifier_of(req, header))
+        assert e.value.status_code == 401
+        assert "does not match the address" in e.value.detail
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_agentkit_refuses_a_stale_proof(monkeypatch):
+    """Freshness lives inside the signed message, so it cannot be back-dated
+    without invalidating the signature — but an OLD one must still be refused."""
+    import asyncio
+    import datetime as dt
+
+    _env(monkeypatch)
+    try:
+        v, key, _, req = _agentkit(monkeypatch)
+        old = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)).isoformat()
+        header, _ = _agentkit_header(key, nonce=v.nonces.issue(), issued=old)
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, header))
+        assert "stale" in e.value.detail
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_agentkit_refuses_a_proof_bound_to_another_resource(monkeypatch):
+    """Context is enforced against OUR view of the request, never against what
+    the payload asserts about itself."""
+    import asyncio
+
+    _env(monkeypatch)
+    try:
+        v, key, _, req = _agentkit(monkeypatch)
+        header, _ = _agentkit_header(key, nonce=v.nonces.issue(), uri="/some/other/route")
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, header))
+        assert "bound to another resource" in e.value.detail
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_agentkit_refuses_a_replayed_nonce(monkeypatch):
+    import asyncio
+
+    _env(monkeypatch)
+    try:
+        v, key, _, req = _agentkit(monkeypatch)
+        nonce = v.nonces.issue()
+        header, _ = _agentkit_header(key, nonce=nonce)
+        asyncio.run(v.nullifier_of(req, header))
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, header))
+        assert "nonce is not spendable" in e.value.detail
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_agentkit_refuses_a_smart_wallet_signature_rather_than_waving_it_through(monkeypatch):
+    """An EIP-1271 signature cannot be recovered — it has to be asked of the
+    wallet on its own chain. Refusing beats accepting it unverified."""
+    import asyncio
+
+    _env(monkeypatch)
+    try:
+        v, key, _, req = _agentkit(monkeypatch)
+        header, _ = _agentkit_header(key, nonce=v.nonces.issue(), sigtype="eip1271")
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, header))
+        assert "eip1271" in e.value.detail
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_agentkit_refuses_a_tampered_message(monkeypatch):
+    """The signature covers the message; changing it must break recovery."""
+    import asyncio
+
+    _env(monkeypatch)
+    try:
+        v, key, _, req = _agentkit(monkeypatch)
+        nonce = v.nonces.issue()
+        header, _ = _agentkit_header(key, nonce=nonce)
+        import base64 as b64
+        import json as js
+
+        payload = js.loads(b64.b64decode(header))
+        payload["signedMessage"] = payload["signedMessage"] + " (edited)"
+        tampered = b64.b64encode(js.dumps(payload).encode()).decode()
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, tampered))
         assert e.value.status_code == 401
     finally:
         monkeypatch.undo()
         reset_verifier()
+
+
+def test_agentkit_uses_worlds_own_header_name():
+    from index_api.humanid import AgentKitVerifier
+
+    assert AgentKitVerifier.HEADER == "agentkit"
 
 
 def test_the_verifier_is_injectable_for_tests(monkeypatch):
@@ -437,3 +590,158 @@ def test_humanid_info_reports_the_backend_and_the_sandbox_limit(monkeypatch):
 def test_a_settings_object_never_carries_a_salt_by_default():
     """A default salt would be a shared secret in a public repo."""
     assert ACRSettings(_env_file=None).humanid_salt == ""
+
+
+# --- the cloud-verify path ----------------------------------------------------
+
+
+def _cloud(monkeypatch, responses):
+    """A WorldIdCloudVerifier whose HTTP calls replay canned (status, body)."""
+    import types as _t
+
+    from index_api.humanid import WorldIdCloudVerifier
+
+    v = WorldIdCloudVerifier()
+    seen = []
+
+    async def fake_post(url, payload):
+        seen.append(url)
+        return responses[min(len(seen) - 1, len(responses) - 1)]
+
+    monkeypatch.setattr(v, "_post", fake_post)
+    req = _t.SimpleNamespace(url=_t.SimpleNamespace(path="/tca/human"))
+    return v, req, seen
+
+
+def _idkit(payload=None):
+    import base64 as b64
+    import json as js
+
+    return b64.b64encode(js.dumps(payload or {"proof": "0xabc"}).encode()).decode()
+
+
+def test_cloud_v4_returns_the_nullifier_and_observes_the_environment(monkeypatch):
+    """v4 is the ONE place any of this can observe provenance rather than assert
+    it — the response carries `environment`."""
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="app_test")
+    try:
+        v, req, seen = _cloud(monkeypatch, [(200, {
+            "success": True, "nullifier": "0x2a", "environment": "staging"})])
+        nullifier, observed = asyncio.run(v.nullifier_of(req, _idkit()))
+        assert nullifier == "0x" + "00" * 31 + "2a"
+        assert observed is True          # staging → sandbox
+        assert "/api/v4/verify/app_test" in seen[0]
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_cloud_v4_production_is_not_sandbox(monkeypatch):
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="app_test")
+    try:
+        v, req, _ = _cloud(monkeypatch, [(200, {
+            "success": True, "nullifier": "0x1", "environment": "production"})])
+        _, observed = asyncio.run(v.nullifier_of(req, _idkit()))
+        assert observed is False
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_cloud_falls_back_to_v2_only_on_app_not_migrated(monkeypatch):
+    """And v2 answers with `nullifier_hash`, not `nullifier` — a rename that
+    would otherwise read as 'no nullifier returned'."""
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="app_test")
+    try:
+        v, req, seen = _cloud(monkeypatch, [
+            (400, {"code": "app_not_migrated", "detail": "use v2"}),
+            (200, {"success": True, "nullifier_hash": "0x7b"}),
+        ])
+        nullifier, observed = asyncio.run(v.nullifier_of(req, _idkit()))
+        assert nullifier.endswith("7b")
+        # v2 carries no environment: unobservable, which is NOT the same as
+        # "production" and must not be reported as if it were.
+        assert observed is None
+        assert "/api/v4/" in seen[0] and "/api/v2/" in seen[1]
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_cloud_reports_the_verifiers_own_reason(monkeypatch):
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="app_test")
+    try:
+        v, req, _ = _cloud(monkeypatch, [(400, {
+            "code": "invalid_proof", "detail": "The provided proof is invalid"})])
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, _idkit()))
+        assert e.value.status_code == 401
+        assert "invalid" in e.value.detail.lower()
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_cloud_normalises_a_decimal_nullifier(monkeypatch):
+    """World's own guidance stores nullifiers as numerics; `cluster_id` wants 32
+    bytes. Normalising in one place beats each caller guessing the form."""
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="app_test")
+    try:
+        v, req, _ = _cloud(monkeypatch, [(200, {"success": True, "nullifier": "255"})])
+        nullifier, _ = asyncio.run(v.nullifier_of(req, _idkit()))
+        assert nullifier == "0x" + "00" * 31 + "ff"
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_cloud_without_an_app_id_fails_closed(monkeypatch):
+    import asyncio
+
+    _env(monkeypatch, ACR_HUMANID_MODE="worldid", ACR_HUMANID_APP_ID="")
+    try:
+        v, req, _ = _cloud(monkeypatch, [(200, {"success": True, "nullifier": "0x1"})])
+        with pytest.raises(HTTPException) as e:
+            asyncio.run(v.nullifier_of(req, _idkit()))
+        assert e.value.status_code == 503
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_an_app_id_alone_selects_a_real_gate_not_the_mock(monkeypatch):
+    from index_api.humanid import AgentKitVerifier
+
+    _env(monkeypatch, ACR_HUMANID_MODE="auto", ACR_HUMANID_APP_ID="app_test")
+    try:
+        assert isinstance(get_verifier(), AgentKitVerifier)
+    finally:
+        monkeypatch.undo()
+        reset_verifier()
+
+
+def test_the_stray_credential_check_reads_the_env_file_not_just_the_environment(tmp_path,
+                                                                                monkeypatch):
+    """The failure this catches happens in `.env`, and pydantic reads that file
+    without exporting it — so an environment-only scan would miss the very case
+    the check exists for."""
+    from index_api.humanid import stray_world_credentials
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("WOrld_app_id=secret\nACR_HUMANID_APP_ID=fine\nOTHER=x\n")
+    hits = stray_world_credentials()
+    assert "WOrld_app_id" in hits
+    # An ACR_-prefixed name is read by settings, so it is not stray…
+    assert "ACR_HUMANID_APP_ID" not in hits
+    # …and an unrelated variable is nobody's business.
+    assert "OTHER" not in hits

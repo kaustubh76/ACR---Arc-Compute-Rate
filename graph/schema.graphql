@@ -241,13 +241,19 @@ One verified human, inside one rotation window.
 
 The id is `keccak256(nullifier, salt, window)`, computed off-chain and recorded by
 `HumanIdMirror`. Within a window it groups a person's wallets; across windows it
-changes, so the durable World ID never reaches the chain and this tape cannot be
+changes, so the durable World ID never reaches THIS chain and this tape cannot be
 joined to another service's data keyed by the same human.
 
 It does NOT make a fleet unlinkable: wallets are the join key and they do not
 rotate, so a wallet seen under two windows chains them together. What rotation
-prevents is cross-service correlation. HumanIdMirror.sol carries the full
-argument, and the README states the limit rather than implying it away.
+prevents is cross-service correlation.
+
+Narrower still, and worth saying where a reader will see it: World's own
+AgentBook publishes `wallet -> nullifier` on World Chain, so a registered fleet is
+ALREADY public there. Nothing here changes that. What this achieves is keeping
+ACR's tape from becoming a second publication of that durable identifier, keyed to
+our settlement data. HumanIdMirror.sol carries the full argument, and the README
+states the limit rather than implying it away.
 """
 type HumanCluster @entity(immutable: false) {
   id: Bytes!                    # the cluster id

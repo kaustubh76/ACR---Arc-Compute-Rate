@@ -157,3 +157,26 @@ def test_a_wrong_salt_is_caught_before_it_writes_anything():
     client = _client(_deploy(w3, acct))
     assert client.salt_matches(SALT) is True
     assert client.salt_matches("0x" + "ee" * 32) is False
+
+
+@pytest.mark.skipif(not ARTIFACT.exists(), reason="contracts not built (run forge build)")
+def test_an_unauthorized_signer_is_caught_before_anything_is_signed():
+    """The gap a digest check cannot close.
+
+    A digest proves our ENCODING matches the contract's. Authorization is a
+    different fact, and a dry run that checked only the first would report
+    success for a key the contract will reject — costing a reverted transaction
+    whose reason ("bad signer") points at the signature rather than at the
+    signer set. This was found against a real deployment, not imagined.
+    """
+    conn = _anvil()
+    if conn is None:
+        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+    w3, acct = conn
+    address = _deploy(w3, acct)
+
+    # The deployer is a signer by construction…
+    assert _client(address).signer_authorized() is True
+    # …and a valid key the contract has never heard of is not.
+    stranger = _client(address, key="0x" + "11" * 32)
+    assert stranger.signer_authorized() is False

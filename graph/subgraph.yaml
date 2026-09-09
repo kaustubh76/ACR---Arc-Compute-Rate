@@ -199,17 +199,16 @@ dataSources:
           handler: handleMirrorSignerSet
 
   # --- who is one human ------------------------------------------------------
-  # PLACEHOLDER address and startBlock: fill both from `make deploy-humanid`.
-  # `make graph-deploy` refuses to run while either is still a placeholder.
-  # Records WINDOW-ROTATED CLUSTER IDS, never World ID nullifiers — see
+  # Deployed 2026-09-09, block 61226802. Records WINDOW-ROTATED CLUSTER IDS,
+  # never World ID nullifiers — see
   # contracts/src/HumanIdMirror.sol for what that does and does not buy.
   - kind: ethereum/contract
     name: HumanIdMirror
     network: arc-testnet
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5"
       abi: HumanIdMirror
-      startBlock: 0
+      startBlock: 61226802
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

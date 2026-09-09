@@ -18,9 +18,12 @@ const ZERO32 = Bytes.fromHexString(
  *
  * What arrives here is deliberately NOT a World ID nullifier — it is
  * `keccak256(nullifier, salt, window)`, so the durable identifier never reaches
- * the chain and this tape cannot be joined to another service's data keyed by
- * the same human. See HumanIdMirror.sol for why that prevents cross-service
- * correlation without making a fleet unlinkable.
+ * Arc and this tape cannot be joined to another service's data keyed by the same
+ * human.
+ *
+ * Narrower than it sounds, and deliberately stated that way: World's AgentBook
+ * already publishes `wallet -> nullifier` on World Chain, so a registered fleet
+ * is public there regardless. See HumanIdMirror.sol for the full argument.
  */
 export function handleHumanClusterResolved(event: HumanClusterResolved): void {
   const now = event.block.timestamp;
