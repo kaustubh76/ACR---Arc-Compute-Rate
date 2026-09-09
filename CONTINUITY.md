@@ -67,7 +67,7 @@ alongside, not on top of.
 
 ## 4 · What was built during the event
 
-New files, grouped (`git diff --name-status --diff-filter=A v1.0-submission..HEAD`):
+New files, grouped (`git diff --name-status --diff-filter=A v1.0-submission..0aff288`):
 
 | area | files | what |
 |---|---|---|
@@ -121,9 +121,9 @@ because a superseded measurement is evidence and a deleted one is a gap.
 
 ```bash
 git log -1 --format='%H %ci %s' v1.0-submission
-git log --oneline v1.0-submission..HEAD | wc -l
-git diff --shortstat v1.0-submission..HEAD
-git diff --numstat --diff-filter=A v1.0-submission..HEAD | awk '{s+=$1} END {print s}'
+git log --oneline v1.0-submission..0aff288 | wc -l
+git diff --shortstat v1.0-submission..0aff288
+git diff --numstat --diff-filter=A v1.0-submission..0aff288 | awk '{s+=$1} END {print s}'
 uv run python scripts/verify_claims.py     # every documented number, re-measured
 uv run pytest -p no:cacheprovider          # 555 passed, 0 skipped
 cd contracts && forge test                 # 156 passed

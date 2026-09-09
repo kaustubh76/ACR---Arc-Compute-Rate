@@ -537,8 +537,18 @@ def main() -> None:
         m = re.search(r"git diff --shortstat (\S+\.\.\S+)", body)
         if check(m is not None, "CONTINUITY.md names the range its statistics cover"):
             rng = m.group(1)
-            if check("HEAD" not in rng,
-                     f"CONTINUITY.md anchors its statistics to a fixed range ({rng}), not HEAD"):
+            # EVERY range in the document, not just the first. Checking one was a
+            # real hole: the table was frozen while §7 — the section telling a
+            # reader how to re-derive it — still said `..HEAD`, so a judge
+            # following the document's own instructions got figures contradicting
+            # it, and this check stayed green because it only ever looked at the
+            # first match. A document that disagrees with itself in the honesty
+            # section is worse than one that is merely stale.
+            ranges = {r.strip("`),.") for r in re.findall(r"\S+\.\.\S+", body)}
+            floating = sorted(r for r in ranges if "HEAD" in r)
+            if check(not floating,
+                     "CONTINUITY.md anchors EVERY range to a fixed sha, not HEAD"
+                     + (f" — floating: {', '.join(floating)}" if floating else f" ({rng})")):
                 short = run(["git", "diff", "--shortstat", rng])
                 added = len(run(
                     ["git", "diff", "--name-status", "--diff-filter=A", rng]).splitlines())
