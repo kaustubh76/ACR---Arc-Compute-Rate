@@ -7,7 +7,7 @@
 computed here, off chain, by whoever holds the salt. Within one rotation window
 the id groups a human's wallets, which is all the cleaning stack needs to cap
 them together and all the tape needs to count distinct humans; across windows it
-changes, so the durable identifier never reaches a public chain and this tape
+changes, so the durable identifier never reaches ARC and this tape
 cannot be joined to another service's data keyed by the same human.
 
 Rotation does NOT make a fleet unlinkable — wallets are the join key and they do

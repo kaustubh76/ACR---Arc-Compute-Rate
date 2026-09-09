@@ -18,13 +18,22 @@ pragma solidity 0.8.24;
 ///         Within one window the id groups a human's wallets, which is all the
 ///         cleaning stack needs to cap them together and all the tape needs to
 ///         count distinct humans. Across windows the id changes, so the durable
-///         nullifier never appears and nobody can join this tape to another
-///         service's data keyed by the same World ID.
+///         nullifier never appears ON ARC and nobody can join this tape to
+///         another service's data keyed by the same World ID.
 ///
 ///         BE PRECISE ABOUT WHAT THAT BUYS. Rotation does NOT unlink a fleet:
 ///         wallets are the join key and they do not rotate, so a wallet seen
 ///         under two windows' ids chains them together. What rotation prevents
-///         is CROSS-SERVICE correlation, not within-tape grouping. Hiding the
+///         is CROSS-SERVICE correlation, not within-tape grouping.
+///
+///         AND IT IS NARROWER STILL THAN THAT. World's own AgentBook publishes
+///         `wallet -> nullifier` on World Chain, so a registered fleet is
+///         ALREADY public there to anyone reading `AgentRegistered`. Nothing
+///         here could change that, and nothing here should be read as claiming
+///         to. What this contract does is keep ACR's tape from becoming a
+///         SECOND publication of that durable identifier, keyed to our own
+///         settlement data. We neither add to AgentBook's disclosure nor depend
+///         on it having been private. Hiding the
 ///         grouping itself would need aggregate-only publication or a ZK proof
 ///         of cap compliance; neither is here, and the README says so rather
 ///         than implying otherwise.
