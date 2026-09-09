@@ -82,7 +82,7 @@ rests on, not a claim about it.
 
 ## 2 · Decision one — what goes on chain
 
-The mirror publishes a **window-rotated cluster id**. The nullifier never touches the chain.
+The mirror publishes a **window-rotated cluster id**. The nullifier never touches *Arc*.
 
 ```
 clusterId = keccak256(abi.encode(nullifier, SERVICE_SALT, window))
@@ -122,14 +122,23 @@ The equivalence class is transitively closed through wallet addresses, so any wa
 across windows chains the clusters together. Anyone claiming otherwise will be corrected by a
 judge in about two minutes, and the correction will be right.
 
-What rotation *does* buy is real and worth shipping: **the durable nullifier is never
-published**, so nobody can join ACR's tape to another service's data keyed by the same World ID.
+What rotation *does* buy is real and worth shipping: **the durable nullifier is never published
+on Arc**, so nobody can join ACR's tape to another service's data keyed by the same World ID.
 That is cross-service correlation resistance, and it is the claim to make:
 
 > Rotation prevents correlating your World ID across services. It does not hide, within ACR's own
 > tape, that these wallets act together. Doing that needs aggregate-only publication or a
 > zero-knowledge proof of cap compliance, and is named here as future work rather than implied as
 > done.
+
+**Narrower still, and this was found late.** World's own AgentBook publishes
+`wallet -> nullifier` on World Chain — I read the live contract to confirm it. So a registered
+fleet is **already public there** to anyone scanning `AgentRegistered`, and no design on Arc could
+change that. The claim is therefore not "we keep fleets private"; it is that ACR's tape does not
+become a *second* publication of the durable identifier, keyed to our own settlement data. We
+neither add to AgentBook's disclosure nor depend on it having been private. Every surface carrying
+the shorter version of this claim — the contract header, `schema.graphql`, `humanid.ts`,
+`humanid.py` — was corrected rather than left to read as more than it is.
 
 The keeper knows the nullifier-to-cluster mapping and could publish it. That places this
 alongside the other keeper-authored, trust-required facts already listed in the trust boundary —
