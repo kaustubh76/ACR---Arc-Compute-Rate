@@ -5,7 +5,7 @@ extended during it. ETHGlobal's rules ask that pre-existing work be documented
 and that judging attach to the new work. This document draws that line and makes
 it checkable — every number below names the command that re-derives it.
 
-The short version: **91.4% of the lines added since the baseline are in files
+The short version: **91.6% of the lines added since the baseline are in files
 that did not exist at the baseline**, and deletions are **0.7%** of insertions.
 The extension is almost entirely new surface sitting beside the old one rather
 than a rewrite of it.
@@ -34,29 +34,35 @@ Everything in that tag is pre-existing and claims no credit:
 
 ## 2 · The commit range
 
+Every figure below is measured over a **frozen range**, `v1.0-submission..0aff288`, not against
+`HEAD`. That is deliberate: a statistic measured against a moving head is stale the
+moment the commit correcting it lands — which is exactly how the earlier numbers here
+went out of date. Anchored at both ends, they stay re-derivable forever, and only go
+stale when someone deliberately re-anchors them.
+
 ```bash
-git log --oneline v1.0-submission..HEAD      # 41 commits
-git diff --shortstat v1.0-submission..HEAD
+git log --oneline v1.0-submission..0aff288      # 45 commits
+git diff --shortstat v1.0-submission..0aff288
 ```
 
-41 commits, no squashing, each scoped to one change. Commits that touch baseline
+45 commits, no squashing, each scoped to one change. Commits that touch baseline
 files say so in the subject and the body explains why.
 
 ## 3 · Diff statistics
 
 | measure | value | command |
 |---|---|---|
-| files changed | 187 | `git diff --shortstat v1.0-submission..HEAD` |
-| insertions | **40,097** | same |
+| files changed | 189 | `git diff --shortstat v1.0-submission..0aff288` |
+| insertions | **41,200** | same |
 | deletions | **280** | same |
-| files added | **124** | `git diff --name-status --diff-filter=A v1.0-submission..HEAD \| wc -l` |
+| files added | **126** | `git diff --name-status --diff-filter=A v1.0-submission..0aff288 \| wc -l` |
 | files modified | 63 | `--diff-filter=M` |
-| lines in new files | **36,643** | `git diff --numstat --diff-filter=A v1.0-submission..HEAD \| awk '{s+=$1} END {print s}'` |
-| **new-file share** | **91.4%** | 36,643 / 40,097 |
-| **baseline churn** | **0.7%** | 280 / 40,097 |
+| lines in new files | **37,737** | `git diff --numstat --diff-filter=A v1.0-submission..0aff288 \| awk '{s+=$1} END {print s}'` |
+| **new-file share** | **91.6%** | 37,737 / 41,200 |
+| **baseline churn** | **0.7%** | 280 / 41,200 |
 
 Read the last two rows together. A project that rewrote its baseline to look new
-would show large deletions; 280 across 187 files is the signature of work added
+would show large deletions; 280 across 189 files is the signature of work added
 alongside, not on top of.
 
 ## 4 · What was built during the event

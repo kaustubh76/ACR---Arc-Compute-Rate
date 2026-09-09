@@ -59,6 +59,10 @@ PITCH = ROOT / "docs" / "pitch" / "deck.html"
 #: every redeploy. It states the suite counts in the deck's markdown phrasing
 #: (`**367 py**`), so the deck patterns re-apply verbatim.
 BRIEF = ROOT / "docs" / "SUBMISSION-BRIEF.md"
+#: The continuity submission's own diff statistics. Unregistered until now, which
+#: is exactly why they drifted: it is the one document a judge opens to check
+#: honesty, and nothing was re-deriving the numbers it invites you to re-derive.
+CONTINUITY = ROOT / "CONTINUITY.md"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -523,6 +527,63 @@ def main() -> None:
         body = (_P("docs") / doc).read_text().lower() if (_P("docs") / doc).exists() else ""
         for phrase, why in STALE_VENUE.items():
             check(phrase not in body, f"{doc} no longer says '{phrase}' — {why}")
+
+    # --- the continuity diff stats -------------------------------------------
+    # Measured over the FROZEN range the document names, never against HEAD. A
+    # statistic anchored to a moving head is stale the moment the commit that
+    # corrects it lands, which is the loop this check exists to break.
+    if CONTINUITY.exists():
+        body = CONTINUITY.read_text()
+        m = re.search(r"git diff --shortstat (\S+\.\.\S+)", body)
+        if check(m is not None, "CONTINUITY.md names the range its statistics cover"):
+            rng = m.group(1)
+            if check("HEAD" not in rng,
+                     f"CONTINUITY.md anchors its statistics to a fixed range ({rng}), not HEAD"):
+                short = run(["git", "diff", "--shortstat", rng])
+                added = len(run(
+                    ["git", "diff", "--name-status", "--diff-filter=A", rng]).splitlines())
+                newlines = sum(
+                    int(line.split("\t")[0])
+                    for line in run(["git", "diff", "--numstat", "--diff-filter=A",
+                                     rng]).splitlines()
+                    if line.split("\t")[0].isdigit()
+                )
+                commits = len(run(["git", "log", "--oneline", rng]).splitlines())
+
+                def _n(pattern: str, text: str) -> int | None:
+                    hit = re.search(pattern, text)
+                    return int(hit.group(1).replace(",", "")) if hit else None
+
+                measured = {
+                    "commits": commits,
+                    "files changed": _n(r"(\d+) files? changed", short),
+                    "insertions": _n(r"(\d+) insertion", short),
+                    "deletions": _n(r"(\d+) deletion", short),
+                    "files added": added,
+                    "lines in new files": newlines,
+                }
+                stated = {
+                    "commits": _n(r"# ([\d,]+) commits", body),
+                    "files changed": _n(r"\| files changed \| \*?\*?([\d,]+)", body),
+                    "insertions": _n(r"\| insertions \| \*\*([\d,]+)\*\*", body),
+                    "deletions": _n(r"\| deletions \| \*\*([\d,]+)\*\*", body),
+                    "files added": _n(r"\| files added \| \*\*([\d,]+)\*\*", body),
+                    "lines in new files": _n(r"\| lines in new files \| \*\*([\d,]+)\*\*", body),
+                }
+                for label, want in measured.items():
+                    got = stated[label]
+                    check(got == want,
+                          f"continuity {label}: CONTINUITY.md says {got}, measured {want}")
+
+                # The derived headline — the document's opening sentence, and the
+                # single most-read claim in it.
+                ins, new_lines = measured["insertions"], measured["lines in new files"]
+                if ins:
+                    want_share = f"{new_lines / ins * 100:.1f}%"
+                    hit = re.search(r"\*\*([\d.]+%) of the lines added", body)
+                    check(hit is not None and hit.group(1) == want_share,
+                          f"continuity new-file share: CONTINUITY.md says "
+                          f"{hit.group(1) if hit else 'nothing'}, measured {want_share}")
 
     print()
     if _failures:
