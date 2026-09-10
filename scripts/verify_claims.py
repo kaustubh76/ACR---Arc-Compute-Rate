@@ -170,6 +170,40 @@ def measured_pytest() -> int | None:
 
 
 @cache
+def pytest_verdict() -> tuple[int, int] | None:
+    """(passed, failed) from a REAL run — the question `--collect-only` cannot ask.
+
+    `measured_pytest` counts COLLECTION, and that is the right number for the
+    docs: it is stable across machines and it includes the anvil-gated tests
+    that skip without a node. What it cannot do is notice that a test failed.
+    The documents it gates say "**N passed**" and print a ✅, so for as long as
+    this did not exist a fully red suite reported green on every count claim in
+    every document — which is exactly what happened on 2026-09-10, when a
+    genuinely broken test sat behind a green audit.
+
+    Costly by construction, so CLAIMS_FAST skips it and says so rather than
+    passing silently. In CI that is covered: the python job runs the suite
+    itself and goes red on its own. The gap this closes is the local one, where
+    a green audit is read as "the suite passes".
+    """
+    # NO `-q` HERE. pyproject's addopts already supplies one, so adding a
+    # second makes it `-qq`, and `-qq` suppresses the very summary line this
+    # parses — the run goes green, the parse finds nothing, and the check
+    # reports "could not run it", which is indistinguishable from a missing
+    # toolchain. Measured: that is exactly what happened on the first attempt.
+    out = run(["uv", "run", "pytest", "packages", "services", "tests",
+               "-p", "no:cacheprovider", "--tb=no"])
+    if out.startswith("__ERROR__"):
+        return None
+    failed = int(m.group(1)) if (m := re.search(r"(\d+) failed", out)) else 0
+    passed = int(m.group(1)) if (m := re.search(r"(\d+) passed", out)) else 0
+    errors = int(m.group(1)) if (m := re.search(r"(\d+) errors?", out)) else 0
+    if passed == 0 and failed == 0 and errors == 0:
+        return None  # could not read a summary at all — not "nothing failed"
+    return passed, failed + errors
+
+
+@cache
 def measured_forge() -> int | None:
     """Plain `forge test` — `--summary` prints a table and moves the one-line
     total out of reach."""
@@ -278,6 +312,21 @@ def main() -> None:
             continue
         for name, val in stated:
             check(actual == val, f"{label}: {name} says {val}, measured {actual}")
+
+    # And the question every count above is incapable of asking: does the suite
+    # actually PASS? Six documents print "N passed" beside a ✅ next to a number
+    # produced by `--collect-only`, which executes nothing. Until this existed,
+    # a red suite and a green one were indistinguishable to this file.
+    if FAST:
+        print("  · python suite actually passes: not measured (CLAIMS_FAST)")
+    else:
+        verdict = pytest_verdict()
+        if verdict is None:
+            check(False, "python suite: could not run it to see whether it passes")
+        else:
+            passed, failed = verdict
+            check(failed == 0,
+                  f"python suite actually PASSES: {passed} passed, {failed} failed")
 
     # The deck states the same suite sizes in its own phrasing ("**273 py** ·
     # **50 forge** · **55 terminal** … glossary **386/386**). It is a separate
