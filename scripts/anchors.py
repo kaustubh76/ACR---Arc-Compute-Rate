@@ -230,8 +230,68 @@ def recompute_gap(doc: dict) -> float | None:
     return gap_vs_reference(doc["index_id"], agg["value"])["ratio"]
 
 
-def check_anchors(indices=ALL_INDEX_IDS) -> list[str]:
+C_HUMAN_BASKET = ROOT / "anchors" / "_basket" / "C-HUMAN.json"
+
+
+def check_c_human() -> list[str]:
+    """Validate the C_human basket, which is NOT an index and so is not enumerated.
+
+    It has to be checked explicitly, and that is the whole point. `--check` and
+    `--report` both walk ALL_INDEX_IDS, so a file sitting in anchors/ that is not
+    an index is invisible to them: you could add it, run `make anchors-check`,
+    get a clean green, and have nothing validate the number that scales the
+    entire human-denominated bound. Green means "everything I enumerate is
+    fine", never "everything is fine" — the same shape as a validator that
+    checks the first match of a pattern and reports on the file.
+    """
     fails: list[str] = []
+    if not C_HUMAN_BASKET.exists():
+        return [f"C-HUMAN: {C_HUMAN_BASKET.name} is missing — the human bound would "
+                f"fall back to a constant, which is what anchors/ exists to prevent"]
+    try:
+        basket = json.loads(C_HUMAN_BASKET.read_text())
+    except Exception as exc:
+        return [f"C-HUMAN: basket does not parse ({type(exc).__name__})"]
+
+    # The quantity sentence is load-bearing, not decoration: the natural reading
+    # of "cost of a verified human" is the price of Orb verification, which is
+    # free and is the wrong number by orders of magnitude.
+    if not str(basket.get("quantity") or "").strip():
+        fails.append("C-HUMAN: basket does not say WHICH quantity it measures")
+
+    rule = basket.get("rule") or {}
+    rows = basket.get("rows") or []
+    if rule.get("aggregate") == "floor":
+        if not isinstance(rule.get("floor_usd"), int | float) or rule["floor_usd"] <= 0:
+            fails.append("C-HUMAN: floor aggregate with no usable floor_usd")
+        if str(basket.get("status")) == "unsourced" and not str(basket.get("finding") or "").strip():
+            fails.append("C-HUMAN: status is 'unsourced' but no finding explains why")
+    elif not rows:
+        fails.append("C-HUMAN: no floor declared and no rows to aggregate")
+
+    for row in rows:
+        if not row.get("url") or not row.get("quoted"):
+            fails.append(f"C-HUMAN: row {row.get('id')!r} lacks a url or a quoted figure")
+
+    # Parity: the estimator must price from THIS file, not from a constant that
+    # happens to agree with it today.
+    try:
+        from acr_estimator.human_caps import load_cost_per_human
+
+        priced, status, _ = load_cost_per_human(C_HUMAN_BASKET)
+    except Exception as exc:
+        fails.append(f"C-HUMAN: human_caps cannot price from the basket ({exc})")
+    else:
+        want = rule.get("floor_usd") if rule.get("aggregate") == "floor" else None
+        if want is not None and abs(priced - float(want)) > 1e-9:
+            fails.append(f"C-HUMAN: human_caps prices at {priced} but the basket says {want}")
+        if status != str(basket.get("status")):
+            fails.append("C-HUMAN: human_caps reports a different status than the basket")
+    return fails
+
+
+def check_anchors(indices=ALL_INDEX_IDS) -> list[str]:
+    fails: list[str] = check_c_human()
     for index_id in indices:
         doc = latest_anchor(index_id)
         if doc is None:
@@ -359,6 +419,14 @@ def main() -> int:
         d = latest_anchor(index_id)
         print(f"  ✓ {index_id:<9} gap {d['gap']['ratio']:.0f}x declared and reproducible "
               f"(ceiling {d['ceiling']['ratio']}, as of {d['fetched_at'][:10]})")
+    # Printed explicitly. A check whose success is silent cannot be distinguished
+    # from a check that never ran, and this one is not enumerated by the loop
+    # above — which is exactly how it would come to not run.
+    cb = json.loads(C_HUMAN_BASKET.read_text())
+    rule = cb.get("rule") or {}
+    priced = rule.get("floor_usd") if rule.get("aggregate") == "floor" else "from rows"
+    print(f"  ✓ {'C-HUMAN':<9} ${priced}/human, status '{cb.get('status')}' "
+          f"(a floor, not an estimate — see the basket)")
     return 0
 
 

@@ -118,6 +118,10 @@ class ACRPrint(BaseModel):
     #: scarce input, so a human-denominated bound is by construction at least
     #: the wallet one, and a zero would understate the cost of moving the index.
     human_adjusted_bound: float | None = None
+    #: Distinct verified humans a 1bp move would need. THIS is the computed
+    #: figure; `human_adjusted_bound` scales it by a floored cost and is a lower
+    #: bound. Quote the count, not the dollars.
+    humans_required: int | None = None
     #: The nominal span this print summarizes, in the SAME clock as ``ts``
     #: (Fixing seconds, not unix), so a verifier recomputes over the same window
     #: instead of guessing it. ``window_end == ts`` by construction.
