@@ -45,6 +45,13 @@ class ACRSettings(BaseSettings):
     ci_level: float = 0.95
     #: Per-cluster volume cap as a fraction of total window volume.
     cluster_volume_cap: float = 0.05
+    #: Seed for the two stages that draw randomly: the Louvain partition and the
+    #: bootstrap CI. It lived as a hardcoded default argument on both functions,
+    #: reachable by no caller and recorded in no config, so the reproducibility
+    #: claim rested on a number nobody could see. It joins `policy_hash`, because
+    #: a different seed can produce a different partition and therefore a
+    #: different set of exclusions.
+    estimator_seed: int = 0
     #: Assumed Gateway batch width (seconds) — sets the deconvolution window.
     batch_interval_seconds: float = 300.0
 
@@ -68,6 +75,20 @@ class ACRSettings(BaseSettings):
     #: name the fourth contract instead of pretending it does not exist.
     #: Empty → the chip stays off rather than rendering a zero address.
     attestor_address: str = ""
+    #: Deployed ``ACROracleV2`` — the oracle whose prints carry the cleaning
+    #: policy hash, the estimation window and the human-denominated bound, so a
+    #: print can be re-derived rather than trusted. Deployed ALONGSIDE v1, never
+    #: instead of it: ``ACRFutures.oracle`` is immutable and the venue refuses a
+    #: print older than two hours, so if v1 stopped printing every expired open
+    #: series would be unsettleable and its collateral stranded. Empty → the
+    #: poster posts to v1 only, exactly as before.
+    oracle_v2_address: str = ""
+    #: Deployed ``ReceiptMirror`` — the contract that puts an off-chain Gateway
+    #: settlement on chain so the subgraph has a tape to index. Circle settles
+    #: x402 off-chain and returns a batch UUID, not a transaction, so without
+    #: this there is no settlement event on Arc at all and TCA has no basis.
+    #: Empty → the mirror keeper stands down rather than writing nowhere.
+    receipt_mirror_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
@@ -148,16 +169,70 @@ class ACRSettings(BaseSettings):
     #: the shared testnet GatewayWallet (all Gateway testnet chains, incl. Arc).
     x402_gateway_wallet: str = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
 
+    # --- World / AgentKit human proofs (empty verifier url → dev-mode gate) ---
+    #: Verifier selection, mirroring `x402_mode`: "auto" (AgentKit iff the URL and
+    #: app id look real), "dev" (force the mock verifier — demo loops and tests),
+    #: or "agentkit" (force the real one; fails closed if unconfigured).
+    humanid_mode: str = "auto"
+    #: AgentKit proof-verification endpoint. Empty → the dev verifier.
+    humanid_verifier_url: str = ""
+    #: The World Developer Portal app a proof must be scoped to. A proof minted
+    #: for another app must not authorize anything here.
+    humanid_app_id: str = ""
+    #: THE LINKABILITY SECRET. `clusterId = keccak256(nullifier ‖ salt ‖ window)`,
+    #: so anyone holding this and a nullifier can confirm which wallets are that
+    #: human's. Never log it, never return it, never let it reach `forge` (script
+    #: arguments land in contracts/broadcast/, which is committed). Must hash to
+    #: the deployed HumanIdMirror's immutable SALT_COMMITMENT — `humanid.py`
+    #: checks that and says so on /health, because a mismatched salt derives
+    #: cluster ids that match nothing and reads exactly like "this human has
+    #: never traded".
+    humanid_salt: str = ""
+    #: Demo identities come from the World ID Sandbox, not from Orb-verified
+    #: users. Surfaced on /humanid/info so nobody has to take the README's word
+    #: for what "verified human" means in this deployment.
+    humanid_sandbox: bool = True
+    #: keccak256 of the salt above — the value HumanIdMirror was deployed with.
+    #: Set both and a mismatch is caught before it can produce a silent zero.
+    humanid_salt_commitment: str = ""
+    #: Deployed HumanIdMirror (make deploy-humanid). Empty → the resolver stands
+    #: down instead of writing nowhere, and no wallet is ever human-backed.
+    humanid_mirror_address: str = ""
+
+    # --- World Chain (read-only) ---
+    #: AgentBook lives on World Chain, not Arc, so it needs its own endpoint —
+    #: this is the first reader in the codebase that points at a second chain.
+    #: Empty → the fixture AgentBook, which is what the demo runs on until
+    #: Sandbox access exists.
+    world_rpc_url: str = ""
+    agentbook_address: str = ""
+    #: Which AgentBook to read: "auto" (the real one iff an endpoint or address
+    #: is named), "fixture" (the demo roster), or "worldchain" (the live
+    #: contract, which needs no configuration — address and RPC are constants).
+    agentbook_mode: str = "auto"
+
     #: Comma-separated allowed CORS origins for the public API (so the dashboard
     #: /any browser can query it cross-origin). "*" = allow all (the testnet-demo
     #: default; the API serves public read data + the x402 gate); set to the
     #: Terminal's origin(s) to lock it down. Empty disables CORS entirely.
     cors_origins: str = "*"
 
+    # --- The Graph ---
+    #: Subgraph query URL (Subgraph Studio). Empty → every subgraph-backed
+    #: surface reports itself unavailable rather than serving a zero, because a
+    #: TCA of "0 bp" and a TCA of "we could not read the tape" are different
+    #: facts and a reader must never see one rendered as the other.
+    subgraph_url: str = ""
+    #: Studio API key. SERVER-SIDE ONLY — it is why the read proxy exists; a key
+    #: shipped to a browser is a key anyone can spend the quota of.
+    graph_api_key: str = ""
+
     # --- tape source selection ---
     #: "sim" (default, calibrated simulator), "arc" (live Arc testnet USDC scan),
-    #: or "receipts" (the authoritative x402 settlement ledger — needs
-    #: receipt_log_path populated by a live seller).
+    #: "receipts" (the authoritative x402 settlement ledger — needs
+    #: receipt_log_path populated by a live seller), or "graph" (the indexed
+    #: settlement tape, which is the only source carrying a per-seller unit
+    #: price and so the only one TCA can be computed from).
     tape_source: str = "sim"
     #: Events per service the simulator generates for the default sim tape. The
     #: rich local default (24k) is memory-heavy; small cloud instances (e.g. a

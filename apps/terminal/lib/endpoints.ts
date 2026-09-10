@@ -41,12 +41,13 @@ export interface EndpointRow {
    *  `{index_id}` is resolved to the first index; the console lets a reader
    *  change it afterwards. */
   console?: string;
-  /** Why an unrunnable row is unrunnable. Three different reasons, and the
+  /** Why an unrunnable row is unrunnable. Four different reasons, and the
    *  page prints the right one: a uniform "needs a session" would be false for
-   *  the webhook (Circle calls it) and for the demo starters (they just want a
-   *  body). A row that explains itself wrongly is worse than one that says
-   *  nothing. */
-  why?: "session" | "post" | "inbound";
+   *  the webhook (Circle calls it), for the demo starters (they just want a
+   *  body), and for the tape reads (they want a wallet in the path, and there
+   *  is no sensible default to probe with). A row that explains itself wrongly
+   *  is worse than one that says nothing. */
+  why?: "session" | "post" | "inbound" | "address" | "human";
 }
 
 const i0 = INDICES[0];
@@ -69,6 +70,22 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "GET", path: "/marketplace/receipts", gate: "public", family: "market", run: "/marketplace/receipts" },
   { method: "GET", path: "/terminal/data", gate: "public", family: "market", run: "/terminal/data" },
 
+  // The indexed tape. Public reads over an allowlist of named operations —
+  // the query text lives server-side, so a caller names an operation rather
+  // than sending GraphQL, and the read key is never exposed.
+  { method: "GET", path: "/tca/{payer}", gate: "public", family: "market", run: null, why: "address" },
+  /* Free like the rest of the marketplace reads, so `gate` is honestly "public":
+     that field names the PAYMENT gate and nothing is charged here. What stands
+     in front of it is a proof of personhood, which is why it needs a fifth
+     `why` — a probe cannot mint one, and none of the four existing reasons is
+     true of it. The register's own rule is that a row explaining itself wrongly
+     is worse than one saying nothing. */
+  { method: "GET", path: "/tca/human", gate: "public", family: "market", run: null, why: "human" },
+  { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },
+  { method: "POST", path: "/graph/query", gate: "public", family: "market", run: null, why: "post" },
+  { method: "GET", path: "/fleet", gate: "public", family: "market", run: "/fleet" },
+
   { method: "POST", path: "/demo/attack/start", gate: "public", family: "demo", run: null, why: "post" },
   { method: "GET", path: "/demo/attack/status", gate: "public", family: "demo", run: "/demo/attack/status" },
   { method: "POST", path: "/demo/buyer/start", gate: "public", family: "demo", run: null, why: "post" },
@@ -85,6 +102,7 @@ export const ENDPOINTS: EndpointRow[] = [
 
   { method: "GET", path: "/revenue", gate: "public", family: "ops", run: "/revenue" },
   { method: "GET", path: "/x402/info", gate: "public", family: "ops", run: "/x402/info" },
+  { method: "GET", path: "/humanid/info", gate: "public", family: "ops", run: "/humanid/info" },
   { method: "POST", path: "/webhooks/circle", gate: "public", family: "ops", run: null, why: "inbound" },
   { method: "GET", path: "/webhooks/recent", gate: "public", family: "ops", run: "/webhooks/recent" },
   { method: "GET", path: "/health", gate: "public", family: "ops", run: "/health" },

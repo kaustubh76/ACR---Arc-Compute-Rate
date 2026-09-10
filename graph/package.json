@@ -1,0 +1,22 @@
+{
+  "name": "acr-tape-subgraph",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "description": "The ACR tape \u2014 prints, attestations, futures fills and mirrored x402 settlements, indexed on Arc.",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "test": "graph test",
+    "deploy": "graph deploy ethonline",
+    "auth": "graph auth"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.97.1",
+    "@graphprotocol/graph-ts": "0.38.1"
+  },
+  "devDependencies": {
+    "matchstick-as": "0.6.0",
+    "source-map-support": "^0.5.21"
+  }
+}

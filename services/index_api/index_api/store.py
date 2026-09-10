@@ -27,6 +27,7 @@ from collections import defaultdict, deque
 import numpy as np
 from acr_core import ALL_INDEX_IDS, ACRPrint, get_settings, spec_for
 from acr_estimator import estimate_index
+from acr_estimator.cleaning import policy_hash
 from acr_estimator.pipeline import PrintDiagnostics
 from acr_instrument import AvellanedaStoikovMM, Position
 from acr_sim import SimConfig
@@ -41,8 +42,11 @@ def default_source() -> TapeSource:
     testnet USDC flow; ``=receipts`` reads the authoritative x402 settlement
     ledger (real paid queries — an audit tape; flat single-seller query flow is
     correctly cleaned out by the estimator, so it doesn't drive the published
-    indices); anything else uses the calibrated simulator (a richer default
-    horizon so hourly windows aren't thin) — the honest default."""
+    indices); ``=graph`` reads the indexed settlement tape, the only source that
+    carries a per-seller unit price and so the only one transaction-cost
+    analysis can be computed from; anything else uses the calibrated simulator
+    (a richer default horizon so hourly windows aren't thin) — the honest
+    default."""
     mode = get_settings().tape_source.strip().lower()
     if mode == "arc":
         from acr_tape import ArcSource
@@ -52,6 +56,10 @@ def default_source() -> TapeSource:
         from acr_tape import ReceiptSource
 
         return ReceiptSource()
+    if mode == "graph":
+        from acr_tape import GraphSource
+
+        return GraphSource()
     # Sim size + horizon are configurable so memory-constrained cloud instances
     # (e.g. a 512MB free tier) can shrink the store build while keeping window
     # density high enough to estimate (ACR_SIM_EVENTS_PER_SERVICE + ACR_SIM_HORIZON_SECONDS).
@@ -170,7 +178,22 @@ class PrintStore:
             except Exception as exc:  # isolate one index's failure from the rest
                 log.warning("estimate failed for %s: %s", iid, exc)
                 continue
-            new_latest[iid] = p
+            # The four v2 fields, attached HERE because the store is the only
+            # component that knows both the settings the estimator ran under and
+            # the window it ran over — and doing it here leaves estimate_index's
+            # signature (and the tests pinning it) untouched.
+            #
+            # The window is the NOMINAL one: `window_s` ending at the print's
+            # economic timestamp. The store's actual slice bounds are
+            # tape-relative and wrap the day, while the print timestamp is
+            # epoch-aligned, so publishing the raw slice as epoch bounds would
+            # be meaningless. This is a true statement about what the print
+            # claims to describe, not a claim about which events were used.
+            new_latest[iid] = p.model_copy(update={
+                "policy_hash": policy_hash(self.settings),
+                "window_start": print_ts - self.window_s,
+                "window_end": print_ts,
+            })
             new_diag[iid] = d
 
         with self._lock:  # copy-on-write swap; readers see old-or-new, never partial

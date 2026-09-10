@@ -48,9 +48,18 @@ def test_fallback_marketplace_section_is_usable():
     and shaped like the live endpoints."""
     snapshot = json.loads(FALLBACK.read_text())
     market = snapshot["marketplace"]
-    assert len(market["catalog"]["items"]) == 13
-    first = market["catalog"]["items"][0]
-    assert first["accepts"][0]["scheme"] == "exact"
+    # Shape, not a magic count: the live catalog gained one listing per fleet
+    # seller, and an exact number here would only say when the bundle was last
+    # regenerated. What the offline page actually needs is that every row it
+    # renders is payable-looking, so assert that of ALL of them.
+    catalog_items = market["catalog"]["items"]
+    assert len(catalog_items) >= 13, "bundled catalog is missing index resources"
+    for item in catalog_items:
+        assert item["resource"], "a catalog row with no resource renders as a dead link"
+        acc = item["accepts"][0]
+        assert acc["scheme"] == "exact"
+        assert acc["payTo"].startswith("0x")
+        assert int(acc["amount"]) > 0
     receipts = market["receipts"]["receipts"]
     assert receipts, "bundled settlement tape is empty"
     # Honestly labeled sim rows, ordinals not wall-clock (The Fixing rules).
@@ -93,6 +102,20 @@ def test_fallback_futures_sections_are_not_silently_empty():
     # column: every row shares one `seen_at` (the snapshot stamp), so block
     # height is the only ordering the offline chart can trust.
     assert len({t["block"] for t in trades}) > 1, "archived fills must span more than one block"
+
+    # The desks and the tape must describe the SAME venue. `markSeries` in
+    # apps/terminal/lib/futuresBook.ts filters the tape to each desk's current
+    # series, so a bundle pairing live desks with a stale tape matches nothing
+    # and renders an empty venue on every desk — while passing every assertion
+    # above, because the tape is non-empty and the desks are real. That is the
+    # exact hole `carry_venue_forward` closes by moving the two together, and
+    # this is what stops a later edit from splitting them again.
+    desk_series = {row["series_id"] for row in desks.values()}
+    tape_series = {t["series_id"] for t in trades}
+    assert desk_series & tape_series, (
+        f"no desk series {sorted(desk_series)} appears in the tape "
+        f"{sorted(tape_series)} — the offline venue would render no fills at all"
+    )
 
 
 def test_fallback_hedger_section_still_carries_its_agent():

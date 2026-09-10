@@ -21,6 +21,7 @@ from acr_sim import SimConfig
 from acr_tape import SimSource
 from fastapi.testclient import TestClient
 from index_api.app import app, build_terminal_payload, reset_poster, set_poster
+from index_api.fleet import FLEET
 from index_api.onchain import get_reader
 from index_api.poster import OraclePoster
 from index_api.store import PrintStore
@@ -43,6 +44,13 @@ CHAIN_KEYS = {
     # it, which is exactly why this set is frozen: a card that quietly grows
     # or shrinks is a frontend contract nobody is holding.
     "attestor_address",
+    # The fifth, and the same story again: HumanIdMirror publishes the rotated
+    # cluster ids the human-denominated bound rests on, and was on chain before
+    # any surface named it. Widened here deliberately and in the same change as
+    # the payload — which is the whole point of freezing the set, because
+    # lib/chain.ts holds a SECOND copy of this contract and nothing but a red
+    # test connects the two across the language boundary.
+    "humanid_address",
     "gate", "tape_source", "signer", "poster",
 }
 
@@ -229,7 +237,7 @@ def test_snapshot_builder_embeds_bundle_sections():
 
     # Marketplace: the live catalog builder at resource base "" + sim ledger.
     cat = payload["marketplace"]["catalog"]
-    assert cat["x402Version"] == 2 and len(cat["items"]) == 13
+    assert cat["x402Version"] == 2 and len(cat["items"]) == 13 + len(FLEET)
     assert all(i["resource"].startswith("/") for i in cat["items"])  # host-less
     # EVERY row must be honestly labelled — which is a stronger guarantee than
     # the old "row 0 is sim". The ledger now leads with the real Circle Gateway

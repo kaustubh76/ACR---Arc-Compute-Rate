@@ -83,20 +83,29 @@ class PaymentRequired(Exception):
         self.headers = headers
 
 
-def build_payment_requirements(resource: str, settings=None) -> dict:
+def build_payment_requirements(
+    resource: str, settings=None, pay_to: str | None = None, price: float | None = None
+) -> dict:
     """One x402 PaymentRequirements object for ``resource``.
 
     Emits BOTH ``maxAmountRequired`` (the x402 v1 key) and ``amount`` (v2) with
     the same atomic value, so parsers of either vintage find their field.
     Shared by the facilitator challenges and the /marketplace/catalog listings.
+
+    ``pay_to`` and ``price`` override the single platform payee and the single
+    flat price. Both used to come only from settings, which is precisely what
+    forced every settlement in the system to one wallet at one price — and a
+    tape with no price dispersion cannot support transaction-cost analysis. The
+    seller fleet passes its own listing's values here; every other endpoint
+    passes neither and behaves exactly as before.
     """
     s = settings or get_settings()
-    amount = atomic_amount(s.x402_price_usdc)
+    amount = atomic_amount(s.x402_price_usdc if price is None else price)
     return {
         "scheme": s.x402_scheme,
         "network": s.caip2(),
         "asset": s.usdc_address,
-        "payTo": s.x402_pay_to or PAY_TO,
+        "payTo": pay_to or s.x402_pay_to or PAY_TO,
         "maxAmountRequired": amount,
         "amount": amount,
         "resource": resource,
@@ -113,6 +122,22 @@ def build_payment_requirements(resource: str, settings=None) -> dict:
             "verifyingContract": s.x402_gateway_wallet,
         },
     }
+
+
+def _fleet_terms(resource: str, settings) -> tuple[str, float]:
+    """The payee and price for ``resource`` — a fleet listing's, or the platform's.
+
+    Resolved in ONE place so both gates cannot disagree. A per-seller price that
+    reached the dev gate but not the Circle gate would price the demo tape
+    differently from the live one, and the difference would show up as slippage
+    that no seller ever charged.
+    """
+    from .fleet import listing_for_resource
+
+    listing = listing_for_resource(resource)
+    if listing is None:
+        return (settings.x402_pay_to or PAY_TO, settings.x402_price_usdc)
+    return (listing.seller, listing.amount_usdc)
 
 
 def facilitator_endpoint(base: str, name: str) -> str:
@@ -179,6 +204,29 @@ class PaymentReceipt:
     #: constructors and rehydration of legacy lines keep working.
     settled_at: float = 0.0
     resource: str = ""
+    #: Who was PAID. Until the seller fleet existed every settlement went to one
+    #: platform wallet, so the payee was implicit and a receipt did not carry it
+    #: — which is exactly why the tape had no price dispersion and TCA had
+    #: nothing to measure. Empty means "the platform wallet", i.e. a legacy row.
+    seller: str = ""
+    #: What was bought, so a unit price exists at all. ``unit`` names the service
+    #: the quantity is denominated in (see ``acr_core.Service``); ``quantity`` is
+    #: in that unit. Both optional so the committed archive and every legacy line
+    #: in the durable ledger keep parsing.
+    unit: str = ""
+    quantity: float = 0.0
+
+    @property
+    def unit_price(self) -> float | None:
+        """USDC per service unit, or None when the receipt cannot support one.
+
+        The denominator of every slippage number the tape publishes. A receipt
+        with no quantity has no unit price — and must report that rather than a
+        zero, which would read as "free" instead of "unknown".
+        """
+        if self.quantity <= 0:
+            return None
+        return self.amount_usdc / self.quantity
 
 
 #: Schemes that represent REAL on-chain settlements (persisted to the durable
@@ -311,6 +359,18 @@ class Facilitator(ABC):
     def _record(self, receipt: PaymentReceipt) -> PaymentReceipt:
         if not receipt.settled_at:
             receipt.settled_at = time.time()
+        # Stamp who was paid and what was bought, here, where BOTH gates pass.
+        # A unit price the tape can divide back out is the whole reason the
+        # fleet exists; deriving it in each gate separately is how one of them
+        # ends up recording the platform wallet against a seller's revenue.
+        if not receipt.seller:
+            from .fleet import listing_for_resource
+
+            listing = listing_for_resource(receipt.resource)
+            if listing is not None:
+                receipt.seller = listing.seller
+                receipt.unit = listing.unit
+                receipt.quantity = listing.quantity
         self.paid_queries += 1
         self._revenue += receipt.amount_usdc
         self.recent.append(receipt)
@@ -341,17 +401,20 @@ class DevFacilitator(Facilitator):
 
     def challenge(self, request: Request) -> PaymentRequired:
         s = get_settings()
+        resource = _resource_for(request, s)
+        pay_to, price = _fleet_terms(resource, s)
         body = _challenge_body(
-            build_payment_requirements(_resource_for(request, s), s), _resource_object(request, s)
+            build_payment_requirements(resource, s, pay_to=pay_to, price=price),
+            _resource_object(request, s),
         )
         return PaymentRequired(
             body=body,
             headers={
                 "WWW-Authenticate": "x402",
-                "X-402-Price": f"{s.x402_price_usdc}",
+                "X-402-Price": f"{price}",
                 "X-402-Asset": ASSET,
                 "X-402-Network": NETWORK,
-                "X-402-Pay-To": PAY_TO,
+                "X-402-Pay-To": pay_to,
                 # Same envelope as the JSON body — buyer SDKs (GatewayClient)
                 # parse the header, not the body.
                 "PAYMENT-REQUIRED": _b64(body),
@@ -370,7 +433,11 @@ class DevFacilitator(Facilitator):
         # isfinite: "nan"/"inf" parse as floats, defeat the >= check (NaN
         # comparisons are all False), and a recorded non-finite amount poisons
         # the revenue counter — Starlette's JSON encoder then 500s /revenue.
-        if not math.isfinite(amt) or amt + 1e-12 < price_usdc():
+        # Priced per RESOURCE, not per platform. When the price was a single
+        # global this read `price_usdc()`, which would now wave through a buyer
+        # paying the flat index fee for a fleet call that costs fifty times more.
+        _, due = _fleet_terms(_resource_path(request), get_settings())
+        if not math.isfinite(amt) or amt + 1e-12 < due:
             raise HTTPException(status_code=402, detail="insufficient payment")
         # tx_ref numbered AFTER the increment inside _record, so dev-N matches
         # the public ledger's seq N. Network is CAIP-2 like every other surface
@@ -403,7 +470,11 @@ class CircleFacilitator(Facilitator):
         self._http = http_client  # injectable httpx.AsyncClient for tests
 
     def payment_requirements(self, request: Request) -> dict:
-        return build_payment_requirements(_resource_for(request, self.settings), self.settings)
+        resource = _resource_for(request, self.settings)
+        pay_to, price = _fleet_terms(resource, self.settings)
+        return build_payment_requirements(
+            resource, self.settings, pay_to=pay_to, price=price
+        )
 
     def challenge(self, request: Request) -> PaymentRequired:
         # The b64 header carries the FULL {x402Version, accepts} envelope:
@@ -492,7 +563,13 @@ class CircleFacilitator(Facilitator):
         response.headers["PAYMENT-RESPONSE"] = confirmation
         response.headers["X-PAYMENT-RESPONSE"] = confirmation
         return self._record(
-            PaymentReceipt(payer=payer, amount_usdc=self.settings.x402_price_usdc, tx_ref=tx,
+            # The AMOUNT CHARGED, which for a fleet listing is not the platform
+            # flat price. Recording the flat price here would make every fleet
+            # settlement's unit price wrong by the ratio between them — and the
+            # unit price is what slippage is computed from.
+            PaymentReceipt(payer=payer, amount_usdc=_fleet_terms(
+                               _resource_path(request), self.settings)[1],
+                           tx_ref=tx,
                            network=receipt_network, scheme=reqs["scheme"],
                            resource=_resource_path(request))
         )

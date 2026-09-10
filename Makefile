@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet verify-testnet post-once attest-once seed-sellers futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck clean circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -11,7 +11,8 @@ help:
 	@echo "  make eval-gate       assert the headline resistance claims (CI gate)"
 	@echo "  make ci              lint + full test suite + eval gate (mirrors GitHub CI)"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
-	@echo "  make deck            render the submission slide deck (docs/presentation.html + .pdf)"
+	@echo "  make deck            render the long-form slide deck (docs/presentation.html + .pdf)"
+	@echo "  make pitch           render the pitch pages (8-slide deck + teleprompter + docs/submission-brief.pdf)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -66,6 +67,14 @@ test: test-py test-contracts test-agent test-terminal
 test-py:
 	uv run pytest packages services tests -q -p no:cacheprovider --import-mode=importlib
 
+# The estimator's frozen output. `--check` fails when a published number moves;
+# re-bless with `make golden` in the SAME commit as the change that moved it.
+golden:
+	uv run python scripts/gen_golden.py
+
+golden-check:
+	uv run python scripts/gen_golden.py --check
+
 test-contracts:
 	cd contracts && forge test
 
@@ -75,10 +84,17 @@ test-agent:
 test-terminal:
 	cd apps/terminal && npm test && npm run build
 
+# All THREE indices. It ran ACR-INF only for months, so ACR-GPU and ACR-DATA
+# were gated by nothing but the paired-swing tests — which measure a swing
+# against a clean run, not error against truth. Both clear the same thresholds
+# today with margin (GPU 63.2 bp / 87.5x, DATA 106.1 bp / 48.7x), so this costs
+# nothing but the runtime and closes the hole.
 eval-gate:
-	uv run python scripts/eval.py --hours 12 --check
+	uv run python scripts/eval.py --hours 12 --check --index ACR-INF
+	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
+	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
-ci: lint test eval-gate
+ci: lint test eval-gate golden-check anchors-check
 
 build-contracts:
 	cd contracts && forge build
@@ -98,11 +114,13 @@ ACR_ARC_RPC_URL ?= https://rpc.testnet.arc.network
 
 deploy-testnet-dry:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first (docs/TESTNET_RUNBOOK.md step 2)"; exit 1; }
-	cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+	@echo "cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
 
 deploy-testnet:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first (docs/TESTNET_RUNBOOK.md step 2)"; exit 1; }
-	cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo "cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/Deploy.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
 	@echo ""
 	@echo "  contracts live — code shows at https://testnet.arcscan.app/address/<ACROracle> (+ <AttestationRegistry>)"
 	@echo "  now set in .env (value on the SAME line as '=', NO inline comments):"
@@ -115,15 +133,75 @@ deploy-testnet:
 deploy-futures-dry:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
 	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
-	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+	@echo "cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
 
 deploy-futures:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
 	@test -n "$(ACR_ORACLE_ADDRESS)" || { echo "ACR_ORACLE_ADDRESS not set — export the live oracle address first"; exit 1; }
-	cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo "cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployFutures.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
 	@echo ""
 	@echo "  ACRFutures live — code shows at https://testnet.arcscan.app/address/<ACRFutures>"
 	@echo "  now set ACR_FUTURES_ADDRESS=0x<address above> in .env + on the Render seller."
+
+deploy-oracle-v2-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-oracle-v2:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployOracleV2.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ACROracleV2 live. Set ACR_ORACLE_V2_ADDRESS — and LEAVE ACR_ORACLE_ADDRESS"
+	@echo "  on v1: ACRFutures settles against it and cannot be repointed."
+	@echo "  Then run 'make backfill-oracle-v2' BEFORE the poster takes a live v2 print."
+
+# Re-sign v1's recent history under the v2 typehash. MUST run before the first
+# live v2 post: postPrint enforces strictly monotone timestamps, so an earlier
+# print can never be inserted afterwards.
+backfill-oracle-v2:
+	uv run python scripts/backfill_oracle_v2.py $(ARGS)
+
+deploy-mirror-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-mirror:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployReceiptMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  ReceiptMirror live — the subgraph's settlement tape."
+	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
+	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
+
+# The human-grouping mirror. Records WINDOW-ROTATED CLUSTER IDS, never a World ID
+# nullifier — see contracts/src/HumanIdMirror.sol for why rotation prevents
+# cross-service correlation but not within-tape fleet linkage.
+# ACR_HUMANID_SALT_COMMITMENT is keccak256(salt) and is REQUIRED. Never pass the
+# salt itself: constructor args land in contracts/broadcast/, which is committed.
+deploy-humanid-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
+	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-humanid:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
+	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  HumanIdMirror live — the tape's record of who is one human."
+	@echo "  Set ACR_HUMANID_MIRROR_ADDRESS in .env + on the Render seller, then put"
+	@echo "  the address AND this deploy's block number into graph/subgraph.yaml"
+	@echo "  and redeploy the subgraph with a NEW VERSION (it re-indexes)."
+	@echo "  Then 'make resolve-humans' BEFORE generating any further tape:"
+	@echo "  Settlement.human is stamped at finalize and cannot be revised."
 
 verify-testnet:
 	uv run python scripts/verify_deploy.py
@@ -213,6 +291,15 @@ desk-evidence:
 
 post-once:
 	uv run python scripts/post_once.py
+
+recompute:
+	uv run python scripts/recompute.py $(ARGS)
+
+mirror-receipts:
+	uv run python scripts/mirror_receipts.py $(ARGS)
+
+resolve-humans:
+	uv run python scripts/resolve_humans.py $(ARGS)
 
 attest-once:
 	uv run python scripts/attest_once.py
@@ -313,6 +400,60 @@ gateway-balance:
 skills-install: circle-check
 	circle skill install --tool claude-code
 
+# --- the tape subgraph (graph/) -----------------------------------------------
+# The Graph indexes the live Arc contracts; `slippageBp` is computed in the
+# mappings, not handed to them. ABIs are GENERATED from contracts/out so a
+# contract change breaks codegen instead of breaking a query.
+
+graph-abis: build-contracts
+	uv run python scripts/graph_abis.py
+
+graph-install:
+	cd graph && npm ci --no-audit --no-fund
+
+graph-codegen: graph-abis
+	cd graph && npx graph codegen
+
+# `graph build` is itself the schema gate: it rejects a malformed @aggregation,
+# an `arg` naming a field that does not exist, or a non-numeric aggregated field.
+graph-build: graph-codegen
+	cd graph && npx graph build
+
+graph-test:
+	cd graph && npx graph test
+
+# Studio deploy is an operator step: it needs network access and a Studio key.
+#   cd graph && npx graph auth <deploy-key>
+# The zero-address guard is not pedantry: a subgraph pointed at 0x0 indexes
+# nothing, reports no error, and serves an empty tape that reads exactly like a
+# quiet market. Fail here instead.
+#: Version label for the Studio deployment; override per release.
+VERSION ?= v0.1.0
+#: The Studio SLUG to deploy to. It must already exist — the CLI cannot create
+#: one, and Studio answers an unknown slug with a bare "Subgraph not found"
+#: that looks exactly like a bad deploy key. Create it at thegraph.com/studio,
+#: then `make graph-deploy SUBGRAPH=<slug>`.
+SUBGRAPH ?= ethonline
+
+graph-deploy: graph-build
+	@grep -q '"0x0000000000000000000000000000000000000000"' graph/subgraph.yaml \
+	  && { echo "graph/subgraph.yaml still holds a placeholder ADDRESS."; \
+	       echo "Deploy the contracts first (make deploy-mirror, make deploy-oracle-v2),"; \
+	       echo "then fill in each address AND its deploy block."; exit 1; } || true
+	@grep -q 'startBlock: 0$$' graph/subgraph.yaml \
+	  && { echo "graph/subgraph.yaml still holds 'startBlock: 0'."; \
+	       echo "That is not a small mistake: block 0 makes the indexer scan the whole"; \
+	       echo "chain (60M+ blocks) instead of starting at the deploy. Fill in the real"; \
+	       echo "block for every data source."; exit 1; } || true
+	# `-l` is not optional in practice: without a version label the CLI opens an
+	# interactive prompt, and the runbook's own step then hangs forever in CI or
+	# under any non-tty caller. Override with `make graph-deploy VERSION=v0.2.0`.
+	# No `--network`: that flag rewrites each source's address from networks.json,
+	# which does not exist here and, if it did, would OVERWRITE the addresses the
+	# two guards above just checked. subgraph.yaml declares arc-testnet on every
+	# data source and holds the real deploy blocks — it is the single source.
+	cd graph && npx graph deploy $(SUBGRAPH) -l $(VERSION)
+
 lint: glossary-check
 	uv run ruff check packages services scripts redteam
 
@@ -328,10 +469,56 @@ diagram-preview:
 deck:
 	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --scale 0.5
 	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 700,280,2120,950 --name core
+	# The band crops the brief inlines. They were one-off invocations nobody wrote
+	# down, so `chain.svg` sat two test-counts stale while every other artifact
+	# had moved on — a generated file with an unrecorded recipe is a hand-edited
+	# file that nobody admits to. Recorded now, and regenerated with the rest.
+	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 2150,260,1350,1720 --name chain
+	rm -f docs/assets/acr_architecture.core.png docs/assets/acr_architecture.chain.png
 	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
 	npx -y @marp-team/marp-cli --html docs/presentation.md -o docs/presentation.html
 	npx -y @marp-team/marp-cli --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
 
+# The short deck, from its one source: docs/pitch/deck.html is what a judge is
+# shown; index.html and the PDF are generated from it and never hand-edited.
+pitch:
+	uv run python scripts/build_pitch.py
+
 clean:
 	rm -rf .venv contracts/out contracts/cache apps/terminal/.next apps/agent/node_modules scripts/_out
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+# ── anchors ──────────────────────────────────────────────────────────────────
+# Real public prices for the three indices, dated and cited. `--fetch` is manual
+# and hits the network; it writes anchors/ and NEVER touches indices.py, because
+# re-anchoring moves the tape's price pin and breaks comparability with the
+# prints already on chain. `--check` is offline and belongs in CI.
+anchors-fetch:
+	uv run python scripts/anchors.py --fetch
+
+anchors-report:
+	uv run python scripts/anchors.py --report
+
+anchors-check:
+	uv run python scripts/anchors.py --check
+
+# ── the auto-rater ───────────────────────────────────────────────────────────
+# Frozen eval sets on five scenarios per index (three of them held-out seeds),
+# and a per-component quality gate against a blessed baseline. Distinct from the
+# other two: eval-gate asks whether the published claims still hold, golden-check
+# whether the engine's output moved at all, and this whether quality regressed.
+# Demonstrated non-overlap: turning the sybil cap off PASSES eval-gate and fails
+# here with nine named regressions.
+evalset:
+	uv run python scripts/gen_evalset.py
+
+evalset-check:
+	uv run python scripts/gen_evalset.py --check
+
+rate:
+	uv run python scripts/rate.py
+
+# NOTE is required and the script refuses an empty one: a baseline without a
+# stated reason is a number whose provenance died with the shell that made it.
+rate-bless:
+	uv run python scripts/rate.py --bless "$(NOTE)"

@@ -266,11 +266,14 @@ class TestStatus:
         st = keeper.status()
         assert st == {"enabled": False}
 
-    def test_an_enabled_keeper_reports_both_chores(self):
+    def test_an_enabled_keeper_reports_every_chore(self):
+        # The exact set, not a subset: a chore that stopped being reported would
+        # vanish from /health silently, and "nobody is minding it" is precisely
+        # what this surface exists to say out loud.
         st = keeper.status()
         assert st["enabled"] is True
-        assert set(st) == {"enabled", "heartbeat", "roll"}
-        for chore in ("heartbeat", "roll"):
+        assert set(st) == {"enabled", "heartbeat", "roll", "mirror"}
+        for chore in ("heartbeat", "roll", "mirror"):
             assert set(st[chore]) == {
                 "checked_at",
                 "checked_age_s",

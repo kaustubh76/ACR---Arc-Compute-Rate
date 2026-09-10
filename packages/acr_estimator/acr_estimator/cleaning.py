@@ -17,6 +17,8 @@ for capped clusters) plus the diagnostic sets the manipulation bound consumes.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 import networkx as nx
@@ -27,6 +29,48 @@ from acr_core import TapeEvent
 #: edges *touching* it stays internal (``I / (I + B)``, each edge counted once).
 SYBIL_INTERNAL_RATIO = 0.6
 SYBIL_MAX_SIZE = 40
+
+#: Bumped whenever the cleaning ALGORITHM changes in a way that alters which
+#: events survive, even if no parameter moved. Without it a code change would
+#: keep the same policy hash and a re-derivation would silently disagree with
+#: the keeper for reasons the hash claimed were impossible.
+#:
+#: 2 (2026-09-06): the estimator seed joined the hash. It was always part of the
+#: rule — Louvain's partition depends on it, and the partition decides which
+#: events are excluded — but it was a hidden default argument, so the hash
+#: claimed to cover something it did not. Nothing on chain is orphaned by the
+#: bump: the 131 backfilled prints carry BACKFILL_POLICY (a fixed sentinel in
+#: scripts/backfill_oracle_v2.py, never this hash), and a live v2 print
+#: legitimately carries the hash of the policy it was actually made under.
+#: ACROracleV2 stores policyHash per print, so a verifier can always tell which
+#: rule applied to which print.
+POLICY_VERSION = 2
+
+
+def policy_hash(settings=None) -> str:
+    """A stable digest of the cleaning policy — what makes it re-derivable.
+
+    "The keeper decides what is wash" is the fair objection to any cleaned
+    benchmark. The answer is not to ask for trust but to publish the rule: every
+    print carries this hash, and ``acr recompute --rederive-cleaning`` re-runs
+    the same stack from on-chain funding edges and reports whether its exclusions
+    match. That argument only holds if the hash covers everything that can change
+    an exclusion — so it spans the tunable parameters AND the algorithm version,
+    and is canonically ordered so two machines agree byte for byte.
+    """
+    from acr_core import get_settings
+
+    s = settings or get_settings()
+    policy = {
+        "version": POLICY_VERSION,
+        "sybil_internal_ratio": SYBIL_INTERNAL_RATIO,
+        "sybil_max_size": SYBIL_MAX_SIZE,
+        "cluster_volume_cap": s.cluster_volume_cap,
+        "trim_alpha": s.trim_alpha,
+        "estimator_seed": s.estimator_seed,
+    }
+    canonical = json.dumps(policy, sort_keys=True, separators=(",", ":"))
+    return "0x" + hashlib.sha256(canonical.encode()).hexdigest()
 
 
 @dataclass

@@ -13,6 +13,14 @@ export interface OnchainPrint {
   ci_lo: number;
   ci_hi: number;
   attack_cost_per_bp: number;
+  /** The same bound priced in verified humans rather than wallets.
+   *
+   *  ABSENT, NOT ZERO. ACROracleV2 accepts 0 as "not computed" and enforces
+   *  `humanAdjustedBound == 0 || >= attackCostPerBp`, so a zero here means the
+   *  press did not compute it — never that humans are as cheap to buy as
+   *  wallets. Rendering 0 as a dollar figure would publish the one claim the
+   *  contract invariant exists to forbid. */
+  human_adjusted_bound?: number | null;
   timestamp: number;
   posted_at?: number;
 }
@@ -32,6 +40,8 @@ export interface PrintRow {
   ci_lo: number;
   ci_hi: number;
   attack_cost_per_bp: number;
+  /** See OnchainPrint.human_adjusted_bound — absent or 0 means NOT COMPUTED. */
+  human_adjusted_bound?: number | null;
   n_obs: number;
   trim_alpha?: number;
   unit: string;
@@ -122,6 +132,9 @@ export interface ChainFactsData {
   /** FeedAccessAttestor — null until deployed/configured, so the chip stays
    *  off rather than rendering a zero address. */
   attestor_address?: string | null;
+  /** HumanIdMirror — the identity layer's contract on Arc. Same rule as the
+   *  attestor: null until configured, and omitted rather than zero-addressed. */
+  humanid_address?: string | null;
   gate: "dev" | "circle";
   tape_source: string;
   signer: string | null;

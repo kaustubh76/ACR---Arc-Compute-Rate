@@ -1,11 +1,12 @@
 "use client";
 
 import { chainFacts } from "@/lib/chain";
+import { RATING_WINDOW_DAYS } from "@/lib/humans";
 import { deskTier, formatOi } from "@/lib/futuresBook";
 import { ageWords, editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
-import { useFutures, useHealth } from "@/lib/useLive";
+import { useFutures, useHealth, useHumanId } from "@/lib/useLive";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
 
@@ -95,6 +96,15 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
   const futVenue = fut.roster?.data?.venue ?? c.futures ?? null;
   const futTier = deskTier(fut.roster?.data?.source, futLive);
 
+  /* Who is behind the rate. `live` gates it because an unread tape must omit
+     this chip, never report zero: "the press is down" and "nobody is verified"
+     are different facts and a benchmark that renders them alike has started
+     lying about its own security. Same reason the keeper chip stays off when
+     health is unread rather than declaring the keeper dead. */
+  const humanEnv = useHumanId();
+  const humans = humanEnv?.live ? humanEnv.data.humans : null;
+  const humansTruncated = Boolean(humanEnv?.data?.truncated);
+
   const parts: React.ReactNode[] = [];
   const tier = TIER_CHIP[conn.state];
   if (tier) {
@@ -161,6 +171,39 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         {/* formatOi, not toFixed(0): an open interest of 2.82 printed here as
             "3" while the desk table printed "2.8". */}
         <Ed x="futures" p="futures desk" /> · OI {formatOi(futOi)}
+      </span>,
+    );
+  }
+
+  /* Resolved is not securing, and the chip says which one it means.
+
+     A human who registered a wallet with World and never traded contributes no
+     observation to the tape, so the manipulation bound cannot be denominated in
+     them. Calling that "secured by 2" would be W7's fatal headline in a quieter
+     register, and it would contradict /tape, which counts humans who actually
+     traded with a seller. Two words, one number, and they always agree. */
+  if (humans && humans.n > 0) {
+    const securing = humans.traded > 0;
+    const shown = securing ? humans.traded : humans.n;
+    const sim = humans.allSandbox;
+    parts.push(
+      <span
+        key="humans"
+        className={`chip ${sim ? "chip-sim" : "chip-teal"}`}
+        title={
+          plain
+            ? `${humans.n} real people have linked their accounts this week and ${humans.traded} of them have bought anything. ${sim ? "All of them are test accounts, not checked people." : ""}`
+            : `${humans.n} resolved this ${RATING_WINDOW_DAYS}d rotation window, ${humans.traded} trading. A resolved human secures the print only once they settle.${sim ? " All Sandbox identities." : ""}`
+        }
+      >
+        {sim ? null : <span className="dot breathe" aria-hidden />}
+        {securing ? (
+          <Ed x="verified humans" p="real people behind it" />
+        ) : (
+          <Ed x="humans resolved" p="people signed up" />
+        )}{" "}
+        · {shown}
+        {humansTruncated ? "+" : ""}
       </span>,
     );
   }

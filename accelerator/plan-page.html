@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACR · The Accelerator Plan</title>
+<link rel="stylesheet" href="../docs/pitch/fonts.css" />
+<link rel="stylesheet" href="../docs/pitch/brief.css" />
+</head>
+<body>
+<div class="sheet">
+<h1>ACR · The Accelerator Plan</h1>
+<p><strong>Eight weeks · Arc mainnet genesis in the middle of them · written to be executed, then checked</strong></p>
+<p>The hackathon proved the methodology. The accelerator turns it into infrastructure, and for a
+benchmark, infrastructure means exactly two things money cares about: <strong>history</strong> and
+<strong>dependents</strong>. A reference rate&#39;s moat is how long it has printed and how much settles against
+it. The calendar hands this cohort a once-ever shot at both: <strong>Arc mainnet is announced for
+September 16, mid-programme</strong>. Deploy at launch and ACR&#39;s price history begins at the genesis
+of the market it measures. No later competitor can ever own a longer Arc-native track record.
+That window closes at genesis, whenever Circle ships it, and never reopens.</p>
+<p>Every week below ends with a receipt rather than a status, because that is how the hackathon
+was built: <code>verify_claims.py</code> fails the build when a published number and reality disagree, and
+that discipline carries into the accelerator unchanged.</p>
+<p>Two rules keep this document honest. First, <strong>commitments and targets are kept apart</strong>: a
+commitment is work fully inside my control and it ships, while anything that needs another
+party (sellers, payers, a protocol team, a platform timeline) is a target with a stated floor,
+never a promise. Second, <strong>the plan iterates with the Circle team</strong>: this is the starting map,
+not a contract with myself. It gets reviewed at the programme&#39;s checkpoints, and wherever
+Circle&#39;s feedback, their platform timelines, or cohort realities point somewhere better, the
+plan re-scopes and the changelog at the bottom says so.</p>
+<p><svg xmlns="http://www.w3.org/2000/svg" width="2280" height="1670" viewBox="0 0 2280 1670" font-family="Helvetica,Arial,sans-serif">
+<rect width="2280" height="1670" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="40" y="160" width="2200" height="330" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="64" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="336" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="608" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="880" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="1152" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1424" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1696" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1968" y="210" width="252" height="250" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="40" y="540" width="1050" height="470" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="70" y="595" width="380" height="112" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="558" y="595" width="500" height="112" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="70" y="727" width="380" height="112" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="558" y="727" width="500" height="112" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="70" y="859" width="380" height="112" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="558" y="859" width="500" height="112" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1150" y="540" width="1090" height="470" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1180" y="610" width="440" height="120" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1750" y="610" width="440" height="120" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1750" y="840" width="440" height="120" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1180" y="840" width="440" height="120" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="40" y="1050" width="2200" height="300" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="64" y="1100" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="612" y="1100" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1160" y="1100" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1708" y="1100" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="64" y="1222" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="612" y="1222" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1160" y="1222" width="528" height="104" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="40" y="1390" width="1050" height="240" rx="4" fill="transparent" stroke="#e03131" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1150" y="1390" width="1090" height="240" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2" stroke-dasharray="7 5"/>
+<polyline points="616,480 616,200" fill="none" stroke="#f08c00" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="458,651 550,651" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="458,783 550,783" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="458,915 550,915" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1620,670 1750,670" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1970,730 1970,840" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1750,900 1620,900" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1400,840 1400,730" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<text x="40" y="67.0" font-size="30" fill="#1e1e1e">ACR · THE ACCELERATOR PLAN</text>
+<text x="40" y="99.5" font-size="15" fill="#495057">History and dependents. A reference rate's moat is how long it has printed and how much settles against it.</text>
+<text x="40" y="125.5" font-size="15" fill="#495057">Arc mainnet is announced for September 16, mid-programme: a once-ever shot at genesis history. Every box below serves one of the two words.</text>
+<text x="40" y="149.5" font-size="15" fill="#495057">Commitments and targets are kept apart, and the plan iterates with the Circle team at every checkpoint: a starting map, not a contract with myself.</text>
+<text x="60" y="185.5" font-size="15" fill="#f08c00">THE EIGHT WEEKS · every week ends with a receipt, not a status</text>
+<text x="76" y="233.2" font-size="12.5" fill="#1971c2">W1 · REHEARSE THE SWITCH</text>
+<text x="76" y="262.4" font-size="11.5" fill="#1e1e1e">mainnet dry run on a fork</text>
+<text x="76" y="273.9" font-size="11.5" fill="#1e1e1e">SCP deploy pipeline stood up</text>
+<text x="76" y="285.4" font-size="11.5" fill="#1e1e1e">SLO monitors: latency, gap,</text>
+<text x="76" y="296.9" font-size="11.5" fill="#1e1e1e">staleness (alerts, not dashboards)</text>
+<text x="348" y="233.2" font-size="12.5" fill="#1971c2">W2 · THE ONE-DAY PATH</text>
+<text x="348" y="262.4" font-size="11.5" fill="#1e1e1e">attest-and-get-listed flow ships</text>
+<text x="348" y="273.9" font-size="11.5" fill="#1e1e1e">ten-line settle-vs-ACR client SDK</text>
+<text x="348" y="285.4" font-size="11.5" fill="#1e1e1e">attestation sprint #1 (cohort)</text>
+<text x="348" y="296.9" font-size="11.5" fill="#1e1e1e">recruiting starts BEFORE genesis</text>
+<text x="620" y="233.2" font-size="12.5" fill="#e8590c">W3 · GENESIS PRINT</text>
+<text x="620" y="262.4" font-size="11.5" fill="#1e1e1e">deploy at mainnet launch, given</text>
+<text x="620" y="273.9" font-size="11.5" fill="#1e1e1e">launch-day access (RPC, wallets,</text>
+<text x="620" y="285.4" font-size="11.5" fill="#1e1e1e">funding) · failover press live</text>
+<text x="620" y="296.9" font-size="11.5" fill="#1e1e1e">the history moat starts here</text>
+<text x="892" y="233.2" font-size="12.5" fill="#e03131">W4 · CHECKPOINT: RECEIPTS</text>
+<text x="892" y="262.4" font-size="11.5" fill="#1e1e1e">seller and payer counts on-chain,</text>
+<text x="892" y="273.9" font-size="11.5" fill="#1e1e1e">reported as they are</text>
+<text x="892" y="285.4" font-size="11.5" fill="#1e1e1e">behind shows here, in public</text>
+<text x="892" y="296.9" font-size="11.5" fill="#1e1e1e">sprint #2 with mainnet history</text>
+<text x="1164" y="233.2" font-size="12.5" fill="#1971c2">W5 · OPEN THE BOOKS</text>
+<text x="1164" y="262.4" font-size="11.5" fill="#1e1e1e">futures books accept external</text>
+<text x="1164" y="273.9" font-size="11.5" fill="#1e1e1e">counterparties (caps + margin</text>
+<text x="1164" y="285.4" font-size="11.5" fill="#1e1e1e">already enforced on-chain)</text>
+<text x="1164" y="296.9" font-size="11.5" fill="#1e1e1e">maker depth policy published</text>
+<text x="1436" y="233.2" font-size="12.5" fill="#1971c2">W6 · THE FIRST DEPENDENT</text>
+<text x="1436" y="262.4" font-size="11.5" fill="#1e1e1e">integration PR written by me</text>
+<text x="1436" y="273.9" font-size="11.5" fill="#1e1e1e">and offered to a partner team</text>
+<text x="1436" y="285.4" font-size="11.5" fill="#1e1e1e">review + settling are targets:</text>
+<text x="1436" y="296.9" font-size="11.5" fill="#1e1e1e">they need a cohort fit, not faked</text>
+<text x="1708" y="233.2" font-size="12.5" fill="#1971c2">W7 · ADMINISTRATION</text>
+<text x="1708" y="262.4" font-size="11.5" fill="#1e1e1e">methodology v1.0 under</text>
+<text x="1708" y="273.9" font-size="11.5" fill="#1e1e1e">change-control · versioned</text>
+<text x="1708" y="285.4" font-size="11.5" fill="#1e1e1e">public incident policy</text>
+<text x="1708" y="296.9" font-size="11.5" fill="#1e1e1e">governance before it is needed</text>
+<text x="1980" y="233.2" font-size="12.5" fill="#1971c2">W8 · DEMO DAY</text>
+<text x="1980" y="262.4" font-size="11.5" fill="#1e1e1e">the committed list, shipped</text>
+<text x="1980" y="273.9" font-size="11.5" fill="#1e1e1e">plus wherever the targets got:</text>
+<text x="1980" y="285.4" font-size="11.5" fill="#1e1e1e">sellers bar 5 · payers bar 2</text>
+<text x="1980" y="296.9" font-size="11.5" fill="#1e1e1e">every number clickable</text>
+<text x="520" y="477.7" font-size="13" fill="#f08c00">SEP 16 · ANNOUNCED MAINNET GENESIS</text>
+<text x="60" y="565.5" font-size="15" fill="#1971c2">THE SWITCH · same audited contracts, harder infrastructure (weeks 1 to 3)</text>
+<text x="84" y="617.8" font-size="12" fill="#495057">single in-process press</text>
+<text x="84" y="629.8" font-size="12" fill="#495057">(testnet, today)</text>
+<text x="572" y="617.8" font-size="12" fill="#1e1e1e">multi-worker press +</text>
+<text x="572" y="629.8" font-size="12" fill="#1e1e1e">failover publisher</text>
+<text x="572" y="641.8" font-size="12" fill="#1e1e1e">a rate that misses prints</text>
+<text x="572" y="653.8" font-size="12" fill="#1e1e1e">is not a rate</text>
+<text x="84" y="749.8" font-size="12" fill="#495057">measured cadence</text>
+<text x="84" y="761.8" font-size="12" fill="#495057">(print-gaps · /ops ledger)</text>
+<text x="572" y="749.8" font-size="12" fill="#1e1e1e">alerted SLOs</text>
+<text x="572" y="761.8" font-size="12" fill="#1e1e1e">print latency · gap vs the</text>
+<text x="572" y="773.8" font-size="12" fill="#1e1e1e">settle window · staleness</text>
+<text x="572" y="785.8" font-size="12" fill="#1e1e1e">paging, not observing</text>
+<text x="84" y="881.8" font-size="12" fill="#495057">Foundry deploys</text>
+<text x="84" y="893.8" font-size="12" fill="#495057">(deploy_circle.py: tested,</text>
+<text x="84" y="905.8" font-size="12" fill="#495057">never fired)</text>
+<text x="572" y="881.8" font-size="12" fill="#1e1e1e">Smart Contract Platform</text>
+<text x="572" y="893.8" font-size="12" fill="#1e1e1e">deploys + webhooks, if Arc is</text>
+<text x="572" y="905.8" font-size="12" fill="#1e1e1e">supported at launch · Foundry</text>
+<text x="572" y="917.8" font-size="12" fill="#1e1e1e">stays rehearsed as the fallback</text>
+<text x="1170" y="565.5" font-size="15" fill="#2f9e44">THE FLYWHEEL · adoption is the security model, not vanity</text>
+<text x="1194" y="635.2" font-size="12.5" fill="#1e1e1e">INDEPENDENT SELLERS ATTEST</text>
+<text x="1194" y="647.8" font-size="12.5" fill="#1e1e1e">target: bar 5 · stretch 10</text>
+<text x="1194" y="660.2" font-size="12.5" fill="#1e1e1e">signed, on-chain, EIP-712</text>
+<text x="1764" y="635.2" font-size="12.5" fill="#1e1e1e">FLOW DIVERSITY RISES</text>
+<text x="1764" y="647.8" font-size="12.5" fill="#1e1e1e">more venues, more payers,</text>
+<text x="1764" y="660.2" font-size="12.5" fill="#1e1e1e">harder exhaust to fake</text>
+<text x="1764" y="865.2" font-size="12.5" fill="#1e1e1e">ATTACK-COST-PER-BP RISES</text>
+<text x="1764" y="877.8" font-size="12.5" fill="#1e1e1e">published on every print</text>
+<text x="1764" y="890.2" font-size="12.5" fill="#1e1e1e">the defense is a number</text>
+<text x="1194" y="865.2" font-size="12.5" fill="#1e1e1e">CREDIBILITY COMPOUNDS</text>
+<text x="1194" y="877.8" font-size="12.5" fill="#1e1e1e">external payers (bar 2, stretch 5)</text>
+<text x="1194" y="890.2" font-size="12.5" fill="#1e1e1e">and the first dependent PR offered</text>
+<text x="1528" y="780.8" font-size="12" fill="#2f9e44">the first real turn</text>
+<text x="1528" y="792.8" font-size="12" fill="#2f9e44">happens in the cohort</text>
+<text x="60" y="1075.5" font-size="15" fill="#9c36b5">CIRCLE PRODUCTS · what each one is FOR in this plan</text>
+<text x="78" y="1121.2" font-size="12.5" fill="#9c36b5">ARC MAINNET</text>
+<text x="78" y="1146.3" font-size="11.5" fill="#1e1e1e">the venue for genesis</text>
+<text x="78" y="1157.8" font-size="11.5" fill="#1e1e1e">history · USDC gas keeps</text>
+<text x="78" y="1169.3" font-size="11.5" fill="#1e1e1e">attack cost arithmetic</text>
+<text x="626" y="1121.2" font-size="12.5" fill="#9c36b5">x402 + GATEWAY (live)</text>
+<text x="626" y="1146.3" font-size="11.5" fill="#1e1e1e">the paid-query and</text>
+<text x="626" y="1157.8" font-size="11.5" fill="#1e1e1e">settlement rails · already</text>
+<text x="626" y="1169.3" font-size="11.5" fill="#1e1e1e">proven on testnet</text>
+<text x="1174" y="1121.2" font-size="12.5" fill="#9c36b5">CIRCLE WALLETS</text>
+<text x="1174" y="1146.3" font-size="11.5" fill="#1e1e1e">the operator fleet:</text>
+<text x="1174" y="1157.8" font-size="11.5" fill="#1e1e1e">press · maker · taker ·</text>
+<text x="1174" y="1169.3" font-size="11.5" fill="#1e1e1e">treasury · agent hedger</text>
+<text x="1722" y="1121.2" font-size="12.5" fill="#9c36b5">GAS STATION</text>
+<text x="1722" y="1146.3" font-size="11.5" fill="#1e1e1e">the Public Desk stays</text>
+<text x="1722" y="1157.8" font-size="11.5" fill="#1e1e1e">free to try: sponsored</text>
+<text x="1722" y="1169.3" font-size="11.5" fill="#1e1e1e">user-controlled SCAs</text>
+<text x="78" y="1243.2" font-size="12.5" fill="#9c36b5">CCTP V2 (new)</text>
+<text x="78" y="1268.3" font-size="11.5" fill="#1e1e1e">pay from any chain, settle</text>
+<text x="78" y="1279.8" font-size="11.5" fill="#1e1e1e">on Arc · adopted when Arc</text>
+<text x="78" y="1291.3" font-size="11.5" fill="#1e1e1e">support lands (Circle's clock)</text>
+<text x="626" y="1243.2" font-size="12.5" fill="#9c36b5">MARKETPLACE / DISCOVERY</text>
+<text x="626" y="1268.3" font-size="11.5" fill="#1e1e1e">distribution: first</text>
+<text x="626" y="1279.8" font-size="11.5" fill="#1e1e1e">Arc-native listing when</text>
+<text x="626" y="1291.3" font-size="11.5" fill="#1e1e1e">the network lands there</text>
+<text x="1174" y="1243.2" font-size="12.5" fill="#9c36b5">COMPLIANCE ENGINE (stretch)</text>
+<text x="1174" y="1268.3" font-size="11.5" fill="#1e1e1e">KYB-gated attestation</text>
+<text x="1174" y="1279.8" font-size="11.5" fill="#1e1e1e">tier: the bridge to a rate</text>
+<text x="1174" y="1291.3" font-size="11.5" fill="#1e1e1e">TradFi desks can cite</text>
+<text x="60" y="1415.5" font-size="15" fill="#e03131">THE HONEST BOTTLENECK · pre-declared</text>
+<text x="70" y="1447.2" font-size="12.5" fill="#1e1e1e">Seller recruitment. Attestation asks providers to do work before the rate is famous.</text>
+<text x="70" y="1459.8" font-size="12.5" fill="#1e1e1e">Mitigations, each one a playbook already run:</text>
+<text x="70" y="1472.2" font-size="12.5" fill="#1e1e1e">· the one-day integration path (Flare DevRel: 8 months of oracle integration support)</text>
+<text x="70" y="1484.8" font-size="12.5" fill="#1e1e1e">· cohort-first targeting with direct access (LNMHacks: USD 7,000 in protocol partnerships)</text>
+<text x="70" y="1497.2" font-size="12.5" fill="#1e1e1e">· sequence mainnet history BEFORE the hardest asks: recruit with a track record, not a promise</text>
+<text x="70" y="1509.8" font-size="12.5" fill="#1e1e1e">Platform timelines (SCP, CCTP, Discovery on Arc) are Circle's clock: adopt when available, fallbacks rehearsed.</text>
+<text x="70" y="1522.2" font-size="12.5" fill="#1e1e1e">Behind at week 4 shows in the receipts, and the plan re-scopes WITH the Circle team, changelog attached.</text>
+<text x="1170" y="1415.5" font-size="15" fill="#f08c00">DEMO DAY, DEFINED · nothing claimed a judge cannot click</text>
+<text x="1180" y="1447.2" font-size="12.5" fill="#1e1e1e">COMMITTED (mine to ship): hourly prints since launch-day access · the one-day path + SDK published</text>
+<text x="1180" y="1459.8" font-size="12.5" fill="#1e1e1e">· books open under a public depth policy · a dependent PR written + offered · methodology v1.0 under change-control</text>
+<text x="1180" y="1472.2" font-size="12.5" fill="#1e1e1e">TARGETED (depends on others): sellers bar 5, stretch 10 · payers bar 2, stretch 5 · the dependent in review + settling</text>
+<text x="1180" y="1484.8" font-size="12.5" fill="#1e1e1e">Whatever the targets read on the day is what gets presented.</text>
+<text x="1180" y="1497.2" font-size="12.5" fill="#1e1e1e">Every number re-measured by verify_claims: the build fails when a claim and reality disagree</text>
+</svg></p>
+<p>The editable canvas is <a href="acr_accelerator_plan.excalidraw"><code>acr_accelerator_plan.excalidraw</code></a>.</p>
+<hr>
+<h2>Workstream A · The Switch (weeks 1 to 3): the history moat</h2>
+<p>Same audited contracts, harder infrastructure. Nothing about the estimator or the contract
+surface changes for mainnet; what changes is everything around them, because a rate that misses
+prints is not a rate.</p>
+<p><strong>From the single press to a press built not to oversleep.</strong> Today the press is one in-process
+hourly loop inside <code>services/index_api</code>, and the testnet taught the lesson the hard way, twice: a sleeping free-tier
+instance once stretched print gaps to a measured 216 minutes, and even after that was fixed,
+one later 153-minute miss slipped past the venue&#39;s 120-minute settlement freshness window,
+meaning the venue could not have settled for those hours. Mainnet gets two publisher workers behind a leader lock, a watchdog that posts
+when the leader misses its slot, and a funded gas runway with its own alarm.</p>
+<p><strong>From measured to alerted.</strong> The cadence tooling already exists and already measures: the
+print-gaps walker reads the chain, and the <code>/ops</code> systems ledger self-checks every fifteen
+minutes. The accelerator turns measurement into paging: SLOs on print latency, gap against the
+settle window, and staleness, each one wired to alert an operator instead of waiting to be
+read. Observation was the hackathon&#39;s bar. Response time is the accelerator&#39;s.</p>
+<p><strong>From Foundry to the Smart Contract Platform, if the platform is there.</strong>
+<code>scripts/deploy_circle.py</code> exists, is unit-tested, and has never deployed anything but a dry
+run, which is why the hackathon submission plainly refused to claim it. The mainnet deploy is
+where it fires for real, and SCP&#39;s contract webhooks come with it, replacing the paged
+<code>eth_getLogs</code> crawl (a hard cap near 15,000 blocks, plus throttling) that is today&#39;s largest
+source of operational fragility. The hedge, stated up front: whether SCP supports Arc mainnet
+at launch is Circle&#39;s timeline, not mine, so the week 1 rehearsal covers both paths and the
+Foundry deploy stays ready as the fallback. This is exactly the kind of question I will take to
+the Circle team early rather than assume an answer to.</p>
+<p><strong>Week 1 is a full rehearsal on a fork.</strong> Genesis day runs from a checklist, the same way the
+submission ran from <code>SHIP-CHECKLIST.md</code>. Nothing on launch day is done for the first time.</p>
+<hr>
+<h2>Workstream B · Adoption (weeks 2 to 8): the flywheel that makes it compound</h2>
+<p>The commitment here is the <strong>path</strong>: the integration flow, the SDK, and the sprints all ship,
+on the weeks named below, because they are mine to ship. The counts are <strong>targets</strong>, because a
+count depends on other people saying yes: <strong>five independent attesting sellers as the success
+bar, ten as the stretch</strong>, and <strong>two external paying consumers of the x402 API as the bar,
+five as the stretch</strong>. Both are measured the way everything here is measured, with receipts
+on-chain, and whatever the number is at each checkpoint is the number I report.</p>
+<p><strong>Adoption is the security model, not vanity.</strong> Every independent seller and every basis point
+of external flow raises the published attack-cost-per-bp. More adopters make manipulation more
+expensive, which makes the rate more credible, which brings more adopters. The accelerator is
+where that flywheel gets its first real turn, and the cohort is the natural first market:
+inference, GPU and data providers already selling to agents.</p>
+<p><strong>The one-day integration path ships in week 2, before genesis.</strong> Two pieces:</p>
+<ol>
+<li><strong>Attest and get listed.</strong> A provider signs one EIP-712 attestation (the registry contract
+and its schema are live today) and lands in the catalog the same day. No integration work
+before the benefit shows up.</li>
+<li><strong>Settle against ACR in ten lines.</strong> A client SDK that reads the print, verifies the Circle
+custody signer, and enforces the staleness bound, so a consumer&#39;s first integration is an
+afternoon, not a sprint.</li>
+</ol>
+<p><strong>Recruitment is an organizer&#39;s motion, and I have run it before.</strong> Attestation sprints inside
+the cohort with office hours and same-day listing as the prize. The receipts behind that claim:
+I organized and led LNMHacks 6.0 and secured USD 7,000 in protocol partnerships, spent eight
+months as a Flare developer ambassador resolving oracle and price-feed integration questions in
+real time for teams actively shipping, and wrote a full go-to-market playbook (ICP archetypes,
+qualification rubric, conversion cycles) for an Aave indexer product. Sellers are recruited the
+way hackathon sponsors and oracle integrators are recruited, and that is a job I have already
+done.</p>
+<p><strong>Sequencing is the quiet trick.</strong> Mainnet history is sequenced before the hardest asks: given
+launch-day access on the announced date, from week 4 onward I am recruiting with a live genesis
+track record instead of a promise, and if the date moves, the sequencing logic moves with it.</p>
+<hr>
+<h2>Workstream C · Dependents (weeks 4 to 8): the moment it becomes infrastructure</h2>
+<p><strong>Open the books (week 5).</strong> The futures venue opens to cash-settlement with external
+counterparties; whether strangers actually clear is a target, and the count on the tape is what
+gets reported. The hard parts are already on-chain and tested:
+initial margin, per-series trader caps, socialized-loss clearing, and the two-hour settlement
+freshness bound. What the accelerator adds is a published maker depth policy and position
+limits sized for strangers. I have built and run an Avellaneda-Stoikov market maker against a
+live venue twice now, once here and once pricing UMA dispute risk on Polymarket with the fills
+reconciled exactly against decoded on-chain events, so the book management is a known quantity.</p>
+<p><strong>Build for the first external dependent (week 6).</strong> ACR as settlement oracle for an Arc-native
+credit or hedging protocol. Cohort teams are the natural first integrations, and the honest
+split is this: what I commit to is the <strong>build</strong>: an integration PR written by me and offered to a
+partner team by week 6, plus the published <code>acr-hedge</code> Skill that already teaches any agent the
+read, verify, hedge loop. Whether that PR <strong>enters review and settles by demo day is a
+target</strong>, because both depend on a cohort fit existing and on that team&#39;s own timeline. If no fit lands in eight
+weeks, the demo falls back to what is already real and labelled as ours: the autonomous hedger
+and the Public Desk counterparties. The day another team&#39;s product settles against ACR is the
+day it stops being a dashboard, and I would rather reach that day honestly a week late than
+claim it early.</p>
+<hr>
+<h2>Workstream D · Administration (throughout): governance is the product</h2>
+<p>The LIBOR lesson is that rates fail on governance before they fail on math. So the boring parts
+ship as features: the methodology paper published openly as v1.0, versioned under
+change-control, with a public incident policy for misprints and outages. The CI-gated claims
+discipline extends naturally into benchmark administration, and there is precedent for the open
+half too: I have released an open dataset before (1,848 UMA disputes, CC-BY, self-refreshing
+from keyless RPC export) and kept it maintained, which is the same muscle as maintaining a
+public methodology.</p>
+<hr>
+<h2>The eight weeks, receipt by receipt</h2>
+<table>
+<thead>
+<tr>
+<th>Week</th>
+<th>The work</th>
+<th>The receipt that exists when it ends</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Mainnet rehearsal on a fork; deploy pipeline (SCP or Foundry fallback); SLO alarms stood up</td>
+<td>A green dry-run log and a genesis-day checklist in the repo</td>
+</tr>
+<tr>
+<td>2</td>
+<td>One-day integration path; ten-line client SDK; attestation sprint #1</td>
+<td>The SDK published; sprint #1 run, with however many cohort attestations it produced signed on testnet</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Genesis</strong>: deploy at mainnet launch, given launch-day access; failover press live</td>
+<td>The first mainnet print, hourly thereafter; the history moat starts</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Checkpoint in public; sprint #2 with mainnet history behind it</td>
+<td>Whatever the seller and payer counts are, on-chain, reported as they are</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Books open to external counterparties; depth policy published</td>
+<td>The venue open to strangers, with its limits and policy in the repo</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Dependent integration PR written by me, in review with a partner team</td>
+<td>The PR itself, public, whoever ends up merging it and whenever</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Methodology v1.0; change-control; incident policy</td>
+<td>The versioned document and its governance process, public</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Demo day</td>
+<td>The committed list below, plus however far the targets got</td>
+</tr>
+</tbody></table>
+<p><strong>Demo day, split honestly.</strong> Committed, because it is mine to ship: a press rehearsed and
+deployed to mainnet as early as launch-day access allows, printing hourly since; the one-day
+integration path and client SDK, published; the books open under a public depth policy; a
+dependent integration PR written and offered for review; methodology v1.0 under change-control;
+and every number on the page re-measured by CI, nothing claimed that a judge cannot click.
+Targeted, because it depends on others: five attesting sellers (stretch ten), two external
+payers (stretch five), and the dependent integration entering review and actually settling. Whatever the targets
+read on the day is what gets presented, which is the same bargain the hackathon submission
+made and kept.</p>
+<hr>
+<h2>Circle developer products, mapped to their jobs</h2>
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Its job in this plan</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Arc mainnet</strong></td>
+<td>The venue for genesis history. USDC as gas keeps the published attack cost arithmetic instead of a distribution.</td>
+</tr>
+<tr>
+<td><strong>x402 + Gateway</strong></td>
+<td>Already live: the paid-query and settlement rails, proven end to end on testnet with real settled receipts.</td>
+</tr>
+<tr>
+<td><strong>Circle Wallets</strong></td>
+<td>The operator fleet: press, maker, taker, treasury, and the agent hedger. <code>docs/WALLETS.md</code> records which of the four wallet products does which job and the constraint forcing each choice.</td>
+</tr>
+<tr>
+<td><strong>Gas Station</strong></td>
+<td>The Public Desk stays free to try: sponsored user-controlled smart accounts, sponsorship proven from the paymaster event.</td>
+</tr>
+<tr>
+<td><strong>CCTP V2</strong> (new)</td>
+<td>External payers will not all live on Arc. Cross-chain consumers pay and read in native USDC from wherever they hold it. Adopted as soon as Arc mainnet support lands; the timing is Circle&#39;s, and I will plan it with their team rather than around them.</td>
+</tr>
+<tr>
+<td><strong>Smart Contract Platform</strong> (new)</td>
+<td>Mainnet deploys and contract webhooks, if the platform supports Arc at launch; the Foundry path stays rehearsed as the fallback. One of the two products the hackathon submission said plainly it did not use; the accelerator is its opening backlog.</td>
+</tr>
+<tr>
+<td><strong>Agent Marketplace / Discovery</strong></td>
+<td>Distribution. As of August 2026 the Discovery API served 958 listings with none on Arc, and ACR&#39;s Arc-native listing is submitted; if and when Arc lands in Discovery, submit on day one, with the first Arc-native listing as the target.</td>
+</tr>
+<tr>
+<td><strong>Compliance Engine</strong> (stretch)</td>
+<td>If the cohort includes issuers: a KYB-gated attestation tier, so institutional sellers attest under compliance. The bridge from a crypto-native benchmark to a rate TradFi desks can cite.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Risks, pre-declared</h2>
+<p><strong>Seller recruitment is the honest bottleneck.</strong> Attestation asks providers to do work before
+the rate is famous. Mitigations, each one a playbook already run: the one-day integration path
+(the Flare ambassadorship was exactly this, unblocking integrators in real time), cohort-first
+targeting where access is direct (the LNMHacks partnerships were exactly this, getting
+organizations to commit resources to an unproven event), and sequencing mainnet history before
+the hardest asks. If I am behind at week 4, it shows in the receipts. That is the point of
+building this way.</p>
+<p><strong>Mainnet slips, or launch-day access arrives late.</strong> The genesis print needs things only
+Circle can hand out on the day: mainnet RPC, custody wallets on the new chain, USDC funding.
+So the commitment is calibrated to what I control: everything in weeks 1 and 2 lands
+regardless of the date, the rehearsal fork keeps the deploy ready to fire within hours of
+access, and the genesis claim moves with the calendar if the calendar moves. I will raise the
+access checklist with the Circle team in week 1, not week 3.</p>
+<p><strong>Platform timelines are not mine.</strong> Whether SCP, CCTP V2 and the Discovery API support Arc
+mainnet at launch is Circle&#39;s roadmap. The plan treats each as an adopt-when-available with a
+rehearsed fallback (Foundry deploys, Arc-native payers, the catalog served from our own API),
+and the honest way to resolve any of them is the programme itself: I will keep iterating the
+plan with the Circle team at every checkpoint, and where they see a better sequencing or a
+product fit I have missed, the plan changes and the changelog says why.</p>
+<p><strong>Venue liquidity stays thin.</strong> By design the mechanism is the product, not the notional: caps
+stay small, margin stays conservative, and the demo-day claim is that the books were open to
+external counterparties under published limits, with whatever cleared reported as it is. The
+target is that some cleared, never that volume was large.</p>
+<p><strong>A single operator.</strong> The SLO pager, the runbooks, and the ops console&#39;s audited, capped,
+dry-run-by-default money-moving controls exist precisely so the system&#39;s safety does not depend
+on my attention on any given hour.</p>
+<hr>
+<h2>Changelog</h2>
+<ul>
+<li><strong>v0.1 · 13 Aug 2026</strong> · written before the programme starts, so it will be wrong somewhere.
+This section is where the plan admits it: every re-scope agreed with the Circle team gets a
+dated line here, with what changed and why.</li>
+</ul>
+
+
+</div>
+</body>
+</html>

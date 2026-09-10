@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1590" height="870" viewBox="0 0 1590 870" font-family="Helvetica,Arial,sans-serif">
+<rect width="1590" height="870" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="70" y="40" width="1480" height="360" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="95" y="92" width="430" height="190" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="545" y="92" width="430" height="190" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1010" y="92" width="510" height="190" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="70" y="420" width="1480" height="410" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="95" y="472" width="430" height="168" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="545" y="472" width="430" height="168" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1010" y="472" width="510" height="168" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="95" y="660" width="700" height="150" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<polyline points="545,187.0 535.0,187.0 525,187.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="310.0,92 310.0,62 1265.0,62 1265.0,92" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760.0,472 760.0,377.0 760.0,282" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="545,556.0 535.0,556.0 525,556.0" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="310.0,282 310.0,377.0 310.0,472" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="760.0,282 760.0,377 1265.0,377 1265.0,472" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="95,187.0 40,187.0 40,735.0 95,735.0" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="795,735.0 992,735.0 992,187.0 975,187.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<text x="88" y="65.5" font-size="15" fill="#9c36b5">E · DISTRIBUTION (self-referential · x402-monetized)</text>
+<text x="108" y="115.5" font-size="15" fill="#9c36b5">INDEX API (FastAPI)</text>
+<text x="108" y="137.3" font-size="12" fill="#1e1e1e">x402-gated: /prints /curve /vol /futures</text>
+<text x="108" y="149.3" font-size="12" fill="#1e1e1e">/desk/* /marketplace /webhooks /hedger /revenue</text>
+<text x="108" y="161.3" font-size="12" fill="#1e1e1e">lifespan: refresh + poster + keeper + book warm</text>
+<text x="108" y="173.3" font-size="12" fill="#1e1e1e">/onchain + futures readers (90s TTL)</text>
+<text x="558" y="115.5" font-size="15" fill="#9c36b5">x402 FACILITATOR</text>
+<text x="558" y="136.4" font-size="11" fill="#1e1e1e">Dev (mock) | Circle (Nanopayments)</text>
+<text x="558" y="147.4" font-size="11" fill="#1e1e1e">gateway-api-testnet.circle.com /v1/x402</text>
+<text x="558" y="158.4" font-size="11" fill="#1e1e1e">verify+settle · exact · x402Version 2 · fail-closed</text>
+<text x="558" y="169.4" font-size="11" fill="#1e1e1e">durable receipts_live.jsonl (in image) · /revenue rounded 6dp</text>
+<text x="1023" y="115.5" font-size="15" fill="#9c36b5">ACR TERMINAL (Next.js · 'Arc Dawn')</text>
+<text x="1023" y="138.2" font-size="13" fill="#1e1e1e">editorial 'The Fixing' · /curve /exchange /companion</text>
+<text x="1023" y="151.2" font-size="13" fill="#1e1e1e">PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor</text>
+<text x="1023" y="164.2" font-size="13" fill="#1e1e1e">ChainFactsStrip · OracleProvenance · FinalityBadge</text>
+<text x="1023" y="177.2" font-size="13" fill="#1e1e1e">SWR live polling · apps/terminal</text>
+<text x="88" y="445.5" font-size="15" fill="#9c36b5">K · AGENTIC ECONOMY (demand side · the loop closes)</text>
+<text x="108" y="495.5" font-size="15" fill="#9c36b5">AGENT MARKETPLACE</text>
+<text x="108" y="518.2" font-size="13" fill="#1e1e1e">/marketplace/catalog — Bazaar-shaped listings</text>
+<text x="108" y="531.2" font-size="13" fill="#1e1e1e">/marketplace/receipts — paid-query ledger</text>
+<text x="108" y="544.2" font-size="13" fill="#1e1e1e">the index listed as a payable service</text>
+<text x="108" y="557.2" font-size="13" fill="#1e1e1e">marketplace.py</text>
+<text x="558" y="495.5" font-size="15" fill="#9c36b5">AUTONOMOUS x402 BUYER (live)</text>
+<text x="558" y="517.3" font-size="12" fill="#1e1e1e">apps/agent — TS · viem · GatewayPayer / Circle Gateway</text>
+<text x="558" y="529.3" font-size="12" fill="#1e1e1e">--live real settlements · USDC spend cap</text>
+<text x="558" y="541.3" font-size="12" fill="#1e1e1e">discovers catalog → pays per query → receipts.ts</text>
+<text x="558" y="553.3" font-size="12" fill="#1e1e1e">interop.ts (12-check) · x402-buy.yml</text>
+<text x="1023" y="495.5" font-size="15" fill="#9c36b5">CIRCLE WEBHOOKS</text>
+<text x="1023" y="518.2" font-size="13" fill="#1e1e1e">/webhooks/circle — settlement events</text>
+<text x="1023" y="531.2" font-size="13" fill="#1e1e1e">P-256 (ECDSA) signature verified</text>
+<text x="1023" y="544.2" font-size="13" fill="#1e1e1e">→ SettlementTape · in-app floor buyer /demo/buyer/*</text>
+<text x="1023" y="557.2" font-size="13" fill="#1e1e1e">webhooks.py · buyer_demo.py</text>
+<text x="108" y="683.5" font-size="15" fill="#9c36b5">AUTONOMOUS HEDGER — reads the rate, then trades on it</text>
+<text x="108" y="705.3" font-size="12" fill="#1e1e1e">Circle agent wallet (no exportable key) · scripts/hedger.py · GET /hedger</text>
+<text x="108" y="717.3" font-size="12" fill="#1e1e1e">1 pay x402 for ACR-INF print → 2 read own on-chain futures position</text>
+<text x="108" y="729.3" font-size="12" fill="#1e1e1e">3 gap = mandate TARGET − position → 4 trade(qty) the difference</text>
+<text x="108" y="741.3" font-size="12" fill="#1e1e1e">refuses on position-cap / book-room breach — never silently clamps</text>
+</svg>

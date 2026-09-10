@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2220" height="1230" viewBox="0 0 2220 1230" font-family="Helvetica,Arial,sans-serif">
+<rect width="2220" height="1230" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="40" y="40" width="620" height="790" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="60" y="92" width="560" height="112" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="60" y="214" width="560" height="120" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="60" y="344" width="560" height="112" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="60" y="466" width="560" height="120" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="60" y="596" width="560" height="120" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="700" y="40" width="1480" height="900" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="725" y="92" width="350" height="120" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1100" y="92" width="430" height="175" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="725" y="240" width="360" height="215" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1160" y="300" width="370" height="180" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="725" y="490" width="400" height="180" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1160" y="502" width="370" height="96" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1160" y="628" width="370" height="150" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="725" y="702" width="400" height="200" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="40" y="890" width="620" height="300" rx="4" fill="transparent" stroke="#e03131" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="60" y="942" width="560" height="150" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="60" y="1102" width="560" height="78" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<polyline points="620,148.0 686,148.0 686,152.0 725,152.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="620,274.0 680,274.0 680,152.0 725,152.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="620,526.0 674,526.0 674,152.0 725,152.0" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="620,656.0 668,656.0 668,152.0 725,152.0" fill="none" stroke="#0c8599" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="1075,152.0 1087.5,152.0 1087.5,179.5 1100,179.5" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="900.0,212 900.0,226.0 905.0,226.0 905.0,240" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1315.0,267 1315.0,283.5 1345.0,283.5 1345.0,300" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1085,347.5 1122.5,347.5 1122.5,390.0 1160,390.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1160,390.0 1142,390.0 1142,580.0 1125,580.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="620,400.0 688,400.0 688,580.0 725,580.0" fill="none" stroke="#e8590c" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="1345.0,480 1345.0,491.0 1345.0,502" fill="none" stroke="#1971c2" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="1125,580.0 1142,580.0 1142,703.0 1160,703.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1160,703.0 1142,703.0 1142,802.0 1125,802.0" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="925.0,902 925.0,972.0 940.0,972.0 940.0,1042" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1175,1137.0 1165.0,1137.0 1155,1137.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="940.0,1042 940.0,1012 1895.0,1012 1895.0,1042" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="620,526.0 684,526.0 684,1017.0 620,1017.0" fill="none" stroke="#e03131" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="58" y="65.5" font-size="15" fill="#0c8599">A · MARKET EXHAUST &amp; INGESTION</text>
+<text x="73" y="115.5" font-size="15" fill="#0c8599">x402 AUTHORIZATIONS</text>
+<text x="73" y="138.2" font-size="13" fill="#1e1e1e">EIP-3009 signed payloads</text>
+<text x="73" y="151.2" font-size="13" fill="#1e1e1e">price · size · buyer · seller · ts</text>
+<text x="73" y="164.2" font-size="13" fill="#1e1e1e">highest-frequency observable</text>
+<text x="73" y="237.5" font-size="15" fill="#0c8599">GATEWAY BATCH SETTLEMENTS</text>
+<text x="73" y="260.2" font-size="13" fill="#1e1e1e">net positions, settled later</text>
+<text x="73" y="273.2" font-size="13" fill="#1e1e1e">observed = latent ∘ batch-op + noise</text>
+<text x="73" y="286.2" font-size="13" fill="#1e1e1e">y = H·x + v   (the convolution)</text>
+<text x="73" y="367.5" font-size="15" fill="#e8590c">SELLER ATTESTATIONS</text>
+<text x="73" y="390.2" font-size="13" fill="#1e1e1e">EIP-712: model class · latency SLO · schema</text>
+<text x="73" y="403.2" font-size="13" fill="#1e1e1e">→ AttestationRegistry.sol</text>
+<text x="73" y="416.2" font-size="13" fill="#1e1e1e">feeds Pillar-2 features</text>
+<text x="73" y="489.5" font-size="15" fill="#e03131">ADVERSARIAL FLOW</text>
+<text x="73" y="512.2" font-size="13" fill="#1e1e1e">self-deals · reciprocal funding ring</text>
+<text x="73" y="525.2" font-size="13" fill="#1e1e1e">pure-sybil cluster (all 3 shapes)</text>
+<text x="73" y="538.2" font-size="13" fill="#1e1e1e">a first-class contaminated input</text>
+<text x="73" y="619.5" font-size="15" fill="#0c8599">TapeSource (ABC)</text>
+<text x="73" y="641.3" font-size="12" fill="#1e1e1e">SimSource — calibrated simulator</text>
+<text x="73" y="653.3" font-size="12" fill="#1e1e1e">ArcSource — Arc 5042002 live decode</text>
+<text x="73" y="665.3" font-size="12" fill="#1e1e1e">attested-market: amount = price · non-attested dropped</text>
+<text x="718" y="65.5" font-size="15" fill="#1971c2">B · ESTIMATOR CORE — one estimand: the latent price of machine services</text>
+<text x="738" y="115.5" font-size="15" fill="#1971c2">TAPE INDEXER</text>
+<text x="738" y="138.2" font-size="13" fill="#1e1e1e">raw event ingestion</text>
+<text x="738" y="151.2" font-size="13" fill="#1e1e1e">volume-time bars (equal $)</text>
+<text x="738" y="164.2" font-size="13" fill="#1e1e1e">clean ticks — Malachite finality</text>
+<text x="1113" y="115.5" font-size="15" fill="#1971c2">OBSERVATION MODEL · Pillar 1</text>
+<text x="1113" y="138.2" font-size="13" fill="#1e1e1e">observed = latent ∘ batch-H + noise</text>
+<text x="1113" y="151.2" font-size="13" fill="#1e1e1e">state-space; H = box avg, width k</text>
+<text x="1113" y="164.2" font-size="13" fill="#1e1e1e">Kalman filter + RTS smoother</text>
+<text x="1113" y="177.2" font-size="13" fill="#1e1e1e">deconvolves batching; var → CI</text>
+<text x="1113" y="190.2" font-size="13" fill="#1e1e1e">observation_model.py</text>
+<text x="738" y="263.5" font-size="15" fill="#1971c2">CLEANING STACK</text>
+<text x="738" y="286.2" font-size="13" fill="#1e1e1e">4 funding-graph defenses:</text>
+<text x="738" y="299.2" font-size="13" fill="#1e1e1e">· self-deal  (buyer = seller)</text>
+<text x="738" y="312.2" font-size="13" fill="#1e1e1e">· wash-cycle  (reciprocal A↔B)</text>
+<text x="738" y="325.2" font-size="13" fill="#1e1e1e">· Louvain sybil   I/(I+B)</text>
+<text x="738" y="338.2" font-size="13" fill="#1e1e1e">· 2-sided cluster caps</text>
+<text x="738" y="351.2" font-size="13" fill="#1e1e1e">~100% injected wash zeroed</text>
+<text x="1173" y="323.5" font-size="15" fill="#1971c2">ROBUST ESTIMATOR</text>
+<text x="1173" y="346.2" font-size="13" fill="#1e1e1e">α-trim volume-weighted median</text>
+<text x="1173" y="359.2" font-size="13" fill="#1e1e1e">breakdown point ½</text>
+<text x="1173" y="372.2" font-size="13" fill="#1e1e1e">weighted-bootstrap CI / print</text>
+<text x="1173" y="385.2" font-size="13" fill="#1e1e1e">robust.py</text>
+<text x="738" y="513.5" font-size="15" fill="#1971c2">HEDONIC ADJUSTMENT · Pillar 2</text>
+<text x="738" y="536.2" font-size="13" fill="#1e1e1e">WLS:  log p ~ quality features</text>
+<text x="738" y="549.2" font-size="13" fill="#1e1e1e">reprice → MID / 250ms reference</text>
+<text x="738" y="562.2" font-size="13" fill="#1e1e1e">→ constant-quality rate</text>
+<text x="738" y="575.2" font-size="13" fill="#1e1e1e">Case-Shiller for compute</text>
+<text x="738" y="588.2" font-size="13" fill="#1e1e1e">hedonic.py</text>
+<text x="1173" y="525.5" font-size="15" fill="#1971c2">ROBUSTNESS DIAGNOSTICS</text>
+<text x="1173" y="548.2" font-size="13" fill="#1e1e1e">single-cluster flip  c/(0.5(1−2α))</text>
+<text x="1173" y="561.2" font-size="13" fill="#1e1e1e">leave-one-community-out shift (bp)</text>
+<text x="1173" y="574.2" font-size="13" fill="#1e1e1e">robustness.py</text>
+<text x="1173" y="651.5" font-size="15" fill="#f08c00">ACR PRINTS (hourly)</text>
+<text x="1173" y="674.2" font-size="13" fill="#1e1e1e">ACR-INF  $/1k tokens</text>
+<text x="1173" y="687.2" font-size="13" fill="#1e1e1e">ACR-GPU  $/GPU-sec</text>
+<text x="1173" y="700.2" font-size="13" fill="#1e1e1e">ACR-DATA  $/MB</text>
+<text x="1173" y="713.2" font-size="13" fill="#1e1e1e">+ CI  + attack-cost / bp</text>
+<text x="738" y="725.5" font-size="15" fill="#e03131">MANIPULATION COST BOUND · Pillar 3</text>
+<text x="738" y="748.2" font-size="13" fill="#1e1e1e">least surviving wash N* to move 1bp</text>
+<text x="738" y="761.2" font-size="13" fill="#1e1e1e">threat: cleaning-evading sybil</text>
+<text x="738" y="774.2" font-size="13" fill="#1e1e1e">cost = 2N*·fee_bp + (N*/trade + ids)·fee_flat</text>
+<text x="738" y="787.2" font-size="13" fill="#1e1e1e">a NUMBER on Arc (deterministic fee)</text>
+<text x="738" y="800.2" font-size="13" fill="#1e1e1e">bound.py + redteam/optimal_attack.py</text>
+<text x="718" y="1015.5" font-size="15" fill="#9c36b5">E · DISTRIBUTION (self-referential · x402-monetized)</text>
+<text x="738" y="1065.5" font-size="15" fill="#9c36b5">INDEX API (FastAPI)</text>
+<text x="738" y="1087.3" font-size="12" fill="#1e1e1e">x402-gated: /prints /curve /vol /futures</text>
+<text x="738" y="1099.3" font-size="12" fill="#1e1e1e">/desk/* /marketplace /webhooks /hedger /revenue</text>
+<text x="738" y="1111.3" font-size="12" fill="#1e1e1e">lifespan: refresh + poster + keeper + book warm</text>
+<text x="738" y="1123.3" font-size="12" fill="#1e1e1e">/onchain + futures readers (90s TTL)</text>
+<text x="1188" y="1065.5" font-size="15" fill="#9c36b5">x402 FACILITATOR</text>
+<text x="1188" y="1086.4" font-size="11" fill="#1e1e1e">Dev (mock) | Circle (Nanopayments)</text>
+<text x="1188" y="1097.4" font-size="11" fill="#1e1e1e">gateway-api-testnet.circle.com /v1/x402</text>
+<text x="1188" y="1108.4" font-size="11" fill="#1e1e1e">verify+settle · exact · x402Version 2 · fail-closed</text>
+<text x="1188" y="1119.4" font-size="11" fill="#1e1e1e">durable receipts_live.jsonl (in image) · /revenue rounded 6dp</text>
+<text x="1653" y="1065.5" font-size="15" fill="#9c36b5">ACR TERMINAL (Next.js · 'Arc Dawn')</text>
+<text x="1653" y="1088.2" font-size="13" fill="#1e1e1e">editorial 'The Fixing' · /curve /exchange /companion</text>
+<text x="1653" y="1101.2" font-size="13" fill="#1e1e1e">PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor</text>
+<text x="1653" y="1114.2" font-size="13" fill="#1e1e1e">ChainFactsStrip · OracleProvenance · FinalityBadge</text>
+<text x="1653" y="1127.2" font-size="13" fill="#1e1e1e">SWR live polling · apps/terminal</text>
+<text x="58" y="915.5" font-size="15" fill="#e03131">G · RED TEAM / LIVE DEMO</text>
+<text x="73" y="965.5" font-size="15" fill="#e03131">ATTACK THE INDEX  (5-step)</text>
+<text x="73" y="988.2" font-size="13" fill="#1e1e1e">1  baseline: ACR printing hourly</text>
+<text x="73" y="1001.2" font-size="13" fill="#1e1e1e">2  unleash wash-flow bot</text>
+<text x="73" y="1014.2" font-size="13" fill="#1e1e1e">3  naive VWAP swings wildly</text>
+<text x="73" y="1027.2" font-size="13" fill="#1e1e1e">4  ACR barely moves</text>
+<text x="73" y="1040.2" font-size="13" fill="#1e1e1e">5  attack-cost counter burns USDC</text>
+<text x="73" y="1125.5" font-size="15" fill="#e03131">optimal_attack.py</text>
+<text x="73" y="1148.2" font-size="13" fill="#1e1e1e">runs the priced attack through real clean()</text>
+<text x="73" y="1161.2" font-size="13" fill="#1e1e1e">→ the bound is attainable, not loose</text>
+</svg>

@@ -8,7 +8,15 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
+      # Full history and tags, not the shallow default. The claim audit measures
+      # CONTINUITY.md's diff statistics over `v1.0-submission..0aff288`, and in a
+      # depth-1 clone neither the tag nor the history exists — so every git
+      # measurement failed and the audit reported six claims STALE against numbers
+      # it had never taken. The verify_claims side now refuses to compare what it
+      # could not measure; this is the half that lets it measure.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
@@ -52,6 +60,7 @@ jobs:
           uv run pytest services/index_api/tests/test_desk_onchain.py \
             services/index_api/tests/test_futures_roll_onchain.py \
             packages/acr_oracle_client/tests/test_onchain.py \
+            packages/acr_oracle_client/tests/test_mirror_onchain.py \
             -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
           # A skip is the failure mode that matters here: these suites skip
           # silently without a node, which is exactly how a broken one stayed
@@ -62,6 +71,27 @@ jobs:
           fi
       - name: Eval gate (headline claims)
         run: uv run python scripts/eval.py --hours 12 --check
+
+      # The eval gate is one-sided with 1.4-4x headroom, so the measured 124.1 bp
+      # could double and still pass it. This is the other half: the estimator's
+      # exact output, pinned. A deliberate change re-blesses with `make golden`
+      # in the same commit; an accidental one stops here.
+      - name: Golden estimator output
+        run: uv run python scripts/gen_golden.py --check
+
+      # Offline. Asserts the anchor gap is DECLARED and reproducible, never that
+      # it is small — a test red at 1159x is red forever and teaches its reader
+      # to ignore it. The size is held by a per-file ratchet instead.
+      - name: Anchor gap declared
+        run: uv run python scripts/anchors.py --check
+
+      # ~150s: five scenarios x three indices. A step, never a job — verify_claims
+      # counts top-level jobs in this file and asserts the number against the docs.
+      - name: Frozen eval sets
+        run: uv run python scripts/gen_evalset.py --check
+
+      - name: Quality gate (auto-rater)
+        run: uv run python scripts/rate.py
 
       # The docs quote numbers — suite sizes, glossary coverage, deployed
       # addresses — and every one of them was true the day it was typed. Five
@@ -122,3 +152,65 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: apps/terminal
+
+  subgraph:
+    # The tape's mappings. `graph build` is itself the schema gate — it rejects
+    # a malformed manifest, an aggregation arg naming a field that does not
+    # exist, or a non-numeric aggregated field — and matchstick pins the
+    # arithmetic the mappings do. Hermetic: no Studio key, no RPC, no chain.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: astral-sh/setup-uv@v3
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: graph
+      # graph_abis.py claims a contract change that is not reflected in the
+      # mappings fails at codegen. That was only true if someone remembered to
+      # regenerate: CI ran codegen against the COMMITTED abis, so drift passed
+      # green. Regenerate from the forge artifacts and fail on any diff.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: ABIs match the contracts
+        run: |
+          # forge-std is gitignored, so a fresh checkout has to fetch it before
+          # anything compiles — same step the contracts job runs.
+          cd contracts && forge install --no-git foundry-rs/forge-std || true
+          forge build && cd ..
+          uv sync --all-packages
+          uv run python scripts/graph_abis.py
+          git diff --exit-code -- graph/abis \
+            || { echo "::error::graph/abis is stale — run 'make graph-abis' and commit"; exit 1; }
+      - name: Codegen
+        run: npx graph codegen
+        working-directory: graph
+      - name: Build
+        run: npx graph build
+        working-directory: graph
+      - name: Tests
+        run: npx graph test
+        working-directory: graph
+
+  mcp:
+    # The plugin is a thin HTTP client by design, so its tests are about the
+    # tool contract: that it forwards an operation NAME and never caller-supplied
+    # query text, and that "no suggestion" stays distinguishable from "the tape
+    # was unreadable".
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: mcp
+      - name: Type-check
+        run: npx tsc --noEmit
+        working-directory: mcp
+      - name: Tests
+        run: npm test
+        working-directory: mcp

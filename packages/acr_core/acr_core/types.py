@@ -39,7 +39,15 @@ class TapeEvent(BaseModel):
     """
 
     event_id: str
-    ts: float = Field(description="Economic timestamp (unix seconds).")
+    #: Economic timestamp, in the index's own clock: ``k·step_s``, i.e. the
+    #: Fixing number × 3600. NOT unix time — it is seeded from the newest
+    #: on-chain print and only ever moves forward, so it stays monotone across
+    #: restarts and tape wraps. The wall-clock anchor is the oracle's
+    #: ``postedAt`` (block time), which is what freshness and arrival
+    #: selection are measured against.
+    ts: float = Field(
+        description="Economic timestamp — the index's Fixing clock (k·step_s), not unix seconds."
+    )
     service: Service
     seller: str
     buyer: str
@@ -101,6 +109,24 @@ class ACRPrint(BaseModel):
     n_obs: int = 0
     #: α used by the trimmed estimator (for reproducibility).
     trim_alpha: float = 0.0
+    #: Digest of the cleaning policy this print was made under. What turns "the
+    #: keeper decides what is wash" from an objection into a re-derivable claim.
+    #: None on a print made before the policy was committed anywhere.
+    policy_hash: str | None = None
+    #: USDC to move the print 1bp via VERIFIED HUMANS rather than wallets.
+    #: None = not computed. Never zero-as-a-placeholder: identities are the
+    #: scarce input, so a human-denominated bound is by construction at least
+    #: the wallet one, and a zero would understate the cost of moving the index.
+    human_adjusted_bound: float | None = None
+    #: Distinct verified humans a 1bp move would need. THIS is the computed
+    #: figure; `human_adjusted_bound` scales it by a floored cost and is a lower
+    #: bound. Quote the count, not the dollars.
+    humans_required: int | None = None
+    #: The nominal span this print summarizes, in the SAME clock as ``ts``
+    #: (Fixing seconds, not unix), so a verifier recomputes over the same window
+    #: instead of guessing it. ``window_end == ts`` by construction.
+    window_start: float | None = None
+    window_end: float | None = None
 
     @model_validator(mode="after")
     def _check_ci(self) -> ACRPrint:

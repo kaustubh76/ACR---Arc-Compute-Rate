@@ -1,0 +1,230 @@
+# ACR tape — Arc testnet (5042002).
+#
+# specVersion 1.1.0 is the floor for @entity(timeseries: true) / @aggregation.
+# ABIs under abis/ are extracted from contracts/out by `make graph-abis` — never
+# hand-written. The Terminal's hand-inlined ABIs have drifted from the contracts
+# before; a generated copy cannot.
+specVersion: 1.1.0
+description: >-
+  The public tape behind Machine TCA: ACR prints, seller attestations, futures
+  fills, and mirrored x402 settlements benchmarked against the print each payer
+  could have seen when they paid.
+repository: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum/contract
+    name: ACROracle
+    network: arc-testnet
+    source:
+      address: "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609"
+      abi: ACROracle
+      startBlock: 53066540
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/oracle.ts
+      entities:
+        - Print
+        - EconomicPrint
+        - PrintRing
+        - SignerChange
+        - PauseChange
+      abis:
+        - name: ACROracle
+          file: ./abis/ACROracle.json
+      eventHandlers:
+        - event: PricePosted(indexed bytes32,uint256,uint256,uint256,uint256,uint64,indexed address)
+          handler: handlePricePosted
+        - event: SignerSet(indexed address,bool)
+          handler: handleSignerSetV1
+        - event: PausedSet(bool)
+          handler: handlePausedSetV1
+
+  # --- oracle v2 -------------------------------------------------------------
+  # Deployed ALONGSIDE v1, not instead of it: ACRFutures settles against v1 and
+  # its oracle pointer is immutable. Both post the same hourly print during the
+  # overlap, and src/oracle.ts collapses them onto one EconomicPrint so the
+  # second posting cannot move the arrival anchor.
+  #
+  - kind: ethereum/contract
+    name: ACROracleV2
+    network: arc-testnet
+    source:
+      address: "0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA"
+      abi: ACROracleV2
+      startBlock: 60541786
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/oracle.ts
+      entities:
+        - Print
+        - EconomicPrint
+        - PrintRing
+        - SignerChange
+        - PauseChange
+      abis:
+        - name: ACROracleV2
+          file: ./abis/ACROracleV2.json
+      eventHandlers:
+        - event: PricePosted(indexed bytes32,indexed bytes32,indexed address,uint256,uint256,uint256,uint256,uint256,uint64,uint64,uint64)
+          handler: handlePricePostedV2
+        - event: SignerSet(indexed address,bool)
+          handler: handleSignerSetV2
+        - event: PausedSet(bool)
+          handler: handlePausedSetV2
+
+  - kind: ethereum/contract
+    name: AttestationRegistry
+    network: arc-testnet
+    source:
+      address: "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7"
+      abi: AttestationRegistry
+      startBlock: 53066540
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/registry.ts
+      entities:
+        - Attestation
+        - Seller
+      abis:
+        - name: AttestationRegistry
+          file: ./abis/AttestationRegistry.json
+      eventHandlers:
+        - event: Attested(indexed address,indexed uint8,uint8,uint32,bytes32,uint64)
+          handler: handleAttested
+
+  - kind: ethereum/contract
+    name: ACRFutures
+    network: arc-testnet
+    source:
+      address: "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe"
+      abi: ACRFutures
+      startBlock: 54474746
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/futures.ts
+      entities:
+        - FuturesFill
+        - Series
+        - CollateralFlow
+        - PrintRing
+      abis:
+        - name: ACRFutures
+          file: ./abis/ACRFutures.json
+      eventHandlers:
+        - event: SeriesOpened(indexed uint256,indexed bytes32,uint64,uint256,address)
+          handler: handleSeriesOpened
+        - event: Traded(indexed uint256,indexed address,int256,uint256)
+          handler: handleTraded
+        - event: Settled(indexed uint256,uint256,uint256)
+          handler: handleSettled
+        - event: CollateralPosted(indexed uint256,indexed address,uint256)
+          handler: handleCollateralPosted
+        - event: CollateralWithdrawn(indexed uint256,indexed address,uint256)
+          handler: handleCollateralWithdrawn
+
+  - kind: ethereum/contract
+    name: FeedAccessAttestor
+    network: arc-testnet
+    source:
+      address: "0xe671a8E73900F1186448cFFeA9e730F5E50DFD47"
+      abi: FeedAccessAttestor
+      startBlock: 55149161
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/access.ts
+      entities:
+        - FeedAccess
+        - SignerChange
+      abis:
+        - name: FeedAccessAttestor
+          file: ./abis/FeedAccessAttestor.json
+      eventHandlers:
+        - event: AccessGranted(indexed address,indexed address,uint64,uint256,uint256)
+          handler: handleAccessGranted
+        - event: SignerSet(indexed address,bool)
+          handler: handleAttestorSignerSet
+
+  # --- the settlement tape ---------------------------------------------------
+  # before deploying. `make graph-deploy` refuses to run while the address is
+  # still zero, because a subgraph pointed at 0x0 indexes nothing and says so
+  # nowhere — it just serves an empty tape that looks like a quiet market.
+  - kind: ethereum/contract
+    name: ReceiptMirror
+    network: arc-testnet
+    source:
+      address: "0xA9CD5b9503aeA88EB343333E842D2860b263DB65"
+      abi: ReceiptMirror
+      startBlock: 60541749
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/mirror.ts
+      entities:
+        - PendingSettlement
+        - Settlement
+        - SellerDay
+        - PayerDay
+        - Payer
+        - Seller
+        - SellerPayerLink
+        - SellerWindow
+        - SellerWindowPayer
+        - SellerWindowHuman
+        - HumanCluster
+        - SignerChange
+        - Print
+        - PrintRing
+      abis:
+        - name: ReceiptMirror
+          file: ./abis/ReceiptMirror.json
+      eventHandlers:
+        - event: SettlementOpened(indexed bytes32,indexed address,indexed address,bytes32,uint256,uint64,uint64,bytes32,bool,bool)
+          handler: handleSettlementOpened
+        - event: SettlementFinalized(indexed bytes32,indexed address,indexed address,uint8,uint256,uint64)
+          handler: handleSettlementFinalized
+        - event: SignerSet(indexed address,bool)
+          handler: handleMirrorSignerSet
+
+  # --- who is one human ------------------------------------------------------
+  # Deployed 2026-09-09, block 61226802. Records WINDOW-ROTATED CLUSTER IDS,
+  # never World ID nullifiers — see
+  # contracts/src/HumanIdMirror.sol for what that does and does not buy.
+  - kind: ethereum/contract
+    name: HumanIdMirror
+    network: arc-testnet
+    source:
+      address: "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5"
+      abi: HumanIdMirror
+      startBlock: 61226802
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/humanid.ts
+      entities:
+        - HumanCluster
+        - Payer
+        - SignerChange
+      abis:
+        - name: HumanIdMirror
+          file: ./abis/HumanIdMirror.json
+      eventHandlers:
+        - event: HumanClusterResolved(indexed bytes32,indexed address,indexed uint64,bool,address)
+          handler: handleHumanClusterResolved
+        - event: HumanClusterRebound(indexed address,indexed uint64,bytes32,bytes32,address)
+          handler: handleHumanClusterRebound
+        - event: SignerSet(indexed address,bool)
+          handler: handleHumanIdSignerSet

@@ -43,6 +43,13 @@ HEARTBEAT_EVERY_S = float(os.environ.get("ACR_KEEPER_HEARTBEAT_S", "3600"))
 #: collateralized series has life left, so this is cheap when there is nothing
 #: to do — one read, no write.
 ROLL_CHECK_EVERY_S = float(os.environ.get("ACR_KEEPER_ROLL_S", "1800"))
+
+#: How often to mirror settled receipts onto ``ReceiptMirror``. Minutes, not
+#: hours: the contract only accepts an ordinary mirror within one hour of the
+#: settlement, and the arrival print a settlement is measured against is chosen
+#: from its own ``settledAt`` — so lateness costs freshness, and past the hour
+#: it costs an operator's intervention.
+MIRROR_EVERY_S = float(os.environ.get("ACR_KEEPER_MIRROR_S", "120"))
 #: Below this the keeper stands down rather than half-completing a chore. On Arc
 #: USDC is gas, so a wallet spent to the floor cannot even withdraw.
 GAS_FLOOR_USDC = float(os.environ.get("ACR_KEEPER_GAS_FLOOR", "1.0"))
@@ -77,6 +84,8 @@ _last_heartbeat = 0.0
 #: Which index the next heartbeat trades, modulo the live roster.
 _hb_cursor = 0
 _last_roll_check = 0.0
+#: Last mirror sweep.
+_last_mirror = 0.0
 
 #: Last observed outcome per chore, for the Terminal. The keeper's verdicts
 #: went only to the server log, so the one question a reader of a live venue
@@ -130,6 +139,7 @@ def status() -> dict[str, object]:
         "enabled": True,
         "heartbeat": _chore_status("heartbeat", HEARTBEAT_EVERY_S, _last_heartbeat),
         "roll": _chore_status("roll", ROLL_CHECK_EVERY_S, _last_roll_check),
+        "mirror": _chore_status("mirror", MIRROR_EVERY_S, _last_mirror),
     }
 
 
@@ -441,3 +451,35 @@ def roll_if_needed(futures) -> str | None:
         return f"opened series {sid} but collateral did NOT land — the desk needs a human"
     return (f"rolled {index_id} to series {sid} "
             f"(+{os.environ.get('ROLL_EXPIRY_DAYS', '14')}d), {posted:.2f} USDC posted")
+
+
+def mirror_once(_futures=None) -> str | None:
+    """Put freshly settled receipts on chain, so the subgraph has a tape.
+
+    Takes an unused ``_futures`` argument to match the other chores' signature —
+    it has no venue dependency at all, which is exactly why it must NOT be
+    called from inside the warm loop's ``if futures.configured:`` branch. A
+    deployment with no futures address would otherwise mirror nothing and say
+    nothing about it.
+
+    Cooldown is stamped before the work, like the other chores: a keeper that
+    retried a failing mirror every tick would spend the press's gas on it.
+    """
+    global _last_mirror
+    if not enabled():
+        return None
+    now = time.time()
+    if now - _last_mirror < MIRROR_EVERY_S:
+        return None
+
+    from acr_oracle_client import MirrorClient
+
+    client = MirrorClient()
+    if not client.configured():
+        return None
+    _last_mirror = now
+
+    from .mirror import mirror_once as _mirror
+    from .x402 import get_facilitator
+
+    return _mirror(list(get_facilitator().recent), client=client)

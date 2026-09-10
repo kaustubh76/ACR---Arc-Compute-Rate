@@ -32,3 +32,12 @@ data/
 scripts/_out/
 .env
 .DS_Store
+
+# Competitive/ideation material that must never reach a PUBLIC repo.
+# ETHGlobal_Online.md names prize targets, a designated-alternate contingency,
+# a dropped-sponsor list and a counter-strategy to the continuity-scoring rule.
+# It was nearly committed once; the entry is the guard, not the reminder.
+ETHGlobal_Online.md
+# Orphan scratch canvas. scripts/gen_architecture.py writes the TRACKED
+# acr_architecture.excalidraw; nothing reads this one.
+ACR_MachineTCA_Architecture_FULL.excalidraw

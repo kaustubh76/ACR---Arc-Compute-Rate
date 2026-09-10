@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from acr_core import ALL_INDEX_IDS, ModelClass, SellerAttestation, Service, reset_settings
 from fastapi.testclient import TestClient
+from index_api.fleet import FLEET
 from index_api.marketplace import (
     NullRegistry,
     build_catalog,
@@ -56,7 +57,8 @@ def test_catalog_items_are_bazaar_shaped():
     # 2, not 1: Circle's Discovery API serves x402Version 2 on every one of its
     # listings, and a crawler resolves a version mismatch by skipping you.
     assert cat["x402Version"] == 2
-    assert len(cat["items"]) == 13
+    # 13 index resources + one listing per fleet seller.
+    assert len(cat["items"]) == 13 + len(FLEET)
     item = next(i for i in cat["items"] if i["resource"].endswith("/prints"))
     assert item["type"] == "http"
     acc = item["accepts"][0]
@@ -218,7 +220,7 @@ def test_marketplace_endpoints_via_http():
         client = TestClient(app)
         cat = client.get("/marketplace/catalog")
         assert cat.status_code == 200
-        assert len(cat.json()["items"]) == 13
+        assert len(cat.json()["items"]) == 13 + len(FLEET)
         # Discovery is free; the data itself still costs (402 without payment).
         assert client.get("/prints").status_code == 402
 
@@ -234,3 +236,54 @@ def test_marketplace_endpoints_via_http():
         reset_settings()
         reset_facilitator()
         reset_registry()
+
+
+def test_catalog_lists_every_fleet_seller_at_its_own_terms():
+    """The fleet has to be DISCOVERABLE, not merely live.
+
+    A buyer agent picks what to pay for out of this catalog. While
+    ``/compute/{label}`` appeared in no listing, nothing could ever route a
+    payment to a fleet seller, so every settlement kept going to the single
+    platform wallet at the single flat price — and a tape with no unit-price
+    dispersion makes `slippageBp` identically zero and leaves every seller-side
+    entity in the subgraph empty.
+    """
+    reset_settings()
+    cat = build_catalog("http://test:8000/", registry=NullRegistry())
+    compute = {
+        i["metadata"]["label"]: i
+        for i in cat["items"]
+        if i["metadata"].get("family") == "compute"
+    }
+    assert set(compute) == set(FLEET), "every fleet listing must be discoverable"
+
+    for label, listing in FLEET.items():
+        item = compute[label]
+        acc = item["accepts"][0]
+        assert item["resource"] == f"http://test:8000{listing.resource}"
+        # The advertised terms ARE the gate's terms — same builder, same values,
+        # so a buyer that reconciles its own receipt against this cannot be
+        # surprised at the 402.
+        assert acc["payTo"] == listing.seller
+        assert acc["maxAmountRequired"] == acc["amount"]
+        assert int(acc["amount"]) == round(listing.amount_usdc * 1_000_000)
+        assert acc["scheme"] == "exact"
+        meta = item["metadata"]
+        assert meta["seller"] == listing.seller
+        assert meta["model_class"] == listing.model_class.value
+        assert meta["unit_price_usdc"] == listing.unit_price_usdc
+
+    # Each seller is paid at its OWN address: one shared payee would rebuild the
+    # single-wallet tape the fleet exists to replace.
+    payees = {i["accepts"][0]["payTo"] for i in compute.values()}
+    assert len(payees) == len(FLEET)
+
+    # And the like-for-like pair TCA is built on survives discovery: two sellers
+    # of the same class on the same index, at different prices.
+    mids = [
+        i["metadata"]
+        for i in compute.values()
+        if i["metadata"]["model_class"] == "mid" and i["metadata"]["index_id"] == "ACR-INF"
+    ]
+    assert len(mids) == 2
+    assert mids[0]["unit_price_usdc"] != mids[1]["unit_price_usdc"]

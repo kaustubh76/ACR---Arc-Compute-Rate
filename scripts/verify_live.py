@@ -204,6 +204,40 @@ def _margin_bps_or_default(w3, settings) -> int:
         return 2000
 
 
+def verify_oracle_v2(w3, settings) -> None:
+    """The tape's oracle — the one whose prints say how they were made.
+
+    Staleness here is a WARN, not a failure, and the asymmetry is deliberate:
+    v1 going stale makes every expired futures series unsettleable, which costs
+    real collateral. v2 going stale only makes the subgraph's arrival ring
+    sparse, which it already reports honestly as `benchmarked: false`. Grading
+    them the same would train an operator to ignore the one that matters.
+    """
+    from acr_oracle_client import OracleClient
+    from acr_oracle_client.client import ORACLE_V2
+
+    v2_address = getattr(settings, "oracle_v2_address", "")
+    if not v2_address:
+        return  # not deployed yet — silence, not a failure
+
+    print("\noracle v2 — the print that carries its own policy and window")
+    oc = OracleClient(
+        rpc_url=settings.arc_rpc_url, oracle_address=v2_address, schema=ORACLE_V2
+    )
+    now = time.time()
+    for iid in ("ACR-GPU", "ACR-INF", "ACR-DATA"):
+        p = oc.read_latest(iid)
+        if not p or not p.get("value"):
+            check(False, f"{iid}: no v2 print yet", warn_only=True)
+            continue
+        age = now - (p.get("posted_at") or 0)
+        check(
+            age < PRINT_MAX_AGE_S,
+            f"{iid} = {p['value']:.5f}, posted {age / 60:.0f}m ago (tape feed)",
+            warn_only=True,
+        )
+
+
 def verify_venue(w3, settings) -> dict | None:
     """The live series, returned so later checks can assert against the SAME one
     the chain says is live — that asymmetry is where a dead series slipped
@@ -838,6 +872,7 @@ def main() -> None:
     check(cid == s.arc_chain_id, f"chain id {cid}")
 
     section(verify_oracle, w3, s)
+    section(verify_oracle_v2, w3, s)
     live = section(verify_venue, w3, s)
     section(verify_tape, s)
     section(verify_seller)

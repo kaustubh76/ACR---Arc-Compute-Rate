@@ -41,6 +41,12 @@ export const KEY_PREFIX = "acr-attest::";
 export const DEMO_LABELS = [
   "acr-seller-inf-frontier",
   "acr-seller-inf-open",
+  // Two INFERENCE sellers of the SAME model class. A price gap between
+  // different classes is quality, which the hedonic stage adjusts away; only a
+  // same-class pair makes "you could have paid less for the same thing" true,
+  // which is what the seller fleet's transaction-cost analysis rests on.
+  "acr-seller-inf-mid-a",
+  "acr-seller-inf-mid-b",
   "acr-seller-gpu-mid",
   "acr-seller-data-small",
 ] as const;

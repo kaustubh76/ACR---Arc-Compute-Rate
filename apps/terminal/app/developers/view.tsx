@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useState } from "react";
 import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
+import { HumanProof } from "@/components/chain/HumanProof";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
 import { ContractRegister } from "@/components/chain/ContractRegister";
@@ -47,6 +48,13 @@ const DESC: Record<string, React.ReactNode> = {
   "/marketplace/catalog": <Ed x="Machine-readable listings (Bazaar-shaped)" p="The shop's listings, in a shape robots can read" />,
   "/marketplace/receipts": <Ed x="The settlement tape · recent receipts" p="The receipt roll · who paid for what" />,
   "/terminal/data": <Ed x="The human terminal feed (this site)" p="Everything this website shows, as data" />,
+  "/tca/{payer}": <Ed x="What one wallet paid, against the rate it could have seen" p="What one wallet paid, next to the fair rate at the time" />,
+  "/rating/{seller}": <Ed x="A seller's grade, its parts, and how much of the scoring it covers" p="A seller's score, what went into it, and how complete it is" />,
+  "/tca/human": <Ed x="One bill across every wallet a verified human owns" p="One bill covering all the accounts that belong to the same person" />,
+  "/humanid/info": <Ed x="The human-proof gate, described by the service itself" p="How we check someone is a real person, in the service's own words" />,
+  "/graph/operations": <Ed x="The named reads the tape proxy will run" p="The list of questions you may ask the record" />,
+  "/graph/query": <Ed x="Run one named read against the indexed tape" p="Ask the record one of those questions" />,
+  "/fleet": <Ed x="The seller listings, each with its own price and payee" p="Who is selling, at what price, paid to which wallet" />,
   "/demo/attack/start": <Ed x="Kick a live wash-attack run (Attack Lab)" p="Start a live cheating attempt (the lab)" />,
   "/demo/attack/status": <Ed x="Attack run progress + verdict" p="How the cheating attempt is going" />,
   "/demo/buyer/start": <Ed x="Release the floor buyer (Exchange demo)" p="Let the robot shopper loose (shop demo)" />,
@@ -216,6 +224,13 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           </>
         }
       />
+
+      {/* The other gate. The console above shows the 402 before a cent moves;
+          this shows the 401 before a person is admitted. Same page, same move,
+          and they belong next to each other: the register two sections down now
+          carries a row whose only explanation is "needs a proof of personhood",
+          and this is where a reader finds out what that means. */}
+      <HumanProof />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said
@@ -429,6 +444,10 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                     <Ed x="Circle calls this" p="Circle calls this" />
                                   ) : e.why === "post" ? (
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
+                                  ) : e.why === "address" ? (
+                                    <Ed x="needs a wallet in the path" p="needs a wallet address" />
+                                  ) : e.why === "human" ? (
+                                    <Ed x="needs a proof of personhood" p="needs proof you are a real person" />
                                   ) : (
                                     <Ed x="needs a session" p="needs a session" />
                                   )}

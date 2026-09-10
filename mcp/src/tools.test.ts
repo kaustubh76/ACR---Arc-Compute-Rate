@@ -1,0 +1,181 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import { callTool, TOOLS } from "./tools.js";
+
+/** A fetch stand-in that records calls and replays canned bodies. */
+function fake(routes: Record<string, unknown>, seen: string[] = []) {
+  return async (url: string, init?: { method?: string; body?: string }) => {
+    seen.push(`${init?.method ?? "GET"} ${url}`);
+    const key = Object.keys(routes).find((k) => url.includes(k));
+    return {
+      ok: key !== undefined,
+      status: key === undefined ? 404 : 200,
+      json: async () => (key === undefined ? {} : routes[key]),
+    };
+  };
+}
+
+test("every tool declares a schema the host can render", () => {
+  for (const t of TOOLS) {
+    assert.ok(t.name && t.description, `${t.name} needs a description`);
+    assert.equal(t.inputSchema.type, "object");
+  }
+  assert.equal(new Set(TOOLS.map((t) => t.name)).size, TOOLS.length, "names must be unique");
+});
+
+test("my_tca reads the API rather than computing anything itself", async () => {
+  const seen: string[] = [];
+  const out = await callTool(
+    "my_tca",
+    { target: "0xabc", days: 30 },
+    { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: true, vw_slippage_bp: 41 } }, seen) },
+  );
+  assert.deepEqual(out, { available: true, vw_slippage_bp: 41 });
+  assert.equal(seen[0], "GET https://acr.test/tca/0xabc?days=30");
+});
+
+test("reroute distinguishes 'no cheaper seller' from 'tape unreadable'", async () => {
+  const none = await callTool(
+    "reroute_suggestion",
+    { target: "0xabc" },
+    { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: true, reroute: null } }) },
+  );
+  assert.equal((none as { reason: string }).reason, "no cheaper seller in this window");
+
+  const down = await callTool(
+    "reroute_suggestion",
+    { target: "0xabc" },
+    { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: false, reason: "unset" } }) },
+  );
+  assert.equal((down as { available: boolean }).available, false);
+});
+
+test("benchmark_price measures a quote the same way the tape measures a fill", async () => {
+  const out = (await callTool(
+    "benchmark_price",
+    { price: 0.505, index_id: "ACR-INF" },
+    { api: "https://acr.test", fetchImpl: fake({ "/onchain/": { value: 0.5 } }) },
+  )) as { slippage_bp: number; arrival: number };
+  assert.equal(out.arrival, 0.5);
+  assert.equal(out.slippage_bp, 100); // +1% == +100 bp
+});
+
+test("benchmark_price refuses to compare against a print that does not exist", async () => {
+  const out = (await callTool(
+    "benchmark_price",
+    { price: 0.5, index_id: "ACR-INF" },
+    { api: "https://acr.test", fetchImpl: fake({ "/onchain/": {} }) },
+  )) as { available: boolean };
+  assert.equal(out.available, false);
+});
+
+test("query_tape lists the allowlist when called with no operation", async () => {
+  const seen: string[] = [];
+  await callTool("query_tape", {}, {
+    api: "https://acr.test",
+    fetchImpl: fake({ "/graph/operations": { operations: ["meta"] } }, seen),
+  });
+  assert.equal(seen[0], "GET https://acr.test/graph/operations");
+});
+
+test("query_tape posts an operation name, never query text", async () => {
+  let body = "";
+  const out = await callTool("query_tape", { operation: "meta" }, {
+    api: "https://acr.test",
+    fetchImpl: async (url: string, init?: { method?: string; body?: string }) => {
+      body = init?.body ?? "";
+      return { ok: true, status: 200, json: async () => ({ available: true }) };
+    },
+  });
+  assert.deepEqual(JSON.parse(body), { operation: "meta", variables: {} });
+  assert.deepEqual(out, { available: true });
+});
+
+test("an unknown tool names the ones that exist", async () => {
+  const out = (await callTool("nope", {}, { fetchImpl: fake({}) })) as { tools: string[] };
+  assert.ok(out.tools.includes("my_tca"));
+});
+
+/** The human gate: a 401 carrying a nonce, then the answer. */
+function humanGate(union: unknown, seen: Array<{ url: string; headers?: Record<string, string> }> = []) {
+  let calls = 0;
+  return async (url: string, init?: { headers?: Record<string, string> }) => {
+    seen.push({ url, headers: init?.headers });
+    calls += 1;
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ error: "human proof required", nonce: "n0nce" }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => union };
+  };
+}
+
+test('my_tca("me") answers the challenge rather than reusing a static credential', async () => {
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  const out = await callTool(
+    "my_tca",
+    { target: "me", days: 7 },
+    {
+      api: "https://acr.test",
+      fetchImpl: humanGate({ available: true, human: { wallet_count: 3 } }, seen),
+      nullifier: "0xnull",
+    },
+  );
+  assert.deepEqual(out, { available: true, human: { wallet_count: 3 } });
+  // Two calls: take a challenge, then answer THAT nonce. The nonce is
+  // single-use, so a credential held across calls would stop working.
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].url, "https://acr.test/tca/human?days=7");
+  assert.equal(seen[1].headers?.["HUMAN-PROOF"], "humanid 0xnull:n0nce");
+});
+
+test('my_tca("me") sends the credential in a header, never in the URL', async () => {
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  await callTool(
+    "my_tca",
+    { target: "me" },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen), nullifier: "0xsecret" },
+  );
+  for (const call of seen) {
+    assert.ok(!call.url.includes("0xsecret"), "a nullifier in a URL lands in every access log");
+  }
+});
+
+test('my_tca("me") says why it cannot answer, rather than looking unverified-but-fine', async () => {
+  const out = (await callTool(
+    "my_tca",
+    { target: "me" },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }) },
+  )) as { available: boolean; reason: string };
+  assert.equal(out.available, false);
+  // An AgentKit proof comes from the agent's own World credential; the plugin
+  // cannot mint one, and pretending otherwise would be the failure.
+  assert.match(out.reason, /cannot be created here/);
+});
+
+test('my_tca with an address does not touch the human gate', async () => {
+  const seen: string[] = [];
+  await callTool(
+    "my_tca",
+    { target: "0xabc" },
+    { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: true } }, seen) },
+  );
+  assert.equal(seen[0], "GET https://acr.test/tca/0xabc?days=7");
+});
+
+test('reroute_suggestion("me") reroutes the fleet as one book', async () => {
+  const out = await callTool(
+    "reroute_suggestion",
+    { target: "me" },
+    {
+      api: "https://acr.test",
+      fetchImpl: humanGate({ available: true, reroute: { from: "0xdear", to: "0xcheap" } }),
+      nullifier: "0xnull",
+    },
+  );
+  assert.deepEqual(out, { from: "0xdear", to: "0xcheap" });
+});

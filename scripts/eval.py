@@ -40,9 +40,16 @@ def run_eval(
     svc = spec_for(index).service
     settings = get_settings()
 
-    attack = AttackConfig(
-        budget_usdc=budget, target_multiplier=2.5, trade_notional=40.0,
-        t_start=attack_from * HOUR, t_end=attack_to * HOUR,
+    # No budget, or no window, means NO adversary — not an adversary of zero
+    # size. Passing an AttackConfig with t_start == t_end used to stack every
+    # wash print on a single instant while labelling each hour quiet.
+    attack = (
+        None
+        if budget <= 0.0 or attack_to <= attack_from
+        else AttackConfig(
+            budget_usdc=budget, target_multiplier=2.5, trade_notional=40.0,
+            t_start=attack_from * HOUR, t_end=attack_to * HOUR,
+        )
     )
     res = simulate(
         SimConfig(seed=seed, horizon=horizon, events_per_service=hours * 2500, attack=attack)
@@ -51,6 +58,12 @@ def run_eval(
 
     series: list[dict] = []
     acr_errs, vwap_errs, atk_acr, atk_vwap, quiet_acr = [], [], [], [], []
+    # Calibration, which nothing in this repo has ever measured. Every print
+    # ships a 95% interval (methodology section 4) and no code checks how often
+    # it contains the truth. Coverage alone is gamed by widening the band, so
+    # the Winkler interval score is carried beside it: it charges for width AND
+    # for missing, so a wider interval only scores better if it starts covering.
+    covered, widths_bp, winklers_bp, abs_errs = 0, [], [], []
     for h in range(hours):
         t0, t1 = h * HOUR, (h + 1) * HOUR
         window = [e for e in events if t0 <= e.ts < t1]
@@ -71,6 +84,13 @@ def run_eval(
         })
         acr_errs.append(acr_err)
         vwap_errs.append(vwap_err)
+        abs_errs.append(acr_err)
+        covered += int(p.ci_lo <= true <= p.ci_hi)
+        widths_bp.append(1e4 * (p.ci_hi - p.ci_lo) / true)
+        # Winkler, alpha = 1 - ci_level, expressed in bp of the truth.
+        alpha = 1.0 - settings.ci_level
+        penalty = max(p.ci_lo - true, 0.0) + max(true - p.ci_hi, 0.0)
+        winklers_bp.append(1e4 * ((p.ci_hi - p.ci_lo) + (2.0 / alpha) * penalty) / true)
         (atk_acr if is_attack else quiet_acr).append(acr_err)
         if is_attack:
             atk_vwap.append(vwap_err)
@@ -78,6 +98,8 @@ def run_eval(
     attack_acr = sum(atk_acr) / len(atk_acr) if atk_acr else 0.0
     attack_vwap = sum(atk_vwap) / len(atk_vwap) if atk_vwap else 0.0
     quiet = sum(quiet_acr) / len(quiet_acr) if quiet_acr else 0.0
+    n = len(series)
+    ordered = sorted(abs_errs)
     return {
         "index": index,
         "series": series,
@@ -86,9 +108,24 @@ def run_eval(
         "attack_acr_err_bp": attack_acr,
         "attack_vwap_err_bp": attack_vwap,
         "quiet_acr_err_bp": quiet,
-        "resistance_ratio": attack_vwap / attack_acr if attack_acr else float("inf"),
+        # None, not inf: with no adversary there is no ratio to report, and
+        # json.dumps writes a bare `Infinity` that JSON.parse rejects — which
+        # would reach the Terminal the first time a quiet scenario is published.
+        "resistance_ratio": (attack_vwap / attack_acr) if attack_acr else None,
         "n_adversarial": res.n_adversarial,
         "usdc_burned": res.usdc_attacked,
+        # Calibration and shape. Additive: build_gates reads four keys and is
+        # untouched by anything below.
+        "n_windows": n,
+        "ci_coverage_n": covered,
+        "ci_coverage": (covered / n) if n else None,
+        "mean_ci_width_bp": (sum(widths_bp) / n) if n else None,
+        "mean_winkler_bp": (sum(winklers_bp) / n) if n else None,
+        "median_abs_err_bp": (ordered[len(ordered) // 2]) if ordered else None,
+        "max_hour_err_bp": max(abs_errs) if abs_errs else None,
+        "cleaned_pct_mean": (
+            sum(h["cleaned_pct"] for h in series) / n if n else None
+        ),
     }
 
 

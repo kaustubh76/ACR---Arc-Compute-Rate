@@ -263,6 +263,65 @@ def check_oracle_commit_guard(chain_id: int | None) -> None:
         )
 
 
+#: The bundle this script writes — and, now, the one it reads back.
+BUNDLE_PATH = Path("apps/terminal/lib/fallback.json")
+
+
+def previous_bundle(path: Path = BUNDLE_PATH) -> dict:
+    """The committed bundle, or ``{}`` when there is none to read.
+
+    The first time this script has ever looked at its own output. It only wrote
+    before, which is precisely why the futures guard had no third option: it
+    could refuse a degraded bundle or (via the env flag) overwrite a good one
+    with the degraded one, and nothing in between.
+    """
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}  # absent on a first run, unparseable if hand-edited — same answer
+
+
+def carry_venue_forward(payload: dict, previous: dict) -> str | None:
+    """Keep the last real venue capture when this run could not read one.
+
+    The guard below exists to stop a bundle claiming a venue that has never
+    traded. Preserving the previous capture serves that intent; the env flag
+    defeats it, because this script rewrites the file wholesale — so opting out
+    does not ship the old tape, it DELETES it.
+
+    ``futures`` and ``futures_trades`` move together or not at all. The terminal
+    filters the tape to each desk's current series (``markSeries`` in
+    ``apps/terminal/lib/futuresBook.ts``), so live desks beside a carried tape
+    match nothing and every desk renders empty — a bundle that passes every test
+    and shows a dead venue, which is the failure the guard was written to
+    prevent, reached from the other side.
+
+    Returns a disclosure line when it carried, else None.
+    """
+    if payload.get("futures_trades"):
+        return None  # this run read a tape of its own; nothing to carry
+    old_trades = previous.get("futures_trades") or []
+    old_desks = previous.get("futures") or {}
+    if not (old_trades and old_desks):
+        return None  # nothing worth keeping — let the guard refuse
+
+    payload["futures"] = old_desks
+    payload["futures_trades"] = old_trades
+
+    blocks = [int(t["block"]) for t in old_trades if t.get("block") is not None]
+    series = sorted({t.get("series_id") for t in old_trades if t.get("series_id") is not None})
+    span = f"blocks {min(blocks):,}–{max(blocks):,}" if blocks else "block range unknown"
+    return (
+        f"  ! venue carried forward from the previous bundle: {len(old_trades)} fill(s), "
+        f"series {series}, {span}.\n"
+        "    This run read an empty tape — the venue has not traded within the "
+        "reader's reach.\n"
+        "    The archived edition therefore shows the LAST REAL capture, not a "
+        "current one, and\n"
+        "    will keep showing it until the venue trades again."
+    )
+
+
 def check_futures_commit_guard(payload: dict) -> None:
     """Refuse to commit a bundle whose futures sections are empty.
 
@@ -389,11 +448,18 @@ def main() -> None:
         assert payload["oracle"] is None
         assert all(p["onchain"] is None for p in payload["prints"].values())
     embed_bundle_sections(payload)
+    # Before the guards, so a venue the reader could not see this run is kept
+    # rather than refused. Loud, because a carried section is frozen until the
+    # venue trades again and that must not become invisible through repetition.
+    carried = carry_venue_forward(payload, previous_bundle())
+    if carried:
+        print(carried)
     # Both content guards answer the same question — is this archive worth
-    # committing? — so they stand together.
+    # committing? — so they stand together. They now fire only when there was
+    # nothing to carry either: a genuinely first-ever empty bundle.
     check_futures_commit_guard(payload)
     check_hedger_commit_guard(payload)
-    out = Path("apps/terminal/lib/fallback.json")
+    out = BUNDLE_PATH
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2))
     hedge = payload.get("hedger") or {}

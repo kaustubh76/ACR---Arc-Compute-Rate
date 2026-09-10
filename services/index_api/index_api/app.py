@@ -28,10 +28,21 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from . import ratelimit
+from . import graph_proxy, ratelimit
+from .fleet import fleet_summary, listing_for
+from .humanid import (
+    AgentKitVerifier,
+    HumanProof,
+    HumanProofRequired,
+    HumanVerifier,
+    get_verifier,
+    require_human,
+    stray_world_credentials,
+)
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .store import PrintStore
+from .tca import RATING_WINDOW_DAYS, human_tca, payer_tca, seller_rating
 from .x402 import (
     PAY_TO,
     CircleFacilitator,
@@ -254,7 +265,14 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     reader, futures = get_reader(), get_futures()
     # The self-ping has to run even with no chain configured — keeping the box
     # awake is not an on-chain concern.
-    if not (reader.configured or futures.configured or SELF_URL):
+    # The mirror keeps the tape fed and depends on neither the oracle reader nor
+    # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
+    # `futures.configured` branch below was not enough: this outer guard would
+    # still have returned first on a mirror-only deployment.
+    from acr_core import get_settings as _gs
+
+    mirror_configured = bool(_gs().receipt_mirror_address)
+    if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
         return
     while not stop.is_set():
         try:
@@ -283,6 +301,10 @@ async def _warm_chain(stop: asyncio.Event) -> None:
                 # /futures, the endpoint the venue's liveness is judged by.
                 await asyncio.to_thread(futures.recent_trades, use_cache=False)
                 await _run_keeper(futures)
+            # OUTSIDE the futures guard, deliberately. Mirroring settlements has
+            # no venue dependency, and a deployment with no ACR_FUTURES_ADDRESS
+            # would otherwise stop feeding the tape without ever saying so.
+            await _run_mirror()
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
 
@@ -316,6 +338,27 @@ async def _ops_loop(stop: asyncio.Event) -> None:
             await asyncio.wait_for(stop.wait(), timeout=ops.OPS_VERIFY_S)
         except TimeoutError:
             pass
+
+
+async def _run_mirror() -> None:
+    """The mirror chore, on its own call site.
+
+    Same containment as the venue chores — a failure is recorded and logged, and
+    never propagates into the warm loop, because the tape falling behind must
+    not be able to stop the press.
+    """
+    from . import keeper
+
+    if not keeper.enabled():
+        return
+    try:
+        verdict = await asyncio.to_thread(keeper.mirror_once)
+        keeper.record("mirror", verdict)
+        if verdict:
+            log.info("keeper mirror: %s", verdict)
+    except Exception as exc:  # pragma: no cover - a chore must never cost a beat
+        keeper.record("mirror", f"failed: {exc}")
+        log.warning("keeper mirror failed", exc_info=True)
 
 
 async def _run_keeper(futures) -> None:
@@ -468,6 +511,18 @@ if _cors:
     )
 
 
+@app.exception_handler(HumanProofRequired)
+async def _human_proof_required_handler(request, exc: HumanProofRequired):
+    """Render the 401 challenge: the nonce to sign and what to sign it for.
+
+    401, not 403 — the caller is unauthenticated rather than forbidden, and
+    `WWW-Authenticate` is how a client is told what to present.
+    """
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=exc.status_code, content=exc.body, headers=exc.headers)
+
+
 @app.exception_handler(PaymentRequired)
 async def _payment_required_handler(request, exc: PaymentRequired):
     """Render the 402 challenge as its Gateway-shaped x402 JSON body
@@ -484,6 +539,18 @@ GATED_ENDPOINTS = [
     "/vol/{index_id}",
     "/seller-scores/{index_id}",
 ]
+
+
+def require_known_seller(label: str) -> str:
+    """404 for an unknown fleet seller, for the same reason as the index guard
+    below: a Circle settlement is irrevocable, so a buyer must never be able to
+    pay for a seller that does not exist. Without this the 402 fires first, the
+    payment settles to the PLATFORM wallet (the fleet lookup having found
+    nothing to override it), and the request then 404s — money taken for a
+    resource that was never going to answer."""
+    if listing_for(label) is None:
+        raise HTTPException(status_code=404, detail=f"unknown seller {label}")
+    return label
 
 
 def require_known_index(index_id: str) -> str:
@@ -508,6 +575,9 @@ def root() -> dict:
         },
         "gated_endpoints": GATED_ENDPOINTS,
         "marketplace": {"catalog": "/marketplace/catalog", "receipts": "/marketplace/receipts"},
+        # Not in `gated_endpoints`: that list means "x402 paid", and this one is
+        # gated by a human proof rather than by money.
+        "human": {"tca": "/tca/human", "info": "/humanid/info"},
     }
 
 
@@ -797,6 +867,162 @@ def seller_scores(
             "provenance": provenance()}
 
 
+@app.post("/graph/query")
+def graph_proxy_query(body: dict, request: Request) -> dict:
+    """Read the tape through ACR's Studio key, over an allowlist of operations.
+
+    Not a passthrough: the query text lives server-side and the caller names an
+    operation. A proxy that forwarded arbitrary GraphQL would be the API key
+    with extra steps — anyone could spend our quota on nested queries, or relay
+    through us to a different subgraph entirely.
+
+    Rate-limited on IDENTITY where one is offered, not only on host: every
+    browser reader arrives through the same edge proxy, so an IP-keyed limit is
+    a global limit wearing a per-person costume (see ratelimit.py).
+    """
+    # NO caller-supplied identity. `ratelimit.py` is explicit that an identity
+    # must never be derived from something the caller controls — a body field
+    # rotated per request would mint a fresh per-person bucket every time and
+    # leave only the loose host ceiling, which is the exact hole the two-bucket
+    # split exists to close. This endpoint is unauthenticated, so the host
+    # ceiling is the honest limit until it carries a real identity.
+    ratelimit.check(request, "graph")
+    return graph_proxy.run(
+        str(body.get("operation") or ""), body.get("variables") or {}
+    )
+
+
+@app.get("/graph/operations")
+def graph_operations() -> dict:
+    """What the proxy will run — the tape's public read API, named."""
+    return {"operations": sorted(graph_proxy.OPERATIONS), "max_first": graph_proxy.MAX_FIRST}
+
+
+@app.get("/humanid/info")
+def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
+    """The human-proof gate, described dynamically (ungated).
+
+    Reports the backend honestly, including that demo identities are Sandbox
+    ones rather than Orb-verified people — the limit of what "verified human"
+    means in this deployment, stated where a reader will actually see it.
+    """
+    s = get_settings()
+    return {
+        "backend": "agentkit" if isinstance(verifier, AgentKitVerifier) else "dev",
+        "sandbox": s.humanid_sandbox,
+        "app_id": s.humanid_app_id or None,
+        "proof_header": "HUMAN-PROOF",
+        "rotation_window_days": RATING_WINDOW_DAYS,
+        # None when there is nothing to compare against; False is a
+        # misconfiguration that would otherwise read as "this human never traded".
+        "salt_matches_commitment": verifier.salt_ok(),
+        "verified_proofs": verifier.verified,
+        # Names only, never values. A credential under a name nothing reads is
+        # discarded in silence, so the operator sees "unset" while looking at
+        # the value in their own .env — worth surfacing where they will look.
+        "unrecognised_env": stray_world_credentials(),
+    }
+
+
+# REGISTERED BEFORE `/tca/{payer}` ON PURPOSE. FastAPI matches in declaration
+# order, so with the parametrized route first this path would bind `payer` to the
+# literal string "human" and quietly return a TCA for a wallet that cannot exist.
+@app.get("/tca/human")
+def tca_human(
+    request: Request,
+    days: int = 7,
+    proof: HumanProof = Depends(require_human),
+) -> dict:
+    """This human's purchases, unioned across every wallet resolved to them.
+
+    The proof is not what makes this free — `/tca/{payer}` is ungated too. It is
+    what makes the aggregation safe to offer: without it this endpoint would take
+    a cluster id, and anyone passing one could enumerate a stranger's whole
+    wallet fleet. There is no request shape here that returns someone else's.
+    """
+    # Per-human, not per-IP: a shared proxy makes an IP-keyed limit a global one.
+    # The nullifier is hashed rather than used raw — `ratelimit.py` keeps bearer
+    # credentials out of its key table, and this is the more sensitive one.
+    ratelimit.check(request, "humanid", ratelimit.session_ident(proof.nullifier))
+    return human_tca(proof.cluster, proof.window, days=days)
+
+
+@app.get("/tca/{payer}")
+def tca(payer: str, days: int = 7) -> dict:
+    """What this payer's purchases cost against the benchmark they could see.
+
+    Ungated like the rest of the marketplace surfaces: a benchmark nobody can
+    check for free is a benchmark nobody checks.
+    """
+    return payer_tca(payer, days=days)
+
+
+@app.get("/rating/{seller}")
+def rating(seller: str, days: int = 7) -> dict:
+    """Grade a seller from the same tape, with `n` and the synthetic share on
+    every card so a reader can discount it without being told to."""
+    return seller_rating(seller, days=days)
+
+
+@app.get("/fleet")
+def fleet_listings() -> dict:
+    """The seller fleet and its price spread — ungated, like the catalog.
+
+    The spread IS the point. Before the fleet, every settlement in the system
+    paid one wallet one flat price, so no payer could have paid more than
+    another and transaction-cost analysis had nothing to measure. Published
+    openly so anyone can see what a buyer could have chosen between, and check a
+    reroute suggestion against it themselves.
+    """
+    # Grouped by index AND model class, because that is the only grouping a
+    # reroute suggestion may be built on: across classes a price gap is quality,
+    # which the hedonic stage adjusts away. Publishing the comparable sets makes
+    # the like-for-like pairs checkable instead of asserted.
+    comparable: dict[str, dict[str, list[str]]] = {}
+    for listing in fleet_summary():
+        comparable.setdefault(listing["index_id"], {}).setdefault(
+            listing["model_class"], []
+        ).append(listing["label"])
+    return {
+        "listings": fleet_summary(),
+        "comparable_sets": comparable,
+        "note": (
+            "Unit prices differ by seller. Compare only within a model_class — "
+            "across classes the difference is quality, which the hedonic stage "
+            "adjusts away, not overcharging."
+        ),
+        "provenance": provenance(),
+    }
+
+
+@app.get("/compute/{label}")
+def compute(
+    label: str = Depends(require_known_seller),
+    receipt: PaymentReceipt = Depends(require_payment),
+) -> dict:
+    """A fleet seller's metered endpoint — the thing that produces a priced tape.
+
+    The response is deliberately thin: this exists to make a REAL Gateway
+    settlement happen at a REAL per-seller unit price, which is the input TCA
+    needs. It returns the terms it just charged so a buyer can reconcile its own
+    receipt without trusting ours.
+    """
+    listing = listing_for(label)
+    assert listing is not None  # require_known_seller ran first
+    return {
+        "seller": listing.seller,
+        "label": listing.label,
+        "index_id": listing.index_id,
+        "unit": listing.unit,
+        "unit_price_usdc": listing.unit_price_usdc,
+        "quantity": listing.quantity,
+        "amount_usdc": listing.amount_usdc,
+        "model_class": listing.model_class.value,
+        "settlement": {"tx_ref": receipt.tx_ref, "payer": receipt.payer},
+        "provenance": provenance(),
+    }
+
+
 @app.get("/marketplace/catalog")
 def marketplace_catalog(request: Request) -> dict:
     """Machine-readable listings of every paid ACR resource (ungated — discovery
@@ -944,6 +1170,12 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             # every surface — so a reader could not tell that paying for data
             # buys a right that lives on chain, not a row in our own files.
             "attestor_address": settings.attestor_address or None,
+            # The fifth contract, and the same story a second time. HumanIdMirror
+            # is deployed on Arc and publishes the window-rotated cluster ids the
+            # human-denominated bound rests on — and until now no surface named
+            # it, so a reader could not tell the identity layer was on chain at
+            # all rather than a claim in our own files.
+            "humanid_address": settings.humanid_mirror_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,
