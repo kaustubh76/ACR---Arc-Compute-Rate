@@ -595,6 +595,57 @@ def main() -> None:
                           f"continuity new-file share: CONTINUITY.md says "
                           f"{hit.group(1) if hit else 'nothing'}, measured {want_share}")
 
+    # --- on-chain evidence: no two hashes may differ by one character --------
+    #
+    # A settled transaction hash in docs/PITCH.md was corrupted from
+    # 0x5351bd0c… to 0x5551bd0c… by a count bump that replaced a bare `535` with
+    # `555`. The commit that did it asserted the edits were anchored and verified
+    # that the settled PRICE was untouched — which was true, and useless: 0.49533
+    # contains `533`, so the transition that caused the damage was the one nobody
+    # checked for. Verifying one instance and reporting the class is the whole
+    # failure.
+    #
+    # This catches the class instead. Two long hex strings in one corpus differing
+    # by exactly one character is never a legitimate state: either the same fact
+    # is cited two ways, or one of them has been edited by something that could
+    # not tell a hash from a number. It needs no network, so it holds in CI and it
+    # holds for hashes too old for the RPC to resolve — which is most of them,
+    # measured: a transaction from today is retrievable and one from August is not.
+    print("\nevidence integrity")
+    tokens: dict[str, set[str]] = {}
+    # .svg is deliberate, not thorough-for-its-own-sake: submission-brief.html
+    # EMBEDS docs/assets/*.svg, so the brief carried a stale figure long after its
+    # own prose was right. A guard that reads only sources cannot see that path.
+    scanned = [
+        q
+        for pattern in ("*.md", "*.html", "*.svg")
+        for q in sorted((ROOT / "docs").rglob(pattern))
+    ]
+    for path in scanned:
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:  # pragma: no cover - unreadable file reports as no tokens
+            continue
+        for tok in re.findall(r"0x[0-9a-fA-F]{8,}", text):
+            tokens.setdefault(tok.lower(), set()).add(str(path.relative_to(ROOT)))
+
+    divergent: list[str] = []
+    keys = sorted(tokens)
+    for i, a in enumerate(keys):
+        for b in keys[i + 1 :]:
+            if len(a) != len(b):
+                continue
+            if sum(1 for x, y in zip(a, b, strict=True) if x != y) == 1:
+                divergent.append(
+                    f"{a[:14]}… ({', '.join(sorted(tokens[a]))}) vs "
+                    f"{b[:14]}… ({', '.join(sorted(tokens[b]))})"
+                )
+    check(not divergent,
+          f"no two on-chain identifiers under docs/ differ by one character "
+          f"({len(keys)} scanned across sources AND generated artifacts)")
+    for d in divergent:
+        print(f"      {d}")
+
     print()
     if _failures:
         print(f"claims: {len(_failures)} STALE — the docs are ahead of, or behind, reality")

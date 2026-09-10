@@ -206,7 +206,7 @@ Permanent on-chain, or CI-gated. Everything else, point at on screen.
 | AttestationRegistry | `0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7` |
 | FeedAccessAttestor | `0xe671a8E73900F1186448cFFeA9e730F5E50DFD47` |
 | Settled ACR-INF series 2 | `0.49533` · 2 cleared · tx `0xf094befce4dc0d59a793cf934fd5265029a1088743ae5ffec932b4df25f8c917` |
-| Settled ACR-INF series 1 | `0.49533` · 4 cleared · tx `0x5551bd0cc79c32fa93d7ff6ace55f8f71fc17828d440c75a9e0732273da545b1` |
+| Settled ACR-INF series 1 | `0.49533` · 4 cleared · tx `0x5351bd0cc79c32fa93d7ff6ace55f8f71fc17828d440c75a9e0732273da545b1` |
 | Settled ACR-INF series 0 | `0.49270` · settled 2026-08-01 |
 | The hedger's fill | `buy 0.24 @ 0.49773` · tx `0x22772154ff8deb5ef43001af8c98fecd36ae2dc70cfe437965c90f68d0041834` · position 2.47 → **2.71** |
 | Resistance ($8,000 wash) | naive VWAP `+110.8%` / `+107.1%` / `+122.5%` vs ACR `+0.20%` / `−1.02%` / `+2.39%` — **562× / 105× / 51×** |
@@ -214,7 +214,7 @@ Permanent on-chain, or CI-gated. Everything else, point at on screen.
 | Attacker's cost | 36,000 adversarial authorizations, `$147.60` of fees burned |
 | Settlement freshness bound | `MAX_SETTLE_AGE` = 2 hours, enforced on-chain |
 | Print price over x402 | `$0.0001` per query |
-| Suites | **555** py · **156** forge · **106** terminal · **13** agent · **426/426** glossary |
+| Suites | **565** py · **156** forge · **123** terminal · **13** agent · **426/426** glossary |
 
 Two of the wallets cleared in those settled rounds are outside the operator set entirely — Circle
 user-controlled smart accounts that only exist because somebody walked the Public Desk PIN flow.

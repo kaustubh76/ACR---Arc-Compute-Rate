@@ -133,10 +133,10 @@ Reproduce locally: make setup && make ci && make demo
 
 | Fact | Value |
 |---|---|
-| Three settled rounds | `#2 @ 0.49533` (tx `0xf094befc…`) · `#1 @ 0.49533` (tx `0x5551bd0c…`) · `#0 @ 0.49270` · cash, final, collateral released. Two of the cleared wallets are outside the operator set. |
+| Three settled rounds | `#2 @ 0.49533` (tx `0xf094befc…`) · `#1 @ 0.49533` (tx `0x5351bd0c…`) · `#0 @ 0.49270` · cash, final, collateral released. Two of the cleared wallets are outside the operator set. |
 | The hedger's fill | `buy 0.24 @ 0.49773` · tx `0x22772154ff8deb5ef43001af8c98fecd36ae2dc70cfe437965c90f68d0041834` · position 2.47 → 2.71 |
 | Resistance ($8,000 wash attack) | naive VWAP +110.8% vs ACR +0.20%, which is 562×. The 12-hour eval: 5703.9 bp vs 124.1 bp, which is 46×. CI-gated by `make eval-gate`. |
-| Suites, all green | **555 py** · **156 forge** · **106 terminal** · **13 agent** · glossary **426/426** · GitHub CI 6/6 |
+| Suites, all green | **565 py** · **156 forge** · **123 terminal** · **13 agent** · glossary **426/426** · GitHub CI 6/6 |
 
 **Honesty, stated before it is asked.** The price tape is a *labelled* simulator
 (`tape_source: sim`): about 18,500 real Arc settlements collapse to a single price, so no index
