@@ -25,7 +25,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** repo-relative path → minimum number of edition markers (floor, not exact). */
 const REQUIRED_COVERAGE: Record<string, number> = {
   "app/view.tsx": 2, // hero copy lives in HomeHero; the primer mount is plain-only by CSS
-  "app/index/[id]/view.tsx": 12,
+  // Raised from 12 against an actual 32 — twenty markers of slack, the state
+  // the sellers/developers comments below call a floor that stopped holding.
+  "app/index/[id]/view.tsx": 32,
   "app/attack/view.tsx": 10,
   "app/curve/view.tsx": 5,
   "app/exchange/view.tsx": 12,
@@ -34,16 +36,17 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/sellers/view.tsx": 44,
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
-  "app/tape/view.tsx": 40,
+  // 40 -> 43: the grade-me field, the no-fills branch and the people column.
+  "app/tape/view.tsx": 43,
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 13,
+  "app/developers/view.tsx": 63, // incl. the human gate section and its two endpoint rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
-  "components/ChainStrip.tsx": 5,
-  "components/Colophon.tsx": 5,
+  "components/ChainStrip.tsx": 7, // incl. the verified-humans chip, both of its wordings
+  "components/Colophon.tsx": 13, // incl. the identity line and the salt-mismatch warning
   "components/HomeHero.tsx": 5,
   "components/RateBlock.tsx": 4,
   "components/PrintsTable.tsx": 6,
@@ -64,12 +67,15 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
-  "components/chain/ContractRegister.tsx": 9, // six glosses, the custody note, the sim tape line
+  "components/chain/ContractRegister.tsx": 10, // seven glosses, the custody note, the sim tape line
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,
   "components/chain/FuturesDesk.tsx": 12, // incl. the per-series contract-size panel
   "components/chain/FuturesTape.tsx": 3, // incl. the "you" chip on a reader's own fill
+  // The 401 challenge, shown the way ApiConsole shows the 402: every label
+  // dual-renders, and the "what would answer this" line has three backends.
+  "components/chain/HumanProof.tsx": 16,
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,

@@ -9,6 +9,8 @@
    say "press unreachable" instead. */
 
 import useSWR from "swr";
+
+import type { HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
 import type {
   AttackStatus,
@@ -152,6 +154,24 @@ export function useFutures() {
 export function useHealth() {
   const { data } = useSWR<Envelope<HealthData | null>>("/api/health", fetcher, {
     refreshInterval: 30_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return data;
+}
+
+/** Who the benchmark is secured by, and what "verified" means here.
+ *
+ *  Polled far slower than the tape on purpose: the count turns over once per
+ *  7-day rotation window and the Sandbox flag is configuration, so a 15s poll
+ *  would be load spent re-reading a number that cannot have moved.
+ *
+ *  Returns the whole envelope rather than the data, because consumers need
+ *  `live` to tell "the press is down" from "nobody is verified" — the one
+ *  distinction this feature is required to keep. */
+export function useHumanId() {
+  const { data } = useSWR<Envelope<HumanIdData>>("/api/humanid", fetcher, {
+    refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
   });

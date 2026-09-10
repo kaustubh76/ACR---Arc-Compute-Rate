@@ -47,6 +47,11 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   // Lead with the settlement-grade on-chain print; sim estimate shown beside it.
   const h = heroFigure(p);
   const r = p.robustness;
+  /* Absent AND zero both mean "not computed": the oracle struct uses 0 as the
+     sentinel, so the two arrive as one fact and are collapsed here once rather
+     than re-tested at each use. */
+  const humanBound =
+    p.human_adjusted_bound != null && p.human_adjusted_bound > 0 ? p.human_adjusted_bound : null;
 
   /* The reader's declared usage, expressed against THIS index. Same rules as
      the rate cards: priced off h.value, delta is the history series' ratio
@@ -305,6 +310,38 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                   }
                 />
                 <span className="fn-value vermilion">{money(p.attack_cost_per_bp, 4)} / bp</span>
+              </li>
+              {/* The same bound, denominated in people instead of addresses.
+
+                  Rendered in BOTH states rather than hidden when absent, following
+                  the max_cluster_influence_bp === 0 caveat below: a reader who
+                  cannot see the row cannot tell whether the identity layer exists.
+
+                  What must never happen is a rendered $0. ACROracleV2 treats 0 as
+                  NOT COMPUTED and enforces `humanAdjustedBound == 0 ||
+                  humanAdjustedBound >= attackCostPerBp`, so a dollar sign in front
+                  of a zero would publish the exact claim that invariant forbids:
+                  that identities cost no more to control than wallets do. */}
+              <li>
+                {humanBound === null ? (
+                  <>
+                    <Ed
+                      className="fn-gloss"
+                      x="Human-denominated bound: not computed for this print. The contract reads 0 as absent, never as free, so no dollar figure is shown."
+                      p="Not worked out for this rate yet, which is not the same as it being free."
+                    />
+                    <span className="fn-value muted">…</span>
+                  </>
+                ) : (
+                  <>
+                    <Ed
+                      className="fn-gloss"
+                      x="Human-denominated bound: the same move, priced through verified humans rather than wallets. Never below the figure above."
+                      p="The same bill counted in real people instead of accounts, which is why it is never lower."
+                    />
+                    <span className="fn-value vermilion">{money(humanBound, 4)} / bp</span>
+                  </>
+                )}
               </li>
               {r && (
                 <>

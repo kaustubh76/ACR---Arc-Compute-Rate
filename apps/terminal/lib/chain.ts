@@ -38,6 +38,7 @@ export function chainFacts(chain?: ChainFactsData | null) {
     registry: chain?.registry_address ?? null,
     futures: chain?.futures_address ?? null,
     attestor: chain?.attestor_address ?? null,
+    humanid: chain?.humanid_address ?? null,
     gate: chain?.gate ?? null,
     tapeSource: chain?.tape_source ?? "sim",
     signer: chain?.signer ?? null,
@@ -52,7 +53,7 @@ export function chainFacts(chain?: ChainFactsData | null) {
  *  resolved the oracle without the payload fallback the footer used. The row
  *  set lives here so a fifth contract is one entry, not two edits. */
 export type RegisterEntry = {
-  key: "oracle" | "futures" | "registry" | "attestor" | "usdc" | "gateway";
+  key: "oracle" | "futures" | "registry" | "attestor" | "humanid" | "usdc" | "gateway";
   /** Proper noun. Identical in both editions, so it never goes through <Ed>. */
   name: string;
   addr: string;
@@ -104,6 +105,17 @@ export function deployedContracts(
           name: "FeedAccessAttestor",
           addr: c.attestor,
           href: at(c.attestor),
+        }
+      : null,
+    // The identity layer. Named here rather than left implicit because the
+    // human-denominated bound on /index is only checkable if a reader can find
+    // the contract that publishes the clusters it counts.
+    c.humanid
+      ? {
+          key: "humanid",
+          name: "HumanIdMirror",
+          addr: c.humanid,
+          href: at(c.humanid),
         }
       : null,
     // tokenUrl, not addrUrl: USDC is Arc's native gas token and arcscan has a
