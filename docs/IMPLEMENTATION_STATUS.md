@@ -167,9 +167,9 @@ The machine side of the marketplace: `src/payer.ts` (`DevPayer` mock-header buye
 
 ## Tests & verification
 
-- **Python: 447 tests** (incl. 9 anvil-gated on-chain tests — CI starts a node so they run; they skip only on a machine without anvil) (incl. anvil-gated on-chain integration (skipped without anvil) — the anvil round-trip in `test_onchain.py`), spanning core, estimator, instrument, oracle_client, sim, tape, services (incl. x402-circle + marketplace + webhooks + terminal-bundle), and `tests/`.
-- **Foundry: 60 tests** (`ACROracle` 17, `AttestationRegistry` 10, `ACRFutures` 16, `FeedAccessAttestor` 10, invariants 5 + 2 with `fail_on_revert=true`).
-- **Node: 106 terminal tests** (`apps/terminal`, node:test — a dedicated CI job) + the `apps/agent` suite (node:test with stubbed fetch — DevPayer two-act flow, rejection, price parsing, catalog filters, spend-cap stop + price-over-cap refusal) + `tsc` type-checks for agent and terminal.
+- Python: **566 passed** (incl. 22 anvil-gated on-chain tests — CI starts a node so they genuinely run; they skip only on a machine without anvil), spanning core, estimator, instrument, oracle_client, sim, tape, services (incl. x402-circle + marketplace + webhooks + terminal-bundle), and `tests/`.
+- **Foundry: 156 tests** (`ACROracle` 17, `ACROracleV2` 26, `AttestationRegistry` 10, `ACRFutures` 16, `FeedAccessAttestor` 10, `HumanIdMirror` 37, `ReceiptMirror` 25, invariants 5 + 2 + 8 with `fail_on_revert=true`).
+- **Node: 123 terminal tests** (`apps/terminal`, node:test — a dedicated CI job) + **13** in the `apps/agent` suite (node:test with stubbed fetch — DevPayer two-act flow, rejection, price parsing, catalog filters, spend-cap stop + price-over-cap refusal) + `tsc` type-checks for agent and terminal.
 - **Commands:** `make test` (py + forge + agent), `make lint` (ruff), `make ci` (lint + test + eval gate), `make eval-gate` (headline-claim gate), `make demo` / `make pipeline` / `make eval`, `make interop` (402-descriptor vs buyer-SDK check, needs `make api`). On-chain: `make anvil` then `make onchain` (deploy → EIP-712 signed posts → byte-identical read-back → settle).
 - **Hermetic:** everything above runs credential-free; Circle live paths are exercised with mocked HTTP (`httpx.MockTransport`, exact `/v1/x402/*` paths + confirmed response shapes) and injected fake Circle clients.
 
