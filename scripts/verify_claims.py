@@ -87,6 +87,31 @@ def run(cmd: list[str], cwd: Path | None = None, timeout: int = 900) -> str:
         return f"__ERROR__ {exc}"
 
 
+def git_lines(args: list[str]) -> list[str] | None:
+    """stdout lines for a git command, or None when git REFUSED.
+
+    `run()` deliberately folds stderr into stdout so a missing toolchain reports
+    itself. For measurements that is the wrong trade: in CI this turned
+    `git log --oneline v1.0-submission..0aff288` — which fails outright in the
+    shallow clone `actions/checkout` makes by default — into a three-line error
+    message that got counted as THREE COMMITS, and the continuity claims were
+    reported STALE against numbers that were never measured.
+
+    A failure must not be able to look like a small answer. None means "could not
+    measure", which is a different fact from "measured and it disagrees", and the
+    caller is obliged to say which.
+    """
+    try:
+        p = subprocess.run(
+            ["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=120
+        )
+    except Exception:  # noqa: BLE001 — a verdict beats a traceback
+        return None
+    if p.returncode != 0:
+        return None
+    return p.stdout.splitlines()
+
+
 def claim(text: str, pattern: str) -> int | None:
     """The first integer a documented claim asserts, or None if the doc no
     longer phrases it that way — which is itself worth reporting, because a
@@ -549,51 +574,65 @@ def main() -> None:
             if check(not floating,
                      "CONTINUITY.md anchors EVERY range to a fixed sha, not HEAD"
                      + (f" — floating: {', '.join(floating)}" if floating else f" ({rng})")):
-                short = run(["git", "diff", "--shortstat", rng])
-                added = len(run(
-                    ["git", "diff", "--name-status", "--diff-filter=A", rng]).splitlines())
-                newlines = sum(
-                    int(line.split("\t")[0])
-                    for line in run(["git", "diff", "--numstat", "--diff-filter=A",
-                                     rng]).splitlines()
-                    if line.split("\t")[0].isdigit()
-                )
-                commits = len(run(["git", "log", "--oneline", rng]).splitlines())
+                # Every one of these must succeed or none of them is a
+                # measurement. A shallow checkout has neither the tag nor the
+                # history, and comparing against git's refusal is how this
+                # reported six false STALE claims.
+                log_l = git_lines(["log", "--oneline", rng])
+                short_l = git_lines(["diff", "--shortstat", rng])
+                added_l = git_lines(["diff", "--name-status", "--diff-filter=A", rng])
+                num_l = git_lines(["diff", "--numstat", "--diff-filter=A", rng])
+                if None in (log_l, short_l, added_l, num_l):
+                    check(
+                        False,
+                        f"continuity: git cannot resolve {rng} here, so the figures "
+                        "were NOT measured — this needs the full history and tags "
+                        "(actions/checkout fetch-depth: 0), not a doc edit",
+                    )
+                else:
+                    short = "\n".join(short_l or [])
+                    added = len(added_l or [])
+                    newlines = sum(
+                        int(line.split("\t")[0])
+                        for line in (num_l or [])
+                        if line.split("\t")[0].isdigit()
+                    )
+                    commits = len(log_l or [])
 
-                def _n(pattern: str, text: str) -> int | None:
-                    hit = re.search(pattern, text)
-                    return int(hit.group(1).replace(",", "")) if hit else None
+                    def _n(pattern: str, text: str) -> int | None:
+                        hit = re.search(pattern, text)
+                        return int(hit.group(1).replace(",", "")) if hit else None
 
-                measured = {
-                    "commits": commits,
-                    "files changed": _n(r"(\d+) files? changed", short),
-                    "insertions": _n(r"(\d+) insertion", short),
-                    "deletions": _n(r"(\d+) deletion", short),
-                    "files added": added,
-                    "lines in new files": newlines,
-                }
-                stated = {
-                    "commits": _n(r"# ([\d,]+) commits", body),
-                    "files changed": _n(r"\| files changed \| \*?\*?([\d,]+)", body),
-                    "insertions": _n(r"\| insertions \| \*\*([\d,]+)\*\*", body),
-                    "deletions": _n(r"\| deletions \| \*\*([\d,]+)\*\*", body),
-                    "files added": _n(r"\| files added \| \*\*([\d,]+)\*\*", body),
-                    "lines in new files": _n(r"\| lines in new files \| \*\*([\d,]+)\*\*", body),
-                }
-                for label, want in measured.items():
-                    got = stated[label]
-                    check(got == want,
-                          f"continuity {label}: CONTINUITY.md says {got}, measured {want}")
+                    measured = {
+                        "commits": commits,
+                        "files changed": _n(r"(\d+) files? changed", short),
+                        "insertions": _n(r"(\d+) insertion", short),
+                        "deletions": _n(r"(\d+) deletion", short),
+                        "files added": added,
+                        "lines in new files": newlines,
+                    }
+                    stated = {
+                        "commits": _n(r"# ([\d,]+) commits", body),
+                        "files changed": _n(r"\| files changed \| \*?\*?([\d,]+)", body),
+                        "insertions": _n(r"\| insertions \| \*\*([\d,]+)\*\*", body),
+                        "deletions": _n(r"\| deletions \| \*\*([\d,]+)\*\*", body),
+                        "files added": _n(r"\| files added \| \*\*([\d,]+)\*\*", body),
+                        "lines in new files": _n(r"\| lines in new files \| \*\*([\d,]+)\*\*", body),
+                    }
+                    for label, want in measured.items():
+                        got = stated[label]
+                        check(got == want,
+                              f"continuity {label}: CONTINUITY.md says {got}, measured {want}")
 
-                # The derived headline — the document's opening sentence, and the
-                # single most-read claim in it.
-                ins, new_lines = measured["insertions"], measured["lines in new files"]
-                if ins:
-                    want_share = f"{new_lines / ins * 100:.1f}%"
-                    hit = re.search(r"\*\*([\d.]+%) of the lines added", body)
-                    check(hit is not None and hit.group(1) == want_share,
-                          f"continuity new-file share: CONTINUITY.md says "
-                          f"{hit.group(1) if hit else 'nothing'}, measured {want_share}")
+                    # The derived headline — the document's opening sentence, and the
+                    # single most-read claim in it.
+                    ins, new_lines = measured["insertions"], measured["lines in new files"]
+                    if ins:
+                        want_share = f"{new_lines / ins * 100:.1f}%"
+                        hit = re.search(r"\*\*([\d.]+%) of the lines added", body)
+                        check(hit is not None and hit.group(1) == want_share,
+                              f"continuity new-file share: CONTINUITY.md says "
+                              f"{hit.group(1) if hit else 'nothing'}, measured {want_share}")
 
     # --- on-chain evidence: no two hashes may differ by one character --------
     #

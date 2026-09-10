@@ -8,7 +8,15 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
+      # Full history and tags, not the shallow default. The claim audit measures
+      # CONTINUITY.md's diff statistics over `v1.0-submission..0aff288`, and in a
+      # depth-1 clone neither the tag nor the history exists — so every git
+      # measurement failed and the audit reported six claims STALE against numbers
+      # it had never taken. The verify_claims side now refuses to compare what it
+      # could not measure; this is the half that lets it measure.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
