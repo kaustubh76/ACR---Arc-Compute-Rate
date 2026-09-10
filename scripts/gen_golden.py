@@ -59,8 +59,50 @@ SCENARIO = {"seed": 5, "horizon": 3600.0, "events_per_service": 2500}
 DIGITS = 12
 
 
+#: How far a recorded float may move before it counts as the ENGINE moving.
+#:
+#: 12 recorded digits was chosen to "survive a numpy point release", and it does
+#: not survive a different interpreter build: CI pins Python 3.11 and this machine
+#: runs 3.13, and `max_cluster_influence_bp` differed in the 12th decimal on all
+#: three indices — a relative difference of 7.5e-14 to 1.4e-12. Only that field
+#: moved, which is diagnostic rather than surprising: it is the most
+#: ill-conditioned path in the capture, so it is where a different BLAS blocking
+#: shows up first.
+#:
+#: 1e-9 relative is roughly seven orders of magnitude tighter than any engine
+#: change worth catching — the arrival-order bug this file was built to find moved
+#: `attack_cost_per_bp` by 37% — and comfortably looser than a cross-build last-bit
+#: difference. Exact equality on a float across two numpy builds is not a property
+#: anything can hold; asserting it made the golden fail for reasons that are not
+#: about the engine, which is precisely what its own docstring warns against.
+REL_TOL = 1e-9
+
+
 def _r(x: float | None) -> float | None:
     return None if x is None else round(float(x), DIGITS)
+
+
+def moved_fields(frozen: dict, fresh: dict) -> list[str]:
+    """Which recorded fields actually moved, per index.
+
+    Ints and None compare exactly — `n_obs` changing by one IS the engine
+    changing. Floats compare by relative difference, for the reason above.
+    """
+    out: list[str] = []
+    for index_id, row in fresh.get("indices", {}).items():
+        prev = frozen.get("indices", {}).get(index_id)
+        if prev is None:
+            out.append(f"{index_id}: missing from the baseline")
+            continue
+        for key, now in row.items():
+            was = prev.get(key)
+            if isinstance(now, float) and isinstance(was, float):
+                scale = max(abs(was), abs(now), 1e-12)
+                if abs(now - was) / scale > REL_TOL:
+                    out.append(f"{index_id}.{key}: {was} -> {now}")
+            elif was != now:
+                out.append(f"{index_id}.{key}: {was} -> {now}")
+    return out
 
 
 def capture() -> dict:
@@ -123,12 +165,7 @@ def main() -> int:
         print(f"  ✗ {path} does not exist — run `make golden` first")
         return 1
     old = json.loads(path.read_text())
-    moved: list[str] = []
-    for iid, row in fresh["indices"].items():
-        prev = old.get("indices", {}).get(iid, {})
-        for k, v in row.items():
-            if prev.get(k) != v:
-                moved.append(f"    {iid}.{k}: {prev.get(k)} -> {v}")
+    moved = [f"    {m}" for m in moved_fields(old, fresh)]
     if moved:
         print(f"  ✗ the engine moved in {len(moved)} place(s):")
         print("\n".join(moved))

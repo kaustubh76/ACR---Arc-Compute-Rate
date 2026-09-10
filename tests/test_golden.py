@@ -23,7 +23,7 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 
 # The same `capture()` the generator uses, imported rather than reimplemented —
 # a test that computes the baseline its own way is testing its own copy.
-from gen_golden import capture  # noqa: E402
+from gen_golden import REL_TOL, capture, moved_fields  # noqa: E402
 
 GOLDEN = _ROOT / "tests" / "golden" / "estimator.json"
 
@@ -42,13 +42,7 @@ def fresh() -> dict:
 
 def test_the_engine_reproduces_its_frozen_output(frozen, fresh):
     """Every recorded field, per index, to the recorded precision."""
-    moved: list[str] = []
-    for index_id, row in fresh["indices"].items():
-        prev = frozen["indices"].get(index_id)
-        assert prev is not None, f"{index_id} is missing from the baseline"
-        for key, value in row.items():
-            if prev.get(key) != value:
-                moved.append(f"{index_id}.{key}: {prev.get(key)} -> {value}")
+    moved = moved_fields(frozen, fresh)
     assert moved == [], (
         "the engine's published output moved:\n  "
         + "\n  ".join(moved)
@@ -73,3 +67,31 @@ def test_the_baseline_pins_the_numbers_that_actually_reach_the_chain(frozen):
         assert row["ci_lo"] <= row["value"] <= row["ci_hi"], index_id
         assert row["attack_cost_per_bp"] > 0, index_id
         assert row["n_obs"] > 0, index_id
+
+
+def test_the_tolerance_still_catches_an_engine_change(frozen):
+    """A tolerance is a knob, and an unguarded knob is how a golden goes decorative.
+
+    `moved_fields` compares floats by relative difference because exact equality
+    across two numpy builds is not a property anything can hold — CI pins Python
+    3.11, this machine runs 3.13, and `max_cluster_influence_bp` differed in the
+    12th decimal on all three indices. But a tolerance loose enough to absorb that
+    must still be far too tight to absorb a real change, so both directions are
+    asserted here rather than assumed.
+    """
+    base = frozen["indices"]["ACR-INF"]["attack_cost_per_bp"]
+
+    # The arrival-order bug this file was built to find moved this figure 37%.
+    assert moved_fields(frozen, {"indices": {"ACR-INF": {"attack_cost_per_bp": base * 1.37}}})
+
+    # A 1% change is still a regression, not noise.
+    assert moved_fields(frozen, {"indices": {"ACR-INF": {"attack_cost_per_bp": base * 1.01}}})
+
+    # The cross-build last-bit difference that actually occurred, scaled up 10x,
+    # is still absorbed — so CI and this machine agree about the engine.
+    nudged = base * (1 + REL_TOL / 10)
+    assert moved_fields(frozen, {"indices": {"ACR-INF": {"attack_cost_per_bp": nudged}}}) == []
+
+    # Integers are exact: one fewer observation IS the engine changing.
+    n = frozen["indices"]["ACR-INF"]["n_obs"]
+    assert moved_fields(frozen, {"indices": {"ACR-INF": {"n_obs": n - 1}}})

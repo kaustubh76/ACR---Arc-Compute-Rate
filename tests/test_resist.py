@@ -243,16 +243,27 @@ def test_the_notional_total_is_summed_exactly():
     parts = [1.0, 1e16, -1e16, 0.1, 0.2, 0.3]
     assert math.fsum(parts) == math.fsum(list(reversed(parts)))
 
-    # Worth being exact about why this is `fsum` and not `sum`. CPython 3.12+
-    # applies Neumaier compensation inside `sum()` for floats, so on THIS
-    # interpreter the two agree — but that is an implementation detail of one
-    # runtime, not a promise of the language, and it was not true before 3.12.
-    # `math.fsum` is specified to be exactly rounded. For a value that crosses a
-    # `math.ceil` and moves a published bound by a whole sybil cluster, the
-    # guarantee is what matters, not the current behaviour.
-    assert sum(parts) == math.fsum(parts), "3.12+ compensates; the guarantee is still fsum's"
+    # `fsum` is specified to be exactly rounded, so this holds on every runtime.
     assert math.fsum([0.1] * 10) == 1.0
-    assert sum([0.1] * 10) == 1.0
+
+    # WHAT THIS TEST USED TO ASSERT, AND WHY IT WAS WRONG. It claimed
+    # `sum(parts) == math.fsum(parts)` — true on CPython 3.12+, which applies
+    # Neumaier compensation inside `sum()` for floats, and false on 3.11. The
+    # comment above it even said that was "an implementation detail of one
+    # runtime, not a promise of the language", and then the next line asserted it
+    # as a promise. It passed locally on 3.13 and failed in CI on 3.11, which is
+    # the only reason it was ever found: this repository's CI had not run for a
+    # month, so a test encoding one interpreter's behaviour looked green.
+    #
+    # So assert the PROPERTY the pipeline depends on and nothing about `sum`:
+    # whatever the runtime does, `fsum` is the exactly-rounded answer, and the
+    # two agreeing is a convenience rather than a guarantee.
+    compensated = sum(parts) == math.fsum(parts)
+    assert math.fsum(parts) == 1.6  # the true value, on any interpreter
+    if not compensated:  # pragma: no cover - depends on the running interpreter
+        # Pre-3.12 behaviour: the naive sum loses the small terms entirely, which
+        # is exactly the whole-cluster error `raw_total` must never make.
+        assert sum(parts) != math.fsum(parts)
 
 
 # ── the estimator's own invariants ──────────────────────────────────────────
