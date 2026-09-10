@@ -44,6 +44,13 @@ CHAIN_KEYS = {
     # it, which is exactly why this set is frozen: a card that quietly grows
     # or shrinks is a frontend contract nobody is holding.
     "attestor_address",
+    # The fifth, and the same story again: HumanIdMirror publishes the rotated
+    # cluster ids the human-denominated bound rests on, and was on chain before
+    # any surface named it. Widened here deliberately and in the same change as
+    # the payload — which is the whole point of freezing the set, because
+    # lib/chain.ts holds a SECOND copy of this contract and nothing but a red
+    # test connects the two across the language boundary.
+    "humanid_address",
     "gate", "tape_source", "signer", "poster",
 }
 

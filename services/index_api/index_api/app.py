@@ -1170,6 +1170,12 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             # every surface — so a reader could not tell that paying for data
             # buys a right that lives on chain, not a row in our own files.
             "attestor_address": settings.attestor_address or None,
+            # The fifth contract, and the same story a second time. HumanIdMirror
+            # is deployed on Arc and publishes the window-rotated cluster ids the
+            # human-denominated bound rests on — and until now no surface named
+            # it, so a reader could not tell the identity layer was on chain at
+            # all rather than a claim in our own files.
+            "humanid_address": settings.humanid_mirror_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,
