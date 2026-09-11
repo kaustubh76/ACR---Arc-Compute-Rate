@@ -158,6 +158,35 @@ The mirror keeper runs on its own timer inside the service (`ACR_KEEPER_MIRROR_S
 120s default) and reports on `/health` under `keeper.mirror`. For a first run or
 a backlog, `make mirror-receipts` is the same code path by hand.
 
+## Recurring chore — re-resolve humans every rotation window
+
+**A human resolution goes stale on a seven-day clock, and it fails SILENTLY.**
+
+`HumanIdMirror` mints a cluster id per rotation window (`RATING_WINDOW = 7 days`), so a wallet
+resolved in window *N* has no cluster in window *N+1*. Nothing errors when the window rolls: the
+subgraph simply finds no clusters for the current window, `/api/humanid` reports `"n": 0`, the
+dateline's humans chip disappears, and every surface goes quiet as though nobody had ever been
+verified. There is no message anywhere saying "these resolutions belong to last week".
+
+Measured 2026-09-12: the roll from 2957 to 2958 did exactly this to production, and it was only
+noticed because a deploy check happened to read `humans.n`.
+
+```bash
+# Which window are we in, and when does it roll?
+uv run python -c "import time;W=604800;c=int(time.time()//W);print(c, time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime((c+1)*W)))"
+
+# Re-resolve. ALWAYS dry-run first; it signs and checks against the contract's own digest.
+ACR_HUMANID_MIRROR_ADDRESS=0x… uv run python scripts/resolve_humans.py --dry-run
+ACR_HUMANID_MIRROR_ADDRESS=0x… uv run python scripts/resolve_humans.py --commit
+```
+
+**Run it BEFORE the tape moves on.** `Settlement.human` is stamped at finalize and the entity is
+immutable, so a payer that settles while unresolved is counted non-human forever; the subgraph
+flags it (`Payer.resolvedLate`) but cannot repair it.
+
+Confirm with `clusterOf(wallet, <window>)` on chain, not with the absence of an error — the whole
+failure mode here is that absence looks like success.
+
 ## What stays unfinished, deliberately
 
 - **`humanAdjustedBound` is absent, not zero.** The contract accepts `0` as the
