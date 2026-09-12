@@ -1,6 +1,6 @@
 # Module A — the agent card, and a quota denominated in people
 
-*Measured on `feat/agent-card-gateway` at `797e498`, 2026-09-12: 669 pytest (0 skipped),
+*Measured on `feat/agent-card-gateway`, 2026-09-13: 670 pytest (0 skipped),
 ruff clean, `verify_claims.py` green, CI 6/6 (run `34692572389`); deployed as `main`.*
 
 Companion to `WORLD-MODULE.md`. That document designs the human layer; this one spends it.
@@ -219,6 +219,14 @@ second source of truth that goes stale silently.
 | `ACR_ARMOR_TEMPLATE` | template id |
 | `ACR_ARMOR_CREDENTIALS_FILE` | a **path** to a service-account JSON, never the JSON |
 | `ACR_ARMOR_TIMEOUT_S` | default 10.0 |
+| `ACR_HUMANID_MIRROR_ADDRESS` | the human tier's source of truth; unset, every human claim is declined and `/ops` + the footer say so |
+| `ACR_READER_PRIVATE_KEY` | signs the cards OUR callers present (`verify_live`, `demo_agent`); never the poster key, never required |
+| `ACR_PRESS_CRITICAL_USDC` | the poster wallet's hard floor (default 1.0); `/ops` funding and `verify_live` FAIL below it |
+| `DEMO_AGENT_API` · `DEMO_AGENT_PORT` · `DEMO_AGENT_BOOT_S` · `DEMO_AGENT_TIMEOUT_S` | `scripts/demo_agent.py`: a deployed host to run against, else the first port for its own read-only API, its boot wait, its per-request timeout |
+
+The MCP server reads its own `ACR_AGENT_PRIVATE_KEY` / `ACR_AGENT_HUMAN_CLUSTER` / `ACR_API` from the
+MCP host's config — `mcp/README.md`. The buyer agent reads `AGENT_PRIVATE_KEY` / `AGENT_HUMAN_CLUSTER`.
+`render.yaml` records every production name above (the credentials as a secret **file** path).
 
 **The production image must install the `armor` extra.** `Dockerfile`'s `UV_EXTRAS` carries
 `--extra circle --extra armor`; without the second, `google-auth` is absent, `ModelArmorScreen`
@@ -236,7 +244,7 @@ container — ADC is a development convenience, not a deployment credential.
 uv run pytest packages/acr_oracle_client/tests/test_agentcard.py \
               services/index_api/tests/test_agentgate.py \
               services/index_api/tests/test_armor.py -q      # 25 + 19 + 18
-uv run pytest -p no:cacheprovider                            # 669, 0 skipped
+uv run pytest -p no:cacheprovider                            # 670, 0 skipped
 uv run ruff check packages services scripts redteam
 uv run python scripts/verify_claims.py
 curl -s "$ACR_API/agent/challenge" | jq .                    # how to mint one
@@ -293,17 +301,23 @@ resolution and is handled there too.
   which is a design decision rather than a wiring one. `/agent/whoami` therefore reports
   `scope_enforced: false` out loud, so it cannot quietly become a field everyone assumes is
   checked *because* it is signed.
-- **The MCP server does not present a card**, and it is the most natural consumer — an agent
-  calling ACR is literally what it is. `mcp/package.json` carries only the MCP SDK, so signing
-  in-process means a new dependency and a rewritten `package-lock.json`; a newer npm silently
-  rewrites that file into a form CI's older npm refuses. Not a risk worth taking on submission
-  night. The buyer agent (`apps/agent/src/card.ts`) and `scripts/verify_live.py` present cards
-  instead.
-- **The Terminal deliberately presents no card, and this one is a design choice rather than a
-  deferral.** It was the obvious candidate — viem and a key are already there. But every human
-  reader shares that one server-side process, so one card would mean one identity and therefore
-  **one rate-limit bucket for every reader at once**, recreating the global-limit-behind-a-proxy
-  problem the card exists to fix. A website's proxy is not an agent.
+- **Every caller of ours now presents a card, and one of them is Claude.** The MCP server
+  (`mcp/src/card.ts`, the same encoder as the buyer agent's) wraps the one `fetch` every tool uses,
+  so `query_tape` from an MCP host is a carded call — driven against production over the real stdio
+  transport on 2026-09-13, `cards_verified` moved 14 → 17 while it ran. `viem` is pinned to the
+  terminal's resolved version and the lockfile was regenerated with npm 10, CI's major, for the
+  reason the earlier edition of this bullet gave for not doing it at all.
+- **The Terminal's tape polling presents no card, and that is a design choice**: every human
+  reader shares that one server-side process, so one card would mean one identity and **one
+  rate-limit bucket for every reader at once** — the global-limit-behind-a-proxy problem the card
+  exists to fix. The only cards the Terminal sends are the ones `/developers` mints on purpose — a
+  visitor's throwaway key signed in their own tab, or the demo human's, minted server-side from a
+  public label — one probe each, never a shared identity.
+- **The tier is on the receipt.** For a day the six paid routes verified the card and dropped it,
+  so "the card reaches where money moved" was true only of a counter. `PaymentReceipt.tier` is now
+  stamped at settlement from the gate's verdict, `/marketplace/receipts` carries it, and the
+  settlement ticker marks `carded` and `human` rows — absence on older rows means "before the
+  gate", which is not "anonymous", so the ticker never marks absence.
 - **Circle custody cannot sign cards.** `signer.full_eip712_json` hardcodes a four-field
   `EIP712Domain` including `verifyingContract`, and this domain has three. `sign_card` refuses a
   `CircleWalletSigner` outright rather than producing a signature that would recover to the wrong

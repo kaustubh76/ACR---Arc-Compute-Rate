@@ -43,8 +43,8 @@ NOT_IN_THE_REGISTER: dict[str, str] = {
     "/ops/actions": "same, and with dry_run=False it spends real money",
     "/compute/{label}": (
         "a fleet seller's metered endpoint, reached by a buyer agent through "
-        "/marketplace/catalog and never typed by a reader. Note it is x402-gated "
-        "yet absent from GATED_ENDPOINTS, which is its own pre-existing drift"
+        "/marketplace/catalog and never typed by a reader; it IS in GATED_ENDPOINTS, "
+        "so /x402/info names it paid"
     ),
 }
 

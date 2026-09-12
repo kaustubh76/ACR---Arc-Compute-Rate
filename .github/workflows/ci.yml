@@ -85,6 +85,11 @@ jobs:
       - name: Anchor gap declared
         run: uv run python scripts/anchors.py --check
 
+      # Offline. docs/acr-openapi.md claims to be rendered from the live schema;
+      # this is what makes the claim true. A step, never a job (see below).
+      - name: Endpoint reference matches app.openapi()
+        run: uv run python scripts/gen_openapi_doc.py --check
+
       # ~150s: five scenarios x three indices. A step, never a job — verify_claims
       # counts top-level jobs in this file and asserts the number against the docs.
       - name: Frozen eval sets

@@ -197,12 +197,16 @@ def test_receipts_ledger_shape_and_order():
 
     # The catalog cannot advertise a gate that does not exist, nor miss one
     # that does: ENDPOINT_FAMILIES and app.GATED_ENDPOINTS are two lists
-    # maintained by hand, and a sixth paid endpoint would otherwise ship
-    # charged-but-unlisted with nothing failing.
+    # maintained by hand. The index families are the flat-priced five; the one
+    # paid route outside them is the fleet's metered endpoint, which the catalog
+    # carries as per-seller LISTINGS (each with its own terms) rather than as a
+    # family. Named here exactly, so a seventh paid route cannot hide behind it.
     from index_api.app import GATED_ENDPOINTS
     from index_api.marketplace import ENDPOINT_FAMILIES
 
-    assert {f["template"] for f in ENDPOINT_FAMILIES} == set(GATED_ENDPOINTS)
+    families = {f["template"] for f in ENDPOINT_FAMILIES}
+    assert families <= set(GATED_ENDPOINTS)
+    assert set(GATED_ENDPOINTS) - families == {"/compute/{label}"}
 
 
 def test_receipts_empty_state():

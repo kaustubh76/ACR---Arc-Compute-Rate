@@ -10,10 +10,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ArmorInfo } from "./gate";
-import { screenState, screenedCount } from "./gate";
+import { blockedCount, screenState, screenedCount } from "./gate";
 
 function info(over: Partial<ArmorInfo> = {}): ArmorInfo {
-  return { backend: "gcp", screened: 0, blocked: 0, mode: "auto", live: true, ...over };
+  return { backend: "gcp", screened: 0, blocked: 0, live: true, ...over };
 }
 
 test("an unread screen is unread, not off", () => {
@@ -55,4 +55,10 @@ test("an unread count is null, never zero", () => {
 
 test("a non-numeric count is absence, not a coerced zero", () => {
   assert.equal(screenedCount({ ...info(), screened: undefined as unknown as number }), null);
+});
+
+test("blocked pairs with screened: unread is null, a real zero is zero", () => {
+  assert.equal(blockedCount(null), null);
+  assert.equal(blockedCount(info({ screened: 3, blocked: 0 })), 0);
+  assert.equal(blockedCount(info({ screened: 3, blocked: 1 })), 1);
 });

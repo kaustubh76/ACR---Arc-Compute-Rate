@@ -309,7 +309,10 @@ def test_x402_info_reports_dev_gate():
         assert body["price_usdc"] == 0.0001
         assert body["payment_header"] == "PAYMENT-SIGNATURE"
         assert "/prints/{index_id}" in body["gated_endpoints"]
-        assert len(body["gated_endpoints"]) == 5
+        # Six: the five flat-priced index routes and the fleet's per-seller
+        # /compute/{label}, which charged real money for a day while this list
+        # said five. test_marketplace names the difference exactly.
+        assert len(body["gated_endpoints"]) == 6
         # The canonical header passes the dev gate end-to-end.
         r = client.get("/prints", headers={"PAYMENT-SIGNATURE": "x402 0xagent-sig:0.0001"})
         assert r.status_code == 200

@@ -424,3 +424,24 @@ def test_a_good_card_on_a_paid_route_is_counted(human_gate):
     r = client.get("/prints", headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
     assert r.status_code == 402, "no payment was sent, so the gate must still ask for one"
     assert gate.human_verified == before + 1, "the human claim must be verified on a paid route"
+
+
+def test_the_receipt_records_the_tier_the_card_earned(human_gate):
+    """For a day the paid routes verified the card and then dropped it: the only
+    trace a human-attributed purchase left was a counter on /agent/info. The receipt
+    is the row the ticker, the ledger and the mirror all read, so the tier belongs
+    ON it — three purchases, three tiers, each one named on its own line."""
+    from index_api.x402 import DevFacilitator, reset_facilitator, set_facilitator
+
+    set_facilitator(DevFacilitator())
+    try:
+        pay = {"X-Payment": "x402 0xtiered-buyer:0.0001"}
+        assert client.get("/vol/ACR-INF", headers=pay).status_code == 200
+        assert client.get("/vol/ACR-INF", headers={**pay, "AGENT-CARD": _header("w1")}).status_code == 200
+        r = client.get("/vol/ACR-INF", headers={**pay, "AGENT-CARD": _header("w2", human_cluster=FLEET)})
+        assert r.status_code == 200
+        rows = client.get("/marketplace/receipts").json()["receipts"]
+        # Newest first on the ledger.
+        assert [row["tier"] for row in rows[:3]] == ["human", "carded", "anonymous"]
+    finally:
+        reset_facilitator()

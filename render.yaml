@@ -149,6 +149,29 @@ services:
       - key: ACR_SELF_URL
         value: https://acr-api-1fto.onrender.com
 
+      # --- The agent gate + the screen (docs/AGENT-MODULE.md) ---------------
+      # Recorded for the reason this file exists: until 2026-09-13 every one of
+      # these lived only in the dashboard, beside a doc that called the module
+      # "live in production". None is a secret EXCEPT the credentials, which are
+      # a Render secret FILE — the variable holds its PATH. `/armor/info` serves
+      # project, location and template publicly, so inlining them reveals nothing.
+      - key: ACR_AGENT_AUDIENCE
+        value: acr-index-api
+      - key: ACR_ARMOR_MODE
+        value: auto
+      - key: ACR_ARMOR_PROJECT_ID
+        value: gen-lang-client-0589290672
+      - key: ACR_ARMOR_LOCATION
+        value: asia-south1
+      - key: ACR_ARMOR_TEMPLATE
+        value: EthOnline_Project
+      - key: ACR_ARMOR_CREDENTIALS_FILE
+        value: /etc/secrets/acr_armor_sa.json
+      # The human tier's chain-side source of truth. Without it the gate still
+      # runs, refuses every human claim, and says so on /ops and in the footer.
+      - key: ACR_HUMANID_MIRROR_ADDRESS
+        value: "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5"
+
       # --- Paths + CORS ----------------------------------------------------
       # NOTE: the free plan has NO persistent disk, so these files (and the
       # faucet ledger beside them) are empty on every boot. That is why the

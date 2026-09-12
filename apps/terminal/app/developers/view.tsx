@@ -29,6 +29,11 @@ interface ProbeResult {
   /** Only /agent/whoami answers with one. Parsed server-side so the page does not
    *  read it back out of a truncated preview string. */
   tier?: string;
+  /** What the budget is keyed on: `agent-key` or `human-cluster`. */
+  ident_kind?: string;
+  /** The gate's reason when a human claim stayed `carded`. */
+  human_note?: string;
+  /** Whether a card was sent at all — so a 401 reads as "card refused". */
   carded?: boolean;
 }
 
@@ -567,15 +572,36 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                         {/* The tier, as a badge, because this row exists to make the
                                             three tiers visible next to each other. The sentence after
                                             it is the one the human tier was built to say. */}
+                                        {o.carded && o.status === 401 ? (
+                                          <>
+                                            {" "}
+                                            <span className="chip chip-breach">
+                                              <Ed x="card refused" p="ID card rejected" />
+                                            </span>{" "}
+                                            <span className="muted">
+                                              <Ed x="a bad card is a 401, never a silent downgrade; the body says which check failed" p="a bad ID card is refused outright, never quietly ignored; the reply says what was wrong" />
+                                            </span>
+                                          </>
+                                        ) : null}
                                         {o.tier ? (
                                           <>
                                             {" "}
-                                            <span className={TIER_CHIP[o.tier] ?? "chip"}>{o.tier}</span>{" "}
+                                            <span className={TIER_CHIP[o.tier] ?? "chip"}>{o.tier}</span>
+                                            {o.ident_kind ? <span className="muted mono"> · {o.ident_kind}</span> : null}{" "}
                                             <span className="muted">
-                                              {slot === "#card" ? (
+                                              {/* Captions follow the TIER the gate granted, not the button
+                                                  pressed: a human claim the chain could not confirm comes
+                                                  back `carded`, and the gate's own reason is the sentence
+                                                  to show, not the one we hoped to. */}
+                                              {o.tier === "human" ? (
+                                                <Ed x="a wallet the chain ties to a person: one budget for every wallet they own" p="a wallet the chain knows belongs to a person, so it shares one allowance with their other wallets" />
+                                              ) : o.tier === "carded" && o.human_note ? (
+                                                <>
+                                                  <Ed x="the key is yours; the human claim was declined: " p="the ID card is real, but the real-person claim was turned down: " />
+                                                  {o.human_note}
+                                                </>
+                                              ) : o.tier === "carded" ? (
                                                 <Ed x="signed in this tab, with a key that dies with it" p="an ID card made right here, thrown away after" />
-                                              ) : slot === "#human" ? (
-                                                <Ed x="a demo wallet the chain ties to a person: one budget for every wallet they own" p="a test wallet the chain knows belongs to a person, so it shares one allowance with their other wallets" />
                                               ) : o.tier === "anonymous" ? (
                                                 <Ed x="no card, so the shared ceiling" p="no ID card, so the limit everyone shares" />
                                               ) : null}

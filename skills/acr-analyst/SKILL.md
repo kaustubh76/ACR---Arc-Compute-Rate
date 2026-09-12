@@ -31,6 +31,28 @@ Or point The Graph's **Subgraph MCP** straight at the deployment — slug
 `https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0` — and ask it
 anything. This skill is the schema map you need either way.
 
+## Show a card, or share the anonymous ceiling
+
+Every call above works with no credentials. It also lands you in the **anonymous**
+tier: one rate-limit bucket shared by every reader behind the same egress, and no
+Model Armor screening on `/graph/query`. A signed `AGENT-CARD` — any 32-byte key,
+nothing enrolled, nothing spent — moves you to the **carded** tier (a budget keyed on
+your key) and turns the screen on in both directions.
+
+```bash
+curl -s https://acr-api-1fto.onrender.com/agent/challenge      # audience, chain, domain, header name
+# Mint with apps/agent/src/card.ts, mcp/src/card.ts, or acr_oracle_client.agentcard —
+# /developers on the Terminal writes the Python/TypeScript/curl for you from this answer.
+curl -s https://acr-api-1fto.onrender.com/agent/whoami -H "AGENT-CARD: $CARD"
+# {"tier":"carded","ident_kind":"agent-key",...}
+```
+
+A card may also claim a `human_cluster` the chain confirms (`HumanIdMirror.clusterOf`,
+current 7-day window); that reaches the **human** tier — one budget for every wallet
+the person owns — and a claim the chain cannot confirm is a 401, not a downgrade.
+Through the MCP server (`mcp/README.md`) the same happens by setting
+`ACR_AGENT_PRIVATE_KEY`.
+
 ## What the tape holds
 
 | Entity | One row is | The fields that matter |

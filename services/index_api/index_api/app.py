@@ -541,12 +541,20 @@ async def _payment_required_handler(request, exc: PaymentRequired):
 
     return JSONResponse(status_code=exc.status_code, content=exc.body, headers=exc.headers)
 
+#: Every route behind `require_payment`. This is what `/x402/info` and the root
+#: card serve as `gated_endpoints`, so it is the service's own machine-readable
+#: answer to "what costs money" — and for as long as `/compute/{label}` was
+#: missing, that answer was false by one route: a fleet seller's metered endpoint
+#: charged a real per-unit price while the list said five. The five index routes
+#: share the flat `price_usdc()`; the fleet route prices per listing, and the
+#: catalog carries each seller's terms.
 GATED_ENDPOINTS = [
     "/prints",
     "/prints/{index_id}",
     "/curve/{index_id}",
     "/vol/{index_id}",
     "/seller-scores/{index_id}",
+    "/compute/{label}",
 ]
 
 
@@ -1179,7 +1187,11 @@ def tca_human(
     # Per-human, not per-IP: a shared proxy makes an IP-keyed limit a global one.
     # The nullifier is hashed rather than used raw — `ratelimit.py` keeps bearer
     # credentials out of its key table, and this is the more sensitive one.
-    ratelimit.check(request, "humanid", ratelimit.session_ident(proof.nullifier))
+    # `verified`: `require_human` has already checked this proof cryptographically,
+    # which is the same fact that excuses a carded agent from the shared host
+    # ceiling — a proven person behind a busy proxy should not be throttled
+    # because strangers share their egress IP.
+    ratelimit.check(request, "humanid", ratelimit.session_ident(proof.nullifier), verified=True)
     return human_tca(proof.cluster, proof.window, days=days)
 
 

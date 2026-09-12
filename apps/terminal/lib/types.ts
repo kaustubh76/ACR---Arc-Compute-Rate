@@ -536,6 +536,15 @@ export interface MarketReceipt {
    *  "the tape cannot say", never "nobody bought it" — the two are different
    *  claims and the page must not merge them. */
   resource?: string;
+  /** Who was paid and what was bought — stamped since the seller fleet existed,
+   *  so a unit price exists; absent on rows settled to the single platform wallet. */
+  seller?: string;
+  unit?: string;
+  quantity?: number;
+  /** The tier the buyer's AGENT-CARD earned on this purchase. Absent on rows
+   *  recorded before the gate existed — which is not "anonymous", so the ticker
+   *  marks only `carded` and `human`, never the absence. */
+  tier?: "anonymous" | "carded" | "human";
 }
 
 export interface MarketReceiptsData {

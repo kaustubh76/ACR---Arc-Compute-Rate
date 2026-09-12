@@ -11,22 +11,21 @@
  * outcomes, not two, and "unread" is never rendered as "off".
  */
 
+/* Only the fields a surface RENDERS are declared. `/armor/info` and `/agent/info`
+ * each answer with a dozen more (mode, template, roles, TTL bound…); those belong
+ * to /ops and to the snippet on /developers, which read them from their own
+ * routes. A field declared here and rendered nowhere was the shape of the last
+ * audit's findings — a type that promised the footer said more than it did. */
 export interface ArmorInfo {
   backend: string;
   screened: number;
   blocked: number;
-  mode: string;
   live: boolean;
-  applies_to?: string[];
 }
 
 export interface AgentGateInfo {
-  scheme: string;
-  header: string;
   audience: string;
-  tiers: string[];
   human_binding_verifiable: boolean;
-  rotation_window: number;
   cards_verified: number;
   human_tier_granted: number;
 }
@@ -63,4 +62,12 @@ export function screenState(armor: ArmorInfo | null | undefined): ScreenState {
 export function screenedCount(armor: ArmorInfo | null | undefined): number | null {
   if (armor == null || typeof armor.screened !== "number") return null;
   return armor.screened;
+}
+
+/** How many of those inspections refused something, or null when unread. Paired
+ *  with `screenedCount` because "3 inspected" alone reads as a screen that passes
+ *  everything, and "1 blocked" alone as one that has no idea what it let through. */
+export function blockedCount(armor: ArmorInfo | null | undefined): number | null {
+  if (armor == null || typeof armor.blocked !== "number") return null;
+  return armor.blocked;
 }

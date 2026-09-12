@@ -53,7 +53,9 @@ export interface EndpointRow {
 const i0 = INDICES[0];
 
 export const ENDPOINTS: EndpointRow[] = [
-  // The five gated routes. `run` is null: money is involved, so they go
+  // The five flat-priced gated routes; the sixth, a fleet seller's /compute/{label},
+  // is reached through the catalog and excused from this register by name in
+  // tests/test_endpoint_register_parity.py. `run` is null: money is involved, so they go
   // through the console, which shows the 402 before anything is paid.
   { method: "GET", path: "/prints", gate: "x402", family: "paid", run: null, console: "/prints" },
   { method: "GET", path: "/prints/{index_id}", gate: "x402", family: "paid", run: null, console: `/prints/${i0}` },

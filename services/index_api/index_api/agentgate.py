@@ -35,6 +35,8 @@ from dataclasses import dataclass
 
 from acr_core import get_settings
 from acr_oracle_client.agentcard import (
+    CARD_DOMAIN_NAME,
+    CARD_DOMAIN_VERSION,
     CLOCK_SKEW_S,
     MAX_TTL_S,
     ROLES,
@@ -145,7 +147,7 @@ class AgentGate:
                 "header": CARD_HEADER,
                 "audience": self.audience,
                 "chain_id": int(self.settings.arc_chain_id),
-                "domain": {"name": "ACR Agent Card", "version": "1"},
+                "domain": {"name": CARD_DOMAIN_NAME, "version": CARD_DOMAIN_VERSION},
                 "roles": list(ROLES),
                 "max_ttl_seconds": MAX_TTL_S,
                 "resource": getattr(getattr(request, "url", None), "path", "") or "",
@@ -344,19 +346,6 @@ def set_gate(gate: AgentGate) -> None:
 def reset_gate() -> None:
     global _gate
     _gate = None
-
-
-async def require_agent(
-    request: Request,
-    agent_card: str | None = Header(default=None, alias=CARD_HEADER),
-) -> VerifiedAgent:
-    """FastAPI dependency: 401 unless a valid card is present."""
-    gate = get_gate()
-    if agent_card is None:
-        raise gate.challenge(request)
-    agent = gate.verify(request, agent_card)
-    request.state.agent = agent
-    return agent
 
 
 async def optional_agent(

@@ -110,10 +110,13 @@ def test_sim_receipts_shape_matches_live_ledger():
     # render identically — that is the guarantee. It may legitimately lack
     # `settled_at`: a simulated receipt never settled, and stamping it with a
     # made-up time would be precisely the dishonesty the sim labelling exists to
-    # prevent. So: subset, not equality, and nothing real-only beyond the time.
+    # prevent. The same goes for `tier`: a real row records which tier the
+    # buyer's card earned at the gate, and a simulated purchase met no gate, so
+    # stamping it "anonymous" would invent a verdict nobody gave. So: subset, not
+    # equality, and nothing real-only beyond the time and the tier.
     sim_keys, live_keys = set(sim["receipts"][0]), set(live["receipts"][0])
     assert sim_keys <= live_keys
-    assert live_keys - sim_keys <= {"settled_at"}
+    assert live_keys - sim_keys <= {"settled_at", "tier"}
     # Deterministic, honestly labeled, realistically addressed.
     assert sim == build_sim_receipts()
     assert [r["seq"] for r in sim["receipts"]] == list(range(24, 0, -1))  # newest first
@@ -264,7 +267,7 @@ def test_snapshot_builder_embeds_bundle_sections():
     # x402: the dev gate descriptor exactly as /x402/info serves it.
     assert payload["x402"]["facilitator"] == "dev"
     assert payload["x402"]["payment_header"] == "PAYMENT-SIGNATURE"
-    assert len(payload["x402"]["gated_endpoints"]) == 5
+    assert len(payload["x402"]["gated_endpoints"]) == 6  # five index routes + /compute/{label}
 
 
 def test_snapshot_exchange_sample_is_recorded_not_handwritten():

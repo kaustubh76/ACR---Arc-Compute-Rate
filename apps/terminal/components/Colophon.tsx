@@ -1,7 +1,7 @@
 "use client";
 
 import { useConnection } from "@/lib/useConnection";
-import { screenState } from "@/lib/gate";
+import { blockedCount, screenState, screenedCount } from "@/lib/gate";
 import { useGate, useHumanId } from "@/lib/useLive";
 import { deployedContracts } from "@/lib/chain";
 import { ArcHorizon } from "./ArcHorizon";
@@ -172,9 +172,31 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             <Ed x="Agent gate" p="Who counts as a robot" /> · {gate.agent.audience} ·{" "}
             {gate.agent.cards_verified}{" "}
             <Ed x="cards verified" p="ID cards checked" />
+            {/* The human tier is the one this gate exists to grant, so its count
+                rides beside the cards: "14 cards, 3 of them a person" is the
+                sentence; "14 cards" alone hides whether the binding ever fired. */}
+            {gate.agent.human_tier_granted > 0 && (
+              <>
+                {", "}
+                {gate.agent.human_tier_granted} <Ed x="reached the human tier" p="traced to a real person" />
+              </>
+            )}
             {" · "}
             {screen === "live" ? (
-              <Ed x="Model Armor screening both directions" p="messages filtered in and out" />
+              <>
+                <Ed x="Model Armor screening both directions" p="messages filtered in and out" />
+                {/* Counts only when the screen has actually been asked: an
+                    "inspected 0" on a fresh boot is true and says nothing; the
+                    pair says what the screen did with what it saw. */}
+                {(screenedCount(gate.armor) ?? 0) > 0 && (
+                  <>
+                    {": "}
+                    {screenedCount(gate.armor)} <Ed x="inspected" p="checked" />
+                    {", "}
+                    {blockedCount(gate.armor)} <Ed x="blocked" p="stopped" />
+                  </>
+                )}
+              </>
             ) : screen === "off" ? (
               <Ed x="screen switched off" p="no message filter running" />
             ) : (

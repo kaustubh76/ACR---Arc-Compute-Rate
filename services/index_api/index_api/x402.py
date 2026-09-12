@@ -158,6 +158,18 @@ def _resource_for(request: Request, settings) -> str:
     return (settings.x402_resource_base or str(request.base_url).rstrip("/")) + request.url.path
 
 
+
+def _tier_of(request: Request) -> str:
+    """The tier `optional_agent` recorded on this request, or ``anonymous``.
+
+    `optional_agent` is declared BEFORE `require_payment` on every paid route, so
+    by the time a facilitator runs the agent gate has either set
+    ``request.state.agent`` or refused the card with a 401. No card sets nothing,
+    and nothing is anonymous — read with a default rather than assumed present.
+    """
+    agent = getattr(getattr(request, "state", None), "agent", None)
+    return str(getattr(agent, "tier", "") or "") or "anonymous"
+
 def _resource_path(request) -> str:
     """The bare resource path being paid for — e.g. ``/curve/ACR-INF`` (what the
     settlement ledger records so ReceiptSource can resolve the service). Safe when
@@ -215,6 +227,13 @@ class PaymentReceipt:
     #: in the durable ledger keep parsing.
     unit: str = ""
     quantity: float = 0.0
+    #: Which tier the buyer's AGENT-CARD earned on this purchase: ``anonymous``,
+    #: ``carded`` or ``human``. For a day the six paid routes verified the card and
+    #: then dropped it, so "the card reaches where money moved" was true only of a
+    #: counter on ``/agent/info``. Stamped here, a human-attributed settlement is a
+    #: fact ON THE RECEIPT, the same row the ticker and the mirror read. Empty
+    #: means a legacy line written before the field existed.
+    tier: str = ""
 
     @property
     def unit_price(self) -> float | None:
@@ -446,7 +465,8 @@ class DevFacilitator(Facilitator):
         net = get_settings().caip2()
         receipt = self._record(
             PaymentReceipt(payer=payer, amount_usdc=amt, tx_ref=f"dev-{self.paid_queries + 1}",
-                           network=net, scheme="dev", resource=_resource_path(request))
+                           network=net, scheme="dev", resource=_resource_path(request),
+                           tier=_tier_of(request))
         )
         # Same confirmation headers as the live gate, so buyer code decodes one
         # shape in both modes.
@@ -571,7 +591,7 @@ class CircleFacilitator(Facilitator):
                                _resource_path(request), self.settings)[1],
                            tx_ref=tx,
                            network=receipt_network, scheme=reqs["scheme"],
-                           resource=_resource_path(request))
+                           resource=_resource_path(request), tier=_tier_of(request))
         )
 
 

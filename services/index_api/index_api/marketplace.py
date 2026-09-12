@@ -93,7 +93,8 @@ _PRINT_FIELDS = {
     "cost_to_move_1pct": {"type": "number"},
 }
 
-#: The five gated endpoint families (mirrors ``app.GATED_ENDPOINTS``), each with
+#: The five flat-priced endpoint families (``app.GATED_ENDPOINTS`` minus the fleet's
+#: per-seller ``/compute/{label}``, which the catalog carries as listings), each with
 #: enough machine-readable metadata for an agent to decide *before* paying.
 ENDPOINT_FAMILIES: list[dict] = [
     {
@@ -531,6 +532,10 @@ def build_receipts(fac: Facilitator) -> dict:
             **({"seller": r.seller} if r.seller else {}),
             **({"unit": r.unit} if r.unit else {}),
             **({"quantity": r.quantity} if r.quantity else {}),
+            # The tier the buyer's card earned. Carried so the ticker can mark a
+            # human-attributed settlement as one; omitted on legacy rows, where
+            # absence means "recorded before the gate existed", not "anonymous".
+            **({"tier": r.tier} if r.tier else {}),
         }
         for i, r in enumerate(receipts)
     ]

@@ -97,8 +97,9 @@ export async function POST(req: NextRequest) {
         ms: Date.now() - started,
         // The tier, parsed here, so the page does not have to read it back out of a
         // truncated preview string. Only /agent/whoami answers with one; elsewhere
-        // it is simply absent.
-        tier: tierOf(text),
+        // it is simply absent. `carded` is whether a card was SENT, so a 401 on a
+        // carded run can be named as a refused card rather than a failed route.
+        ...whoamiOf(text),
         carded: Boolean(agentCard),
         // Pretty-print when it parses, so the preview reads as a shape rather
         // than one long line. Non-JSON (a 404 page, an HTML error) passes
@@ -125,12 +126,18 @@ export async function POST(req: NextRequest) {
 }
 
 /** `tier` from a whoami body, or undefined for anything else. */
-function tierOf(text: string): string | undefined {
+/** The three whoami fields the page renders as prose rather than as JSON. `tier`
+ *  picks the badge; `ident_kind` says what the budget is keyed on; `human_note` is
+ *  the gate's own sentence for WHY a human claim did not reach the human tier —
+ *  the one line a developer actually needs when the badge says `carded` where they
+ *  expected `human`, and the one that was being dropped on this floor. */
+function whoamiOf(text: string): { tier?: string; ident_kind?: string; human_note?: string } {
   try {
-    const t = (JSON.parse(text) as { tier?: unknown }).tier;
-    return typeof t === "string" ? t : undefined;
+    const j = JSON.parse(text) as { tier?: unknown; ident_kind?: unknown; human_note?: unknown };
+    const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+    return { tier: str(j.tier), ident_kind: str(j.ident_kind), human_note: str(j.human_note) };
   } catch {
-    return undefined;
+    return {};
   }
 }
 

@@ -15,8 +15,9 @@ unrecorded recipe is a hand-edited file that nobody admits to.
 
 Source of truth is `app.openapi()` — the same object `tests/test_endpoint_register_
 parity.py` reads — so this cannot disagree with the service. The paid/free split
-comes from GATED_ENDPOINTS, the list `/x402/info` serves, not from a second copy.
-`--check` makes staleness a CI failure like `golden-check` and `anchors-check`.
+comes from GATED_ENDPOINTS, the list `/x402/info` serves, not from a second copy —
+which is also why `/compute/{label}` had to join that list: a per-seller paid route
+the service's own descriptor called free. `--check` makes staleness a CI failure like `golden-check` and `anchors-check`.
 """
 
 from __future__ import annotations
@@ -36,14 +37,6 @@ OMIT = {
     "/ops/actions": "operator console, token-gated, spends money",
 }
 
-#: Paid, but absent from GATED_ENDPOINTS — a pre-existing drift this file must not
-#: inherit. `/compute/{label}` depends on `require_payment` and prices per seller,
-#: yet `/x402/info` does not list it (test_marketplace pins GATED_ENDPOINTS to the
-#: index-shaped ENDPOINT_FAMILIES, and the terminal register excludes it on purpose
-#: as a route a buyer agent reaches through the catalog rather than types). Listing
-#: it as free here would be false, so it is named paid from this side until the
-#: service-side list is reconciled.
-PAID_BUT_UNADVERTISED = {"/compute/{label}"}
 
 
 def render() -> str:
@@ -51,7 +44,7 @@ def render() -> str:
 
     spec = app.openapi()
     paths = spec["paths"]
-    gated = set(GATED_ENDPOINTS) | PAID_BUT_UNADVERTISED
+    gated = set(GATED_ENDPOINTS)
 
     def lines(paid: bool) -> list[str]:
         out = []

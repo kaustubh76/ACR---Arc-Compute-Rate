@@ -116,13 +116,18 @@ function PayerField({
  *  because zero here means "not measured", never "nobody" (same rule `humanCell`
  *  keeps). The share rides in the title rather than the cell: this is a classifier
  *  tag, like `sim`, not a new column. */
-function HumanMark({ share }: { share: number | null | undefined }) {
+function HumanMark({ share, of }: { share: number | null | undefined; of: "this payer" | "the window" }) {
   if (share == null || share <= 0) return null;
+  // The two tables divide by different things — one payer's fills above, every
+  // fill this rotation window below — so the same chip can read 100% and 64% for
+  // one seller. The title names the denominator rather than letting a reader
+  // hover both and conclude one of them is wrong.
+  const scope = of === "this payer" ? "this payer's fills with the seller" : "the seller's fills this rotation window";
   return (
     <span
       className="chip chip-sim"
       style={{ marginLeft: 6 }}
-      title={`${(share * 100).toFixed(0)}% of this volume was paid by wallets the chain resolves to a verified person`}
+      title={`${(share * 100).toFixed(0)}% of ${scope} came from wallets the chain resolves to a verified person`}
     >
       <Ed x="human" p="real person" />
     </span>
@@ -420,7 +425,7 @@ export function TapeView() {
                     <tr key={r.seller}>
                       <td>
                         <AddressChip address={r.seller} copy={false} />
-                        <HumanMark share={r.human_share} />
+                        <HumanMark share={r.human_share} of="this payer" />
                       </td>
                       <td
                         className="mono num"
@@ -557,7 +562,7 @@ export function TapeView() {
                     <tr key={s.id}>
                       <td>
                         <AddressChip address={s.id} copy={false} />
-                        <HumanMark share={s.humanShare} />
+                        <HumanMark share={s.humanShare} of="the window" />
                       </td>
                       <td>
                         <GradeChip rating={r} />

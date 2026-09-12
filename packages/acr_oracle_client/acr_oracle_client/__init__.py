@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+from .agentcard import (
+    CARD_DOMAIN_NAME,
+    CARD_DOMAIN_VERSION,
+    MAX_TTL_S,
+    AgentCard,
+    decode_header,
+    encode_header,
+    mint,
+    recover_agent,
+    sign_card,
+)
 from .client import (
     ORACLE_ABI,
     OracleClient,
@@ -51,6 +62,16 @@ from .signer import (
 )
 
 __all__ = [
+    # agent card
+    "AgentCard",
+    "CARD_DOMAIN_NAME",
+    "CARD_DOMAIN_VERSION",
+    "MAX_TTL_S",
+    "mint",
+    "sign_card",
+    "encode_header",
+    "decode_header",
+    "recover_agent",
     "OracleClient",
     "PostPayload",
     "ORACLE_ABI",
