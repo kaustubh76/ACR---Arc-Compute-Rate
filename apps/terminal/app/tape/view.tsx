@@ -111,6 +111,24 @@ function PayerField({
  *  and "we did not count" are different facts, and a ternary inside a table cell
  *  is where they quietly become one. The dash carries the press's own reason as
  *  its title rather than a phrasing invented here. */
+/** The page's one chip style, reused: a seller whose volume is partly paid by
+ *  wallets the chain ties to a person. Rendered only when the share is above zero,
+ *  because zero here means "not measured", never "nobody" (same rule `humanCell`
+ *  keeps). The share rides in the title rather than the cell: this is a classifier
+ *  tag, like `sim`, not a new column. */
+function HumanMark({ share }: { share: number | null | undefined }) {
+  if (share == null || share <= 0) return null;
+  return (
+    <span
+      className="chip chip-sim"
+      style={{ marginLeft: 6 }}
+      title={`${(share * 100).toFixed(0)}% of this volume was paid by wallets the chain resolves to a verified person`}
+    >
+      <Ed x="human" p="real person" />
+    </span>
+  );
+}
+
 function HumanCell({ rating }: { rating: SellerRating | undefined }) {
   const cell = humanCell(rating);
   if (cell.kind === "unmeasured") {
@@ -402,6 +420,7 @@ export function TapeView() {
                     <tr key={r.seller}>
                       <td>
                         <AddressChip address={r.seller} copy={false} />
+                        <HumanMark share={r.human_share} />
                       </td>
                       <td
                         className="mono num"
@@ -538,6 +557,7 @@ export function TapeView() {
                     <tr key={s.id}>
                       <td>
                         <AddressChip address={s.id} copy={false} />
+                        <HumanMark share={s.humanShare} />
                       </td>
                       <td>
                         <GradeChip rating={r} />

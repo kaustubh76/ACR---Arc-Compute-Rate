@@ -2,20 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  BUCKETS,
-  MIN_RATED_N,
-  bp,
-  bpFromWeighted,
-  bucketBars,
-  bucketTotal,
-  byWorstFirst,
-  gradeOf,
-  humanCell,
-  sellersFromSettlements,
-  usdc6,
-  wad18,
-} from "./tape";
+import { BUCKETS, MIN_RATED_N, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellersFromSettlements, usdc6, wad18 } from "./tape";
 
 const REPO = join(__dirname, "..", "..", "..");
 
@@ -159,8 +146,9 @@ test("the seller directory can be grouped out of raw settlements", () => {
      brittle page — and that is not hypothetical, `sellers` gained a relation the
      deployed subgraph does not carry and returned nothing at all. */
   const rows = [
-    { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 1000, slippageBp: 600, benchmarked: true, synthetic: true },
-    { seller: { id: "0xa" }, payer: { id: "0xp2" }, amount: 3000, slippageBp: 200, benchmarked: true, synthetic: false },
+    { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 1000, slippageBp: 600, benchmarked: true, synthetic: true, human: false },
+    // One human-backed fill: the payer had a cluster for the window it landed in.
+    { seller: { id: "0xa" }, payer: { id: "0xp2" }, amount: 3000, slippageBp: 200, benchmarked: true, synthetic: false, human: true },
     // Unbenchmarked: counted in volume and in the fill count, but it must not
     // reach the weighted average — "we could not measure it" is not "0 bp".
     { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 9000, slippageBp: null, benchmarked: false, synthetic: false },
@@ -177,6 +165,10 @@ test("the seller directory can be grouped out of raw settlements", () => {
   // this to 92 if it had been folded in as a zero.
   assert.equal(a.vw_slippage_bp, 300);
   assert.equal(a.syntheticShare, 1000 / 13_000);
+  // The same fold, for people: 3000 of 13_000 came from a wallet the chain ties
+  // to a person. A row with no `human` field at all folds as false, never true.
+  assert.equal(a.humanShare, 3000 / 13_000);
+  assert.equal(b.humanShare, 0);
 
   assert.equal(b.vw_slippage_bp, -800);
   assert.equal(b.distinctPayers, 1);
@@ -282,4 +274,20 @@ test("a count with no payer figure is still a count, with payers null", () => {
     }),
     { kind: "count", humans: 1, payers: null, allSandbox: false },
   );
+});
+
+test("a seller's human share is read off ONE window, and an unmeasured window is null", () => {
+  /* `humanVolume` is per window because a cluster is minted per window. Summing
+     across windows would credit last week's people to this week's volume, and a
+     window with no volume is "not measured", which must not render as "no humans". */
+  const windows = [
+    { window: "2957", volume: 4000, humanVolume: 4000 },
+    { window: "2958", volume: 10_000, humanVolume: 2500 },
+    { window: "2959", volume: 0, humanVolume: 0 },
+  ];
+  assert.equal(humanShareInWindow(windows, 2958), 0.25);
+  assert.equal(humanShareInWindow(windows, 2957), 1);
+  assert.equal(humanShareInWindow(windows, 2959), null, "no volume yet is not measured");
+  assert.equal(humanShareInWindow(windows, 2960), null, "a window with no rollup at all");
+  assert.equal(humanShareInWindow(undefined, 2958), null);
 });

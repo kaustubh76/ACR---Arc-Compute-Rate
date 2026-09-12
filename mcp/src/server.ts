@@ -21,10 +21,23 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { callTool, DEFAULT_API, TOOLS } from "./tools.js";
+import { withCard } from "./card.js";
+import { callTool, DEFAULT_API, TOOLS, type Fetchish } from "./tools.js";
 
 const api = process.env.ACR_API ?? DEFAULT_API;
 const nullifier = process.env.ACR_HUMAN_NULLIFIER;
+
+/* The card, wrapped around the ONE fetch every tool uses. ACR_AGENT_PRIVATE_KEY
+   makes this server a carded caller; ACR_AGENT_HUMAN_CLUSTER (opt-in, verified on
+   chain, a 401 if wrong) lifts it to the human tier. Unset → anonymous, unchanged. */
+const claimed = (process.env.ACR_AGENT_HUMAN_CLUSTER ?? "").trim();
+const fetchImpl = withCard(globalThis.fetch as unknown as Fetchish, {
+  privateKey: (process.env.ACR_AGENT_PRIVATE_KEY ?? "").trim() as `0x${string}`,
+  chainId: Number(process.env.ACR_ARC_CHAIN_ID ?? 5042002),
+  name: "acr-mcp",
+  role: "reader",
+  ...(claimed ? { humanCluster: claimed as `0x${string}` } : {}),
+});
 
 const server = new Server(
   { name: "acr-tca", version: "0.1.0" },
@@ -37,6 +50,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const out = await callTool(req.params.name, (req.params.arguments ?? {}) as Record<string, unknown>, {
     api,
     nullifier,
+    fetchImpl,
   });
   return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
 });

@@ -89,7 +89,7 @@ query PayerDays($payer: Bytes!, $since: Int!) {
     where: { payer: $payer, benchmarked: true }
     orderBy: settledAt orderDirection: desc first: 500
   ) {
-    seller { id } amount slippageTenthBp synthetic index
+    seller { id } amount slippageTenthBp synthetic human index
   }
 }
 """
@@ -113,7 +113,7 @@ query HumanDays($payers: [Bytes!]!, $since: Int!) {
     where: { payer_in: $payers, benchmarked: true }
     orderBy: settledAt orderDirection: desc first: 2000
   ) {
-    seller { id } amount slippageTenthBp synthetic index
+    seller { id } amount slippageTenthBp synthetic human index
   }
 }
 """
@@ -369,12 +369,16 @@ def _card(data: dict, days: int) -> dict:
         amount = int(st["amount"])
         slip = int(st["slippageTenthBp"] or 0)
         e = per_seller.setdefault(
-            sid, {"seller": sid, "volume": 0, "weighted": 0, "n": 0, "synthetic": 0}
+            sid, {"seller": sid, "volume": 0, "weighted": 0, "n": 0, "synthetic": 0, "human": 0}
         )
         e["volume"] += amount
         e["weighted"] += amount * slip
         e["n"] += 1
         e["synthetic"] += amount if st.get("synthetic") else 0
+        # Stamped at finalize from HumanIdMirror for the window the settlement
+        # landed in (graph/src/mirror.ts). Folded per seller the same way the
+        # synthetic share is, so the two shares a row carries are the same shape.
+        e["human"] += amount if st.get("human") else 0
 
     breakdown = []
     for e in per_seller.values():
@@ -386,6 +390,7 @@ def _card(data: dict, days: int) -> dict:
             "volume_share": round(e["volume"] / spent, 4) if spent else None,
             "n": e["n"],
             "synthetic_share": round(e["synthetic"] / e["volume"], 4) if e["volume"] else None,
+            "human_share": round(e["human"] / e["volume"], 4) if e["volume"] else None,
         })
     breakdown.sort(key=lambda b: (b["vw_slippage_bp"] is None, -(b["vw_slippage_bp"] or 0)))
 

@@ -76,6 +76,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // The 401 challenge, shown the way ApiConsole shows the 402: every label
   // dual-renders, and the "what would answer this" line has three backends.
   "components/chain/HumanProof.tsx": 16,
+  "components/chain/AgentCardSnippet.tsx": 12,
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useState } from "react";
 import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
+import { AgentCardSnippet } from "@/components/chain/AgentCardSnippet";
 import { HumanProof } from "@/components/chain/HumanProof";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
@@ -25,7 +26,18 @@ interface ProbeResult {
   body?: string;
   truncated?: boolean;
   detail?: string;
+  /** Only /agent/whoami answers with one. Parsed server-side so the page does not
+   *  read it back out of a truncated preview string. */
+  tier?: string;
+  carded?: boolean;
 }
+
+/** The three ways to run /agent/whoami, and the key each result is stored under.
+ *  Three slots rather than one, so a reader can see anonymous, carded and human
+ *  side by side — the comparison IS the demonstration. */
+type CardSlot = "" | "#card" | "#human";
+
+const TIER_CHIP: Record<string, string> = { anonymous: "chip chip-sim", carded: "chip chip-teal", human: "chip chip-gold" };
 
 /* What each route sells, keyed by the register's path.
  *
@@ -142,26 +154,64 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
     document.getElementById("console")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const probe = useCallback(async (path: string, run: string) => {
+  const probe = useCallback(
+    async (path: string, run: string, slot: CardSlot = "", extra: Record<string, unknown> = {}) => {
+      setSelected(path);
+      setProbing(path + slot);
+      try {
+        const res = await fetch("/api/probe", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: run, ...extra }),
+        });
+        const body = (await res.json()) as ProbeResult & { detail?: string };
+        setProbeOut((o) => ({ ...o, [path + slot]: body }));
+      } catch {
+        setProbeOut((o) => ({
+          ...o,
+          [path + slot]: { path: run, detail: "could not reach the press from here. Press again" },
+        }));
+      } finally {
+        setProbing(null);
+      }
+    },
+    [],
+  );
+
+  /* A card signed in THIS TAB. The key is generated here, used once, and dropped
+     with the component: it never touches storage and never leaves the browser
+     unsigned, which is the whole point of showing a reader they can mint their own.
+     Audience and chain come from the gate's own challenge, never from a constant,
+     so a card minted on this page is a card the gate will actually read. */
+  const mintAndProbe = useCallback(async (path: string, run: string) => {
     setSelected(path);
-    setProbing(path);
+    setProbing(path + "#card");
     try {
-      const res = await fetch("/api/probe", {
+      const chRes = await fetch("/api/probe", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path: run }),
+        body: JSON.stringify({ path: "/agent/challenge" }),
       });
-      const body = (await res.json()) as ProbeResult & { detail?: string };
-      setProbeOut((o) => ({ ...o, [path]: body }));
+      const ch = (await chRes.json()) as ProbeResult;
+      const parsed = ch.body ? (JSON.parse(ch.body) as { audience?: string; chain_id?: number }) : {};
+      const { mintCard, throwawayKey } = await import("@/lib/agentcard");
+      const minted = await mintCard({
+        privateKey: await throwawayKey(),
+        chainId: Number(parsed.chain_id ?? c.chainId),
+        audience: String(parsed.audience ?? "acr-index-api"),
+        name: "acr-developers-page",
+        role: "reader",
+      });
+      setProbing(null);
+      await probe(path, run, "#card", { agent_card: minted.header });
     } catch {
       setProbeOut((o) => ({
         ...o,
-        [path]: { path: run, detail: "could not reach the press from here. Press again" },
+        [path + "#card"]: { path: run, detail: "could not mint a card in this tab. Press again" },
       }));
-    } finally {
       setProbing(null);
     }
-  }, []);
+  }, [probe, c.chainId]);
 
   /** One handler for both kinds of row. A paid path goes to the console, which
    *  shows the 402 before anything is paid; a free one runs right here. */
@@ -236,6 +286,11 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           carries a row whose only explanation is "needs a proof of personhood",
           and this is where a reader finds out what that means. */}
       <HumanProof />
+      {/* The agent gate's sibling section: the same "ask it what it wants", and then
+          the code to satisfy it, in three languages, derived from that answer. The
+          snippets name the PUBLIC host because that is the one an agent would call;
+          without NEXT_PUBLIC_ACR_API at build time they name the dev loopback. */}
+      <AgentCardSnippet api={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"} />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said
@@ -421,16 +476,45 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                             </td>
                             <td className="mono">
                               {act === "probe" ? (
-                                <button
-                                  className="mini-btn"
-                                  onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    void probe(e.path, e.run!);
-                                  }}
-                                  disabled={probing !== null}
-                                >
-                                  {probing === e.path ? "…" : "run"}
-                                </button>
+                                <>
+                                  <button
+                                    className="mini-btn"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      void probe(e.path, e.run!);
+                                    }}
+                                    disabled={probing !== null}
+                                  >
+                                    {probing === e.path ? "…" : "run"}
+                                  </button>
+                                  {e.path === "/agent/whoami" ? (
+                                    <>
+                                      {" "}
+                                      <button
+                                        className="mini-btn"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          void mintAndProbe(e.path, e.run!);
+                                        }}
+                                        disabled={probing !== null}
+                                        title="Generate a throwaway key in this tab, sign a card with it, and present it"
+                                      >
+                                        {probing === e.path + "#card" ? "…" : "mint a card"}
+                                      </button>{" "}
+                                      <button
+                                        className="mini-btn"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          void probe(e.path, e.run!, "#human", { as: "demo-human" });
+                                        }}
+                                        disabled={probing !== null}
+                                        title="A card for one of the demo fleet's wallets, claiming the cluster the chain records for it"
+                                      >
+                                        {probing === e.path + "#human" ? "…" : "as a demo human"}
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </>
                               ) : act === "console" ? (
                                 <span className="muted">
                                   {sold > 0 ? (
@@ -460,32 +544,54 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                               )}
                             </td>
                           </tr>
-                          {out ? (
-                            <tr>
-                              <td colSpan={5} style={{ paddingTop: 0 }}>
-                                {out.detail ? (
-                                  <p className="mono muted" role="status" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-                                    {out.detail}
-                                  </p>
-                                ) : (
-                                  <>
-                                    <p className="mono" style={{ fontSize: 12.5, margin: "0 0 6px" }}>
-                                      <span className={out.status === 200 ? "green" : "gold"}>
-                                        {out.status}
-                                      </span>{" "}
-                                      <span className="muted">
-                                        · {fmtInt(out.ms ?? 0)} ms
-                                        {out.truncated ? " · preview" : ""}
-                                      </span>
+                          {(["", "#card", "#human"] as CardSlot[]).map((slot) => {
+                            const o = slot === "" ? out : probeOut[e.path + slot];
+                            if (!o) return null;
+                            return (
+                              <tr key={e.path + slot}>
+                                <td colSpan={5} style={{ paddingTop: 0 }}>
+                                  {o.detail ? (
+                                    <p className="mono muted" role="status" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
+                                      {o.detail}
                                     </p>
-                                    <div className="specimen" style={{ marginBottom: 10 }}>
-                                      <pre style={{ maxHeight: 220, overflow: "auto" }}>{out.body}</pre>
-                                    </div>
-                                  </>
-                                )}
-                              </td>
-                            </tr>
-                          ) : null}
+                                  ) : (
+                                    <>
+                                      <p className="mono" style={{ fontSize: 12.5, margin: "0 0 6px" }}>
+                                        <span className={o.status === 200 ? "green" : "gold"}>
+                                          {o.status}
+                                        </span>{" "}
+                                        <span className="muted">
+                                          · {fmtInt(o.ms ?? 0)} ms
+                                          {o.truncated ? " · preview" : ""}
+                                        </span>
+                                        {/* The tier, as a badge, because this row exists to make the
+                                            three tiers visible next to each other. The sentence after
+                                            it is the one the human tier was built to say. */}
+                                        {o.tier ? (
+                                          <>
+                                            {" "}
+                                            <span className={TIER_CHIP[o.tier] ?? "chip"}>{o.tier}</span>{" "}
+                                            <span className="muted">
+                                              {slot === "#card" ? (
+                                                <Ed x="signed in this tab, with a key that dies with it" p="an ID card made right here, thrown away after" />
+                                              ) : slot === "#human" ? (
+                                                <Ed x="a demo wallet the chain ties to a person: one budget for every wallet they own" p="a test wallet the chain knows belongs to a person, so it shares one allowance with their other wallets" />
+                                              ) : o.tier === "anonymous" ? (
+                                                <Ed x="no card, so the shared ceiling" p="no ID card, so the limit everyone shares" />
+                                              ) : null}
+                                            </span>
+                                          </>
+                                        ) : null}
+                                      </p>
+                                      <div className="specimen" style={{ marginBottom: 10 }}>
+                                        <pre style={{ maxHeight: 220, overflow: "auto" }}>{o.body}</pre>
+                                      </div>
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </Fragment>
                       );
                     })}

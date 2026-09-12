@@ -179,3 +179,26 @@ test('reroute_suggestion("me") reroutes the fleet as one book', async () => {
   );
   assert.deepEqual(out, { from: "0xdear", to: "0xcheap" });
 });
+
+test("with a key, every tool's upstream call carries an agent card", async () => {
+  /* This server is an agent calling ACR and was, for a day, the only caller in the
+     repo presenting nothing. One wrap around the shared fetch covers every tool,
+     including query_tape's direct POST, because they all go through the same `f`. */
+  const { withCard } = await import("./card.js");
+  const seenHeaders: Array<Record<string, string> | undefined> = [];
+  const inner = async (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => {
+    seenHeaders.push(init?.headers);
+    return { ok: true, status: 200, json: async () => ({ operations: ["meta"], available: true, data: {} }) };
+  };
+  const f = withCard(inner, { privateKey: `0x${"11".repeat(32)}`, chainId: 5042002 });
+  await callTool("query_tape", {}, { api: "https://acr.test", fetchImpl: f });
+  await callTool("query_tape", { operation: "meta" }, { api: "https://acr.test", fetchImpl: f });
+  assert.equal(seenHeaders.length, 2);
+  for (const h of seenHeaders) {
+    assert.ok(h?.["AGENT-CARD"], "every upstream call must carry the card");
+    assert.ok(h["AGENT-CARD"].length > 200, "and it must be a real base64 card, not a placeholder");
+  }
+  // No key: the fetch is returned UNCHANGED, so anonymous costs nothing extra.
+  const bare = withCard(inner, { chainId: 5042002 });
+  assert.equal(bare, inner);
+});

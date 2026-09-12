@@ -190,9 +190,9 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
         }],
         "settlements": [
             {"seller": {"id": SELLER}, "amount": "1000000",
-             "slippageTenthBp": "1880", "synthetic": True, "index": "ACR-INF"},
+             "slippageTenthBp": "1880", "synthetic": True, "human": True, "index": "ACR-INF"},
             {"seller": {"id": OTHER}, "amount": "1000000",
-             "slippageTenthBp": "-120", "synthetic": True, "index": "ACR-INF"},
+             "slippageTenthBp": "-120", "synthetic": True, "human": False, "index": "ACR-INF"},
         ],
     })
     r = tca_mod.payer_tca(PAYER)
@@ -201,6 +201,10 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
     assert r["by_seller"][0]["seller"] == SELLER  # worst first
     assert r["by_seller"][0]["vw_slippage_bp"] == pytest.approx(188.0)
     assert r["by_seller"][-1]["vw_slippage_bp"] == pytest.approx(-12.0)
+    # The human share rides beside the synthetic share, per seller, same shape.
+    # It is what lets the tape page mark a seller's row as human-backed.
+    assert r["by_seller"][0]["human_share"] == 1.0
+    assert r["by_seller"][-1]["human_share"] == 0.0
 
 
 def test_the_reroute_names_both_sides_and_calls_itself_a_suggestion(monkeypatch):

@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -13,6 +13,7 @@ help:
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
 	@echo "  make deck            render the long-form slide deck (docs/presentation.html + .pdf)"
 	@echo "  make pitch           render the pitch pages (8-slide deck + teleprompter + docs/submission-brief.pdf)"
+	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -94,7 +95,7 @@ eval-gate:
 	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
 	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
-ci: lint test eval-gate golden-check anchors-check
+ci: lint test eval-gate golden-check anchors-check openapi-doc-check
 
 build-contracts:
 	cd contracts && forge build
@@ -478,6 +479,18 @@ glossary-check:
 
 diagram:
 	uv run python scripts/gen_architecture.py
+
+# docs/acr-openapi.md claimed for weeks to be "rendered from the live OpenAPI 3.1
+# schema" with no recipe anywhere, and sat at 24 of 43 routes. This is the recipe.
+# The check is in `make ci` so the next route added to app.py and nowhere else
+# turns the reference red instead of silently stale. --no-stdin on marp, or the
+# PDF step hangs forever whenever stdin is not a TTY.
+openapi-doc:
+	uv run python scripts/gen_openapi_doc.py
+	npx -y @marp-team/marp-cli --no-stdin docs/acr-openapi.md -o docs/acr-openapi.pdf || echo "PDF export needs Chrome/Edge — the .md is ready"
+
+openapi-doc-check:
+	uv run python scripts/gen_openapi_doc.py --check
 
 diagram-preview:
 	uv run python scripts/preview_excalidraw.py

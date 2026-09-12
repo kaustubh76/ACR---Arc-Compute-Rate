@@ -138,6 +138,10 @@ export interface TcaSellerRow {
   volume_share: number | null;
   n: number;
   synthetic_share: number | null;
+  /** Share of this seller's volume paid by wallets HumanIdMirror resolves to a
+   *  person in the window each settlement landed in. Same shape and the same
+   *  fold as `synthetic_share`; `null` is "no volume", never "nobody". */
+  human_share?: number | null;
 }
 
 export interface TcaCard {
@@ -177,6 +181,29 @@ export interface TapeSeller {
   latestAttestation: TapeAttestation | null;
   /** Present only on the settlement-derived directory. */
   syntheticShare?: number | null;
+  humanShare?: number | null;
+  /** Per-window rollups from the `sellers` operation. `humanVolume` is the part of
+   *  `volume` paid by wallets resolved to a person IN THAT WINDOW — which is why
+   *  the share must be read off the current window, not summed across them. */
+  windows?: SellerWindow[];
+}
+
+export interface SellerWindow {
+  window: string | number;
+  volume: Big;
+  humanVolume: Big;
+  distinctPayers?: number;
+  distinctHumans?: number;
+}
+
+/** The human share of a seller's volume for ONE window, or null when that window
+ *  has no volume. Null, not zero: a seller nobody bought from this week has not
+ *  been measured, and "not measured" must not render as "no humans". */
+export function humanShareInWindow(windows: SellerWindow[] | undefined, window: number): number | null {
+  const w = (windows ?? []).find((x) => Number(x.window) === window);
+  if (!w) return null;
+  const vol = Number(w.volume) || 0;
+  return vol > 0 ? (Number(w.humanVolume) || 0) / vol : null;
 }
 
 export interface TapeMeta {
@@ -291,6 +318,10 @@ export interface TapeSettlement {
   slippageBp: Big | null;
   benchmarked: boolean;
   synthetic: boolean;
+  /** Stamped at finalize by the subgraph (mirror.ts) — true when the payer had a
+   *  cluster for the window the settlement landed in. Optional because an older
+   *  index answer may predate the field; absent reads as false, never as true. */
+  human?: boolean;
 }
 
 /** The seller directory, grouped out of raw settlements.
@@ -309,18 +340,19 @@ export interface TapeSettlement {
 export function sellersFromSettlements(rows: TapeSettlement[]): (TapeSeller & { vw_slippage_bp: number | null })[] {
   const acc = new Map<
     string,
-    { vol: number; bmVol: number; weighted: number; n: number; payers: Set<string>; synth: number }
+    { vol: number; bmVol: number; weighted: number; n: number; payers: Set<string>; synth: number; human: number }
   >();
   for (const r of rows ?? []) {
     const id = r?.seller?.id;
     if (!id) continue;
     const amount = Number(r.amount) || 0;
     const e =
-      acc.get(id) ?? { vol: 0, bmVol: 0, weighted: 0, n: 0, payers: new Set<string>(), synth: 0 };
+      acc.get(id) ?? { vol: 0, bmVol: 0, weighted: 0, n: 0, payers: new Set<string>(), synth: 0, human: 0 };
     e.vol += amount;
     e.n += 1;
     if (r.payer?.id) e.payers.add(r.payer.id);
     if (r.synthetic) e.synth += amount;
+    if (r.human) e.human += amount;
     if (r.benchmarked && r.slippageBp !== null && r.slippageBp !== undefined) {
       e.bmVol += amount;
       e.weighted += amount * Number(r.slippageBp);
@@ -339,6 +371,7 @@ export function sellersFromSettlements(rows: TapeSettlement[]): (TapeSeller & { 
     // reduction — hence not bpFromWeighted.
     vw_slippage_bp: e.bmVol > 0 ? e.weighted / e.bmVol : null,
     syntheticShare: e.vol > 0 ? e.synth / e.vol : null,
+    humanShare: e.vol > 0 ? e.human / e.vol : null,
   }));
 }
 
