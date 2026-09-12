@@ -206,6 +206,33 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         {humansTruncated ? "+" : ""}
       </span>,
     );
+  } else if (humans && humans.staleWindow !== null) {
+    /* THE THIRD STATE, which used to render as nothing at all.
+
+       A cluster id is minted per rotation window, so every resolution expires
+       after seven days. When the window rolls, no cluster matches, `n` is 0, and
+       the branch above simply does not fire — so the human layer vanished from
+       the dateline and no surface said why. That is an absence standing in for
+       an operator action, which is the one substitution this whole feature
+       exists to refuse.
+
+       Gold, not teal: this is the same "something has stopped" register the
+       keeper chip uses when its heartbeat goes quiet, and no breathing dot,
+       because a pulse over a stale count is worse than no pulse at all. */
+    const behind = humans.window - humans.staleWindow;
+    parts.push(
+      <span
+        key="humans-stale"
+        className="chip chip-gold"
+        title={
+          plain
+            ? `The list of who is a real person was last worked out ${behind} week(s) ago and needs redoing. It is not that nobody is verified.`
+            : `Resolutions are from window ${humans.staleWindow}; the current rotation window is ${humans.window}. Re-run resolve_humans.py — this is a stale resolver, not an empty tape.`
+        }
+      >
+        <Ed x="human count out of date" p="the people count is out of date" />
+      </span>,
+    );
   }
 
   return (

@@ -166,3 +166,58 @@ test("a cluster with no wallet rows is resolved but not trading", () => {
   assert.equal(got.n, 1);
   assert.equal(got.traded, 0);
 });
+
+/* The three states `n === 0` used to collapse into one silence.
+
+   A cluster id is minted per rotation window, so a resolution EXPIRES after
+   seven days. Before `staleWindow`, the window rolling made every human surface
+   render nothing — identical to a tape on which nobody had ever been verified.
+   It is not a wrong number, which is why nothing caught it: it is an absence
+   where an operator action belongs.
+
+   Measured on 2026-09-12: the 2957 -> 2958 roll did exactly this in production.
+
+   These tests exercise the FAILURE shape — resolve in N, read in N+1 — because
+   a suite that only ever asks about the window its rows are in is the suite that
+   let this through, and mine was. */
+
+test("a resolution from last window reports as stale, not as nobody", () => {
+  const rows = [row("0xaaa", 2958, true, 3), row("0xbbb", 2958, true, 1)];
+  const got = countHumans(rows, 2959)!; // the window has rolled
+  assert.equal(got.n, 0, "no cluster is valid in the new window");
+  assert.equal(got.staleWindow, 2958, "but the tape plainly has resolutions, one window back");
+});
+
+test("a current resolution is never reported as stale", () => {
+  const got = countHumans([row("0xaaa", 2958), row("0xbbb", 2957)], 2958)!;
+  assert.equal(got.n, 1);
+  assert.equal(got.staleWindow, null, "something matched, so the resolver is current");
+});
+
+test("a tape with no resolutions at all is not 'stale'", () => {
+  // The genuine "nobody has ever been verified" case. Telling an operator to
+  // re-run the resolver here would send them after work that does not exist.
+  const got = countHumans([], 2958)!;
+  assert.equal(got.n, 0);
+  assert.equal(got.staleWindow, null);
+});
+
+test("staleWindow names the NEWEST stale window, not the oldest", () => {
+  // Several windows of history: the operator needs the most recent one, because
+  // that is the one that says how far behind the resolver actually is.
+  const got = countHumans([row("0xaaa", 2950), row("0xbbb", 2957), row("0xccc", 2955)], 2959)!;
+  assert.equal(got.n, 0);
+  assert.equal(got.staleWindow, 2957);
+});
+
+test("a FUTURE window is not stale", () => {
+  // Clock skew, or reading a window the chain has not reached. "Ahead" is not
+  // "behind", and telling an operator to re-resolve would be wrong advice.
+  const got = countHumans([row("0xaaa", 2960)], 2959)!;
+  assert.equal(got.n, 0);
+  assert.equal(got.staleWindow, null);
+});
+
+test("an unread tape stays null rather than claiming staleness", () => {
+  assert.equal(countHumans(null, 2959), null);
+});

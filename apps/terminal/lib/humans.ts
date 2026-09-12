@@ -73,6 +73,21 @@ export interface HumanCount {
   /** Wallets those humans are resolved to — always >= n, and the fleet story. */
   wallets: number;
   window: number;
+  /** The newest window clusters WERE resolved in, when none match the one asked for.
+   *
+   *  THE THIRD STATE. `n === 0` otherwise means two different things at once:
+   *  nobody has ever been verified, and the resolver is a rotation window behind.
+   *  The first is a fact about the world; the second is an operator action, and
+   *  collapsing them renders the human layer as silence with nothing saying why.
+   *
+   *  null when rows matched the asked window, and null when there are no rows at
+   *  all — so `n === 0 && staleWindow !== null` is exactly "these resolutions
+   *  belong to an earlier window".
+   *
+   *  This file already drew the null-vs-zero distinction one field up ("an unread
+   *  tape is null, never zero") and then collapsed a different pair of distinct
+   *  facts immediately below it. Knowing the principle did not make it apply twice. */
+  staleWindow: number | null;
 }
 
 /** The rotation window a timestamp falls in.
@@ -105,8 +120,15 @@ export function countHumans(
   let sandbox = 0;
   let wallets = 0;
   let traded = 0;
+  //  The newest window any row carries, tracked while we are already walking them
+  //  so the third state costs no second pass.
+  let newestSeen: number | null = null;
   for (const row of rows) {
-    if (Number(row.window) !== window) continue;
+    const rowWindow = Number(row.window);
+    if (Number.isFinite(rowWindow) && (newestSeen === null || rowWindow > newestSeen)) {
+      newestSeen = rowWindow;
+    }
+    if (rowWindow !== window) continue;
     const id = String(row.id).toLowerCase();
     if (seen.has(id)) continue;
     seen.add(id);
@@ -119,9 +141,12 @@ export function countHumans(
     if ((row.wallets ?? []).some((w) => (Number(w.settlementCount) || 0) > 0)) traded += 1;
   }
   const n = seen.size;
+  //  Only meaningful when nothing matched: if any row was in this window the
+  //  resolver is current, and an older window alongside it is just history.
+  const staleWindow = n === 0 && newestSeen !== null && newestSeen < window ? newestSeen : null;
   // allSandbox is false on an empty count: "every one of nobody is simulated"
   // is not a claim worth making, and the caveat it drives would read as one.
-  return { n, traded, sandbox, allSandbox: n > 0 && sandbox === n, wallets, window };
+  return { n, traded, sandbox, allSandbox: n > 0 && sandbox === n, wallets, window, staleWindow };
 }
 
 /** `GET /humanid/info`, as the press describes itself.

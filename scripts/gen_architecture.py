@@ -357,7 +357,7 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1590, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1642, 510, 180, "TESTS · 566 py + 156 forge + 123 terminal + 13 agent",
+    card("h_tests", 2260, 1642, 510, 180, "TESTS · 566 py + 156 forge + 129 terminal + 13 agent",
          ["4 CI jobs: python · contracts · agent · terminal", "anvil-gated on-chain integration · eval gate",
           "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
           "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
@@ -379,7 +379,7 @@ def build() -> None:
           "real x402 settled via Circle Gateway · durable receipts",
           "attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP",
           "100% Foundry invariants passing",
-          "566 py · 156 forge · 123 terminal · 13 agent — green"], INK, body_size=12)
+          "566 py · 156 forge · 129 terminal · 13 agent — green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
