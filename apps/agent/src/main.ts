@@ -54,11 +54,19 @@ export async function runAgent(cfg: AgentConfig, deps: RunDeps): Promise<Payment
      this same `FetchLike`, so one wrap covers the whole loop and no future call
      site can forget. With no AGENT_PRIVATE_KEY, `withCard` returns the fetch
      unchanged and the agent is served anonymously, exactly as before. */
+  /* AGENT_HUMAN_CLUSTER is OPT-IN. Set it to the cluster id HumanIdMirror records
+     for this wallet in the CURRENT window and the card reaches the human tier — a
+     budget denominated in people, shared with every other wallet of the same
+     person. Set it wrong, or let the window roll under it, and every request is a
+     401 that stops this loop: the gate checks claims, it does not record them.
+     Unset means claim nothing, which is today's behaviour exactly. */
+  const claimed = (process.env.AGENT_HUMAN_CLUSTER ?? "").trim();
   const fetchImpl = withCard(deps.fetchImpl ?? fetch, {
     privateKey: (process.env.AGENT_PRIVATE_KEY ?? "").trim() as `0x${string}`,
     chainId: ARC_CHAIN_ID,
     role: "taker",
     name: "acr-buyer-agent",
+    ...(claimed ? { humanCluster: claimed as `0x${string}` } : {}),
   });
 
   let targets: string[];

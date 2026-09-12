@@ -61,6 +61,12 @@ export interface CardOptions {
   name?: string;
   role?: "maker" | "taker" | "poster" | "owner" | "reader";
   ttlSeconds?: number;
+  /** The human cluster this agent CLAIMS, as 32 bytes of hex. Leave unset to
+   *  claim nothing. The gate verifies a claim against `HumanIdMirror.clusterOf` on
+   *  chain and refuses a card whose claim it cannot confirm — a 401, not a
+   *  downgrade — so a wrong value stops the buying loop rather than quietly
+   *  demoting it. Opt-in for exactly that reason. */
+  humanCluster?: `0x${string}`;
 }
 
 /** Mint, sign and encode one card. Returns the base64 header value.
@@ -81,9 +87,10 @@ export async function mintCardHeader(opts: CardOptions): Promise<string> {
     role: opts.role ?? "taker",
     audience: opts.audience ?? "acr-index-api",
     scopeHash: ZERO32,
-    // No human claimed. A claim the chain cannot confirm is a 401 rather than a
-    // downgrade, so an agent that is not resolved must claim nothing.
-    humanCluster: ZERO32,
+    // Claim a human only when told to. A claim the chain cannot confirm is a 401
+    // rather than a downgrade, so an agent that is not resolved must claim
+    // nothing — and `withCard` never invents one.
+    humanCluster: opts.humanCluster ?? ZERO32,
     issuedAt: BigInt(issuedAt),
     expiresAt: BigInt(expiresAt),
   };

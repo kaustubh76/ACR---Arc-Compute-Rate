@@ -840,14 +840,24 @@ def provenance() -> dict:
     }
 
 
+# EVERY PAID ROUTE READS THE CARD, and reads it BEFORE the payment. The buyer agent
+# has presented one on every request since fd2e3b9, and for a day these six routes —
+# the only ones it actually buys from — never looked: the card was verified on the
+# free reads and decorative on the paid ones, so a human claim could not reach the
+# human tier where money moved. Dependency order is the safety: a forged card is a
+# 401 before require_payment runs, so nobody is charged for a refused request.
 @app.get("/prints")
-def prints(_: PaymentReceipt = Depends(require_payment)) -> dict:
+def prints(
+    agent: VerifiedAgent | None = Depends(optional_agent),
+    _: PaymentReceipt = Depends(require_payment),
+) -> dict:
     return {**store.snapshot(), "provenance": provenance()}
 
 
 @app.get("/prints/{index_id}")
 def print_one(
     index_id: str = Depends(require_known_index),
+    agent: VerifiedAgent | None = Depends(optional_agent),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
     store.ensure()
@@ -869,6 +879,7 @@ def print_one(
 @app.get("/curve/{index_id}")
 def curve(
     index_id: str = Depends(require_known_index),
+    agent: VerifiedAgent | None = Depends(optional_agent),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
     return {"index_id": index_id, "curve": store.curve(index_id), "provenance": provenance()}
@@ -877,6 +888,7 @@ def curve(
 @app.get("/vol/{index_id}")
 def vol(
     index_id: str = Depends(require_known_index),
+    agent: VerifiedAgent | None = Depends(optional_agent),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
     return {"index_id": index_id, "annualized_vol": store.vol(index_id),
@@ -886,6 +898,7 @@ def vol(
 @app.get("/seller-scores/{index_id}")
 def seller_scores(
     index_id: str = Depends(require_known_index),
+    agent: VerifiedAgent | None = Depends(optional_agent),
     _: PaymentReceipt = Depends(require_payment),
 ) -> dict:
     return {"index_id": index_id, "sellers": store.seller_scores(index_id),
@@ -1237,6 +1250,7 @@ def fleet_listings(
 @app.get("/compute/{label}")
 def compute(
     label: str = Depends(require_known_seller),
+    agent: VerifiedAgent | None = Depends(optional_agent),
     receipt: PaymentReceipt = Depends(require_payment),
 ) -> dict:
     """A fleet seller's metered endpoint — the thing that produces a priced tape.

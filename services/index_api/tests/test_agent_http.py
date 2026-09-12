@@ -384,3 +384,43 @@ def test_mode_off_is_not_counted_as_an_inspection(human_gate, _screen):
     screen = _screen(NullScreen())
     assert _carded_post().status_code == 200
     assert screen.screened == 0
+
+
+# --- the paid routes read the card, and read it before the payment -------------
+
+
+PAID = ("/prints", "/prints/ACR-INF", "/curve/ACR-INF", "/vol/ACR-INF", "/seller-scores/ACR-INF")
+
+
+@pytest.mark.parametrize("path", PAID)
+def test_a_forged_card_is_refused_before_any_payment_is_taken(path, human_gate, monkeypatch):
+    """For a day the buyer agent sent a card on every purchase and the six paid routes
+    never read it — the only routes it actually buys from. Now they do, and the ORDER
+    is the safety: the card dependency runs before `require_payment`, so a bad card is
+    a 401 before money can move. Pinned by asserting the facilitator is never asked."""
+    from index_api import x402
+
+    asked: list[str] = []
+    real = x402.require_payment
+
+    async def _spy(*a, **k):
+        asked.append(path)
+        return await real(*a, **k)
+
+    monkeypatch.setattr(x402, "require_payment", _spy)
+    r = client.get(path, headers={"AGENT-CARD": _header("w1", audience="someone-else")})
+    assert r.status_code == 401
+    assert asked == [], "the payment gate must not run for a card the agent gate refused"
+
+
+def test_a_good_card_on_a_paid_route_is_counted(human_gate):
+    """The counter `human_tier_granted` read 0 in production after a human-claiming
+    buyer bought twice, because the paid routes ignored the card. With the card read,
+    a 402 challenge is still a 402 — but the gate has seen and counted the caller."""
+    from index_api.agentgate import get_gate
+
+    gate = get_gate()
+    before = gate.human_verified
+    r = client.get("/prints", headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
+    assert r.status_code == 402, "no payment was sent, so the gate must still ask for one"
+    assert gate.human_verified == before + 1, "the human claim must be verified on a paid route"

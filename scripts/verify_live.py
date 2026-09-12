@@ -675,6 +675,68 @@ def verify_agent() -> None:
               warn_only=True)
 
 
+def verify_humans() -> None:
+    """Who is one person — the mirror, the current window, and the rotation fuse.
+
+    MODULE W HAD NO LIVE ASSERTION AT ALL. Its tests are strong; nothing ever asked
+    the deployment whether a human was resolved right now. And "right now" is the
+    whole difficulty: cluster ids are keccak(nullifier, salt, WINDOW) and rotate
+    every seven days, so on the first second of a new window every human reads as
+    unresolved — a silent `n: 0` that looks exactly like nobody ever traded. The
+    Terminal's chip now says "out of date"; this says it where a cron can fail.
+
+    Two very different facts, graded differently:
+      - a salt that does not match its commitment is OUR configuration, and it
+        derives cluster ids that match nothing — a hard failure.
+      - a window with no resolutions is an operator chore that is due, so it
+        warns, and the warning carries the command that clears it.
+    """
+    from acr_oracle_client.humanid import current_window
+
+    print("\nhumans — who is one person, and whether that is still current")
+    window = current_window()
+
+    status, info = get(f"{API}/humanid/info")
+    info = info or {}
+    check(status == 200 and bool(info.get("backend")),
+          f"/humanid/info -> {status} backend={info.get('backend')} sandbox={info.get('sandbox')}")
+    salt = info.get("salt_matches_commitment")
+    # None is "nothing to compare against" and is not a failure; False is the one
+    # misconfiguration that makes every surface read "no humans" while every call
+    # succeeds — which is why it is the only hard check in this pillar.
+    check(salt is not False,
+          "salt matches its on-chain commitment" if salt else
+          ("SALT MISMATCH: every cluster id derives to nothing the tape wrote"
+           if salt is False else "salt: nothing to compare against (mirror not configured)"),
+          warn_only=salt is None)
+
+    status, body = post(f"{API}/graph/query", {"operation": "humans", "variables": {"first": 50}})
+    clusters = (((body or {}).get("data") or {}).get("humanClusters")) or []
+    in_window = [c for c in clusters if str(c.get("window")) == str(window)]
+    wallets = sum(len(c.get("payers") or c.get("wallets") or []) for c in in_window)
+    check(
+        bool(in_window),
+        f"window {window}: {len(in_window)} human(s), {wallets} wallet(s) resolved"
+        if in_window else
+        f"window {window} has NO resolutions — run `make resolve-humans ARGS=--commit` "
+        f"(ids rotate weekly; the last window's are expired, not wrong)",
+        warn_only=True,
+    )
+
+    # The Terminal's own reading of the same fact, so the chip a judge sees and the
+    # line a cron prints cannot quietly disagree.
+    status, env = get(f"{TERMINAL}/api/humanid")
+    humans = ((env or {}).get("data") or {}).get("humans") or {}
+    if humans:
+        check(int(humans.get("traded") or 0) > 0,
+              f"terminal: {humans.get('n')} human(s), {humans.get('traded')} traded, "
+              f"{humans.get('wallets')} wallet(s), window {humans.get('window')}",
+              warn_only=True)
+    else:
+        check(False, f"terminal /api/humanid -> {status}: no human count (press cold, or tape dark)",
+              warn_only=True)
+
+
 def verify_desk(live_series: dict | None) -> None:
     print("\npublic desk — a reader trading from their own wallet")
     addr = "0x95DE70736E21e70DF921Fb3ab91dD56750965b59"  # a real past desk wallet
@@ -1027,6 +1089,7 @@ def main() -> None:
     section(verify_seller)
     section(verify_x402)
     section(verify_agent)
+    section(verify_humans)
     section(verify_desk, live)
     section(verify_hedger, s)
     section(verify_terminal, live)

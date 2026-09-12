@@ -131,3 +131,15 @@ test("a key that cannot sign does not take the buying loop down", async () => {
   assert.equal(res.status, 200);
   assert.ok(called, "the request must still go out, just without a card");
 });
+
+test("a human claim is carried only when asked for", async () => {
+  /* The gate treats a claim it cannot confirm as a 401, not a downgrade, so the
+     default MUST be to claim nothing — an agent that is not resolved and still
+     claims would stop its own loop. */
+  const CLUSTER = `0x${"ab".repeat(32)}` as const;
+  const bare = decode(await mintCardHeader({ privateKey: KEY, chainId: CHAIN }));
+  assert.equal(bare.card.human_cluster, ZERO32, "no claim by default");
+  const claimed = decode(await mintCardHeader({ privateKey: KEY, chainId: CHAIN, humanCluster: CLUSTER }));
+  assert.equal(claimed.card.human_cluster, CLUSTER);
+  assert.notEqual(bare.signature, claimed.signature, "the claim is inside the signature, not beside it");
+});
