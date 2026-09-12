@@ -69,6 +69,11 @@ class _Mirror:
     def configured(self) -> bool:
         return self._configured
 
+    def readable(self) -> bool:
+        """What the gate actually asks: `cluster_of` is a view, so a read
+        credential is the requirement and a write credential is not."""
+        return self._configured
+
     def cluster_of(self, wallet: str, window: int):  # noqa: ARG002 - see the docstring
         hexed = self._by_wallet.get(wallet.lower())
         return bytes.fromhex(hexed[2:]) if hexed else None

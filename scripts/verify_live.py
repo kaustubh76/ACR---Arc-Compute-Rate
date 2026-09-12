@@ -143,13 +143,18 @@ def _card_headers() -> dict[str, str]:
     other than a test client. A card minted here exercises the full path: EIP-712
     over a 3-field domain, base64 in a header, signature recovered server-side.
 
-    Silent when `ACR_READER_PRIVATE_KEY` is unset. Anonymous is a working state,
-    and a verification script that refused to run without a credential would make
-    the credential a prerequisite for checking anything at all. Cached for the
-    process: one card comfortably outlives a single verification run, and re-
-    minting per request would spend more time signing than asking.
+    Anonymous is a working state — a verification script that refused to run
+    without a credential would make the credential a prerequisite for checking
+    anything at all. But it is a state that must be SAID, which is the bug this
+    docstring used to describe as a feature: the `signer is None` branch returned
+    an empty dict, printed nothing, and let every later check pass while proving
+    nothing about the gate. Only an exception was visible. `_CARD_NOTE` now carries
+    what happened so `verify_agent` can turn it into a visible `!` or `✗`.
+
+    Cached for the process: one card comfortably outlives a single verification
+    run, and re-minting per request would spend more time signing than asking.
     """
-    global _CARD_HEADER
+    global _CARD_HEADER, _CARD_NOTE
     if _CARD_HEADER is not None:
         return _CARD_HEADER
     _CARD_HEADER = {}
@@ -160,24 +165,33 @@ def _card_headers() -> dict[str, str]:
 
         settings = get_settings()
         signer = build_role_signer("reader", settings)
-        if signer is not None:
-            card = mint(
-                signer.address,
-                name="acr-verify-live",
-                role="reader",
-                audience=settings.agent_audience or "acr-index-api",
-                ttl_s=300,
-            )
-            sig = sign_card(card, signer, int(settings.arc_chain_id))
-            _CARD_HEADER = {"AGENT-CARD": encode_header(card, sig)}
-    except Exception as exc:  # noqa: BLE001 - a missing card must not stop the checks
-        print(f"  (no agent card: {type(exc).__name__}: {exc})")
+        if signer is None:
+            _CARD_NOTE = "no ACR_READER_PRIVATE_KEY — every probe below is anonymous"
+            return _CARD_HEADER
+        card = mint(
+            signer.address,
+            name="acr-verify-live",
+            role="reader",
+            audience=settings.agent_audience or "acr-index-api",
+            ttl_s=300,
+        )
+        sig = sign_card(card, signer, int(settings.arc_chain_id))
+        _CARD_HEADER = {"AGENT-CARD": encode_header(card, sig)}
+        _CARD_NOTE = f"minted for {signer.address[:6]}…{signer.address[-4:]}"
+    except Exception as exc:  # noqa: BLE001 - a broken card must not stop the checks
+        # A key that cannot sign is a DIFFERENT fact from no key at all, and it is
+        # the one that means something is wrong rather than merely unconfigured.
+        _CARD_NOTE = f"FAILED to mint: {type(exc).__name__}: {exc}"
     return _CARD_HEADER
 
 
 #: Minted once per process by `_card_headers`. None means "not attempted yet";
 #: an empty dict means "attempted and there is no key", which is not an error.
 _CARD_HEADER: dict[str, str] | None = None
+#: What happened when we tried. Read by `verify_agent`, which is the only reason
+#: the outcome is recorded rather than discarded — a credential that can vanish
+#: without comment makes every check downstream of it decorative.
+_CARD_NOTE: str = "not attempted"
 
 
 def get(url: str) -> tuple[int, dict | None]:
@@ -586,6 +600,81 @@ def verify_x402() -> None:
         check(status == 200, f"{path} -> {status} (ungated)")
 
 
+def verify_agent() -> None:
+    """The agent gate, the card we present, and the screen on agent traffic.
+
+    THE REASON THIS PILLAR EXISTS: `get()` and `post()` have been splatting an
+    AGENT-CARD into every request since `fd2e3b9`, and nothing asserted the service
+    ever READ it. A card that silently failed to mint, or a gate that silently
+    stopped verifying, would have left every line above still green — the card was
+    decoration with a signature on it.
+
+    404 is a WARNING rather than a failure while the branch is unmerged, per this
+    file's own rule: fail on our code, warn on what somebody else has yet to
+    deploy. Once `/agent/info` answers, every check below is load-bearing.
+    """
+    print("\nagent — who is calling, and what screens what they send")
+
+    # What happened to OUR credential, said out loud. An anonymous run is allowed;
+    # an anonymous run nobody mentioned is how this pillar's absence hid.
+    carded = bool(_card_headers())
+    check(carded, f"agent card: {_CARD_NOTE}", warn_only=not _CARD_NOTE.startswith("FAILED"))
+
+    status, info = get(f"{API}/agent/info")
+    if status == 404:
+        check(False, "/agent/info -> 404 (the gate is not deployed yet)", warn_only=True)
+        return
+    info = info or {}
+    check(status == 200 and bool(info.get("audience")),
+          f"/agent/info -> {status} audience={info.get('audience')}")
+    tiers = info.get("tiers") or []
+    check(len(tiers) == 3, f"three tiers offered: {', '.join(tiers) or 'none'}")
+    # Reported rather than asserted true: a read-only deployment that cannot reach
+    # the mirror is a legitimate state, and one worth seeing.
+    check(True, f"human tier verifiable here: {info.get('human_binding_verifiable')}",
+          warn_only=not info.get("human_binding_verifiable"))
+
+    status, ch = get(f"{API}/agent/challenge")
+    ch = ch or {}
+    check(status == 200 and bool(ch.get("domain") or ch.get("scheme")),
+          f"/agent/challenge -> {status} (how to mint one, without reading our source)")
+
+    # THE ASSERTION THIS PILLAR IS FOR. Anonymous without a card, carded or human
+    # with one — read back from the service, so the card is proved to be read and
+    # not merely sent.
+    status, who = get(f"{API}/agent/whoami")
+    who = who or {}
+    tier = who.get("tier")
+    if carded:
+        check(status == 200 and tier in ("carded", "human"),
+              f"/agent/whoami with our card -> {tier}")
+        if who.get("human_note"):
+            check(True, f"human claim: {who['human_note']}", warn_only=True)
+    else:
+        check(status == 200 and tier == "anonymous",
+              f"/agent/whoami with no card -> {tier}")
+
+    status, armor = get(f"{API}/armor/info")
+    armor = armor or {}
+    backend = armor.get("backend")
+    check(status == 200 and bool(backend), f"/armor/info -> {status} backend={backend}")
+    # `local` is the offline six-substring floor. It is a working state and it is
+    # NOT Model Armor, so it warns rather than passes silently — the whole point of
+    # reporting the backend is that these two look identical from outside.
+    check(backend == "gcp",
+          f"screen backend: {backend}"
+          + (" (offline floor, not Model Armor)" if backend == "local" else ""),
+          warn_only=backend != "gcp")
+    applies = armor.get("applies_to") or []
+    check(bool(applies), f"screened routes: {', '.join(applies) or 'NONE — the screen is inert'}")
+    if backend == "gcp":
+        # Only meaningful against a real backend: the floor counts inspections too,
+        # and a climbing counter there would prove nothing about Google.
+        check(int(armor.get("screened") or 0) > 0,
+              f"inspections performed: {armor.get('screened')} (blocked {armor.get('blocked')})",
+              warn_only=True)
+
+
 def verify_desk(live_series: dict | None) -> None:
     print("\npublic desk — a reader trading from their own wallet")
     addr = "0x95DE70736E21e70DF921Fb3ab91dD56750965b59"  # a real past desk wallet
@@ -925,6 +1014,7 @@ def main() -> None:
     section(verify_tape, s)
     section(verify_seller)
     section(verify_x402)
+    section(verify_agent)
     section(verify_desk, live)
     section(verify_hedger, s)
     section(verify_terminal, live)

@@ -51,6 +51,7 @@ const SECTION_TITLE: Record<string, React.ReactNode> = {
   venue: <Ed x="The venue" p="The trading desk" />,
   tape: <Ed x="The tape" p="Where the numbers come from" />,
   gate: <Ed x="The paid gate" p="The paywall" />,
+  agent: <Ed x="The agent gate" p="Which robot is calling, and what filters it" />,
   hedger: <Ed x="The hedger" p="The robot that trades for us" />,
   funding: <Ed x="Wallet runway" p="Money left in our wallets" />,
 };

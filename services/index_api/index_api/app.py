@@ -1095,6 +1095,12 @@ def agent_whoami(
         "ttl_s": agent.card.ttl_s,
         "scope_hash": agent.card.scope_hash,
         "scope_enforced": False,
+        # WHAT the limit is keyed on, without saying what the key IS. The ident is
+        # still withheld — echoing it invites clients to depend on its shape — but
+        # whether your budget is shared with the rest of your fleet or is yours
+        # alone is the single most useful thing a carded caller can be told, and it
+        # is the whole claim of the human tier.
+        "ident_kind": "human-cluster" if agent.cluster else "agent-key",
         "claimed_human": agent.card.claims_human,
         "human_note": agent.human_note,
     }

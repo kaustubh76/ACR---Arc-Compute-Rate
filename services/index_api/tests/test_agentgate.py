@@ -41,6 +41,11 @@ class _Mirror:
     def configured(self) -> bool:
         return self._configured
 
+    def readable(self) -> bool:
+        # The gate asks this one, because verifying a claim is a view call. The
+        # stub's single flag means "usable at all", so both answer from it.
+        return self._configured
+
     def cluster_of(self, wallet: str, window: int):
         if self._raises is not None:
             raise self._raises

@@ -180,3 +180,70 @@ def test_an_unauthorized_signer_is_caught_before_anything_is_signed():
     # …and a valid key the contract has never heard of is not.
     stranger = _client(address, key="0x" + "11" * 32)
     assert stranger.signer_authorized() is False
+
+
+# --- reading must not require a write credential ------------------------------
+
+
+def test_a_read_needs_an_address_and_a_write_needs_a_key():
+    """`readable()` and `configured()` are different questions.
+
+    While every view gated on `configured()`, `cluster_of` returned None whenever no
+    WRITE key was present — and None there means "this wallet belongs to no human".
+    A missing credential was therefore indistinguishable from an unresolved wallet,
+    so a read-only deployment reported nobody as verified while every call succeeded.
+    Found by a demo, not by a test, which is why this one exists.
+    """
+    from acr_core.config import ACRSettings
+    from acr_oracle_client.humanid import HumanIdMirrorClient
+
+    s = ACRSettings(_env_file=None)
+    addr = "0x" + "11" * 20
+
+    reader = HumanIdMirrorClient(mirror_address=addr, signer=None, settings=s)
+    assert reader.readable() is True, "an address is enough to call a view"
+    assert reader.configured() is False, "but not enough to sign a transaction"
+
+    nowhere = HumanIdMirrorClient(mirror_address=None, signer=None, settings=s)
+    assert nowhere.readable() is False
+    assert nowhere.configured() is False
+
+
+def test_the_gate_verifies_a_claim_against_a_mirror_it_can_only_read():
+    """The consumer side, asserted as BEHAVIOUR rather than as source text.
+
+    A mirror that is readable and not writable must still get its claim checked.
+    The first version of this test grepped `_check_human` for "configured()" and
+    failed on a COMMENT that mentioned it — a test of prose, which would have gone
+    green the moment someone reworded the explanation and red without a bug.
+    """
+    from acr_core.config import ACRSettings
+    from index_api.agentgate import AgentGate
+
+    CLUSTER = "0x" + "ab" * 32
+
+    class ReadOnlyMirror:
+        """Exactly the deployment this fix is for: an address, no key."""
+
+        def readable(self) -> bool:
+            return True
+
+        def configured(self) -> bool:
+            return False
+
+        def cluster_of(self, wallet: str, window: int):  # noqa: ARG002
+            return bytes.fromhex(CLUSTER[2:])
+
+    s = ACRSettings(_env_file=None, agent_audience="acr-index-api")
+    gate = AgentGate(settings=s, mirror=ReadOnlyMirror())
+
+    from acr_oracle_client.agentcard import mint
+    from acr_oracle_client.signer import LocalKeySigner
+
+    signer = LocalKeySigner("0x" + "22" * 32)
+    card = mint(signer.address, name="n", role="reader",
+                audience="acr-index-api", ttl_s=300, human_cluster=CLUSTER)
+    cluster, note = gate._check_human(card)
+
+    assert cluster == CLUSTER, "a readable mirror must confirm the claim"
+    assert note == "", f"no excuse expected, got {note!r}"

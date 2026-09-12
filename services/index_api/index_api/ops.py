@@ -445,6 +445,61 @@ def _funding(rec: Recorder) -> None:
         )
 
 
+def _agent(rec: Recorder) -> None:
+    """The agent gate and the screen in front of it.
+
+    SEPARATE FROM `_gate` ON PURPOSE. That one answers "who takes the money" and
+    says nothing about who is CALLING or what inspects what they send — two
+    different gates that an operator has to be able to tell apart. For a while the
+    console reported the payment gate and left the agent gate and the screen
+    entirely invisible, which is how a screen with no call sites went unnoticed.
+
+    The screen's backend is the load-bearing line. `armor.py`'s own docstring says
+    a screen that fell back to its offline floor and a screen inspecting nothing
+    look identical from outside, so `local` is reported as a floor rather than
+    passed over in silence.
+    """
+    from .agentgate import get_gate
+    from .armor import get_screen, screen_is_live
+
+    gate = get_gate()
+    info = gate.info()
+    rec.check(True, f"audience: {info['audience']}",
+              detail="cards addressed elsewhere are refused; this is what replaces "
+                     "verifyingContract in a domain that names no contract")
+
+    verifiable = bool(info.get("human_binding_verifiable"))
+    rec.check(
+        verifiable,
+        f"human tier: {'verifiable' if verifiable else 'UNVERIFIABLE'}",
+        warn_only=True,
+        detail=None if verifiable
+        else "no readable HumanIdMirror, so a human claim is declined rather than "
+             "granted — the tier is unreachable, not silently free",
+    )
+    rec.check(True, f"cards verified: {info['cards_verified']} "
+                    f"(human tier granted {info['human_tier_granted']})")
+
+    screen = get_screen()
+    live = screen_is_live(screen)
+    backend = screen.backend
+    rec.check(
+        live,
+        f"screen backend: {backend}",
+        warn_only=True,
+        detail=None if live
+        else ("offline pattern floor — six substrings, not Model Armor"
+              if backend == "local"
+              else "screening is switched off by configuration"),
+    )
+    # The counter that could only ever read zero while nothing called the screen.
+    # Reported rather than asserted: a quiet service legitimately has none.
+    counts = screen.info()
+    rec.check(True, f"inspections: {counts['screened']} ({counts['blocked']} blocked)",
+              detail="carded callers on POST /graph/query, both directions"
+              if live else None)
+
+
 SECTIONS = [
     ("oracle", "The oracle", _oracle),
     ("press", "The press", _press),
@@ -453,6 +508,7 @@ SECTIONS = [
     ("venue", "The venue", _venue),
     ("tape", "The tape", _tape),
     ("gate", "The paid gate", _gate),
+    ("agent", "The agent gate", _agent),
     ("hedger", "The hedger", _hedger),
     ("funding", "Wallet runway", _funding),
 ]

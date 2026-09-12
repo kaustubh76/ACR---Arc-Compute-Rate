@@ -199,7 +199,26 @@ class HumanIdMirrorClient:
         self._w3 = None
 
     def configured(self) -> bool:
+        """Able to WRITE — an address and a signer. What the resolver needs."""
         return bool(self.mirror_address and self.signer)
+
+    def readable(self) -> bool:
+        """Able to READ. An address is enough, because `cluster_of` is a view.
+
+        SEPARATE FROM `configured()` BECAUSE A READER MUST NOT NEED A KEY. The
+        gate verifies human claims by calling `cluster_of` and never writes, so
+        gating it on `configured()` made the human tier unreachable on exactly the
+        deployment that should have it — production, which has no business holding
+        a key that can write to this mirror. Asking for one to answer a view call
+        is how a security boundary gets widened for no reason.
+
+        An unreachable RPC is not covered here and must not be: `cluster_of`
+        raises, and the caller reports the claim as unverifiable. Folding
+        connectivity into this predicate would turn a transient outage into
+        "the mirror is not configured", which sends an operator to fix the wrong
+        thing.
+        """
+        return bool(self.mirror_address)
 
     def _connect(self):
         if self._w3 is not None:
@@ -277,13 +296,21 @@ class HumanIdMirrorClient:
         and every call would revert for a reason that looks nothing like the
         cause.
         """
-        if not self.configured() or self._connect() is None:
+        if not self.readable() or self._connect() is None:
             return None
         return int(self._contract().functions.currentWindow().call())
 
     def cluster_of(self, wallet: str, window: int) -> bytes | None:
-        """What the chain already records for this wallet in this window."""
-        if not self.configured() or self._connect() is None:
+        """What the chain already records for this wallet in this window.
+
+        GATED ON `readable()`, AND THE DIFFERENCE IS NOT COSMETIC. While this asked
+        `configured()` it returned None whenever no WRITE key was present — and None
+        here means "this wallet belongs to no human", so a missing credential was
+        indistinguishable from an unresolved wallet. Every surface downstream would
+        have reported nobody as verified while every call succeeded: the same silent
+        zero that `salt_matches` returning False exists to make loud.
+        """
+        if not self.readable() or self._connect() is None:
             return None
         from web3 import Web3
 
@@ -300,7 +327,7 @@ class HumanIdMirrorClient:
         would enroll everybody into clusters the API will never look up, and
         every surface would read "no humans" while every transaction succeeded.
         """
-        if not self.configured() or self._connect() is None:
+        if not self.readable() or self._connect() is None:
             return None
         deployed = bytes(self._contract().functions.SALT_COMMITMENT().call())
         return deployed == salt_commitment(salt)

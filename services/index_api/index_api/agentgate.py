@@ -229,12 +229,12 @@ class AgentGate:
         false claim from a stale resolution.
         """
         mirror = self.mirror()
-        # `HumanIdMirrorClient.configured()` requires a SIGNER as well as an
-        # address, because the class both reads and writes. The gate only reads,
-        # so a read-only deployment cannot verify claims — stated here rather
-        # than worked around by keeping a second copy of the clusterOf call,
-        # which is the cross-file duplication that CHAIN_KEYS exists to catch.
-        if not mirror.configured():
+        # `readable()`, NOT `configured()`. The latter also demands a signer,
+        # because `HumanIdMirrorClient` both reads and writes — and this gate only
+        # ever calls `cluster_of`, a view. Gating a read on a write credential put
+        # the human tier out of reach on the one deployment that should have it:
+        # production, which has no reason to hold a key that can write this mirror.
+        if not mirror.readable():
             return None, "the human-id mirror is not configured, so the claim could not be checked"
 
         window = current_window()
@@ -318,7 +318,8 @@ class AgentGate:
             # Whether the human tier is REACHABLE here. A gate that cannot check
             # claims and one that is granting the tier freely look identical from
             # outside, which is why this is reported rather than described.
-            "human_binding_verifiable": mirror.configured(),
+            # Whether a claim CAN be checked here — a read, so `readable()`.
+            "human_binding_verifiable": mirror.readable(),
             "rotation_window": current_window(),
             "cards_verified": self.verified,
             "human_tier_granted": self.human_verified,

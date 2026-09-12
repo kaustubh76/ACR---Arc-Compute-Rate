@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -312,6 +312,22 @@ pipeline:
 
 demo:
 	uv run python scripts/run_demo.py
+
+# The agent card, the gate and the Model Armor screen, executed against a
+# read-only API this target spawns itself. Real GCP: the injection in act 9 goes
+# to the live template and comes back refused by name.
+demo-agent:
+	uv run python scripts/demo_agent.py
+
+# The whole ladder, one exit code. SEPARATE RECIPE LINES, never `&&`: a chained
+# target waits on a process that may never exit and silently skips everything
+# after it, which is how `make deck && make pitch` spent a week not rendering the
+# pitch. Each leg prints its own verdict and make stops on the first failure.
+demo-full:
+	uv run python scripts/run_demo.py
+	uv run python scripts/demo_agent.py
+	uv run python scripts/verify_claims.py
+	uv run python scripts/verify_live.py
 
 eval:
 	uv run python scripts/eval.py --hours 12
