@@ -401,10 +401,6 @@ def _funding(rec: Recorder) -> None:
     from .onchain import get_futures
 
     s = get_settings()
-    fut = get_futures()
-    if not fut.configured:
-        rec.unknown("wallet balances", "no venue configured")
-        return
     try:
         from web3 import Web3
 
@@ -413,6 +409,46 @@ def _funding(rec: Recorder) -> None:
         rec.unknown("wallet balances", f"no RPC: {str(exc)[:60]}")
         return
     from acr_oracle_client import build_role_signer
+
+    from .desk import PRESS_BURN_USDC_PER_DAY, PRESS_CRITICAL_FLOOR_USDC
+
+    # THE PRESS WALLET FIRST, AND BEFORE THE VENUE GATE. It signs every write the
+    # service makes — both oracle generations' prints, receipt mirroring, the
+    # keeper's heartbeat — so it matters on a deployment with no venue at all, and
+    # this section used to not look at it. On 2026-09-12 it ran 0.897 -> 0.006
+    # USDC in seven hours; mirroring failed, the next hourly print would have, and
+    # the one surface an operator opens said nothing because the wallet was absent
+    # from it. The floor is a HARD check, unlike the venue roles below: those
+    # failing means a roll is late, this failing means everything stops.
+    try:
+        sg = build_role_signer("poster", s)
+        paddr = getattr(sg, "address", "") if sg else ""
+    except Exception as exc:  # noqa: BLE001
+        paddr = ""
+        rec.unknown("press wallet", f"signer unavailable: {str(exc)[:60]}")
+    if paddr:
+        try:
+            pbal = float(w3.from_wei(w3.eth.get_balance(w3.to_checksum_address(paddr)), "ether"))
+        except Exception as exc:  # noqa: BLE001
+            rec.unknown("press wallet balance", str(exc)[:60])
+        else:
+            days = pbal / PRESS_BURN_USDC_PER_DAY if PRESS_BURN_USDC_PER_DAY > 0 else float("inf")
+            rec.check(
+                pbal >= PRESS_CRITICAL_FLOOR_USDC,
+                f"press: {pbal:.3f} USDC",
+                detail=(
+                    f"BELOW the {PRESS_CRITICAL_FLOOR_USDC:.1f} USDC critical floor — prints, "
+                    "mirroring and the heartbeat all stop when this reaches zero"
+                    if pbal < PRESS_CRITICAL_FLOOR_USDC
+                    else f"~{days:.0f} days at the assumed {PRESS_BURN_USDC_PER_DAY}/day; real "
+                         "burn scales with mirrored receipts (2026-09-12 ran ~3/day)"
+                ),
+            )
+
+    fut = get_futures()
+    if not fut.configured:
+        rec.unknown("venue wallet balances", "no venue configured")
+        return
 
     # Resolve each role through the SAME plumbing the keeper signs with, not a
     # separately-configured address. A second source of truth for "which wallet

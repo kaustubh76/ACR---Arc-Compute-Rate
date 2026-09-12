@@ -855,6 +855,7 @@ def verify_funding(w3, settings) -> None:
         FAUCET_RESERVE_USDC,
         FAUCET_USDC,
         PRESS_BURN_USDC_PER_DAY,
+        PRESS_CRITICAL_FLOOR_USDC,
     )
 
     print("\nfunding — the runway under all of it")
@@ -887,10 +888,21 @@ def verify_funding(w3, settings) -> None:
     for label, addr, burn in wallets:
         bal = _rpc_retry(w3.eth.get_balance, w3.to_checksum_address(addr)) / 1e18
         days = bal / burn if burn > 0 else float("inf")
+        # The runway line stays a WARNING and now says what it is: an estimate at
+        # an assumed constant. Real burn scales with mirrored settlements — two
+        # transactions per receipt — and on 2026-09-12 ran ~7x this figure.
         check(
             days >= MIN_RUNWAY_DAYS,
-            f"{label}: {bal:.3f} USDC = {days:.0f} days at {burn}/day",
+            f"{label}: {bal:.3f} USDC = {days:.0f} days at the assumed {burn}/day "
+            "(real burn scales with mirroring; 2026-09-12 measured ~3/day)",
             warn_only=True,
+        )
+        # The floor FAILS. This is the one funding check that is about our code
+        # continuing to run at all rather than about somebody's budget.
+        check(
+            bal >= PRESS_CRITICAL_FLOOR_USDC,
+            f"{label} above the {PRESS_CRITICAL_FLOOR_USDC:.1f} USDC critical floor "
+            f"({bal:.3f}) — below it every on-chain write stops, prints included",
         )
         # The faucet and the press share this wallet, so say plainly how many
         # readers can still be onboarded before the floor bites.

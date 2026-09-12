@@ -77,3 +77,11 @@ def test_addresses_are_lowercased_so_a_checksummed_paste_still_matches(monkeypat
 def test_an_unset_subgraph_says_so_rather_than_returning_empty_data():
     out = graph_proxy.run("meta")
     assert out["available"] is False and "unset" in out["reason"]
+
+
+def test_the_tape_read_carries_the_human_stamp():
+    """`Settlement.human` is the field the whole human-depth component rests on, and
+    the public tape read selected every row field EXCEPT it. A reader of the proxy
+    saw `None`, and `None` is how a gate that should have read `true` reported
+    `false` on 2026-09-12. Pinned so it cannot fall out again."""
+    assert " human " in graph_proxy.OPERATIONS["settlements"].replace("\n", " ")

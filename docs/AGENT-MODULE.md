@@ -1,7 +1,7 @@
 # Module A — the agent card, and a quota denominated in people
 
-*Measured on `feat/agent-card-gateway` at `45c64e6`, 2026-09-12: 661 pytest (0 skipped),
-ruff clean, `verify_claims.py` green, CI 6/6 (run `34681436811`).*
+*Measured on `feat/agent-card-gateway` at `797e498`, 2026-09-12: 663 pytest (0 skipped),
+ruff clean, `verify_claims.py` green, CI 6/6 (run `34692572389`); deployed as `main`.*
 
 Companion to `WORLD-MODULE.md`. That document designs the human layer; this one spends it.
 Module A is three things that compose: a **screen** on agent-to-agent traffic, a signed **card**
@@ -121,11 +121,16 @@ the human tier, says which of the two happened, and **never upgrades on the stre
 nobody verified**. `/agent/info` reports `human_binding_verifiable` for exactly this reason: a
 gate that cannot check claims and a gate handing out the tier freely look identical from outside.
 
-One wrinkle worth naming: `HumanIdMirrorClient.configured()` requires a signer as well as an
-address, because that class both reads and writes. The gate only reads — so a read-only deployment
-reports claims as unverifiable. That is stated rather than worked around by keeping a second,
-read-only copy of the `clusterOf` call — one chain read with two implementations is a drift
-that no test would catch until the two disagreed in production.
+One wrinkle, found by running the demo rather than by reading the code.
+`HumanIdMirrorClient.configured()` requires a signer as well as an address, because that class
+both reads and writes — and every *view* on it, `cluster_of` included, gated on `configured()`.
+So with no write key present `cluster_of` returned `None`, and `None` there means "this wallet
+belongs to no human": a missing credential was indistinguishable from an unresolved wallet, and a
+read-only deployment would have reported nobody as verified while every call succeeded. The gate
+now asks `readable()` — an address is enough for a view — and so do the three view methods;
+`isSigner` and `record` keep `configured()` because they genuinely need the key. The human tier is
+reachable on a deployment that holds no mirror-writing key, which is the deployment that should
+have it.
 
 ## 3 · Three tiers, and only one of them is scarce
 
@@ -231,7 +236,7 @@ container — ADC is a development convenience, not a deployment credential.
 uv run pytest packages/acr_oracle_client/tests/test_agentcard.py \
               services/index_api/tests/test_agentgate.py \
               services/index_api/tests/test_armor.py -q      # 25 + 19 + 18
-uv run pytest -p no:cacheprovider                            # 661, 0 skipped
+uv run pytest -p no:cacheprovider                            # 663, 0 skipped
 uv run ruff check packages services scripts redteam
 uv run python scripts/verify_claims.py
 curl -s "$ACR_API/agent/challenge" | jq .                    # how to mint one
@@ -258,15 +263,25 @@ resolution and is handled there too.
 
 ## 8 · What stays unfinished, deliberately
 
-- **Nothing here is deployed.** Measured 2026-09-12 against `acr-api-1fto.onrender.com`: both
-  `/armor/info` and `/agent/info` return **404**, because this branch is unmerged — so production
-  does not merely lack `ACR_ARMOR_*` and `ACR_AGENT_*`, it does not carry the code. The ordering is
-  deliberate: turning on a fail-closed screen in front of a live API is an operator decision with a
-  blast radius, not a side effect of a merge.
+- **Deployed, and Model Armor is live in production** (2026-09-12, `main` = `797e498`, Render
+  image `2026-09-12-1617`). `/armor/info` on `acr-api-1fto.onrender.com` reports `backend: gcp`,
+  `live: true`, `asia-south1/EthOnline_Project`; the service-account key rides as a Render secret
+  file, since `data/` is in `.dockerignore`. `ACR_ARMOR_MODE` is `auto`, not `gcp`: with all four
+  variables set it picks Model Armor, and a misconfiguration shows as a *stated* floor on
+  `/armor/info` and `/ops` rather than as a 503 on carded reads. `scripts/demo_agent.py` ran all
+  ten acts against the deployed host; Google refused the injection by name over the public
+  internet. `ACR_ARMOR_MODE=local` plus a redeploy is the rollback.
 
   ```bash
-  curl -s https://acr-api-1fto.onrender.com/armor/info   # {"detail":"Not Found"} until deployed
+  curl -s https://acr-api-1fto.onrender.com/armor/info | jq '.backend, .live, .screened'
   ```
+- **Human-attributed volume is real, and four settlements are permanently missing.** The four demo
+  wallets were funded and settled 48 purchases across all six sellers on 2026-09-12; **44** are on
+  the tape stamped `human: true`, and `/rating` reports `human_share` ≈ 0.22 where it read 0.0.
+  The other four hit `ReceiptMirror`'s `backdated for payer` guard: the press wallet ran out of
+  gas mid-run, later receipts mirrored before earlier ones, and the contract's per-payer
+  monotonic rule — the guard that stops a keeper withholding a receipt until the next print moves
+  in its favour — refused them. That is the contract working, at the cost of four rows.
 - **Malicious-URI and SDP filters are NOT SET** on the template. Malicious URI is the one I would
   enable next: a reply carrying a hostile link is exactly the "replies contain no malicious data"
   requirement, and responsible-AI filters will not catch it.

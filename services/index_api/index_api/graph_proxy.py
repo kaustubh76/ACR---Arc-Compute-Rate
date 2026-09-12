@@ -40,7 +40,7 @@ OPERATIONS: dict[str, str] = {
         settlements(orderBy: settledAt, orderDirection: desc, first: $first) {
           id index payer { id } seller { id } amount quantity unitPrice
           benchmarked unbenchmarkedReason slippageBp arrivalValue arrivalAgeSeconds
-          staleArrival synthetic settledAt mirrorLagSeconds
+          staleArrival synthetic human settledAt mirrorLagSeconds
         }
       }
     """,

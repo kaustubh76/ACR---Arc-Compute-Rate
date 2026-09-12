@@ -37,7 +37,22 @@ FAUCET_USDC = 0.5
 FAUCET_GLOBAL_CAP = 25
 #: What the press costs to run, measured rather than guessed: three prints an
 #: hour at ~0.0057 USDC of Arc gas each = 0.0171 per cycle, 0.410 per day.
+#:
+#: STALE AS A CEILING, kept as the floor of the estimate. That measurement
+#: predates oracle v2 (six prints an hour now, not three) and the keeper's
+#: mirroring, which costs two transactions per settled receipt and scales with
+#: volume. 2026-09-12 measured ~3.0 USDC/day — seven times this — on a day the
+#: tape was refilled. It still sizes the faucet reserve below, so it is not
+#: raised casually; the thing that actually protects the wallet is the hard
+#: floor beneath it.
 PRESS_BURN_USDC_PER_DAY = float(os.environ.get("ACR_PRESS_BURN_PER_DAY", "0.41"))
+#: The balance below which the press wallet is about to stop signing EVERYTHING —
+#: both oracle generations' prints, receipt mirroring, the keeper's heartbeat.
+#: Checked as a HARD failure by verify_live and /ops, because on 2026-09-12 this
+#: wallet ran 0.897 -> 0.006 USDC in seven hours while a warn-only runway line
+#: printed into a cron log nobody reads. Defined once, here, so the two places
+#: that watch it cannot disagree about where "critical" is.
+PRESS_CRITICAL_FLOOR_USDC = float(os.environ.get("ACR_PRESS_CRITICAL_USDC", "1.0"))
 #: How many days of posting the faucet must never eat into.
 PRESS_RUNWAY_DAYS = float(os.environ.get("ACR_PRESS_RUNWAY_DAYS", "14"))
 
