@@ -213,6 +213,27 @@ def _detail(body: dict | None) -> str:
 # --- the acts ----------------------------------------------------------------
 
 
+def preflight(base: str) -> bool:
+    """Is this deployment even carrying the gate?
+
+    WITHOUT THIS THE DEMO LIES ABOUT ITS OWN FAILURE. Run against a host that
+    predates Module A, every act reported `tier None` — twenty lines that read as
+    "the gate is broken" when the truth is "these routes do not exist here". A
+    diagnostic that misnames its own cause sends the reader to the wrong file,
+    which is the failure this whole module keeps being about.
+    """
+    status, _ = _req(f"{base}/agent/info")
+    if status == 404:
+        print(f"\n✗ {base} does not carry the agent gate (/agent/info -> 404).")
+        print("  Module A is unmerged, so the deployed image predates these routes.")
+        print("  Run without DEMO_AGENT_API to spawn a local API that has them.")
+        return False
+    if status != 200:
+        print(f"\n✗ /agent/info -> {status}: the gate is deployed but not answering")
+        return False
+    return True
+
+
 def run(base: str) -> None:
     import hashlib
 
@@ -342,6 +363,8 @@ def main() -> int:
     print("ACR · the agent card, the gate, and the screen — executed")
     base, proc = spawn_api()
     try:
+        if not preflight(base):
+            return 1
         run(base)
     finally:
         if proc is not None:
