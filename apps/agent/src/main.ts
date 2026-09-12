@@ -15,7 +15,7 @@ if (!globalThis.crypto) (globalThis as unknown as { crypto: Crypto }).crypto = w
 
 import { AgentConfig, parseArgs } from "./config.js";
 import { fetchCatalog, maxAdvertisedPrice, pickResources } from "./catalog.js";
-import { withCard } from "./card.js";
+import { CARD_HEADER, mintCardHeader, withCard } from "./card.js";
 import { DevPayer, FetchLike, GatewayPayer, Payer, PaymentResult, priceFromChallenge } from "./payer.js";
 import { printReceipt, printSummary, summarize } from "./receipts.js";
 
@@ -152,7 +152,21 @@ async function buildPayer(cfg: AgentConfig): Promise<Payer> {
         "live mode needs AGENT_PRIVATE_KEY in the env (a funded EOA — see docs/agent-runbook.md)",
       );
     }
-    return GatewayPayer.create(normalizePrivateKey(key));
+    // The card rides on the SETTLEMENT, not only on the discovery probes. Until
+    // this, `withCard` wrapped the loop's fetch while the SDK paid through its own —
+    // so a human-claiming buyer reached the human tier on the 402 and was anonymous
+    // on the request that actually moved money. Same mint, same opt-in claim.
+    const claimed = (process.env.AGENT_HUMAN_CLUSTER ?? "").trim();
+    const normalized = normalizePrivateKey(key);
+    return GatewayPayer.create(normalized, async () => ({
+      [CARD_HEADER]: await mintCardHeader({
+        privateKey: normalized,
+        chainId: ARC_CHAIN_ID,
+        role: "taker",
+        name: "acr-buyer-agent",
+        ...(claimed ? { humanCluster: claimed as `0x${string}` } : {}),
+      }),
+    }));
   }
   // A throwaway payer id per run; the DevFacilitator only checks the format.
   const suffix = `${process.pid}-${Date.now() % 1_000_000}`;

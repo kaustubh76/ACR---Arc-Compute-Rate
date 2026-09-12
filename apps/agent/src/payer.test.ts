@@ -116,3 +116,36 @@ test("runAgent refuses to start when the advertised price exceeds the cap", asyn
   );
   assert.equal(stub.count(), 0); // no money moved
 });
+
+test("the live payer puts the agent card on the request that moves money", async () => {
+  /* `withCard` wraps the loop's fetch, but the SDK pays through its own — so for a
+     day a human-claiming buyer reached the human tier on the 402 probe and was
+     anonymous on the settlement. The SDK's pay() takes options.headers and spreads
+     them into the paid retry; this pins that we hand it the card. */
+  const { GatewayPayer } = await import("./payer.js");
+  const seen: Array<Record<string, string> | undefined> = [];
+  const client = {
+    async pay(_url: string, options?: { headers?: Record<string, string> }) {
+      seen.push(options?.headers);
+      return { data: {}, formattedAmount: "0.0001", transaction: "tx-1", status: 200 };
+    },
+  };
+  const payer = GatewayPayer.withClient("0xabc", client, async () => ({ "AGENT-CARD": "card-1" }));
+  const out = await payer.pay("https://example.test/prints");
+  assert.equal(out.status, 200);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]?.["AGENT-CARD"], "card-1", "the settlement request must carry the card");
+});
+
+test("the live payer sends no card when none is configured", async () => {
+  const { GatewayPayer } = await import("./payer.js");
+  const seen: Array<Record<string, string> | undefined> = [];
+  const client = {
+    async pay(_url: string, options?: { headers?: Record<string, string> }) {
+      seen.push(options?.headers);
+      return { data: {}, formattedAmount: "0.0001", transaction: "tx-2", status: 200 };
+    },
+  };
+  await GatewayPayer.withClient("0xabc", client).pay("https://example.test/prints");
+  assert.deepEqual(seen[0], {}, "no key, no card — anonymous is a working state");
+});

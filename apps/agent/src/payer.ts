@@ -74,30 +74,55 @@ export class DevPayer implements Payer {
   }
 }
 
+/** The slice of the SDK's GatewayClient this payer uses. Named so a test can hand
+ *  in a stub without the SDK, and so the header option is part of the contract. */
+export interface PayingClient {
+  pay(url: string, options?: { headers?: Record<string, string> }): Promise<{
+    data: unknown; formattedAmount: string; transaction: string; status: number;
+  }>;
+}
+
 export class GatewayPayer implements Payer {
   readonly label = "circle gateway (x402, arcTestnet)";
 
   private constructor(
     readonly address: string,
-    private readonly client: {
-      pay(url: string): Promise<{
-        data: unknown; formattedAmount: string; transaction: string; status: number;
-      }>;
-    },
+    private readonly client: PayingClient,
+    /** Extra headers for EVERY request the SDK makes — the 402 probe AND the paid
+     *  retry. This is how the agent card rides on the settlement itself. The SDK
+     *  spreads `options.headers` into both requests before adding
+     *  `Payment-Signature`, which the previous reading of it ("owns the whole
+     *  request, cannot merge a header") got wrong: the option is there. Minted per
+     *  call, so a card never outlives its own request. */
+    private readonly extraHeaders: () => Promise<Record<string, string>> = async () => ({}),
   ) {}
 
+  /** Test seam: a payer over a stubbed client, so the header path can be asserted
+   *  without the SDK or a network. The only other way in is `create`, which
+   *  imports the real SDK and would make the test depend on it being installed. */
+  static withClient(
+    address: string,
+    client: PayingClient,
+    extraHeaders?: () => Promise<Record<string, string>>,
+  ): GatewayPayer {
+    return new GatewayPayer(address, client, extraHeaders);
+  }
+
   /** Lazy-import the SDK so dev mode never loads (or needs) it. */
-  static async create(privateKey: string): Promise<GatewayPayer> {
+  static async create(
+    privateKey: string,
+    extraHeaders?: () => Promise<Record<string, string>>,
+  ): Promise<GatewayPayer> {
     const { GatewayClient } = await import("@circle-fin/x402-batching/client");
     const client = new GatewayClient({
       chain: "arcTestnet",
       privateKey: privateKey as `0x${string}`,
     });
-    return new GatewayPayer(client.account.address, client);
+    return new GatewayPayer(client.account.address, client, extraHeaders);
   }
 
   async pay(url: string): Promise<PaymentResult> {
-    const res = await this.client.pay(url);
+    const res = await this.client.pay(url, { headers: await this.extraHeaders() });
     return {
       status: res.status,
       data: res.data,
