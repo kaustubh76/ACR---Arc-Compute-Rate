@@ -23,12 +23,15 @@ import os
 import threading
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from . import graph_proxy, ratelimit
+from .agentgate import VerifiedAgent, get_gate, optional_agent
+from .armor import ModelArmorScreen, get_screen
 from .fleet import fleet_summary, listing_for
 from .humanid import (
     AgentKitVerifier,
@@ -578,6 +581,9 @@ def root() -> dict:
         # Not in `gated_endpoints`: that list means "x402 paid", and this one is
         # gated by a human proof rather than by money.
         "human": {"tca": "/tca/human", "info": "/humanid/info"},
+        # Gated by neither money nor a proof: this one describes the screen that
+        # sits on agent-to-agent traffic in both directions.
+        "armor": {"info": "/armor/info"},
     }
 
 
@@ -868,7 +874,11 @@ def seller_scores(
 
 
 @app.post("/graph/query")
-def graph_proxy_query(body: dict, request: Request) -> dict:
+def graph_proxy_query(
+    body: dict,
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """Read the tape through ACR's Studio key, over an allowlist of operations.
 
     Not a passthrough: the query text lives server-side and the caller names an
@@ -880,13 +890,23 @@ def graph_proxy_query(body: dict, request: Request) -> dict:
     browser reader arrives through the same edge proxy, so an IP-keyed limit is
     a global limit wearing a per-person costume (see ratelimit.py).
     """
-    # NO caller-supplied identity. `ratelimit.py` is explicit that an identity
-    # must never be derived from something the caller controls — a body field
-    # rotated per request would mint a fresh per-person bucket every time and
-    # leave only the loose host ceiling, which is the exact hole the two-bucket
-    # split exists to close. This endpoint is unauthenticated, so the host
-    # ceiling is the honest limit until it carries a real identity.
-    ratelimit.check(request, "graph")
+    # AN IDENTITY AT LAST, AND WHY THIS ONE IS ALLOWED. The rule in ratelimit.py
+    # is that an identity must never be derived from something the caller
+    # controls, because a body field rotated per request mints a fresh bucket
+    # every time and leaves only the loose host ceiling. A card is caller-supplied
+    # too, so what makes it different is COST, not provenance:
+    #
+    #   anonymous  no card -> the host ceiling, which behind one proxy is global.
+    #   carded     a signed card -> per-KEY. Better, and still rotatable by anyone
+    #              willing to mint keys, because keys are free.
+    #   human      a card whose cluster the CHAIN confirms -> per-PERSON. Ten keys
+    #              belonging to one human share one bucket.
+    #
+    # Only the third tier is genuinely scarce, and it is scarce because
+    # HumanIdMirror says so rather than because we asked nicely. The card stays
+    # OPTIONAL: this is a public read, and a gate that began refusing anonymous
+    # callers would be a different endpoint than the one documented.
+    ratelimit.check(request, "graph", agent.ident if agent else None)
     return graph_proxy.run(
         str(body.get("operation") or ""), body.get("variables") or {}
     )
@@ -921,6 +941,67 @@ def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
         # discarded in silence, so the operator sees "unset" while looking at
         # the value in their own .env — worth surfacing where they will look.
         "unrecognised_env": stray_world_credentials(),
+    }
+
+
+@app.get("/agent/info")
+def agent_info() -> dict:
+    """The agent-card gate, described dynamically (ungated).
+
+    Reports `human_binding_verifiable` for the same reason `/humanid/info`
+    reports whether its salt matches its commitment: a gate that cannot check a
+    human claim and a gate that is granting the tier to anyone who asks look
+    identical from outside, and only one of them is a gate.
+    """
+    return get_gate().info()
+
+
+@app.get("/agent/challenge")
+def agent_challenge(request: Request) -> dict:
+    """Everything needed to mint a card, without reading our source.
+
+    A 200 rather than the 401 a gated route raises: this is documentation an
+    agent fetches deliberately, and answering 401 to a request for instructions
+    would be answering the wrong question.
+    """
+    # The challenge object is built by the gate so this page and a real refusal
+    # can never describe two different schemes — the drift that made the footer
+    # and /developers disagree about which contracts exist.
+    return dict(get_gate().challenge(request).detail)
+
+
+@app.get("/armor/info")
+def armor_info() -> dict:
+    """The screen on agent-to-agent traffic, described dynamically (ungated).
+
+    Reports WHICH BACKEND ANSWERED, because that is the one thing a reader cannot
+    infer. A screen that silently fell back to the offline floor and a screen
+    that is inspecting nothing look identical from outside — `/humanid/info`
+    reports whether its salt matches its commitment for the same reason.
+
+    Never reports the template's filter thresholds: those live in the Model Armor
+    template where an operator can change them without a redeploy, so echoing a
+    copy here would be a second source of truth that goes stale silently.
+    """
+    screen = get_screen()
+    s = get_settings()
+    configured = isinstance(screen, ModelArmorScreen) and screen.configured()
+    return {
+        **screen.info(),
+        "mode": s.armor_mode,
+        # The project and location, not the credentials. Location is included
+        # because it is regional and a wrong one 404s on the template, which
+        # reads like "the template does not exist".
+        "project_id": s.armor_project_id or None,
+        "location": s.armor_location or None,
+        "template": s.armor_template or None,
+        # Whether a credential FILE is present — never its contents, and never
+        # its path, which would name a location on the host.
+        "credentials_present": bool(
+            s.armor_credentials_file and Path(s.armor_credentials_file).is_file()
+        ),
+        "live": configured,
+        "directions": ["request", "reply"],
     }
 
 

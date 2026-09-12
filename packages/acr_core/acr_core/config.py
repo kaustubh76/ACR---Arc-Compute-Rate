@@ -211,6 +211,38 @@ class ACRSettings(BaseSettings):
     #: contract, which needs no configuration — address and RPC are constants).
     agentbook_mode: str = "auto"
 
+    # --- Model Armor: the screen on agent-to-agent traffic ------------------
+    #: Which screen to run: "auto" (gcp iff project+template+credentials are all
+    #: set, else local), "local" (deterministic, offline), "gcp" (force the real
+    #: one and fail closed if unconfigured), or "off" (no screening, stated
+    #: rather than silent). Mirrors `x402_mode` and `humanid_mode` so an operator
+    #: learns one vocabulary.
+    armor_mode: str = "auto"
+    armor_project_id: str = ""
+    #: Model Armor is REGIONAL and the endpoint carries the region twice, so a
+    #: wrong value here fails as a 404 on the template rather than a connection
+    #: error. No default: guessing a region is how a template that exists in
+    #: asia-south1 gets reported as absent.
+    armor_location: str = ""
+    armor_template: str = ""
+    #: A PATH to the service-account JSON, never the JSON itself. `ACRSettings`
+    #: reads `.env`, and `.env` is the file most likely to be pasted into an
+    #: issue. Model Armor is IAM-gated and rejects API keys, so this is a
+    #: service-account key or nothing — there is no key-shaped credential for it.
+    armor_credentials_file: str = ""
+    #: Seconds. A screen sits in the request path, so this is a latency budget
+    #: and not a generosity: on timeout the screen FAILS CLOSED, because a screen
+    #: that admits traffic when it cannot inspect it is not a screen.
+    armor_timeout_s: float = 10.0
+
+    # --- Agent cards: who is calling -----------------------------------------
+    #: Who cards must be addressed to. This is what stands in for
+    #: `verifyingContract` in the card's EIP-712 domain: the domain deliberately
+    #: names no contract (that is what permissionless means), so without an
+    #: audience a card minted for another ACR-domain service would be presentable
+    #: here. Never make this a wildcard.
+    agent_audience: str = "acr-index-api"
+
     #: Comma-separated allowed CORS origins for the public API (so the dashboard
     #: /any browser can query it cross-origin). "*" = allow all (the testnet-demo
     #: default; the API serves public read data + the x402 gate); set to the

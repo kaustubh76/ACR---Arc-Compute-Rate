@@ -21,6 +21,17 @@ dependencies = [
 # from the workspace root. The SDK is lazy-imported — this stays optional.
 circle = ["acr-oracle-client[circle]"]
 
+# Google Cloud Model Armor — the middleware screen for agent-to-agent traffic.
+# `google-auth` only: Model Armor is IAM-gated and rejects API keys, so what is
+# needed is a bearer token from a service account, not a client SDK. The REST
+# surface is two methods, and hand-writing them against `requests` keeps this
+# extra to one dependency instead of pulling the whole google-cloud stack.
+#
+# Optional because the screen has a local, deterministic fallback and because the
+# base image must stay deployable with no GCP credentials at all — same contract
+# as `circle` above.
+armor = ["google-auth>=2.35"]
+
 [tool.uv.sources]
 acr-core = { workspace = true }
 acr-sim = { workspace = true }
