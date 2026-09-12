@@ -135,10 +135,57 @@ def _parse(raw: bytes) -> dict | None:
         return None
 
 
+def _card_headers() -> dict[str, str]:
+    """An `AGENT-CARD` header when a reader key is configured, else nothing.
+
+    THIS SCRIPT IS AN AGENT, so it presents a card — and presenting one against
+    the LIVE service is the only way to find out that the gate works somewhere
+    other than a test client. A card minted here exercises the full path: EIP-712
+    over a 3-field domain, base64 in a header, signature recovered server-side.
+
+    Silent when `ACR_READER_PRIVATE_KEY` is unset. Anonymous is a working state,
+    and a verification script that refused to run without a credential would make
+    the credential a prerequisite for checking anything at all. Cached for the
+    process: one card comfortably outlives a single verification run, and re-
+    minting per request would spend more time signing than asking.
+    """
+    global _CARD_HEADER
+    if _CARD_HEADER is not None:
+        return _CARD_HEADER
+    _CARD_HEADER = {}
+    try:
+        from acr_core import get_settings
+        from acr_oracle_client.agentcard import encode_header, mint, sign_card
+        from acr_oracle_client.signer import build_role_signer
+
+        settings = get_settings()
+        signer = build_role_signer("reader", settings)
+        if signer is not None:
+            card = mint(
+                signer.address,
+                name="acr-verify-live",
+                role="reader",
+                audience=settings.agent_audience or "acr-index-api",
+                ttl_s=300,
+            )
+            sig = sign_card(card, signer, int(settings.arc_chain_id))
+            _CARD_HEADER = {"AGENT-CARD": encode_header(card, sig)}
+    except Exception as exc:  # noqa: BLE001 - a missing card must not stop the checks
+        print(f"  (no agent card: {type(exc).__name__}: {exc})")
+    return _CARD_HEADER
+
+
+#: Minted once per process by `_card_headers`. None means "not attempted yet";
+#: an empty dict means "attempted and there is no key", which is not an error.
+_CARD_HEADER: dict[str, str] | None = None
+
+
 def get(url: str) -> tuple[int, dict | None]:
     """HTTP GET returning (status, parsed-json-or-None). A 402 body is a real
     answer here, not an error, so read the payload either way."""
-    req = urllib.request.Request(url, headers={"User-Agent": "acr-verify-live"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "acr-verify-live", **_card_headers()}
+    )
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:  # noqa: S310
             return r.status, _parse(r.read())
@@ -152,7 +199,8 @@ def post(url: str, body: dict) -> tuple[int, dict | None]:
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "acr-verify-live"},
+        headers={"Content-Type": "application/json", "User-Agent": "acr-verify-live",
+                 **_card_headers()},
     )
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:  # noqa: S310

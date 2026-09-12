@@ -12,7 +12,7 @@
     "start": "tsx src/main.ts",
     "deposit": "tsx src/deposit.ts",
     "build": "tsc",
-    "test": "node --import tsx --test src/payer.test.ts src/catalog.test.ts",
+    "test": "node --import tsx --test src/payer.test.ts src/catalog.test.ts src/card.test.ts",
     "interop": "tsx src/interop.ts"
   },
   "dependencies": {

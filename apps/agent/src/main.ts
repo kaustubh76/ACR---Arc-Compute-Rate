@@ -15,6 +15,7 @@ if (!globalThis.crypto) (globalThis as unknown as { crypto: Crypto }).crypto = w
 
 import { AgentConfig, parseArgs } from "./config.js";
 import { fetchCatalog, maxAdvertisedPrice, pickResources } from "./catalog.js";
+import { withCard } from "./card.js";
 import { DevPayer, FetchLike, GatewayPayer, Payer, PaymentResult, priceFromChallenge } from "./payer.js";
 import { printReceipt, printSummary, summarize } from "./receipts.js";
 
@@ -40,11 +41,25 @@ export interface RunDeps {
   log?: (line: string) => void;
 }
 
+/** Arc Testnet. The card's EIP-712 domain binds to it, so a card minted for one
+ *  chain is not presentable on another. */
+const ARC_CHAIN_ID = 5042002;
+
 /** The buying loop: round-robin the targets, enforce the spend cap, collect
  * receipts. Exported (with injectable payer/fetch) so tests drive it offline. */
 export async function runAgent(cfg: AgentConfig, deps: RunDeps): Promise<PaymentResult[]> {
   const log = deps.log ?? console.log;
-  const fetchImpl = deps.fetchImpl ?? fetch;
+  /* EVERY outbound call carries the agent card, wrapped once here rather than at
+     each call site: `fetchCatalog`, `preflightPrice` and the dev payer all take
+     this same `FetchLike`, so one wrap covers the whole loop and no future call
+     site can forget. With no AGENT_PRIVATE_KEY, `withCard` returns the fetch
+     unchanged and the agent is served anonymously, exactly as before. */
+  const fetchImpl = withCard(deps.fetchImpl ?? fetch, {
+    privateKey: (process.env.AGENT_PRIVATE_KEY ?? "").trim() as `0x${string}`,
+    chainId: ARC_CHAIN_ID,
+    role: "taker",
+    name: "acr-buyer-agent",
+  });
 
   let targets: string[];
   if (cfg.discover) {

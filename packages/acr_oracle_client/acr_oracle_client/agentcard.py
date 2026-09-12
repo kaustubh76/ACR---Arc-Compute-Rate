@@ -171,11 +171,32 @@ class AgentCard:
             name=str(d.get("name") or ""),
             role=str(d.get("role") or ""),
             audience=str(d.get("audience") or ""),
-            scope_hash=str(d.get("scope_hash") or ZERO32),
-            human_cluster=str(d.get("human_cluster") or ZERO32),
+            scope_hash=_bytes32(d.get("scope_hash"), "scope_hash"),
+            human_cluster=_bytes32(d.get("human_cluster"), "human_cluster"),
             issued_at=int(d.get("issued_at") or 0),
             expires_at=int(d.get("expires_at") or 0),
         )
+
+
+def _bytes32(value, field: str) -> str:
+    """A 32-byte hex string, or a refusal naming the field.
+
+    WHY THIS IS NOT PEDANTRY. `claims_human` is `human_cluster != ZERO32`, a STRING
+    comparison — while `encode_typed_data` silently zero-pads a short hex value to
+    32 bytes. So a truncated all-zeros cluster signs identically to a real zero and
+    yet reads as "this card claims a human", sending the gate off to verify a claim
+    nobody made and answering 401 where it should have answered `carded`.
+
+    Found the hard way: a hand-wrapped copy of this module's own test vector lost a
+    few base64 characters, and the signature check passed anyway — because the
+    padding hid it. A field whose malformed form verifies is a field that must be
+    validated at the edge rather than trusted.
+    """
+    raw = ZERO32 if value in (None, "") else str(value)
+    body = raw[2:] if raw.lower().startswith("0x") else raw
+    if len(body) != 64 or any(c not in "0123456789abcdefABCDEF" for c in body):
+        raise ValueError(f"{field} must be 32 bytes of hex (0x + 64 chars), got {len(body)} chars")
+    return "0x" + body.lower()
 
 
 def mint(
@@ -227,9 +248,36 @@ def card_digest(card: AgentCard, chain_id: int) -> bytes:
 
 
 def sign_card(card: AgentCard, signer, chain_id: int) -> str:
-    """Sign with anything satisfying the `Signer` protocol — raw key or Circle
-    custody. Returns a 65-byte `0x` signature, which is what travels in a header;
-    the `(v, r, s)` triple the protocol returns is a contract-call shape."""
+    """Sign with a LOCAL key. Returns a 65-byte `0x` signature, which is what
+    travels in a header; the `(v, r, s)` triple the protocol returns is a
+    contract-call shape.
+
+    CIRCLE CUSTODY IS REFUSED, LOUDLY, AND THIS IS NOT A LIMITATION OF CARDS.
+    `signer.full_eip712_json` builds the payload Circle signs and hardcodes a
+    four-field `EIP712Domain` that includes `verifyingContract`. This domain has
+    three fields on purpose — omitting `verifyingContract` is what makes the card
+    permissionless — so a custody signer would be handed a type declaring a field
+    the domain does not carry. The digest would differ, the signature would
+    recover to the wrong address, and the gate would refuse it with "signature
+    does not match" while every local test passed: `eth_account` infers the domain
+    type from the keys actually present, so `LocalKeySigner` is immune to the bug
+    that would break custody.
+
+    Refusing here rather than fixing that function is deliberate. It signs every
+    Circle-custody message in the system — prints, attestations, both mirrors — so
+    changing how its domain type is derived risks the oracle going quiet with no
+    local error, because a bad signature is a revert on chain rather than an
+    exception here. That is a change that wants its own commit and a live posting
+    run, not a line in a card feature.
+    """
+    # Matched by name rather than by import, the idiom `/health` already uses, so
+    # this module stays free of a circular dependency on the signer backends.
+    if type(signer).__name__ == "CircleWalletSigner":
+        raise TypeError(
+            "agent cards cannot be signed by Circle custody: full_eip712_json "
+            "declares a 4-field EIP712Domain and the card domain has 3 "
+            "(no verifyingContract). Use a local key — ACR_READER_PRIVATE_KEY."
+        )
     v, r, s = signer.sign_typed_data(
         agentcard_domain(chain_id), AGENT_CARD_TYPES, card.message(), "AgentCard"
     )

@@ -86,6 +86,16 @@ DESK_BUDGETS: dict[str, tuple[int, float]] = {
     "wallet": (60, 3600.0),
     "limits": (240, 3600.0),
     "withdrawable": (240, 3600.0),
+    # The agent gate describing itself. Cheap, but `/agent/challenge` builds a
+    # scheme description per call and these three were the only public routes in
+    # the service with no limiter of any kind.
+    "agent": (240, 3600.0),
+    # The ungated agent-facing reads. A RUNAWAY GUARD, not a quota: it is reached
+    # only by a caller who presented a verified card, and it is sized so that no
+    # legitimate agent can notice it. Metering a carded caller more tightly than
+    # an anonymous one would make presenting a card a penalty, which is the
+    # opposite of what the card is for.
+    "read": (5000, 3600.0),
 }
 
 #: Per-HOST budgets — one shared proxy carries every reader, so these are sized
@@ -105,6 +115,8 @@ HOST_BUDGETS: dict[str, tuple[int, float]] = {
     "wallet": (600, 3600.0),
     "limits": (2400, 3600.0),
     "withdrawable": (2400, 3600.0),
+    "agent": (3000, 3600.0),
+    "read": (20000, 3600.0),
 }
 
 
@@ -160,13 +172,32 @@ def session_ident(user_token: str) -> str:
     return hashlib.sha256(user_token.encode("utf-8")).hexdigest()[:32]
 
 
-def check(request, endpoint: str, ident: str | None = None) -> None:
+def check(request, endpoint: str, ident: str | None = None, *, verified: bool = False) -> None:
     """Raise HTTP 429 when this caller has spent a budget for ``endpoint``.
 
     ``ident`` is who the caller is — a desk user id, a hashed session token, or a
     wallet address. Pass it whenever it is already in hand; the per-person limit
     depends on it, and without it a caller is only held to the loose host
     ceiling. Never derive it from a header a caller controls.
+
+    ``verified`` MEANS CRYPTOGRAPHICALLY PROVED, and it is the only thing that
+    relaxes the host ceiling. Without it an identity merely ADDS a second, tighter
+    constraint on top of the shared one, which made presenting a signed card
+    strictly worse than presenting nothing: the carded caller still queued behind
+    every stranger on the same IP. That is backwards, and it is the defect this
+    parameter exists to fix.
+
+    The host key is what ``verified`` stands in for. Behind one edge proxy every
+    reader shares an address, so an IP ceiling is a global ceiling (see the module
+    docstring) — and a caller who can prove who they are should be held to their
+    own budget rather than to a stranger's spending.
+
+    AN UNVERIFIED IDENT MUST NEVER SET IT. ``/desk/limits`` keys on an address out
+    of the request body; a session token is a bearer string. Those are rotatable,
+    so letting one skip the host ceiling would make the ceiling free to evade —
+    which is precisely the trap the "never derive it from a header a caller
+    controls" rule above is guarding. Only an EIP-712 signature recovered to the
+    key that signed it, or a human cluster confirmed on chain, earns this.
     """
     from fastapi import HTTPException
 
@@ -178,6 +209,10 @@ def check(request, endpoint: str, ident: str | None = None) -> None:
                 detail="you've used this part of the desk a lot in the last hour "
                 "— give it a few minutes",
             )
+        if verified:
+            # Held to their own budget, and nobody else's. The whole value of a
+            # card is that it is a better key than an IP shared by thousands.
+            return
 
     limit, window = HOST_BUDGETS.get(endpoint, (600, 3600.0))
     if not _limiter.allow(f"{endpoint}:host:{client_key(request)}", limit, window):

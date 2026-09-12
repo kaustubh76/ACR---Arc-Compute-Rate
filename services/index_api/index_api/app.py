@@ -29,9 +29,15 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from . import graph_proxy, ratelimit
-from .agentgate import VerifiedAgent, get_gate, optional_agent
-from .armor import ModelArmorScreen, get_screen
+from . import armor, graph_proxy, ratelimit
+from .agentgate import (
+    CARD_HEADER,
+    TIER_ANON,
+    VerifiedAgent,
+    get_gate,
+    optional_agent,
+)
+from .armor import SCREEN_CAP, SCREEN_CAP_REPLY, get_screen, screen_is_live
 from .fleet import fleet_summary, listing_for
 from .humanid import (
     AgentKitVerifier,
@@ -581,9 +587,22 @@ def root() -> dict:
         # Not in `gated_endpoints`: that list means "x402 paid", and this one is
         # gated by a human proof rather than by money.
         "human": {"tca": "/tca/human", "info": "/humanid/info"},
-        # Gated by neither money nor a proof: this one describes the screen that
-        # sits on agent-to-agent traffic in both directions.
-        "armor": {"info": "/armor/info"},
+        # Gated by neither money nor a proof. Says WHERE the screen applies, not
+        # merely that one exists: for as long as this key claimed the screen "sits
+        # on agent-to-agent traffic", it sat on nothing at all.
+        "armor": {
+            "info": "/armor/info",
+            "screens": "POST /graph/query, both directions, for carded callers",
+        },
+        # DISCOVERABLE, because /agent/challenge exists to tell an agent how to
+        # mint a card "without reading our source" — and it was reachable only by
+        # reading our source. A discovery endpoint nothing links to is a private
+        # endpoint with good intentions.
+        "agent": {
+            "info": "/agent/info",
+            "challenge": "/agent/challenge",
+            "whoami": "/agent/whoami",
+        },
     }
 
 
@@ -873,8 +892,33 @@ def seller_scores(
             "provenance": provenance()}
 
 
+def _meter_agent(request: Request, agent: VerifiedAgent | None) -> None:
+    """Charge a carded caller's own bucket; leave an anonymous one exactly as it was.
+
+    THE CONDITION IS THE WHOLE DESIGN, and it is measured rather than cautious.
+    `ratelimit.check` applies the HOST bucket even with no ident, so calling it
+    unconditionally would put a new global ceiling on nine previously unlimited
+    public reads — and these nine carry the Terminal's own polling. `/api/tape`
+    refreshes every 30s and fans out one `/rating/{seller}` call PER SELLER, so a
+    single reader can drive on the order of a thousand upstream calls an hour, all
+    arriving from one Vercel proxy address. Any ceiling I could pick tonight would
+    stop the desk before it stopped an abuser.
+
+    So the limiter runs where there is an identity to limit, which is also the
+    honest form of the argument: the card is what creates the identity. Metering
+    anonymous callers here is a separate decision with its own blast radius and
+    deserves its own commit and its own measurement.
+
+    `verified=True` because this ident is an EIP-712 signature recovered to the
+    key that signed it — so it is allowed to stand in for the host key, which
+    behind one proxy identifies nobody.
+    """
+    if agent is not None:
+        ratelimit.check(request, "read", agent.ident, verified=True)
+
+
 @app.post("/graph/query")
-def graph_proxy_query(
+async def graph_proxy_query(
     body: dict,
     request: Request,
     agent: VerifiedAgent | None = Depends(optional_agent),
@@ -906,15 +950,52 @@ def graph_proxy_query(
     # HumanIdMirror says so rather than because we asked nicely. The card stays
     # OPTIONAL: this is a public read, and a gate that began refusing anonymous
     # callers would be a different endpoint than the one documented.
-    ratelimit.check(request, "graph", agent.ident if agent else None)
-    return graph_proxy.run(
-        str(body.get("operation") or ""), body.get("variables") or {}
+    ratelimit.check(request, "graph", agent.ident if agent else None,
+                    verified=agent is not None)
+
+    # THE SCREEN RUNS FOR CARDED CALLERS ONLY, and the name of the module is the
+    # reason: armor.py screens "agent-to-agent traffic". A browser reader arriving
+    # through the Vercel proxy is not that, and there are roughly a thousand of
+    # those an hour — putting a fail-closed call to Google in front of them would
+    # mean one expired service-account key turns the public tape into a blank
+    # page, with /armor/info correctly reporting that the screen did its job.
+    #
+    # So the card buys two things rather than one: a bucket of your own, AND a
+    # screened reply. A caller that declines the card declines the protection.
+    # It runs AFTER the limiter on purpose — a caller sending injections should
+    # spend budget doing it, and a screen in front of an unmetered caller is a new
+    # amplifier rather than a defence.
+    if agent is not None:
+        await armor.enforce(armor.request_text(body), "request")
+
+    # Off-loop: graph_proxy.run is blocking urllib to Studio and this handler is
+    # async now so the screen can be awaited. Same idiom as the background tasks
+    # above (`asyncio.to_thread(reader.read_all)`), not a new mechanism.
+    result = await asyncio.to_thread(
+        graph_proxy.run, str(body.get("operation") or ""), body.get("variables") or {}
     )
+
+    # BOTH DIRECTIONS OR NEITHER — armor.py's opening argument, and the reply is
+    # the direction that matters here. The tape indexes strings SELLERS control
+    # (addresses, attestation URIs, unbenchmarked reasons), so a reply assembled
+    # from our own subgraph can still carry someone else's payload onward to an
+    # agent that trusts us. Screened only when there IS third-party data: an
+    # `available: False` envelope carries our own strings and nobody else's.
+    if agent is not None and result.get("available"):
+        await armor.enforce(
+            json.dumps(result.get("data"), separators=(",", ":"), sort_keys=True),
+            "reply",
+        )
+    return result
 
 
 @app.get("/graph/operations")
-def graph_operations() -> dict:
+def graph_operations(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """What the proxy will run — the tape's public read API, named."""
+    _meter_agent(request, agent)
     return {"operations": sorted(graph_proxy.OPERATIONS), "max_first": graph_proxy.MAX_FIRST}
 
 
@@ -945,7 +1026,7 @@ def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
 
 
 @app.get("/agent/info")
-def agent_info() -> dict:
+def agent_info(request: Request) -> dict:
     """The agent-card gate, described dynamically (ungated).
 
     Reports `human_binding_verifiable` for the same reason `/humanid/info`
@@ -953,6 +1034,7 @@ def agent_info() -> dict:
     human claim and a gate that is granting the tier to anyone who asks look
     identical from outside, and only one of them is a gate.
     """
+    ratelimit.check(request, "agent")
     return get_gate().info()
 
 
@@ -964,14 +1046,62 @@ def agent_challenge(request: Request) -> dict:
     agent fetches deliberately, and answering 401 to a request for instructions
     would be answering the wrong question.
     """
+    ratelimit.check(request, "agent")
     # The challenge object is built by the gate so this page and a real refusal
     # can never describe two different schemes — the drift that made the footer
     # and /developers disagree about which contracts exist.
     return dict(get_gate().challenge(request).detail)
 
 
+@app.get("/agent/whoami")
+def agent_whoami(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """What the gate made of the card you presented.
+
+    The trio is now complete: `/agent/info` says what the gate IS,
+    `/agent/challenge` says how to mint a card, and this says what happened to
+    YOURS. Without it a card author had to infer the tier from whether a rate
+    limit behaved differently, which is not an answer, and the gate had no route
+    a test could drive over real HTTP.
+
+    Reports the TIER and never the ident. The ident is a rate-limit key, and
+    echoing a key invites clients to depend on its shape; `human_note` is what a
+    caller actually needs when a claim did not reach the human tier.
+
+    `scope_enforced` is reported as FALSE because it is. `scopeHash` is a signed
+    field that `AgentGate.verify` checks against nothing — enforcing it needs a
+    per-route scope map, which is a design decision rather than a wiring one. Said
+    out loud here so it stays visible instead of becoming a field everyone assumes
+    is enforced because it is in the signature.
+    """
+    ratelimit.check(request, "agent")
+    if agent is None:
+        return {
+            "tier": TIER_ANON,
+            "carded": False,
+            "header": CARD_HEADER,
+            "challenge": "/agent/challenge",
+        }
+    return {
+        "tier": agent.tier,
+        "carded": True,
+        "agent": agent.masked,
+        "role": agent.card.role,
+        "audience": agent.card.audience,
+        "issued_at": agent.card.issued_at,
+        "expires_at": agent.card.expires_at,
+        "ttl_s": agent.card.ttl_s,
+        "scope_hash": agent.card.scope_hash,
+        "scope_enforced": False,
+        "claimed_human": agent.card.claims_human,
+        "human_note": agent.human_note,
+    }
+
+
 @app.get("/armor/info")
-def armor_info() -> dict:
+def armor_info(request: Request) -> dict:
     """The screen on agent-to-agent traffic, described dynamically (ungated).
 
     Reports WHICH BACKEND ANSWERED, because that is the one thing a reader cannot
@@ -983,9 +1113,10 @@ def armor_info() -> dict:
     template where an operator can change them without a redeploy, so echoing a
     copy here would be a second source of truth that goes stale silently.
     """
+    ratelimit.check(request, "agent")
     screen = get_screen()
     s = get_settings()
-    configured = isinstance(screen, ModelArmorScreen) and screen.configured()
+    configured = screen_is_live(screen)
     return {
         **screen.info(),
         "mode": s.armor_mode,
@@ -1002,6 +1133,11 @@ def armor_info() -> dict:
         ),
         "live": configured,
         "directions": ["request", "reply"],
+        # WHERE the screen is actually applied. Listing the directions alone said
+        # what the module can do, not what the service does with it, and those
+        # were different facts for as long as nothing called it.
+        "applies_to": ["POST /graph/query (carded callers, both directions)"],
+        "max_chars": {"request": SCREEN_CAP, "reply": SCREEN_CAP_REPLY},
     }
 
 
@@ -1029,24 +1165,39 @@ def tca_human(
 
 
 @app.get("/tca/{payer}")
-def tca(payer: str, days: int = 7) -> dict:
+def tca(
+    payer: str,
+    request: Request,
+    days: int = 7,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """What this payer's purchases cost against the benchmark they could see.
 
     Ungated like the rest of the marketplace surfaces: a benchmark nobody can
     check for free is a benchmark nobody checks.
     """
+    _meter_agent(request, agent)
     return payer_tca(payer, days=days)
 
 
 @app.get("/rating/{seller}")
-def rating(seller: str, days: int = 7) -> dict:
+def rating(
+    seller: str,
+    request: Request,
+    days: int = 7,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """Grade a seller from the same tape, with `n` and the synthetic share on
     every card so a reader can discount it without being told to."""
+    _meter_agent(request, agent)
     return seller_rating(seller, days=days)
 
 
 @app.get("/fleet")
-def fleet_listings() -> dict:
+def fleet_listings(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """The seller fleet and its price spread — ungated, like the catalog.
 
     The spread IS the point. Before the fleet, every settlement in the system
@@ -1059,6 +1210,7 @@ def fleet_listings() -> dict:
     # reroute suggestion may be built on: across classes a price gap is quality,
     # which the hedonic stage adjusts away. Publishing the comparable sets makes
     # the like-for-like pairs checkable instead of asserted.
+    _meter_agent(request, agent)
     comparable: dict[str, dict[str, list[str]]] = {}
     for listing in fleet_summary():
         comparable.setdefault(listing["index_id"], {}).setdefault(
@@ -1105,26 +1257,38 @@ def compute(
 
 
 @app.get("/marketplace/catalog")
-def marketplace_catalog(request: Request) -> dict:
+def marketplace_catalog(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """Machine-readable listings of every paid ACR resource (ungated — discovery
     is free, the data costs). Bazaar-shaped items; a buyer agent reads this,
     picks a resource, and pays via x402."""
     from .marketplace import build_catalog
 
+    _meter_agent(request, agent)
     return build_catalog(str(request.base_url))
 
 
 @app.get("/marketplace/receipts")
-def marketplace_receipts() -> dict:
+def marketplace_receipts(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """The public settlement ledger — recent x402 receipts, newest first
     (ungated; it is the marketplace's proof-of-commerce tape)."""
     from .marketplace import build_receipts
 
+    _meter_agent(request, agent)
     return build_receipts(get_facilitator())
 
 
 @app.get("/onchain/{index_id}")
-def onchain_print(index_id: str) -> dict:
+def onchain_print(
+    index_id: str,
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """The settlement-grade print read straight from ``ACROracle`` on-chain.
 
     Ungated (a public read of chain state). 503 if no oracle is configured;
@@ -1136,6 +1300,7 @@ def onchain_print(index_id: str) -> dict:
     r = reader.read(index_id)
     if r is None:
         raise HTTPException(status_code=404, detail=f"no on-chain print for {index_id}")
+    _meter_agent(request, agent)
     return {"source": "onchain", "oracle": reader.oracle_address, **r}
 
 
@@ -1156,16 +1321,24 @@ def hedger_state(fac: Facilitator = Depends(get_facilitator)) -> dict:
 
 
 @app.get("/futures")
-def futures_roster() -> dict:
+def futures_roster(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """The whole on-chain futures venue for the Terminal's live desk + trade tape:
     the venue address, per-index desks, and recent fills (newest-first). Ungated;
     empty (venue null) when no ACRFutures is configured. This is the fast endpoint
     the desk polls — the heavy /terminal/data carries only the aggregate desks."""
+    _meter_agent(request, agent)
     return get_futures().roster()
 
 
 @app.get("/futures/{index_id}")
-def futures_desk(index_id: str = Depends(require_known_index)) -> dict:
+def futures_desk(
+    request: Request,
+    index_id: str = Depends(require_known_index),
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
     """The live on-chain futures desk for an index — the maker's inventory,
     mark-to-oracle PnL, and settlement status, read from ``ACRFutures``.
 
@@ -1178,6 +1351,7 @@ def futures_desk(index_id: str = Depends(require_known_index)) -> dict:
     desk = futures.read_desk(index_id)
     if desk is None:
         raise HTTPException(status_code=404, detail=f"no futures series for {index_id}")
+    _meter_agent(request, agent)
     return {"source": "onchain", "futures": futures.futures_address, **desk}
 
 

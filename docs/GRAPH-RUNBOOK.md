@@ -34,7 +34,7 @@ make snapshot        # regenerates apps/terminal/lib/fallback.json from chain
 **Why it is first:** `apps/terminal/lib/chain.test.ts` asserts that every label
 in `demo_sellers.py` derives to an address actually filed on Arc — it reads the
 attested set out of `fallback.json`. Until this runs, the terminal CI job is red
-on that one test. The `129 terminal` figure in the docs is already correct for
+on that one test. The `136 terminal` figure in the docs is already correct for
 the post-attestation state; do not lower it.
 
 

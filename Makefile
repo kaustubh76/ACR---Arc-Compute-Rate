@@ -476,8 +476,14 @@ deck:
 	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 2150,260,1350,1720 --name chain
 	rm -f docs/assets/acr_architecture.core.png docs/assets/acr_architecture.chain.png
 	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
-	npx -y @marp-team/marp-cli --html docs/presentation.md -o docs/presentation.html
-	npx -y @marp-team/marp-cli --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
+	# --no-stdin OR THIS TARGET HANGS FOREVER WHEN RUN WITHOUT A TERMINAL. marp
+	# checks whether stdin is a TTY and, finding a pipe, waits for a document on it
+	# — so `make deck` works by hand and blocks indefinitely from a script, from CI,
+	# or from anything that redirects output. The symptom is a silent stall with one
+	# INFO line ("Currently waiting data from stdin stream"), which is easy to read
+	# as a slow render. Measured 2026-09-12: 11 minutes of nothing.
+	npx -y @marp-team/marp-cli --no-stdin --html docs/presentation.md -o docs/presentation.html
+	npx -y @marp-team/marp-cli --no-stdin --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
 
 # The short deck, from its one source: docs/pitch/deck.html is what a judge is
 # shown; index.html and the PDF are generated from it and never hand-edited.

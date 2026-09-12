@@ -270,13 +270,28 @@ def build_role_signer(
     A role with its own wallet configured should use it.
 
     Falls back to :func:`build_signer` when the role has no wallet id, so every
-    offline, anvil and pre-migration path behaves exactly as before.
+    offline, anvil and pre-migration path behaves exactly as before — with one
+    exception, ``reader``, which is documented at its branch below and returns
+    ``None`` rather than borrowing the poster's key.
     """
     from acr_core import get_settings
 
     settings = settings or get_settings()
     if private_key and not private_key.lstrip().startswith("#"):
         return LocalKeySigner(private_key)
+
+    # READER IS NOT A VENUE ROLE AND MUST NOT INHERIT ONE'S KEY. It exists only to
+    # sign agent cards, and it has no wallet because it spends nothing — but
+    # "no wallet" used to mean "fall through to build_signer", which returns the
+    # ambient ACR_POSTER_PRIVATE_KEY. That silently signed a read-only credential
+    # with the key that posts the oracle: key reuse across a trust boundary, in
+    # the direction that matters, since a leaked card reveals the signer.
+    #
+    # So it takes its own key or none. None is a working state — a caller with no
+    # reader key presents no card and is served anonymously.
+    if role == "reader":
+        key = (getattr(settings, "reader_private_key", "") or "").strip()
+        return LocalKeySigner(key) if key and not key.startswith("#") else None
 
     field = _ROLE_WALLET_FIELDS.get(role)
     wallet_id = (getattr(settings, field, "") or "").strip() if field else ""

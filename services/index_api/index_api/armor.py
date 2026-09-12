@@ -101,7 +101,11 @@ class Screen(ABC):
 
     async def _count(self, text: str, direction: str) -> Verdict:
         v = await self._verdict(text, direction)
-        self.screened += 1
+        # Counts INSPECTIONS, not calls. `NullScreen` returns `screened=False`,
+        # and counting it would make `mode="off"` report traffic nothing looked
+        # at — the counter and the verdict field disagreeing about the same fact.
+        if v.screened:
+            self.screened += 1
         if v.blocked:
             self.blocked += 1
         return v
@@ -309,6 +313,114 @@ class ModelArmorScreen(Screen):
             )
         # Neither — an unrecognised verdict. Refuse.
         raise ScreenError(f"unrecognised filterMatchState: {state or '(absent)'}")
+
+
+#: The most text either direction sends to the screen. Model Armor has its own
+#: payload ceiling, and an uncapped screen is a way for one caller to spend our
+#: quota with one large request. THE LIMIT IS REAL AND IS REPORTED: a hostile
+#: string past the cap is not inspected, so `/armor/info` publishes these numbers
+#: rather than leaving a reader to assume the whole body was read.
+#:
+#: The reply cap is larger because the two directions are not symmetric — a
+#: caller chooses how much it sends, while a tape read returns as many rows as it
+#: was asked for, and truncating the reply is the direction where a missed
+#: payload reaches an agent rather than reaching us.
+SCREEN_CAP = 4_096
+SCREEN_CAP_REPLY = 16_384
+
+
+def request_text(body: dict, cap: int = SCREEN_CAP) -> str:
+    """The caller-supplied free text in a `/graph/query` body.
+
+    `graph_proxy` is an allowlist: the operation name is matched against a fixed
+    dict and the query text is ours, so the only text a caller controls is
+    `variables`. The operation name is included anyway, so that "we screened what
+    the caller sent" is literally true rather than true of most of it.
+
+    Canonicalised with sorted keys so the same request always screens
+    identically — a screen whose verdict depends on dict ordering is a screen you
+    cannot reproduce a complaint about.
+    """
+    import json as _json
+
+    return _json.dumps(
+        {"operation": str(body.get("operation") or ""), "variables": body.get("variables") or {}},
+        separators=(",", ":"),
+        sort_keys=True,
+    )[:cap]
+
+
+async def enforce(
+    text: str,
+    direction: str,
+    *,
+    screen: Screen | None = None,
+    cap: int | None = None,
+) -> Verdict:
+    """Screen `text`, or raise the refusal that matches what actually went wrong.
+
+    THREE STATUSES, BECAUSE THREE DIFFERENT PEOPLE LOOK IN THREE PLACES:
+
+        blocked request -> 403  the caller's own input, understood and refused.
+                                400 would read as "malformed" and send them off to
+                                rewrite a query that was fine.
+        blocked reply   -> 502  the caller did nothing wrong. Something upstream
+                                came back that we will not relay onward.
+        no verdict      -> 503  WE could not inspect it, so we refuse, and it is
+                                transient. `/onchain/{index_id}` and
+                                `/futures/{index_id}` already 503 on "cannot
+                                answer", so this matches the house meaning.
+
+    The HTTP mapping lives with the screen rather than in `app.py` for the same
+    reason `AgentGate` raises its own refusal: a gate owns what its own failure
+    means. `HTTPException` is imported lazily, as `ratelimit.check` does, so this
+    module stays importable without FastAPI.
+    """
+    from fastapi import HTTPException
+
+    sc = screen or get_screen()
+    limit = cap if cap is not None else (SCREEN_CAP if direction == "request" else SCREEN_CAP_REPLY)
+    clipped = (text or "")[:limit]
+    try:
+        verdict = await (
+            sc.screen_request(clipped) if direction == "request" else sc.screen_reply(clipped)
+        )
+    except ScreenError as exc:
+        # The text is NOT echoed and NOT logged here. A screen that records what
+        # it could not inspect is the leak it was installed to prevent.
+        raise HTTPException(
+            status_code=503,
+            detail=f"the agent screen could not reach a verdict on the {direction}"
+                   " — refusing rather than passing something uninspected",
+        ) from exc
+    if verdict.blocked:
+        raise HTTPException(
+            status_code=403 if direction == "request" else 502,
+            detail={
+                "error": f"the {direction} was refused by the agent screen",
+                # WHICH filters fired, never the text that fired them.
+                "matched": list(verdict.matched),
+                "reason": verdict.reason,
+                "backend": verdict.backend,
+            },
+        )
+    return verdict
+
+
+def screen_is_live(screen: Screen | None = None) -> bool:
+    """Whether a REAL backend will answer — defined once, on purpose.
+
+    Two callers need this: `/armor/info`, to report it, and every screened route,
+    to decide whether to call out at all. Written twice it would drift, and the
+    drift has a specific shape — an info page advertising a screen the routes are
+    not applying, which is the exact defect this function was extracted to end.
+
+    `LocalScreen` returns False deliberately. It is an offline floor of six
+    substrings, and treating it as a live screen would let a deployment with no
+    GCP credentials report that agent traffic is inspected.
+    """
+    s = screen or get_screen()
+    return isinstance(s, ModelArmorScreen) and s.configured()
 
 
 _screen: Screen | None = None

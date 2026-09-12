@@ -209,3 +209,30 @@ def test_claims_human_is_false_for_the_zero_word():
     s = _signer()
     assert _card(s).claims_human is False
     assert _card(s, human_cluster="0x" + "11" * 32).claims_human is True
+
+
+def test_a_truncated_cluster_is_refused_rather_than_read_as_a_human_claim():
+    """The padding trap. `claims_human` compares STRINGS while `encode_typed_data`
+    zero-pads short hex to 32 bytes, so a truncated all-zeros cluster used to sign
+    identically to a real zero AND read as a claim — sending the gate to verify
+    something nobody asserted. Refused at the edge instead."""
+    import pytest
+    from acr_oracle_client.agentcard import AgentCard
+
+    good = AgentCard.from_json({
+        "agent": "0x" + "11" * 20, "name": "n", "role": "reader", "audience": "a",
+        "scope_hash": "0x" + "00" * 32, "human_cluster": "0x" + "00" * 32,
+        "issued_at": 1, "expires_at": 2,
+    })
+    assert good.claims_human is False
+
+    for field in ("scope_hash", "human_cluster"):
+        with pytest.raises(ValueError, match=field):
+            AgentCard.from_json({
+                "agent": "0x" + "11" * 20, "name": "n", "role": "reader", "audience": "a",
+                "scope_hash": "0x" + "00" * 32, "human_cluster": "0x" + "00" * 32,
+                "issued_at": 1, "expires_at": 2,
+                # 63 hex chars, one short. This is the exact shape that slipped
+                # through: valid-looking, all zeros, and a "claim".
+                field: "0x" + "0" * 63,
+            })

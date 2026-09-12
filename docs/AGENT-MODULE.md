@@ -1,6 +1,6 @@
 # Module A — the agent card, and a quota denominated in people
 
-*Measured on `feat/agent-card-gateway` at `45c64e6`, 2026-09-12: 628 pytest (0 skipped),
+*Measured on `feat/agent-card-gateway` at `45c64e6`, 2026-09-12: 658 pytest (0 skipped),
 ruff clean, `verify_claims.py` green, CI 6/6 (run `34681436811`).*
 
 Companion to `WORLD-MODULE.md`. That document designs the human layer; this one spends it.
@@ -139,14 +139,60 @@ human       a confirmed cluster  -> per-PERSON, and people are not free
 human-bound and the agent address otherwise. Optional because breaking the public tape read is
 not a trade worth making for a tighter quota.
 
-## 4 · The screen, and why it fails closed
+**And a verified identity is excused the host ceiling, which is what makes the tiers real.**
+`ratelimit.check` applies the host bucket *as well as* the per-identity one, so for a day a card
+bought a second constraint rather than an escape from the shared one: the carded caller still
+queued behind every stranger on the same proxy address. That is backwards. Passing
+`verified=True` now returns once a cryptographically proved identity has passed its own budget —
+and *only* a
+proved one. A desk address out of a request body or a session token must never set it, because
+those are rotatable, and the ceiling would then be free to evade.
 
-`services/index_api/index_api/armor.py` (352 lines). Google Cloud Model Armor over its REST
-surface, both directions — `:sanitizeUserPrompt` and `:sanitizeModelResponse`.
+Ten agent-facing routes carry an optional card now rather than one. Nine of them are reads that
+were previously unmetered, and they stay unmetered **for anonymous callers** — measured, not
+assumed: `/api/tape` refreshes every 30 seconds and fans out one `/rating/{seller}` call per
+seller, so a single reader drives on the order of a thousand upstream calls an hour through one
+proxy address. Any host ceiling worth picking would stop the desk before it stopped an abuser.
+The limiter therefore runs where there is an identity to limit, which is also the honest form of
+the argument: the card is what creates the identity.
+
+## 4 · The screen, where it applies, and why it fails closed
+
+`services/index_api/index_api/armor.py`. Google Cloud Model Armor over its REST surface, both
+directions — `:sanitizeUserPrompt` and `:sanitizeModelResponse`.
+
+**It applies to `POST /graph/query`, for carded callers, in both directions.** That sentence is
+the whole of section 4 and it was absent for a day: the module shipped with **zero production call
+sites**, so `/armor/info` would have reported `screened: 0` forever while three places in `app.py`
+asserted a screen "sitting on agent-to-agent traffic". The module was the easy half. A screen
+nobody calls is the same defect as an unreachable rate-limit budget, which is what Module A was
+built to fix — committed twice, one layer apart.
+
+Two scoping decisions, both deliberate:
+
+- **Carded callers only.** `armor.py` screens *agent-to-agent* traffic, and a browser reader
+  arriving through the Vercel proxy is not that. Roughly a thousand of those reach `/graph/query`
+  every hour, so screening them would mean one expired service-account key turns the public tape
+  into a blank page — with `/armor/info` correctly reporting that the screen did its job. So the
+  card buys two things rather than one: **a bucket of your own, and a screened reply.**
+- **After the limiter, not before.** A screen in front of an unmetered caller is a new amplifier.
+  A caller sending injections should spend budget doing it.
+
+Text is capped — 4 096 characters on a request, 16 384 on a reply — and `/armor/info` publishes
+both numbers, because a payload past the cap is **not inspected** and a reader should not have to
+assume otherwise.
 
 It fails **closed** on timeout, error body, unparseable shape, and unrecognised
 `filterMatchState`. The last one is the interesting case: an unparsed response is precisely where
 admitting traffic is worst, because it is the state an attacker can most plausibly induce.
+
+Three statuses, because three different people need to look in three different places:
+
+| condition | status | whose problem |
+|---|---|---|
+| the request was refused | **403** | the caller's own input, understood and declined. `400` would read as "malformed" and send them to rewrite a query that was fine |
+| the reply was refused | **502** | nobody's fault but the upstream's. The caller did nothing wrong and we will not relay what came back |
+| no verdict reached | **503** | ours. We could not inspect it, so we will not serve it — and it is transient |
 
 Verified against the live `EthOnline_Project` template in `asia-south1`: prompt injection
 `MATCH_FOUND` at `LOW_AND_ABOVE`, benign text clean in both directions. `google-auth` is an
@@ -169,6 +215,12 @@ second source of truth that goes stale silently.
 | `ACR_ARMOR_CREDENTIALS_FILE` | a **path** to a service-account JSON, never the JSON |
 | `ACR_ARMOR_TIMEOUT_S` | default 10.0 |
 
+**The production image must install the `armor` extra.** `Dockerfile`'s `UV_EXTRAS` carries
+`--extra circle --extra armor`; without the second, `google-auth` is absent, `ModelArmorScreen`
+cannot mint a bearer token, and `build_screen` falls back to the offline floor — an image
+reporting a screen it does not have, which is the exact failure `/armor/info` exists to prevent.
+Note `render.yaml` pulls a **prebuilt image**, so this needs a build and a push, not a merge.
+
 **Model Armor is IAM-gated and rejects API keys outright.** There is no key-shaped credential for
 it. And `gcloud auth application-default login` mints a *user* credential, which is worthless in a
 container — ADC is a development convenience, not a deployment credential.
@@ -179,7 +231,7 @@ container — ADC is a development convenience, not a deployment credential.
 uv run pytest packages/acr_oracle_client/tests/test_agentcard.py \
               services/index_api/tests/test_agentgate.py \
               services/index_api/tests/test_armor.py -q      # 25 + 19 + 18
-uv run pytest -p no:cacheprovider                            # 628, 0 skipped
+uv run pytest -p no:cacheprovider                            # 658, 0 skipped
 uv run ruff check packages services scripts redteam
 uv run python scripts/verify_claims.py
 curl -s "$ACR_API/agent/challenge" | jq .                    # how to mint one
@@ -221,3 +273,26 @@ resolution and is handled there too.
 - **No registry, no revocation.** A card cannot be cancelled before it expires; the 15-minute
   bound *is* the revocation window. A registry would fix that and would also make the scheme
   permissioned, which is the property being bought here.
+- **`scopeHash` is signed and enforced against nothing.** It is in the struct, it is in the
+  signature, and `AgentGate.verify` has no scope step. Enforcing it needs a per-route scope map,
+  which is a design decision rather than a wiring one. `/agent/whoami` therefore reports
+  `scope_enforced: false` out loud, so it cannot quietly become a field everyone assumes is
+  checked *because* it is signed.
+- **The MCP server does not present a card**, and it is the most natural consumer — an agent
+  calling ACR is literally what it is. `mcp/package.json` carries only the MCP SDK, so signing
+  in-process means a new dependency and a rewritten `package-lock.json`; a newer npm silently
+  rewrites that file into a form CI's older npm refuses. Not a risk worth taking on submission
+  night. The buyer agent (`apps/agent/src/card.ts`) and `scripts/verify_live.py` present cards
+  instead.
+- **The Terminal deliberately presents no card, and this one is a design choice rather than a
+  deferral.** It was the obvious candidate — viem and a key are already there. But every human
+  reader shares that one server-side process, so one card would mean one identity and therefore
+  **one rate-limit bucket for every reader at once**, recreating the global-limit-behind-a-proxy
+  problem the card exists to fix. A website's proxy is not an agent.
+- **Circle custody cannot sign cards.** `signer.full_eip712_json` hardcodes a four-field
+  `EIP712Domain` including `verifyingContract`, and this domain has three. `sign_card` refuses a
+  `CircleWalletSigner` outright rather than producing a signature that would recover to the wrong
+  address. Fixing that function is not a card change: it signs every Circle-custody message in the
+  system — prints, attestations, both mirrors — and getting the domain derivation subtly wrong
+  means the oracle goes quiet with no local error, because a bad signature is a revert on chain.
+  It wants its own commit and a live posting run.

@@ -10,6 +10,7 @@
 
 import useSWR from "swr";
 
+import type { GateData } from "./gate";
 import type { HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
 import type {
@@ -169,6 +170,24 @@ export function useHealth() {
  *  Returns the whole envelope rather than the data, because consumers need
  *  `live` to tell "the press is down" from "nobody is verified" — the one
  *  distinction this feature is required to keep. */
+/** What guards agent-to-agent traffic, read from the service itself.
+ *
+ *  Polled slowly on purpose: the audience, the tiers and which backend answered
+ *  are configuration, and the counters are evidence rather than a live market
+ *  reading. A 15s poll here would be load spent re-reading settings.
+ *
+ *  Returns the whole envelope because `live` carries the distinction that matters:
+ *  "the press is down" and "there is no screen" must not render the same, which is
+ *  the same rule `useHumanId` exists to keep. */
+export function useGate() {
+  const { data } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return data;
+}
+
 export function useHumanId() {
   const { data } = useSWR<Envelope<HumanIdData>>("/api/humanid", fetcher, {
     refreshInterval: 60_000,

@@ -92,6 +92,12 @@ class ACRSettings(BaseSettings):
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
+    #: Private key the `reader` role signs AGENT CARDS with — nothing else.
+    #: Deliberately separate from `poster_private_key`: a read-only card has no
+    #: business being signed by the key that posts the oracle, and
+    #: `build_role_signer("reader")` refuses to fall back to it. Empty → a caller
+    #: mints no card and goes anonymous, which is a working state.
+    reader_private_key: str = ""
 
     # --- Arc network (verified testnet facts) ---
     #: Arc testnet chain id. Arc makes USDC a native system contract that is

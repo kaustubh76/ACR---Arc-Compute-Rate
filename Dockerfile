@@ -18,9 +18,14 @@ COPY packages/ packages/
 COPY services/ services/
 
 # `--extra circle` pulls the Circle Developer-Controlled Wallets SDK so the oracle
-# poster can sign+relay prints under Circle custody in-cloud. Default on; build
-# with `--build-arg UV_EXTRAS=` for a lighter minimal image (no in-cloud posting).
-ARG UV_EXTRAS="--extra circle"
+# poster can sign+relay prints under Circle custody in-cloud. `--extra armor`
+# pulls google-auth, without which ModelArmorScreen cannot mint a bearer token
+# and build_screen silently falls back to the offline LocalScreen floor — the
+# image reporting a screen it does not have, which is the exact "looks identical
+# from outside" failure /armor/info exists to prevent. Default on; build with
+# `--build-arg UV_EXTRAS=` for a lighter minimal image (no in-cloud posting, no
+# Model Armor).
+ARG UV_EXTRAS="--extra circle --extra armor"
 RUN uv sync --frozen --no-dev ${UV_EXTRAS} && rm -rf /root/.cache/uv
 
 # Non-root runtime user; the sync above ran as root so site-packages are owned

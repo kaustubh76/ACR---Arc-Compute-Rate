@@ -65,6 +65,9 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "GET", path: "/onchain/{index_id}", gate: "public", family: "venue", run: `/onchain/${i0}` },
   { method: "GET", path: "/futures", gate: "public", family: "venue", run: "/futures" },
   { method: "GET", path: "/futures/{index_id}", gate: "public", family: "venue", run: `/futures/${i0}` },
+  // Missing from this register since it was written, even though it has a hook and
+  // a proxy route. Found by tests/test_endpoint_register_parity.py, not by eye.
+  { method: "GET", path: "/hedger", gate: "public", family: "venue", run: "/hedger" },
 
   { method: "GET", path: "/marketplace/catalog", gate: "public", family: "market", run: "/marketplace/catalog" },
   { method: "GET", path: "/marketplace/receipts", gate: "public", family: "market", run: "/marketplace/receipts" },
@@ -103,6 +106,12 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "GET", path: "/revenue", gate: "public", family: "ops", run: "/revenue" },
   { method: "GET", path: "/x402/info", gate: "public", family: "ops", run: "/x402/info" },
   { method: "GET", path: "/humanid/info", gate: "public", family: "ops", run: "/humanid/info" },
+  // The agent gate, described by itself — the sibling of /humanid/info. Omitting
+  // these three while listing that one was never defensible; it just went unseen.
+  { method: "GET", path: "/agent/info", gate: "public", family: "ops", run: "/agent/info" },
+  { method: "GET", path: "/agent/challenge", gate: "public", family: "ops", run: "/agent/challenge" },
+  { method: "GET", path: "/agent/whoami", gate: "public", family: "ops", run: "/agent/whoami" },
+  { method: "GET", path: "/armor/info", gate: "public", family: "ops", run: "/armor/info" },
   { method: "POST", path: "/webhooks/circle", gate: "public", family: "ops", run: null, why: "inbound" },
   { method: "GET", path: "/webhooks/recent", gate: "public", family: "ops", run: "/webhooks/recent" },
   { method: "GET", path: "/health", gate: "public", family: "ops", run: "/health" },

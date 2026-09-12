@@ -1,7 +1,8 @@
 "use client";
 
 import { useConnection } from "@/lib/useConnection";
-import { useHumanId } from "@/lib/useLive";
+import { screenState } from "@/lib/gate";
+import { useGate, useHumanId } from "@/lib/useLive";
 import { deployedContracts } from "@/lib/chain";
 import { ArcHorizon } from "./ArcHorizon";
 import { ContractRegister } from "./chain/ContractRegister";
@@ -49,6 +50,12 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
      switched to another, and the whole point of this line is that a reader does
      not have to take the README's word for what a verified human is here. */
   const info = useHumanId()?.data?.info ?? null;
+  /* And what guards the AGENT side, on the same principle. The screen's own
+     docstring says a screen that fell back to its offline floor and a screen
+     inspecting nothing look identical from outside, which is the whole argument
+     for reading this from the press instead of printing a constant. */
+  const gate = useGate()?.data ?? null;
+  const screen = screenState(gate?.armor);
   // USDC and the Gateway wallet are static constants, so `rows` is never
   // empty. A register worth opening needs at least one ACR contract in it.
   const deployed = rows.filter((r) => r.key !== "usdc" && r.key !== "gateway").length;
@@ -149,6 +156,45 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x="SALT MISMATCH: every human resolves to nothing"
                     p="setup error: nobody will be matched to their accounts"
+                  />
+                </b>
+              </>
+            )}
+          </p>
+        )}
+
+        {/* The agent line. Rendered only when the gate answers, for the same
+            reason the identity line above is: a footer asserting a screen it
+            could not read would be claiming the one thing a reader came here to
+            check. `screen === "unread"` is therefore not a state we print. */}
+        {gate?.agent && screen !== "unread" && (
+          <p className="mono muted" style={{ margin: "6px 0 0" }}>
+            <Ed x="Agent gate" p="Who counts as a robot" /> · {gate.agent.audience} ·{" "}
+            {gate.agent.cards_verified}{" "}
+            <Ed x="cards verified" p="ID cards checked" />
+            {" · "}
+            {screen === "live" ? (
+              <Ed x="Model Armor screening both directions" p="messages filtered in and out" />
+            ) : screen === "off" ? (
+              <Ed x="screen switched off" p="no message filter running" />
+            ) : (
+              /* NOT "screening". The offline floor is six substrings, and calling
+                 it a screen is the overclaim this whole line exists to retire. */
+              <Ed
+                x="offline pattern floor only, not Model Armor"
+                p="only a basic word check, not the full filter"
+              />
+            )}
+            {/* A gate that cannot check a human claim and one granting the tier to
+                anyone who asks look the same from outside. Said plainly, where an
+                operator will actually look, exactly as the salt mismatch is. */}
+            {gate.agent.human_binding_verifiable === false && (
+              <>
+                {" · "}
+                <b className="vermilion">
+                  <Ed
+                    x="human tier unverifiable: no mirror to check claims against"
+                    p="cannot confirm a real person behind any robot right now"
                   />
                 </b>
               </>

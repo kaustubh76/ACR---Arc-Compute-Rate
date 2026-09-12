@@ -17,7 +17,7 @@
 | Core product (estimator + bound + red-team) | ✅ Complete, real math, CI-gated |
 | On-chain (Oracle + Registry + x402 + webhooks) | ✅ Deployed & live on Arc testnet |
 | Dashboard (Terminal UI) | ✅ MVP-ready, 6 pages, live on Vercel |
-| Tests / CI | ✅ **628 passed** python + 156 forge + 129 node, 6-job CI green |
+| Tests / CI | ✅ **658 passed** python + 156 forge + 136 node, 6-job CI green |
 | Instrument layer (futures/MM) | ✅ **Live-traded** — three books on Arc (ACR-INF, ACR-GPU, ACR-DATA), a keeper rotating hourly fills, and readers trading from their own Circle wallets |
 | Production hardening | 🟡 Paid cloud tier, Next 15, 3 FLAGs to verify |
 
@@ -52,7 +52,7 @@ services/
   index_api        FastAPI x402-gated seller: store, x402 (Dev+Circle), marketplace, poster, onchain, webhooks
 apps/
   agent            TS buyer agent (DevPayer / GatewayPayer, catalog, interop 12-field SDK check)
-  terminal         Next.js 14 dashboard ("The Terminal") — 10 pages + 25 API routes
+  terminal         Next.js 14 dashboard ("The Terminal") — 10 pages + 26 API routes
 contracts/         Foundry (solc 0.8.24): ACROracle, AttestationRegistry, ACRFutures, FeedAccessAttestor + 60 tests
 scripts/           eval (resistance gate), demo, gen_snapshot, deploy_circle, onchain_demo
 redteam/           wash_attack.py, optimal_attack.py (proves the bound attainable)
@@ -178,9 +178,9 @@ claim gets re-checked rather than re-asserted.
 
 ## 9. Tests & CI
 
-- **Python: 628 tests** (incl. anvil-gated on-chain integration, skipped when anvil is down — CI boots a node so they genuinely run) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle, keeper, desk), top-level `tests/`.
+- **Python: 658 tests** (incl. anvil-gated on-chain integration, skipped when anvil is down — CI boots a node so they genuinely run) — core, estimator, instrument, oracle_client, sim, tape, services (x402-circle, marketplace, webhooks, terminal-bundle, keeper, desk), top-level `tests/`.
 - **Foundry: 60 tests** (17 ACROracle + 10 AttestationRegistry + 16 ACRFutures + 10 FeedAccessAttestor + 5 + 2 invariant, `fail_on_revert=true`).
-- **Node: 142 tests** (129 terminal + 13 agent) + `tsc` type-checks.
+- **Node: 157 tests** (136 terminal + 21 agent) + `tsc` type-checks.
 - **Gates:** ruff clean · glossary 426/426 · resistance eval-gate 4/4 · interop 12/12.
 - **CI** (`.github/workflows/ci.yml`, 4 jobs, every push/PR): python (ruff+pytest+eval-gate) · contracts (forge) · agent (build+test) · terminal (test + `next build`). Plus `keepalive.yml` (cron pings the API `/health`). Hermetic — `conftest.py` disables `.env` + strips `ACR_*`, so `make ci` needs no secrets.
 
