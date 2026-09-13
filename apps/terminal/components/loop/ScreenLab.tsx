@@ -6,6 +6,8 @@ import { Ed } from "@/components/Ed";
 import { screenState } from "@/lib/gate";
 import { HONEST, INJECTION, TEXT_CAP, type ScreenVerdict } from "@/lib/screen";
 import { useGateLive } from "@/lib/useLive";
+import { useNow } from "@/lib/useNow";
+import { ageWordsAt } from "@/lib/format";
 import { RETRY_NOTE, WakeNote, type WakeState } from "./Wake";
 
 /* The screen — Google Cloud Model Armor, with a text box in front of it.
@@ -37,6 +39,8 @@ export function ScreenLab({ wake }: { wake: WakeState }) {
   const { gate: gateEnv, refresh } = useGateLive();
   const armor = gateEnv?.data?.armor ?? null;
   const state = screenState(armor);
+  const nowS = useNow();
+  const lastAge = armor?.last_verdict_at ? ageWordsAt(armor.last_verdict_at, nowS) : null;
   const [text, setText] = useState(INJECTION);
   const [carded, setCarded] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -109,8 +113,21 @@ export function ScreenLab({ wake }: { wake: WakeState }) {
             <span className="flow-value">
               {!r ? "…" : !r.carded ? <Ed x="skipped" p="skipped" /> : v === "blocked" ? <span className="vermilion">403 · {r.matched.join(", ") || "blocked"}</span> : v === "unavailable" ? <span className="gold">503</span> : <span className="green"><Ed x="passed" p="passed" /></span>}
             </span>
-            <span className="flow-cap">
-              {armor ? <>{armor.backend} · {armor.screened} <Ed x="inspected" p="checked" /> · {armor.blocked} <Ed x="blocked" p="stopped" /></> : <Ed x="prompt injection and jailbreak filters" p="checks for trick messages" />}
+            <span className="flow-cap" title={armor?.endpoint ? `${armor.endpoint} · ${armor.template_resource ?? ""}` : undefined}>
+              {armor ? (
+                <>
+                  {armor.backend} · {armor.screened} <Ed x="inspected" p="checked" /> · {armor.blocked} <Ed x="blocked" p="stopped" />
+                  {lastAge ? (
+                    <>
+                      {" · "}
+                      <Ed x="Google last answered" p="Google last replied" /> {lastAge}
+                      {armor.last_latency_ms != null ? ` · ${armor.last_latency_ms} ms` : ""}
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <Ed x="prompt injection and jailbreak filters" p="checks for trick messages" />
+              )}
             </span>
           </div>
           <span className="flow-arrow" aria-hidden />
@@ -175,6 +192,20 @@ export function ScreenLab({ wake }: { wake: WakeState }) {
         x="One card is held on the server for every visitor, so the lab shares one budget at the gate. The counters are the gate's own, read before and after your send."
         p="One ID card is kept on our server for everyone, so the lab shares one allowance. The counts are the gate's own, read before and after."
       />
+      {armor?.endpoint ? (
+        <p className="mono muted" style={{ fontSize: 12, marginTop: 6, overflowWrap: "anywhere" }}>
+          <Ed x="every call goes to" p="every check goes to" /> {armor.endpoint}
+          {armor.template_resource ? <> · {armor.template_resource}</> : null}
+          {armor.console_url ? (
+            <>
+              {" · "}
+              <a className="tx-link" href={armor.console_url} target="_blank" rel="noreferrer">
+                <Ed x="the project's console" p="Google's own dashboard" /> <span className="ext">↗</span>
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </section>
   );
 }

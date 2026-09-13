@@ -215,7 +215,8 @@ def test_info_reports_the_backend_that_actually_answered():
     screen, _ = _armor({"sanitizationResult": {"filterMatchState": "MATCH_FOUND"}})
     asyncio.run(screen.screen_request(INJECTION))
     info = screen.info()
-    assert info == {"backend": "gcp", "screened": 1, "blocked": 1}
+    assert {k: info[k] for k in ("backend", "screened", "blocked")} == {"backend": "gcp", "screened": 1, "blocked": 1}
+    assert info["last_verdict_at"] is not None, "the gcp screen also says WHEN Google last answered"
     assert LocalScreen().info()["backend"] == "local"
     assert NullScreen().info()["backend"] == "off"
 
@@ -235,3 +236,36 @@ def test_a_verdict_is_frozen():
     # fact and not the one under test.
     with pytest.raises(dataclasses.FrozenInstanceError):
         v.allowed = True  # type: ignore[misc]
+
+
+def test_the_screen_records_that_google_answered_and_names_where():
+    """A console dashboard can read zero while the calls land: the traffic chart
+    draws on Cloud Monitoring, a separate API that was not enabled in the project.
+    So the screen itself keeps the evidence — when Google last answered, how long
+    it took, what its `invocationResult` said, and which regional host and template
+    resource every call goes to — and /armor/info serves it."""
+    import asyncio
+
+    screen, client = _armor({"sanitizationResult": {"filterMatchState": "NO_MATCH_FOUND",
+                                                    "invocationResult": "SUCCESS"}})
+    before = screen.info()
+    assert before["last_verdict_at"] is None and before["last_invocation"] is None
+    assert before["endpoint"] == f"modelarmor.{screen.settings.armor_location}.rep.googleapis.com"
+    assert before["template_resource"].startswith("projects/") and before["template_resource"].endswith(
+        f"/templates/{screen.settings.armor_template}")
+    assert before["console_url"] and "modelarmor.googleapis.com/metrics" in before["console_url"]
+    assert screen.settings.armor_project_id in before["console_url"]
+
+    asyncio.run(screen.screen_request("a harmless note"))
+    after = screen.info()
+    assert after["last_verdict_at"] is not None and after["last_latency_ms"] is not None
+    assert after["last_invocation"] == "SUCCESS"
+    assert client.calls[0][0].startswith(f"https://{after['endpoint']}/v1/{after['template_resource']}:")
+
+    # A refusal is still Google answering: recorded, then raised as the verdict.
+    screen2, _ = _armor({"error": {"message": "permission denied"}})
+    try:
+        asyncio.run(screen2.screen_request("x"))
+    except Exception:  # noqa: BLE001
+        pass
+    assert screen2.info()["last_verdict_at"] is None, "an error body is not an answer"

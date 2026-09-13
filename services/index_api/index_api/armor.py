@@ -35,6 +35,7 @@ being a screen while continuing to report that it is one.
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -184,6 +185,14 @@ class ModelArmorScreen(Screen):
         self._http = http_client
         self._token_source = token_source
         self._creds = None
+        #: The last call Google ANSWERED — when, how long it took, and what it said.
+        #: Recorded so `/armor/info` can show that the screen is a live service and
+        #: not a counter: a console dashboard can read zero while the calls land
+        #: (the charts draw on Cloud Monitoring, a separate API that may be off),
+        #: and this is the evidence a reader can check without the console.
+        self.last_verdict_at: float | None = None
+        self.last_latency_ms: int | None = None
+        self.last_invocation: str | None = None
 
     # --- configuration ---
 
@@ -194,6 +203,29 @@ class ModelArmorScreen(Screen):
             f"projects/{s.armor_project_id}/locations/{s.armor_location}"
             f"/templates/{s.armor_template}"
         )
+
+    @property
+    def endpoint(self) -> str:
+        """The regional host every call goes to. Named on `/armor/info` so a reader
+        can see it is Google's, in the region the template lives in."""
+        return f"modelarmor.{self.settings.armor_location}.rep.googleapis.com"
+
+    def info(self) -> dict:
+        return {
+            **super().info(),
+            "endpoint": self.endpoint,
+            "template_resource": self.template_name,
+            "last_verdict_at": self.last_verdict_at,
+            "last_latency_ms": self.last_latency_ms,
+            "last_invocation": self.last_invocation,
+            # Where the operator should look, in the RIGHT project. The traffic
+            # chart there reads from Cloud Monitoring, which must be enabled in
+            # the project or the chart shows nothing while the calls land.
+            "console_url": (
+                f"https://console.cloud.google.com/apis/api/modelarmor.googleapis.com/metrics"
+                f"?project={self.settings.armor_project_id}"
+            ) if self.settings.armor_project_id else None,
+        }
 
     def configured(self) -> bool:
         s = self.settings
@@ -251,6 +283,7 @@ class ModelArmorScreen(Screen):
             loc=self.settings.armor_location, name=self.template_name, method=method
         )
 
+        started = time.monotonic()
         try:
             token = self._token()
             client, owns = self._http, False
@@ -282,6 +315,11 @@ class ModelArmorScreen(Screen):
             msg = str((body.get("error") or {}).get("message", ""))[:160]
             raise ScreenError(f"model armor refused the call: {msg}")
 
+        # Google answered. Recorded before the verdict is read, so an unrecognised
+        # shape still counts as "Google was reached" — which it was.
+        self.last_verdict_at = time.time()
+        self.last_latency_ms = int((time.monotonic() - started) * 1000)
+        self.last_invocation = str((body.get("sanitizationResult") or {}).get("invocationResult") or "") or None
         return self._read(body, direction)
 
     @staticmethod

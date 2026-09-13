@@ -252,6 +252,21 @@ curl -s "$ACR_API/agent/info"      | jq .human_binding_verifiable
 curl -s "$ACR_API/armor/info"      | jq .backend             # `gcp`, or it fell back
 ```
 
+**Seeing it in Google's console — and why the chart can read zero while the calls land.**
+`uv run python scripts/armor_probe.py` sends the demo's injection and an honest note through
+the seller's own `ModelArmorScreen` and prints Google's answer: the regional endpoint
+(`modelarmor.asia-south1.rep.googleapis.com`), `invocationResult=SUCCESS`, and the filters that
+fired (`pi_and_jailbreak` for the injection, `NO_MATCH_FOUND` for the note). The console's
+traffic chart for the Model Armor API draws on the **Cloud Monitoring API**, which is a separate
+service; on 2026-09-13 it was not enabled in the project (`monitoring.googleapis.com` and
+`serviceusage.googleapis.com` both answered 403 "has not been used in project … or it is
+disabled"), so the chart showed nothing while `/armor/info` counted every call. Enable it at
+`https://console.cloud.google.com/apis/library/monitoring.googleapis.com?project=<project>` and
+the chart fills from that moment on — not retroactively. Independently of the console,
+`/armor/info` now serves `endpoint`, `template_resource`, `last_verdict_at`, `last_latency_ms`
+and `last_invocation`, `/ops` prints "google last answered: N min ago", and the `/loop` screen
+lab's Model Armor station shows the same, with a link to the project's own metrics page.
+
 End to end against the live chain, not a mock: present a card claiming the demo fleet's cluster
 and confirm **human-bound**; present the same card claiming another human's cluster and confirm
 **401**; present two wallets of the same human and confirm **one bucket**; present a card for

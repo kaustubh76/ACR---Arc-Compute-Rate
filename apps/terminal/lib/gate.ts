@@ -21,6 +21,13 @@ export interface ArmorInfo {
   screened: number;
   blocked: number;
   live: boolean;
+  /** The evidence that the screen is Google's: where every call goes, and when
+   *  Google last answered. Present only on the gcp backend. */
+  endpoint?: string | null;
+  template_resource?: string | null;
+  last_verdict_at?: number | null;
+  last_latency_ms?: number | null;
+  console_url?: string | null;
 }
 
 export interface AgentGateInfo {

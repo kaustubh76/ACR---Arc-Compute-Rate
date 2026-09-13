@@ -544,6 +544,14 @@ def _agent(rec: Recorder) -> None:
     rec.check(True, f"inspections: {counts['screened']} ({counts['blocked']} blocked)",
               detail="carded callers on POST /graph/query, both directions"
               if live else None)
+    # The evidence that the screen is Google's, not a counter: the regional host
+    # every call goes to and when it last answered. A console dashboard reads
+    # from Cloud Monitoring and can show zero with this line saying otherwise.
+    if live:
+        at = counts.get("last_verdict_at")
+        age = f"{(time.time() - at) / 60:.0f} min ago · {counts.get('last_latency_ms')} ms" if at else "no call yet this boot"
+        rec.check(True, f"google last answered: {age}",
+                  detail=f"{counts.get('endpoint')} · {counts.get('template_resource')}")
 
 
 def _humans_this_window(rec: Recorder, window) -> None:
