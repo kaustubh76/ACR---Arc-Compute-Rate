@@ -26,6 +26,9 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   // The tape sits after the sellers it grades: a reader meets the sellers, then
   // asks what buying from them actually cost.
   ["/tape", "The Tape", "Receipts"],
+  // The loop after the tape: a reader sees what buying cost, then drives the
+  // decision the cost produces.
+  ["/loop", "The Loop", "Drive It"],
   ["/developers", "Developers", "For Coders"],
 ];
 

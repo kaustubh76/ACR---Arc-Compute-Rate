@@ -46,9 +46,14 @@ export function TapeTeaser() {
     <section className="section">
       <div className="section-head">
         {HEAD}
-        <Link href="/tape" className="section-link">
-          <Ed x="Read the tape →" p="See the receipts →" />
-        </Link>
+        <span style={{ display: "inline-flex", gap: 14 }}>
+          <Link href="/loop" className="section-link">
+            <Ed x="Drive the loop →" p="Drive it →" />
+          </Link>
+          <Link href="/tape" className="section-link">
+            <Ed x="Read the tape →" p="See the receipts →" />
+          </Link>
+        </span>
       </div>
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <span className={`chip ${live ? "chip-teal" : "chip-sim"}`}>

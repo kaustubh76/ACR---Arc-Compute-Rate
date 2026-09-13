@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { DEMO_HUMAN_LABEL, demoKey } from "@/lib/agentcard";
+
+/** Which demo person to prove as. `fleet` is one human resolved to THREE wallets
+ *  (buyer-1/2/3, demo_humans.py), `solo` is one human with one (buyer-4, the
+ *  default `demo-human`). Two runs side by side are the point of /loop: three
+ *  dots fold into one bill; one dot is one bill. Labels are public; keys derive
+ *  from them on the server and never leave it. */
+const WHO: Record<string, string> = { "demo-human": DEMO_HUMAN_LABEL, solo: DEMO_HUMAN_LABEL, fleet: "acr-buyer-1" };
 import type { HumanChallenge } from "@/lib/humans";
 import { signHumanChallenge } from "@/lib/humanproof";
 
@@ -14,7 +21,7 @@ export const runtime = "nodejs";
  * present it, replay it. The last act is the one worth watching — a proof that
  * can be presented twice is a credential, and the gate refuses the second.
  *
- * `as: "demo-human"` is the ONLY accepted body. The route signs with a demo
+ * `as: "demo-human" | "solo" | "fleet"` are the ONLY accepted bodies. The route signs with a demo
  * buyer's key derived from its public label (`demo_humans.py`), on the server,
  * and the browser sees a header value and the gate's answer — never a key. A
  * visitor's own key is not accepted here at all: a page that took private keys
@@ -53,7 +60,8 @@ export async function POST(request: Request) {
   } catch {
     /* an empty body is handled below */
   }
-  if (body.as !== "demo-human") {
+  const label = typeof body.as === "string" ? WHO[body.as] : undefined;
+  if (!label) {
     return NextResponse.json<ProveResult>(
       { status: null, address: null, body: null, replay_status: null, replay_detail: null,
         note: "only the demo human can be proved here; run `make prove-human` for a wallet of your own" },
@@ -78,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     // 2 · sign it, with the demo human's key, here
-    const key = await demoKey(DEMO_HUMAN_LABEL);
+    const key = await demoKey(label);
     const host = apiBase().replace(/^https?:\/\//, "");
     const { header, address } = await signHumanChallenge({ privateKey: key, nonce: challenge.nonce, resource: RESOURCE, host });
     out.address = address;

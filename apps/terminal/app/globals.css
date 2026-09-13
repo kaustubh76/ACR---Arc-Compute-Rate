@@ -2317,6 +2317,243 @@ a.colophon-act:hover::after {
   }
 }
 
+/* ── /loop: the flow infographics ────────────────────────────────────────────
+   Six stations on a rail, lit in order; three tier columns; a log-scale meter
+   pair; a ring of wallet dots. Built from the same tokens as everything else so
+   the page reads as the Terminal and not as a slide. Every animated selector
+   here is listed under prefers-reduced-motion below. */
+.flow {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  margin: 18px 0 6px;
+}
+.flow-station {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px;
+  align-items: center;
+  min-width: 0;
+}
+.flow-station:last-child {
+  grid-template-columns: minmax(0, 1fr);
+}
+.flow-station:last-child .flow-arrow {
+  display: none;
+}
+.flow-node {
+  position: relative;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--glass);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
+}
+.flow-node .label {
+  display: block;
+  margin-bottom: 6px;
+}
+.flow-node .flow-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--sand);
+  overflow-wrap: anywhere;
+}
+.flow-node .flow-cap {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ether-45);
+}
+.flow-node.lit {
+  border-color: rgba(233, 161, 63, 0.55);
+  box-shadow: 0 0 0 1px rgba(233, 161, 63, 0.18), 0 0 26px rgba(233, 161, 63, 0.16);
+  animation: flow-pulse 0.9s ease-out 1;
+}
+.flow-node.passed {
+  border-color: rgba(79, 179, 169, 0.55);
+  box-shadow: 0 0 22px rgba(79, 179, 169, 0.14);
+}
+.flow-node.blocked {
+  border-color: rgba(239, 106, 90, 0.6);
+  background: var(--breach-wash);
+  box-shadow: 0 0 22px rgba(239, 106, 90, 0.16);
+}
+.flow-node.dim {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.flow-node.gcp {
+  border-color: rgba(172, 198, 233, 0.3);
+}
+.flow-arrow {
+  width: 22px;
+  height: 1px;
+  background: var(--hairline-strong);
+  position: relative;
+}
+.flow-arrow::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -3px;
+  border: 3.5px solid transparent;
+  border-left-color: var(--hairline-strong);
+}
+@keyframes flow-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(233, 161, 63, 0.45); }
+  100% { box-shadow: 0 0 0 14px rgba(233, 161, 63, 0); }
+}
+.flow-log {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(0, 11, 36, 0.62);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--sky);
+  overflow-wrap: anywhere;
+}
+.flow-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  margin-top: 10px;
+}
+.flow-controls input[type="range"] {
+  accent-color: var(--gold);
+  width: 220px;
+  max-width: 100%;
+}
+.flow-controls textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--sand);
+  background: rgba(0, 11, 36, 0.5);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.tier-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.tier-col {
+  padding: 16px 16px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--glass);
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.tier-col.lit {
+  border-color: rgba(233, 161, 63, 0.55);
+  box-shadow: 0 0 26px rgba(233, 161, 63, 0.16);
+}
+.tier-col .tier-budget {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ether-70);
+}
+.meter-row {
+  display: grid;
+  grid-template-columns: 96px 1fr 132px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+.meter {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(172, 198, 233, 0.08);
+  overflow: hidden;
+}
+.meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  transition: width 0.6s var(--ease-expo);
+}
+.meter .fill-wallet {
+  background: var(--clay);
+}
+.meter .fill-human {
+  background: var(--gold);
+  box-shadow: 0 0 12px rgba(233, 161, 63, 0.4);
+}
+.rings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px;
+}
+.ring {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 12px 14px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 12px;
+  min-width: 120px;
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.ring.lit {
+  border-style: solid;
+  border-color: rgba(233, 161, 63, 0.6);
+  box-shadow: 0 0 22px rgba(233, 161, 63, 0.18);
+}
+.ring-dots {
+  display: flex;
+  gap: 8px;
+}
+.ring-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--finality);
+  box-shadow: 0 0 10px rgba(79, 179, 169, 0.5);
+}
+.ring.sandbox .ring-dot {
+  background: var(--ether-45);
+  box-shadow: none;
+}
+.ring.lit .ring-dot {
+  background: var(--gold);
+  box-shadow: 0 0 10px rgba(233, 161, 63, 0.5);
+}
+@media (max-width: 900px) {
+  .flow {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    gap: 8px;
+  }
+  .flow-station {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .flow-arrow {
+    display: none;
+  }
+  .tier-cols {
+    grid-template-columns: 1fr;
+  }
+  .meter-row {
+    grid-template-columns: 80px 1fr 110px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* The dawn hero was the one place this block did not reach, and it holds the
      only two INFINITE loops on the site: the sun's 9s pulse and the scroll
@@ -2326,6 +2563,7 @@ a.colophon-act:hover::after {
   .home-hero-scroll,
   .home-hero-inner,
   .pulse-dot,
+  .flow-node.lit,
   .digit-in,
   .tick-flash,
   .page-enter,

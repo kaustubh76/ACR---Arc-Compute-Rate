@@ -53,6 +53,11 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
   "components/TapeTeaser.tsx": 3,
+  "components/loop/LoopFlow.tsx": 10,
+  "components/loop/TierColumns.tsx": 8,
+  "components/loop/ScreenLab.tsx": 12,
+  "components/loop/PersonNotWallet.tsx": 14,
+  "app/loop/view.tsx": 4,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
 
@@ -107,6 +112,8 @@ const EXEMPT: Record<string, string> = {
   "app/index/[id]/loading.tsx": "skeleton",
   "app/page.tsx": "metadata only — SEO stays expert",
   "app/attack/page.tsx": "metadata only",
+  "app/loop/page.tsx": "metadata only",
+  "app/loop/loading.tsx": "skeleton",
   "app/curve/page.tsx": "metadata only",
   "app/exchange/page.tsx": "metadata only",
   "app/sellers/page.tsx": "metadata only",

@@ -190,3 +190,18 @@ export interface HumanChallenge {
   sandbox: boolean;
   header: string;
 }
+
+/** One resolved person this window, as the tape records it: an opaque cluster id
+ *  and the wallets resolved to it. Drawn on /loop as a ring of dots. */
+export interface ClusterRow {
+  id: string;
+  window: number;
+  sandbox: boolean;
+  wallets: { id: string; settlements: number }[];
+}
+
+export interface ClustersData {
+  window: number;
+  blockTime: number | null;
+  clusters: ClusterRow[];
+}

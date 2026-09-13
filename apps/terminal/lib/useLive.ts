@@ -11,7 +11,7 @@
 import useSWR from "swr";
 
 import type { GateData } from "./gate";
-import type { HumanIdData } from "./humans";
+import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
 import type {
   AttackStatus,
@@ -181,6 +181,26 @@ export function useHealth() {
  *  the same rule `useHumanId` exists to keep. */
 export function useGate() {
   const { data } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return data;
+}
+
+/** The same envelope with a refresh handle, for a surface that just CHANGED the
+ *  counters it renders (the screen lab) and should not wait a minute to show it. */
+export function useGateLive() {
+  const { data, mutate } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return { gate: data, refresh: mutate };
+}
+
+export function useClusters() {
+  const { data } = useSWR<Envelope<ClustersData | null>>("/api/humanid/clusters", fetcher, {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
