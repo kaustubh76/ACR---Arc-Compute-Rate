@@ -1,6 +1,6 @@
 # Module A — the agent card, and a quota denominated in people
 
-*Measured on `feat/agent-card-gateway`, 2026-09-13: 691 pytest (0 skipped),
+*Measured on `feat/agent-card-gateway`, 2026-09-13: 693 pytest (0 skipped),
 ruff clean, `verify_claims.py` green, CI 6/6 (run `34692572389`); deployed as `main`.*
 
 Companion to `WORLD-MODULE.md`. That document designs the human layer; this one spends it.
@@ -244,7 +244,7 @@ container — ADC is a development convenience, not a deployment credential.
 uv run pytest packages/acr_oracle_client/tests/test_agentcard.py \
               services/index_api/tests/test_agentgate.py \
               services/index_api/tests/test_armor.py -q      # 25 + 19 + 18
-uv run pytest -p no:cacheprovider                            # 691, 0 skipped
+uv run pytest -p no:cacheprovider                            # 693, 0 skipped
 uv run ruff check packages services scripts redteam
 uv run python scripts/verify_claims.py
 curl -s "$ACR_API/agent/challenge" | jq .                    # how to mint one
