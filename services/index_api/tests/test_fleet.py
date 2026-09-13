@@ -90,12 +90,17 @@ def test_listing_resolves_from_its_resource_path():
     assert listing_for_resource(f"https://acr.example/compute/{label}") is listing_for(label)
 
 
-def test_non_fleet_resources_resolve_to_nothing():
-    """The flat-priced index endpoints must keep their single-payee behaviour."""
-    assert listing_for_resource("/prints/ACR-INF") is None
+def test_unlisted_resources_resolve_to_nothing():
+    """Malformed compute paths and the free reads resolve to nothing. The press's
+    own PAID endpoints no longer belong in this list: they resolve to a platform
+    listing (see the platform tests), because a settlement with no seller was a
+    settlement the mirror refused, and the buyer agent's default discovery buys
+    exactly those paths."""
     assert listing_for_resource("/compute/") is None
     assert listing_for_resource("") is None
     assert listing_for_resource("/compute/not-a-seller") is None
+    assert listing_for_resource("/health") is None
+    assert listing_for_resource("/fleet") is None
 
 
 # --- the wire ----------------------------------------------------------------
@@ -160,15 +165,28 @@ def test_a_fleet_receipt_carries_who_was_paid_and_what_was_bought():
     reset_facilitator()
 
 
-def test_an_index_receipt_still_names_no_seller():
-    """Legacy shape stays legacy: the flat index endpoints pay the platform, and
-    a receipt that invented a seller for them would put another wallet's name on
-    ACR's own revenue."""
+def test_an_index_receipt_names_the_press_as_its_own_seller():
+    """The old rule here was that a receipt naming a seller for a flat index
+    endpoint "would put another wallet's name on ACR's own revenue". The new
+    listing names the PRESS'S OWN payee — the wallet the money actually reaches —
+    so the revenue is attributed to exactly the wallet that received it, and the
+    receipt gains the two fields the mirror needs: a unit and a quantity.
+
+    The alternative was the state measured on 2026-09-13: sixty real settlements
+    from a verified human, refused as "no seller", absent from the tape."""
+    from acr_core import get_settings
+    from index_api.fleet import PLATFORM_INDEX_ID, listing_for_resource
+    from index_api.x402 import PAY_TO
+
     reset_facilitator()
     client.get("/prints/ACR-INF", headers=_pay(0.0001))
     receipt = get_facilitator().recent[-1]
-    assert receipt.seller == ""
-    assert receipt.quantity == 0.0
+    assert receipt.seller == (get_settings().x402_pay_to or PAY_TO)
+    assert receipt.unit == "$/query"
+    assert receipt.quantity == 1.0
+    assert receipt.unit_price == get_settings().x402_price_usdc
+    # And it is mirrored under an index with no print ring — never a compute one.
+    assert listing_for_resource(receipt.resource).index_id == PLATFORM_INDEX_ID
     reset_facilitator()
 
 
