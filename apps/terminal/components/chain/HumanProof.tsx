@@ -23,6 +23,29 @@ interface ChallengeResult {
   note: string | null;
 }
 
+/** What `/api/humanid/prove` answers — the four acts, run on the server with the
+ *  demo human's key. `body` is the gate's own 200: the person, then the bill. */
+interface ProveResult {
+  status: number | null;
+  address: string | null;
+  body: {
+    available?: boolean;
+    reason?: string;
+    human?: { cluster?: string; window?: number; wallet_count?: number };
+    purchases?: number;
+    spent_usdc?: number;
+    vw_slippage_bp?: number | null;
+    overpaid_usdc?: number;
+    reroute?: { from: string; to: string; saving_bp: number } | null;
+    detail?: string;
+  } | null;
+  replay_status: number | null;
+  replay_detail: string | null;
+  note: string | null;
+}
+
+const short = (a: string) => (a.length > 14 ? `${a.slice(0, 10)}…${a.slice(-4)}` : a);
+
 /** One row of the challenge. Labels dual-render; values never do. */
 function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -41,6 +64,27 @@ export function HumanProof() {
   const info = useHumanId()?.data?.info ?? null;
   const [asking, setAsking] = useState(false);
   const [result, setResult] = useState<ChallengeResult | null>(null);
+  const [proving, setProving] = useState(false);
+  const [proof, setProof] = useState<ProveResult | null>(null);
+
+  /* The answer, not only the question. Signed on the server with a demo buyer's
+     key derived from a public label, so the browser watches a proof verified
+     and a nonce spent without ever holding a key. */
+  async function prove() {
+    setProving(true);
+    try {
+      const res = await fetch("/api/humanid/prove", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ as: "demo-human" }),
+      });
+      setProof((await res.json()) as ProveResult);
+    } catch {
+      setProof({ status: null, address: null, body: null, replay_status: null, replay_detail: null, note: "the browser could not reach the press" });
+    } finally {
+      setProving(false);
+    }
+  }
 
   async function ask() {
     setAsking(true);
@@ -70,15 +114,72 @@ export function HumanProof() {
         p="Free to use, but you have to prove you are one real person before it will answer."
       />
 
-      <button
-        type="button"
-        className="chip"
-        onClick={ask}
-        disabled={asking}
-        style={{ cursor: asking ? "default" : "pointer" }}
-      >
-        <Ed x="Ask the gate what it wants" p="Ask what it needs" />
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="chip"
+          onClick={ask}
+          disabled={asking}
+          style={{ cursor: asking ? "default" : "pointer" }}
+        >
+          <Ed x="Ask the gate what it wants" p="Ask what it needs" />
+        </button>
+        <button
+          type="button"
+          className="chip chip-gold"
+          onClick={prove}
+          disabled={proving}
+          style={{ cursor: proving ? "default" : "pointer" }}
+        >
+          <Ed x="Prove as a demo human" p="Prove a test person" />
+        </button>
+      </div>
+
+      {proof && (
+        <div style={{ marginTop: 14 }}>
+          {proof.status === 200 && proof.body ? (
+            <>
+              <Row label={<Ed x="signed by" p="wallet used" />}>{proof.address ? short(proof.address) : "…"}</Row>
+              <Row label={<Ed x="resolved to" p="belongs to" />}>
+                <Ed x="one person" p="one real person" /> · {proof.body.human?.cluster ? short(proof.body.human.cluster) : "…"} ·{" "}
+                <Ed x="window" p="week" /> {proof.body.human?.window ?? "…"} · {proof.body.human?.wallet_count ?? "…"}{" "}
+                <Ed x="wallets, never listed" p="wallets, and it never says which" />
+              </Row>
+              {proof.body.available ? (
+                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>
+                  {proof.body.purchases} <Ed x="purchases" p="buys" /> · ${(proof.body.spent_usdc ?? 0).toFixed(5)} ·{" "}
+                  {proof.body.vw_slippage_bp ?? "…"} bp <Ed x="slippage" p="over the going rate" /> · ${(proof.body.overpaid_usdc ?? 0).toFixed(6)}{" "}
+                  <Ed x="overpaid" p="too much" />
+                  {proof.body.reroute ? (
+                    <>
+                      {" · "}
+                      <Ed x="reroute saves" p="switching saves" /> {proof.body.reroute.saving_bp} bp
+                    </>
+                  ) : null}
+                </Row>
+              ) : (
+                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>{proof.body.reason ?? "…"}</Row>
+              )}
+              <Row label={<Ed x="replayed" p="used twice" />}>
+                <span className={proof.replay_status === 401 ? "green" : "vermilion"}>{proof.replay_status ?? "…"}</span>{" "}
+                {proof.replay_detail ? <span className="muted">{proof.replay_detail}</span> : null}
+              </Row>
+              <Ed
+                as="p"
+                className="muted"
+                style={{ fontSize: 12.5, marginTop: 8 }}
+                x="A person, not a wallet, was the unit: one proof, every wallet they own on one bill, and the nonce spent on the way through."
+                p="The unit was a person, not a wallet: one proof covered all their wallets, and the one-time code cannot be reused."
+              />
+            </>
+          ) : (
+            <p className="mono muted" role="status" style={{ fontSize: 12.5 }}>
+              {proof.status ? `${proof.status} · ` : ""}
+              {proof.note ?? proof.body?.detail ?? "no answer"}
+            </p>
+          )}
+        </div>
+      )}
 
       {ch && (
         <div style={{ marginTop: 14 }}>
@@ -132,6 +233,18 @@ export function HumanProof() {
           )}{" "}
           <Ed x="Proofs verified since this press started:" p="Proofs checked since we started:" />{" "}
           {info.verified_proofs}
+          {info.agentbook ? (
+            <>
+              {" · "}
+              <Ed x="roster:" p="list of known wallets:" /> {info.agentbook}
+              {info.agentbook === "fixture" ? (
+                <>
+                  {" "}
+                  <Ed x="(the demo wallets, not World Chain)" p="(the test wallets only)" />
+                </>
+              ) : null}
+            </>
+          ) : null}
         </p>
       )}
     </section>

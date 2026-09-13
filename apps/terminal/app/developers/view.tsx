@@ -4,6 +4,7 @@ import { Fragment, useCallback, useState } from "react";
 import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
 import { AgentCardSnippet } from "@/components/chain/AgentCardSnippet";
+import { McpSnippet } from "@/components/chain/McpSnippet";
 import { HumanProof } from "@/components/chain/HumanProof";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
@@ -296,6 +297,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           snippets name the PUBLIC host because that is the one an agent would call;
           without NEXT_PUBLIC_ACR_API at build time they name the dev loopback. */}
       <AgentCardSnippet api={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"} />
+      <McpSnippet api={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"} />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said

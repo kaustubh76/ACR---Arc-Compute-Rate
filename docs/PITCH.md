@@ -214,7 +214,7 @@ Permanent on-chain, or CI-gated. Everything else, point at on screen.
 | Attacker's cost | 36,000 adversarial authorizations, `$147.60` of fees burned |
 | Settlement freshness bound | `MAX_SETTLE_AGE` = 2 hours, enforced on-chain |
 | Print price over x402 | `$0.0001` per query |
-| Suites | **677** py · **156** forge · **143** terminal · **31** agent · **560/560** glossary |
+| Suites | **677** py · **156** forge · **148** terminal · **31** agent · **560/560** glossary |
 
 Two of the wallets cleared in those settled rounds are outside the operator set entirely — Circle
 user-controlled smart accounts that only exist because somebody walked the Public Desk PIN flow.

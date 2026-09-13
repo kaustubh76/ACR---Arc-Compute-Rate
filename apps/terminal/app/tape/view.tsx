@@ -3,7 +3,7 @@
 import { AddressChip } from "@/components/chain/AddressChip";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
-import { fmtInt, money } from "@/lib/format";
+import { ageWordsAt, fmtInt, money } from "@/lib/format";
 import {
   MIN_RATED_N,
   bp,
@@ -11,11 +11,13 @@ import {
   bucketBars,
   bucketTotal,
   byWorstFirst,
+  followedReroute,
   humanCell,
   usdc6,
 } from "@/lib/tape";
-import type { SellerRating, TapeSeller, TcaCard } from "@/lib/tape";
+import type { SellerRating, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
 import { useTape } from "@/lib/useLive";
+import { useNow } from "@/lib/useNow";
 import { useEffect, useState } from "react";
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -116,6 +118,67 @@ function PayerField({
  *  because zero here means "not measured", never "nobody" (same rule `humanCell`
  *  keeps). The share rides in the title rather than the cell: this is a classifier
  *  tag, like `sim`, not a new column. */
+/** The evidence under the suggestion: the payer's newest purchases, with the
+ *  suggested seller and the one to leave marked, and ONE sentence chosen from the
+ *  data. "The buyer acted on its own bill" is the claim the whole loop rests on,
+ *  so it is read off the settlements rather than asserted by the page. */
+function RerouteEvidence({
+  recent,
+  reroute,
+  nowS,
+}: {
+  recent: TapeRecentRow[];
+  reroute: { from: string; to: string };
+  nowS: number;
+}) {
+  const verdict = followedReroute(recent, reroute);
+  if (verdict === "none") return null;
+  const to = reroute.to.toLowerCase();
+  const from = reroute.from.toLowerCase();
+  return (
+    <div style={{ marginTop: 12 }}>
+      <p style={{ margin: 0, fontSize: 13 }}>
+        {verdict === "followed" ? (
+          <Ed
+            x="The latest purchase went to the suggested seller: the buyer read its own bill and changed shops."
+            p="The newest purchase went to the cheaper seller, so the buyer read its own bill and switched."
+          />
+        ) : verdict === "ignored" ? (
+          <Ed
+            x="The latest purchase still went to the seller to leave; the suggestion stands, unacted."
+            p="The newest purchase still went to the dear seller, so the advice has not been taken yet."
+          />
+        ) : (
+          <Ed
+            x="The latest purchase went elsewhere; the suggestion stands."
+            p="The newest purchase went to a third seller, so the advice still stands."
+          />
+        )}
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+        <span className="label">
+          <Ed x="Latest purchases" p="Newest buys" />
+        </span>
+        {recent.map((r, i) => {
+          const age = ageWordsAt(r.settledAt, nowS);
+          return (
+            <span key={`${r.seller}-${r.settledAt}`} className="mono" style={{ fontSize: 12.5, display: "inline-flex", gap: 6, alignItems: "center" }}>
+              <AddressChip address={r.seller} copy={false} />
+              {r.seller === to ? (
+                <span className="chip chip-teal"><Ed x="suggested" p="cheaper" /></span>
+              ) : r.seller === from ? (
+                <span className="chip chip-sim"><Ed x="the one to leave" p="the dear one" /></span>
+              ) : null}
+              {age ? <span className="muted">{age}</span> : null}
+              {i < recent.length - 1 ? <span className="muted">·</span> : null}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function HumanMark({ share, of }: { share: number | null | undefined; of: "this payer" | "the window" }) {
   if (share == null || share <= 0) return null;
   // The two tables divide by different things — one payer's fills above, every
@@ -231,6 +294,8 @@ export function TapeView() {
   const meta = data?.meta ?? null;
   const tca = data?.tca ?? null;
   const card = tca && tca.available ? (tca as TcaCard) : null;
+  const recent = data?.recent ?? [];
+  const nowS = useNow();
   const unreachable = error != null || env?.upstream === "error" || env?.upstream === "timeout";
 
   const sellers: TapeSeller[] = data?.sellers ?? [];
@@ -489,6 +554,11 @@ export function TapeView() {
                   x="Arithmetic on past fills in this window. A suggestion, not a promise about the next one."
                   p="Worked out from past buys. It is a suggestion, not a promise."
                 />
+                {/* Did anyone ACT on it? Read off the tape, never assumed: the newest
+                    purchase either landed on the suggested seller, on the one to
+                    leave, or somewhere else. This row is the loop closing — or
+                    not — in the buyer's own settlements. */}
+                <RerouteEvidence recent={recent} reroute={card.reroute} nowS={nowS} />
               </div>
             ) : null}
           </>

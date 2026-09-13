@@ -156,6 +156,9 @@ export function countHumans(
  *  a constant would keep saying "agentkit" after an operator switched it. */
 export interface HumanIdInfo {
   backend: string;
+  /** Which roster the AgentKit verifier checks a wallet against: `fixture` (the
+   *  demo wallets) or `world-chain`. Absent on the dev gate. */
+  agentbook?: string | null;
   sandbox: boolean;
   app_id: string | null;
   proof_header: string;

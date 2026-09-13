@@ -336,10 +336,20 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
                   <>
                     <Ed
                       className="fn-gloss"
-                      x="Human-denominated bound: the same move, priced through verified humans rather than wallets. Never below the figure above."
-                      p="The same bill counted in real people instead of accounts, which is why it is never lower."
+                      x="Human-denominated bound: the same move, priced through verified humans rather than wallets. Sybils are free; people are not, which is why it is never lower."
+                      p="The same bill counted in real people instead of accounts: fake accounts are free, people are not, so it is far higher."
                     />
-                    <span className="fn-value vermilion">{money(humanBound, 4)} / bp</span>
+                    <span className="fn-value vermilion">
+                      {money(humanBound, 4)} / bp
+                      {/* The multiple is the sentence: not "another number" but "this many
+                          times the wallet figure", read against the row directly above. */}
+                      {p.attack_cost_per_bp > 0 && humanBound / p.attack_cost_per_bp >= 2 ? (
+                        <span className="muted" style={{ marginLeft: 8, fontWeight: 400 }}>
+                          × {Math.round(humanBound / p.attack_cost_per_bp).toLocaleString()}{" "}
+                          <Ed x="the wallet figure" p="the account figure" />
+                        </span>
+                      ) : null}
+                    </span>
                   </>
                 )}
               </li>

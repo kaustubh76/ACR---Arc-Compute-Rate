@@ -215,9 +215,21 @@ export interface TapeMeta {
 
 /** What /api/tape serves. Every field is nullable because every one of them can
  *  be independently unreachable, and "we could not read this" is not a value. */
+/** One of the chosen payer's newest purchases — the evidence the reroute card
+ *  reads against its own suggestion. Derived from the settlements the route
+ *  already fetches; nothing is re-queried for it. */
+export interface TapeRecentRow {
+  seller: string;
+  settledAt: number;
+  amountUsdc: number;
+  human: boolean;
+}
+
 export interface TapeData {
   meta: TapeMeta | null;
   tca: TcaResult | null;
+  /** The payer's newest purchases, newest first. Empty when the tape has none. */
+  recent: TapeRecentRow[];
   sellers: TapeSeller[];
   /** Grades keyed by lowercase seller address; absent while /rating is down. */
   ratings: Record<string, SellerRating>;
@@ -318,6 +330,8 @@ export interface TapeSettlement {
   slippageBp: Big | null;
   benchmarked: boolean;
   synthetic: boolean;
+  /** Unix seconds, from the mirror. Optional: an older index answer may lack it. */
+  settledAt?: Big;
   /** Stamped at finalize by the subgraph (mirror.ts) — true when the payer had a
    *  cluster for the window the settlement landed in. Optional because an older
    *  index answer may predate the field; absent reads as false, never as true. */
@@ -387,4 +401,41 @@ export function byWorstFirst<T extends { vw_slippage_bp: number | null }>(rows: 
     if (bv === null) return -1;
     return bv - av;
   });
+}
+
+/** The chosen payer's newest `n` purchases, newest first — from the settlements
+ *  the route already holds. Rows with no seller or no timestamp are skipped
+ *  rather than rendered as a purchase from nobody at no time. */
+export function recentForPayer(rows: TapeSettlement[], payer: string | null, n = 5): TapeRecentRow[] {
+  if (!payer) return [];
+  const who = payer.toLowerCase();
+  return rows
+    .filter((r) => r.payer?.id?.toLowerCase() === who && r.seller?.id && r.settledAt != null)
+    .map((r) => ({
+      seller: r.seller!.id.toLowerCase(),
+      settledAt: Number(r.settledAt),
+      amountUsdc: usdc6(r.amount) ?? 0,
+      human: Boolean(r.human),
+    }))
+    .sort((a, b) => b.settledAt - a.settledAt)
+    .slice(0, n);
+}
+
+export type RerouteFollowed = "followed" | "ignored" | "elsewhere" | "none";
+
+/** Did the payer's LATEST purchase land where the suggestion points?
+ *
+ *  Three answers and an absence, because "the buyer acted on this" is the claim
+ *  the whole loop rests on and it must be read off the tape, never assumed:
+ *  `followed` (newest seller is the suggested one), `ignored` (newest is the one
+ *  to leave), `elsewhere` (a third seller), `none` (no purchase on the tape). */
+export function followedReroute(
+  recent: TapeRecentRow[],
+  reroute: { from: string; to: string } | null | undefined,
+): RerouteFollowed {
+  if (!reroute || recent.length === 0) return "none";
+  const newest = recent[0].seller.toLowerCase();
+  if (newest === reroute.to.toLowerCase()) return "followed";
+  if (newest === reroute.from.toLowerCase()) return "ignored";
+  return "elsewhere";
 }

@@ -2,7 +2,7 @@ import { currentWindow } from "@/lib/humans";
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
 import type { Envelope } from "@/lib/types";
-import { humanShareInWindow, sellersFromSettlements } from "@/lib/tape";
+import { humanShareInWindow, sellersFromSettlements, recentForPayer } from "@/lib/tape";
 import type {
   SellerRating,
   TapeData,
@@ -143,6 +143,7 @@ export async function GET(request: Request) {
   const data: TapeData = {
     meta,
     tca: tcaRes.data,
+    recent: recentForPayer(settlements, payer),
     sellers,
     ratings,
     control,

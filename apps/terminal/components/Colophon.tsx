@@ -124,6 +124,13 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             }
           />{" "}
           · AN ARC / CIRCLE BUILD
+          {/* Posture, stated where the chain is named: testnet today, and the
+              mainnet runbook rehearsed. A judge reading "Arc Testnet" cannot
+              otherwise tell whether mainnet is a plan or a paragraph. */}
+          {" · "}
+          <span title="make deploy-mainnet-dry simulates all five deploys on eip155:5042; docs/MAINNET_RUNBOOK.md">
+            <Ed x="MAINNET-READY FOR 5042 (2026-09-16)" p="READY FOR THE REAL NETWORK ON 2026-09-16" />
+          </span>
         </p>
 
         {/* The identity line. Rendered only when the press answers, because a

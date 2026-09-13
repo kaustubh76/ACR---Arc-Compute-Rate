@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BUCKETS, MIN_RATED_N, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellersFromSettlements, usdc6, wad18 } from "./tape";
+import { BUCKETS, MIN_RATED_N, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
 
 const REPO = join(__dirname, "..", "..", "..");
 
@@ -290,4 +290,31 @@ test("a seller's human share is read off ONE window, and an unmeasured window is
   assert.equal(humanShareInWindow(windows, 2959), null, "no volume yet is not measured");
   assert.equal(humanShareInWindow(windows, 2960), null, "a window with no rollup at all");
   assert.equal(humanShareInWindow(undefined, 2958), null);
+});
+
+
+test("the payer's newest purchases come off the settlements the route already holds", () => {
+  const row = (payer: string, seller: string, at: number) => ({
+    seller: { id: seller }, payer: { id: payer }, amount: "100000", slippageBp: "10",
+    benchmarked: true, synthetic: false, human: true, settledAt: String(at),
+  });
+  const rows = [
+    row("0xME", "0xA", 100), row("0xme", "0xB", 300), row("0xother", "0xA", 400),
+    row("0xme", "0xC", 200), { ...row("0xme", "0xD", 500), seller: null },
+  ];
+  const recent = recentForPayer(rows, "0xME", 2);
+  assert.deepEqual(recent.map((r) => [r.seller, r.settledAt]), [["0xb", 300], ["0xc", 200]]);
+  assert.equal(recent[0].amountUsdc, 0.1);
+  assert.equal(recent[0].human, true);
+  assert.deepEqual(recentForPayer(rows, null), []);
+});
+
+test("whether the buyer acted is read off the newest purchase, never assumed", () => {
+  const rr = { from: "0xWORST", to: "0xBEST" };
+  const at = (seller: string) => [{ seller, settledAt: 1, amountUsdc: 0.1, human: false }];
+  assert.equal(followedReroute(at("0xbest"), rr), "followed");
+  assert.equal(followedReroute(at("0xworst"), rr), "ignored");
+  assert.equal(followedReroute(at("0xelse"), rr), "elsewhere");
+  assert.equal(followedReroute([], rr), "none");
+  assert.equal(followedReroute(at("0xbest"), null), "none");
 });

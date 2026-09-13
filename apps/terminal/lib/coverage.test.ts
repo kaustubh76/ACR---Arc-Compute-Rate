@@ -52,6 +52,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/PrintsTable.tsx": 6,
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
+  "components/TapeTeaser.tsx": 3,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
 
@@ -77,6 +78,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // dual-renders, and the "what would answer this" line has three backends.
   "components/chain/HumanProof.tsx": 16,
   "components/chain/AgentCardSnippet.tsx": 12,
+  "components/chain/McpSnippet.tsx": 7,
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,
