@@ -52,8 +52,11 @@ services:
       # Empty → the mirror chore stands down and /tca reports itself unavailable,
       # rather than the service coming back from a deploy silently blind to the
       # whole tape.
+      # Studio v0.2.0 of `ethonline` (account 1758707) — the version with the
+      # HumanIdMirror data source. Was "" here while the dashboard held the real
+      # value, which is the exact drift this file exists to prevent.
       - key: ACR_SUBGRAPH_URL
-        value: ""
+        value: https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0
       - key: ACR_KEEPER_MIRROR_S
         value: "120"
       # Server-side only — a Studio key in a browser is a key anyone can spend.

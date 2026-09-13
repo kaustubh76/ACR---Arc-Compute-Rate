@@ -745,3 +745,26 @@ def test_the_stray_credential_check_reads_the_env_file_not_just_the_environment(
     assert "ACR_HUMANID_APP_ID" not in hits
     # …and an unrelated variable is nobody's business.
     assert "OTHER" not in hits
+
+
+def test_the_sdk_header_name_is_read_too_and_the_challenge_names_ours(monkeypatch):
+    """Production's 401 said `"header": "agentkit"` — World's own header name — and
+    `require_human` read only HUMAN-PROOF, so a client doing exactly what the
+    challenge said was re-challenged forever. Both names are read now, and the
+    challenge names the one this server reads first, with the SDK's as the alternative."""
+    _env(monkeypatch)
+    try:
+        client = _client()
+        _fake_graph(monkeypatch, {"humanCluster": {"wallets": []}}, {})
+        challenge = client.get("/tca/human").json()
+        assert challenge["header"] == "HUMAN-PROOF"
+        # The dev verifier's challenge does not mention the SDK header; the AgentKit
+        # one does, and the dependency reads it regardless of which verifier runs.
+        ok_ours = client.get("/tca/human", headers={"HUMAN-PROOF": f"humanid {NULLIFIER}:{challenge['nonce']}"})
+        assert ok_ours.status_code == 200
+        nonce2 = client.get("/tca/human").json()["nonce"]
+        ok_sdk = client.get("/tca/human", headers={"agentkit": f"humanid {NULLIFIER}:{nonce2}"})
+        assert ok_sdk.status_code == 200, ok_sdk.text
+    finally:
+        monkeypatch.undo()
+        reset_verifier()

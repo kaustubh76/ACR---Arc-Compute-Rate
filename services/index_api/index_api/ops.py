@@ -516,6 +516,16 @@ def _agent(rec: Recorder) -> None:
     rec.check(True, f"cards verified: {info['cards_verified']} "
                     f"(human tier granted {info['human_tier_granted']})")
 
+    # THE ROTATION. Cluster ids are keccak(nullifier, salt, window) and the window
+    # is seven days, so at 00:00 UTC on the boundary every resolution expires at
+    # once: humans.n becomes 0, the People chip says "out of date", every new
+    # settlement is stamped human:false, and a human-claiming card is a 401. The
+    # re-resolve is a manual chore (`make resolve-humans ARGS=--commit`, it needs
+    # the salt) and nothing scheduled does it — so the console FAILS here rather
+    # than letting the operator learn it from a chip. Failure, not warning: the
+    # human tier and the human-denominated bound are both gone until it runs.
+    _humans_this_window(rec, info.get("rotation_window"))
+
     screen = get_screen()
     live = screen_is_live(screen)
     backend = screen.backend
@@ -534,6 +544,39 @@ def _agent(rec: Recorder) -> None:
     rec.check(True, f"inspections: {counts['screened']} ({counts['blocked']} blocked)",
               detail="carded callers on POST /graph/query, both directions"
               if live else None)
+
+
+def _humans_this_window(rec: Recorder, window) -> None:
+    from acr_oracle_client.humanid import current_window
+
+    from .tca import _cfg, graph_query
+
+    url, key = _cfg()
+    now_window = int(window) if window else current_window()
+    if not url:
+        rec.check(None, "humans resolved this window: unknown (no subgraph)")
+        return
+    data = graph_query(
+        url,
+        "query Humans($w: BigInt!) { humanClusters(where: { window: $w }, first: 50) { id walletCount } }",
+        {"w": str(now_window)},
+        key,
+    )
+    if data is None:
+        rec.check(None, "humans resolved this window: unknown (subgraph did not answer)")
+        return
+    clusters = data.get("humanClusters") or []
+    wallets = sum(int(c.get("walletCount") or 0) for c in clusters)
+    ends_in_h = ((now_window + 1) * 7 * 86400 - time.time()) / 3600
+    rec.check(
+        len(clusters) > 0,
+        f"humans resolved this window: {len(clusters)} cluster(s), {wallets} wallet(s) · window {now_window} "
+        f"ends in {ends_in_h:.0f}h",
+        detail=None if clusters
+        else "the 7-day rotation rolled and nothing re-resolved — run `make resolve-humans ARGS=--commit` "
+             "(needs ACR_HUMANID_SALT); until then the human tier is unreachable and new settlements "
+             "are stamped human:false",
+    )
 
 
 SECTIONS = [

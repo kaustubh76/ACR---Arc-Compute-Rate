@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3500" height="2740" viewBox="0 0 3500 2740" font-family="Helvetica,Arial,sans-serif">
-<rect width="3500" height="2740" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="3500" height="3460" viewBox="0 0 3500 3460" font-family="Helvetica,Arial,sans-serif">
+<rect width="3500" height="3460" fill="#ffffff"/>
 <defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
 <rect x="2840" y="40" width="620" height="250" rx="4" fill="transparent" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
 <rect x="2864" y="84" width="18" height="18" rx="0" fill="#0c8599" stroke="#0c8599" stroke-width="1"/>
@@ -60,14 +60,21 @@
 <rect x="1758" y="2135" width="520" height="150" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
 <rect x="2324" y="2135" width="520" height="150" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
 <rect x="2890" y="2135" width="520" height="150" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
-<rect x="40" y="2360" width="3420" height="340" rx="4" fill="transparent" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
-<rect x="60" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
-<rect x="546" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
-<rect x="1032" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
-<rect x="1518" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
-<rect x="2004" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
-<rect x="2490" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
-<rect x="2976" y="2430" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="40" y="2720" width="3420" height="330" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="60" y="2795" width="540" height="215" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="630" y="2795" width="540" height="215" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="1200" y="2795" width="540" height="215" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="1770" y="2795" width="540" height="215" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="2340" y="2795" width="540" height="215" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="2910" y="2795" width="530" height="215" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="40" y="3080" width="3420" height="340" rx="4" fill="transparent" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="60" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="546" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="1032" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="1518" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="2004" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="2490" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="2976" y="3150" width="450" height="240" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
 <polyline points="620,408.0 686,408.0 686,412.0 725,412.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="620,534.0 680,534.0 680,412.0 725,412.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="620,786.0 674,786.0 674,412.0 725,412.0" fill="none" stroke="#e03131" stroke-width="2" marker-end="url(#a)"/>
@@ -103,6 +110,11 @@
 <polyline points="1425,1945.0 1622,1945.0 1622,1397.0 1605,1397.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="1425,1945.0 2210,1945.0 2210,1304.0 2240,1304.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
 <polyline points="2750,410.0 2800,410.0 2800,1121.0 2750,1121.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="600,2902.5 615.0,2902.5 630,2902.5" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1170,2902.5 1185.0,2902.5 1200,2902.5" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1740,2902.5 1755.0,2902.5 1770,2902.5" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="2310,2902.5 2325.0,2902.5 2340,2902.5" fill="none" stroke="#f08c00" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="2880,2902.5 2895.0,2902.5 2910,2902.5" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
 <text x="60" y="68.8" font-size="32" fill="#1e1e1e">ACR — THE ARC COMPUTE RATE</text>
 <text x="60" y="105.5" font-size="15" fill="#495057">A manipulation-resistant benchmark family for machine commerce · one estimand · four pillars · settlement-grade on-chain rate</text>
 <text x="60" y="127.7" font-size="13" fill="#2f9e44">◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · Seller API on Render · hourly Circle-signed posts · agents read AND trade the rate (autonomous hedger)</text>
@@ -268,8 +280,8 @@
 <text x="73" y="1408.2" font-size="13" fill="#1e1e1e">runs the priced attack through real clean()</text>
 <text x="73" y="1421.2" font-size="13" fill="#1e1e1e">→ the bound is attainable, not loose</text>
 <text x="2238" y="1615.5" font-size="15" fill="#495057">H · VERIFICATION</text>
-<text x="2253" y="1665.5" font-size="15" fill="#495057">TESTS · 670 py + 156 forge + 143 terminal + 24 agent</text>
-<text x="2253" y="1686.4" font-size="11" fill="#1e1e1e">4 CI jobs: python · contracts · agent · terminal</text>
+<text x="2253" y="1665.5" font-size="15" fill="#495057">TESTS · 677 py + 156 forge + 143 terminal + 31 agent</text>
+<text x="2253" y="1686.4" font-size="11" fill="#1e1e1e">6 CI jobs: python · contracts · agent · terminal · subgraph · mcp</text>
 <text x="2253" y="1697.4" font-size="11" fill="#1e1e1e">anvil-gated on-chain integration · eval gate</text>
 <text x="2253" y="1708.4" font-size="11" fill="#1e1e1e">workflows: heartbeat · lifecycle · recover · keepalive · x402-buy</text>
 <text x="2253" y="1719.4" font-size="11" fill="#1e1e1e">glossary gate · ruff · make deck · hermetic conftest (Circle mocked)</text>
@@ -291,7 +303,7 @@
 <text x="2853" y="731.3" font-size="12" fill="#1e1e1e">real x402 settled via Circle Gateway · durable receipts</text>
 <text x="2853" y="743.3" font-size="12" fill="#1e1e1e">attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP</text>
 <text x="2853" y="755.3" font-size="12" fill="#1e1e1e">100% Foundry invariants passing</text>
-<text x="2853" y="767.3" font-size="12" fill="#1e1e1e">670 py · 156 forge · 143 terminal · 24 agent — green</text>
+<text x="2853" y="767.3" font-size="12" fill="#1e1e1e">677 py · 156 forge · 143 terminal · 31 agent — green</text>
 <text x="2858" y="1115.5" font-size="15" fill="#f08c00">PLAIN ENGLISH  ·  read the jargon</text>
 <text x="2864" y="1141.9" font-size="11" fill="#1e1e1e">latent price — the real price you can't see; ACR estimates it</text>
 <text x="2864" y="1152.9" font-size="11" fill="#1e1e1e">benchmark / rate — the official number contracts settle on (SOFR)</text>
@@ -366,33 +378,70 @@
 <text x="2903" y="2158.5" font-size="15" fill="#0c8599">AGENT MARKETPLACE</text>
 <text x="2903" y="2181.2" font-size="13" fill="#1e1e1e">ACR listed as a payable service</text>
 <text x="2903" y="2194.2" font-size="13" fill="#1e1e1e">agents discover + pay natively (Zone K)</text>
-<text x="58" y="2385.5" font-size="15" fill="#495057">7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper</text>
-<text x="73" y="2453.5" font-size="15" fill="#495057">W1 — TAPE</text>
-<text x="73" y="2476.2" font-size="13" fill="#1e1e1e">indexer live on Arc testnet</text>
-<text x="73" y="2489.2" font-size="13" fill="#1e1e1e">empirical batching study</text>
-<text x="73" y="2502.2" font-size="13" fill="#1e1e1e">OSS: microstructure paper</text>
-<text x="559" y="2453.5" font-size="15" fill="#495057">W2 — ESTIMATOR v1</text>
-<text x="559" y="2476.2" font-size="13" fill="#1e1e1e">state-space filter</text>
-<text x="559" y="2489.2" font-size="13" fill="#1e1e1e">trimmed VWM + first prints</text>
-<text x="559" y="2502.2" font-size="13" fill="#1e1e1e">METHODOLOGY PAPER out</text>
-<text x="1045" y="2453.5" font-size="15" fill="#495057">W3 — ON-CHAIN</text>
-<text x="1045" y="2476.2" font-size="13" fill="#1e1e1e">AttestationRegistry +</text>
-<text x="1045" y="2489.2" font-size="13" fill="#1e1e1e">ACROracle contracts</text>
-<text x="1045" y="2502.2" font-size="13" fill="#1e1e1e">full invariant suite</text>
-<text x="1531" y="2453.5" font-size="15" fill="#e8590c">W4 — ADOPTION ★</text>
-<text x="1531" y="2476.2" font-size="13" fill="#1e1e1e">sellers attest metadata</text>
-<text x="1531" y="2489.2" font-size="13" fill="#1e1e1e">x402 index API live</text>
-<text x="1531" y="2502.2" font-size="13" fill="#1e1e1e">oracle consumed by partners</text>
-<text x="2017" y="2453.5" font-size="15" fill="#495057">W5 — RED TEAM</text>
-<text x="2017" y="2476.2" font-size="13" fill="#1e1e1e">manipulation bound derived</text>
-<text x="2017" y="2489.2" font-size="13" fill="#1e1e1e">attack own index (wash bots)</text>
-<text x="2017" y="2502.2" font-size="13" fill="#1e1e1e">publish attack-cost/bp</text>
-<text x="2503" y="2453.5" font-size="15" fill="#495057">W6 — INSTRUMENT</text>
-<text x="2503" y="2476.2" font-size="13" fill="#1e1e1e">weekly cash-settled future</text>
-<text x="2503" y="2489.2" font-size="13" fill="#1e1e1e">A-S MM quoting live</text>
-<text x="2503" y="2502.2" font-size="13" fill="#1e1e1e">Mission Control trading</text>
-<text x="2989" y="2453.5" font-size="15" fill="#495057">W7 — SHIP</text>
-<text x="2989" y="2476.2" font-size="13" fill="#1e1e1e">freeze Monday</text>
-<text x="2989" y="2489.2" font-size="13" fill="#1e1e1e">paper polish + rehearse</text>
-<text x="2989" y="2502.2" font-size="13" fill="#1e1e1e">attack demo twice</text>
+<text x="58" y="2745.5" font-size="15" fill="#1971c2">T · MACHINE TCA — ETHOnline 2026 CONTINUITY (new since v1.0-submission) · a person, not a wallet, is the unit    ·    Arc + The Graph + World</text>
+<text x="73" y="2818.5" font-size="15" fill="#e8590c">ReceiptMirror.sol · HumanIdMirror.sol · ACROracleV2.sol</text>
+<text x="73" y="2840.3" font-size="12" fill="#1e1e1e">0xA9CD…DB65  every x402 settlement, mirrored on Arc</text>
+<text x="73" y="2852.3" font-size="12" fill="#1e1e1e">0x7f41…d8e5  which wallets are ONE person, per 7-day window</text>
+<text x="73" y="2864.3" font-size="12" fill="#1e1e1e">  cluster = keccak(nullifier, salt, window) — never a World ID</text>
+<text x="73" y="2876.3" font-size="12" fill="#1e1e1e">0xFCa0…FFEA  v2 print: policyHash + humanAdjustedBound</text>
+<text x="73" y="2888.3" font-size="12" fill="#1e1e1e">monotone per-payer guard · salt committed on chain</text>
+<text x="643" y="2818.5" font-size="15" fill="#0c8599">acr-tape SUBGRAPH (The Graph · Studio ethonline v0.2.0)</text>
+<text x="643" y="2840.3" font-size="12" fill="#1e1e1e">7 data sources on arc-testnet · ~3 s behind head</text>
+<text x="643" y="2852.3" font-size="12" fill="#1e1e1e">Settlement.slippageBp benchmarked IN THE MAPPING</text>
+<text x="643" y="2864.3" font-size="12" fill="#1e1e1e">  vs the arrival print, at the settling block</text>
+<text x="643" y="2876.3" font-size="12" fill="#1e1e1e">Settlement.human · SellerDay / PayerDay · SellerWindow</text>
+<text x="643" y="2888.3" font-size="12" fill="#1e1e1e">graph/ · 57 matchstick tests · no Substreams on Arc (stated)</text>
+<text x="1213" y="2818.5" font-size="15" fill="#1971c2">MACHINE TCA · RATINGS · REROUTE</text>
+<text x="1213" y="2840.3" font-size="12" fill="#1e1e1e">/tca/{payer}  vw slippage · overpaid · by_seller · human_share</text>
+<text x="1213" y="2852.3" font-size="12" fill="#1e1e1e">/rating/{seller}  fairness · human depth · weight_covered_pct</text>
+<text x="1213" y="2864.3" font-size="12" fill="#1e1e1e">/tca/human  one card across EVERY wallet a person owns</text>
+<text x="1213" y="2876.3" font-size="12" fill="#1e1e1e">reroute: worst → best seller, saving in bp on past fills</text>
+<text x="1213" y="2888.3" font-size="12" fill="#1e1e1e">make recompute  re-derive the index from the indexed tape</text>
+<text x="1783" y="2818.5" font-size="15" fill="#9c36b5">AGENT GATE + MODEL ARMOR</text>
+<text x="1783" y="2840.3" font-size="12" fill="#1e1e1e">AGENT-CARD: EIP-712, no verifyingContract, audience + 15-min TTL</text>
+<text x="1783" y="2852.3" font-size="12" fill="#1e1e1e">three tiers: anonymous (host) · carded (key) · human (cluster)</text>
+<text x="1783" y="2864.3" font-size="12" fill="#1e1e1e">human claim confirmed on HumanIdMirror or 401, never a downgrade</text>
+<text x="1783" y="2876.3" font-size="12" fill="#1e1e1e">Google Cloud Model Armor on carded /graph/query, both directions</text>
+<text x="1783" y="2888.3" font-size="12" fill="#1e1e1e">the tier rides on the RECEIPT and the settlement ticker</text>
+<text x="2353" y="2818.5" font-size="15" fill="#f08c00">WORLD · AgentKit CONTINUITY</text>
+<text x="2353" y="2840.3" font-size="12" fill="#1e1e1e">HUMAN-PROOF: CAIP-122 signature → AgentBook → cluster</text>
+<text x="2353" y="2852.3" font-size="12" fill="#1e1e1e">make prove-human  judge-runnable, nothing secret</text>
+<text x="2353" y="2864.3" font-size="12" fill="#1e1e1e">humanAdjustedBound: sybils are free, people are not</text>
+<text x="2353" y="2876.3" font-size="12" fill="#1e1e1e">Sandbox identities flagged onto chain + every count</text>
+<text x="2353" y="2888.3" font-size="12" fill="#1e1e1e">FEEDBACK_WORLD.md · rotation chore on /ops</text>
+<text x="2923" y="2818.5" font-size="15" fill="#9c36b5">THE LOOP CLOSES · apps/agent --reroute · MCP</text>
+<text x="2923" y="2840.3" font-size="12" fill="#1e1e1e">buyer reads ITS OWN /tca before paying</text>
+<text x="2923" y="2852.3" font-size="12" fill="#1e1e1e">drops the worst seller, pays the suggested one first</text>
+<text x="2923" y="2864.3" font-size="12" fill="#1e1e1e">Circle Gateway nanopayment → ReceiptMirror → subgraph → /tca</text>
+<text x="2923" y="2876.3" font-size="12" fill="#1e1e1e">mcp/: 6 tools (reroute_suggestion · my_tca('me') · query_tape)</text>
+<text x="2923" y="2888.3" font-size="12" fill="#1e1e1e">skills/acr-analyst: Ask the Tape, in English</text>
+<text x="58" y="3105.5" font-size="15" fill="#495057">7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper</text>
+<text x="73" y="3173.5" font-size="15" fill="#495057">W1 — TAPE</text>
+<text x="73" y="3196.2" font-size="13" fill="#1e1e1e">indexer live on Arc testnet</text>
+<text x="73" y="3209.2" font-size="13" fill="#1e1e1e">empirical batching study</text>
+<text x="73" y="3222.2" font-size="13" fill="#1e1e1e">OSS: microstructure paper</text>
+<text x="559" y="3173.5" font-size="15" fill="#495057">W2 — ESTIMATOR v1</text>
+<text x="559" y="3196.2" font-size="13" fill="#1e1e1e">state-space filter</text>
+<text x="559" y="3209.2" font-size="13" fill="#1e1e1e">trimmed VWM + first prints</text>
+<text x="559" y="3222.2" font-size="13" fill="#1e1e1e">METHODOLOGY PAPER out</text>
+<text x="1045" y="3173.5" font-size="15" fill="#495057">W3 — ON-CHAIN</text>
+<text x="1045" y="3196.2" font-size="13" fill="#1e1e1e">AttestationRegistry +</text>
+<text x="1045" y="3209.2" font-size="13" fill="#1e1e1e">ACROracle contracts</text>
+<text x="1045" y="3222.2" font-size="13" fill="#1e1e1e">full invariant suite</text>
+<text x="1531" y="3173.5" font-size="15" fill="#e8590c">W4 — ADOPTION ★</text>
+<text x="1531" y="3196.2" font-size="13" fill="#1e1e1e">sellers attest metadata</text>
+<text x="1531" y="3209.2" font-size="13" fill="#1e1e1e">x402 index API live</text>
+<text x="1531" y="3222.2" font-size="13" fill="#1e1e1e">oracle consumed by partners</text>
+<text x="2017" y="3173.5" font-size="15" fill="#495057">W5 — RED TEAM</text>
+<text x="2017" y="3196.2" font-size="13" fill="#1e1e1e">manipulation bound derived</text>
+<text x="2017" y="3209.2" font-size="13" fill="#1e1e1e">attack own index (wash bots)</text>
+<text x="2017" y="3222.2" font-size="13" fill="#1e1e1e">publish attack-cost/bp</text>
+<text x="2503" y="3173.5" font-size="15" fill="#495057">W6 — INSTRUMENT</text>
+<text x="2503" y="3196.2" font-size="13" fill="#1e1e1e">weekly cash-settled future</text>
+<text x="2503" y="3209.2" font-size="13" fill="#1e1e1e">A-S MM quoting live</text>
+<text x="2503" y="3222.2" font-size="13" fill="#1e1e1e">Mission Control trading</text>
+<text x="2989" y="3173.5" font-size="15" fill="#495057">W7 — SHIP</text>
+<text x="2989" y="3196.2" font-size="13" fill="#1e1e1e">freeze Monday</text>
+<text x="2989" y="3209.2" font-size="13" fill="#1e1e1e">paper polish + rehearse</text>
+<text x="2989" y="3222.2" font-size="13" fill="#1e1e1e">attack demo twice</text>
 </svg>

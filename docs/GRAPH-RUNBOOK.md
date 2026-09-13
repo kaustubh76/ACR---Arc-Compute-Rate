@@ -104,11 +104,13 @@ Do **not** run `graph init` from Studio's onboarding panel: it scaffolds a fresh
 boilerplate subgraph, and this one already exists in `graph/`. Only the slug and
 the deploy key from that panel matter here.
 
-Deployed 2026-09-05 as `ethonline`, deployment
-`Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`, query endpoint:
+Deployed 2026-09-05 as `ethonline` v0.1.0 (`Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`);
+**current is v0.2.0** (`QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6`), which added the
+`HumanIdMirror` data source, `HumanCluster`, `SellerWindow` and `Settlement.human`.
+Production reads v0.2.0 (`render.yaml`). Query endpoint:
 
 ```
-https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0
+https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0
 ```
 
 That is the Studio *development* endpoint and needs no gateway API key. A

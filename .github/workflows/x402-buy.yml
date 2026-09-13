@@ -72,7 +72,7 @@ jobs:
             --api "${{ inputs.api }}" \
             --count "${{ inputs.count }}" \
             --limit "${{ inputs.limit }}" \
-            --discover
+            --discover --reroute
 
       # The agent saying "paid" is its own account of itself. The settlement is
       # real when the SELLER — the side that ran verify + settle against Circle

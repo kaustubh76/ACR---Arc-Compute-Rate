@@ -136,7 +136,7 @@ Reproduce locally: make setup && make ci && make demo
 | Three settled rounds | `#2 @ 0.49533` (tx `0xf094befc…`) · `#1 @ 0.49533` (tx `0x5351bd0c…`) · `#0 @ 0.49270` · cash, final, collateral released. Two of the cleared wallets are outside the operator set. |
 | The hedger's fill | `buy 0.24 @ 0.49773` · tx `0x22772154ff8deb5ef43001af8c98fecd36ae2dc70cfe437965c90f68d0041834` · position 2.47 → 2.71 |
 | Resistance ($8,000 wash attack) | naive VWAP +110.8% vs ACR +0.20%, which is 562×. The 12-hour eval: 5703.9 bp vs 124.1 bp, which is 46×. CI-gated by `make eval-gate`. |
-| Suites, all green | **670 py** · **156 forge** · **143 terminal** · **24 agent** · glossary **426/426** · GitHub CI 6/6 |
+| Suites, all green | **677 py** · **156 forge** · **143 terminal** · **31 agent** · glossary **560/560** · GitHub CI 6/6 |
 
 **Honesty, stated before it is asked.** The price tape is a *labelled* simulator
 (`tape_source: sim`): about 18,500 real Arc settlements collapse to a single price, so no index
@@ -151,7 +151,7 @@ The architecture in three readable bands, freshly rendered from the live canvas
 (`acr_architecture.excalidraw` in the repo root). The full canvas, with every box mapped to the
 module that implements it, is `docs/ARCHITECTURE-DIAGRAM.md`. It earns the phrase implementation
 accurate because CI holds it to that: `make verify-claims` re-measures the suite counts the
-canvas states, and `make glossary-check` requires all 426 of its terms to be defined.
+canvas states, and `make glossary-check` requires all 560 of its terms to be defined.
 
 **Band 1 · from exhaust to print, under attack.** Market exhaust and ingestion feed the
 four-pillar estimator core: observation model, cleaning stack, hedonic adjustment, manipulation

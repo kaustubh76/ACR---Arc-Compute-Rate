@@ -7,7 +7,7 @@ pragma solidity 0.8.24;
 ///
 ///         * `policyHash`  — which cleaning policy excluded which flow. Without
 ///           it "the keeper decides what is wash" is an objection with no
-///           answer; with it, `acr recompute --rederive-cleaning` can re-run the
+///           answer; with it, `make recompute` (scripts/recompute.py) can re-run the
 ///           same stack and report whether its exclusions match.
 ///         * `windowStart` / `windowEnd` — the span the print summarizes, so a
 ///           verifier recomputes over the same window rather than guessing it.

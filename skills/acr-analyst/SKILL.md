@@ -27,8 +27,8 @@ curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
 ```
 
 Or point The Graph's **Subgraph MCP** straight at the deployment — slug
-`ethonline`, `Qmb8Dw6cBZjzkCx4PRc7BC8defLxgLZJDBLoho2oocsjZf`, queryable at
-`https://api.studio.thegraph.com/query/1758707/ethonline/v0.1.0` — and ask it
+`ethonline`, **v0.2.0** (`QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6`), queryable at
+`https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` — and ask it
 anything. This skill is the schema map you need either way.
 
 ## Show a card, or share the anonymous ceiling
@@ -61,7 +61,9 @@ Through the MCP server (`mcp/README.md`) the same happens by setting
 | `EconomicPrint` | the deduplicated print both oracles posted | `postedAt` (first posting only), `policyHash`, `windowStart`/`windowEnd`, `oracleMask`, `divergent` |
 | `SignerChange` / `PauseChange` | who could sign, and when a feed stopped | `contractName`, `signer`, `allowed`, `paused` |
 | `CollateralFlow` | money entering or leaving the venue | `trader`, `amount`, `deposited` |
-| `Settlement` | one mirrored x402 purchase, benchmarked | `unitPrice`, `arrivalValue`, `slippageBp`, `benchmarked`, `synthetic` |
+| `Settlement` | one mirrored x402 purchase, benchmarked | `unitPrice`, `arrivalValue`, `slippageBp`, `benchmarked`, `synthetic`, `human` |
+| `HumanCluster` | one verified person's wallets for one 7-day window (an opaque id, never a World ID) | `window`, `sandbox`, `walletCount`, `wallets` |
+| `SellerWindow` | a seller's week, denominated in people | `distinctHumans`, `distinctPayers`, `humanVolume`, `volume` |
 | `PendingSettlement` | a purchase whose quantity has not been decoded yet | `settledAt`, `mirrorLagSeconds`, `unbenchmarkedReason` |
 | `SellerDay` / `PayerDay` | a day of flow, rolled up in the mapping | `volume`, `bmVolume`, `wSlipTenthBp`, `synthVolume`, `n`, `b0..b6` |
 | `Seller` / `Payer` | a party | `totalVolume`, `distinctPayers`, `latestAttestation` |
@@ -150,9 +152,10 @@ pooling it back in would flatter every seller grade.
 **A rating is not a market verdict.** Every rating carries `n`, the synthetic
 share, and `weight_covered_pct` — the share of the published methodology the
 grade actually rests on. Components with no data yet (cleanliness)
-are excluded from the weighting rather than scored zero. So today a grade rests
-on **55%** of the published weights for an attested seller, and 40% for one that
-has never attested — never 100%. Quote the coverage with the letter.
+are excluded from the weighting rather than scored zero. So a grade never rests
+on 100% of the published weights — read `weight_covered_pct` off the card (75% on
+the live tape at the time of writing, now that human depth is measured) and quote
+the coverage with the letter.
 
 ## The repo
 

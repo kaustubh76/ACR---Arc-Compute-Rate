@@ -23,6 +23,14 @@ if [[ -z "${RENDER_API_KEY:-}" ]]; then
   exit 1
 fi
 
+# The archive must hold every settlement production has, or this image erases
+# them: the free tier has no disk and the seller rehydrates from the file that
+# ships inside the image. `--check` exits 1 when production is ahead of the repo.
+if ! uv run python "${ROOT}/scripts/archive_receipts.py" --check; then
+  echo "production holds settlements the archive lacks — run 'uv run python scripts/archive_receipts.py', commit, then redeploy" >&2
+  exit 1
+fi
+
 if [[ "${SKIP_BUILD:-}" != "1" ]]; then
   # --platform linux/amd64 is MANDATORY from an Apple-silicon Mac. An arm64
   # push produces an image Render accepts and then silently cannot start, and

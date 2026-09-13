@@ -445,3 +445,13 @@ def test_the_receipt_records_the_tier_the_card_earned(human_gate):
         assert [row["tier"] for row in rows[:3]] == ["human", "carded", "anonymous"]
     finally:
         reset_facilitator()
+
+
+@pytest.mark.parametrize("path", ["/tca/undefined", "/rating/notanaddress", "/tca/0x1234"])
+def test_a_typo_is_a_422_not_a_subgraph_outage(path):
+    """`GET /tca/undefined` answered 200 "the subgraph did not answer" — a caller's
+    typo reported as our outage. The proxy already refused bad input by name; the
+    two TCA routes now do the same, before any query is sent."""
+    r = client.get(path)
+    assert r.status_code == 422
+    assert "address" in r.json()["detail"]

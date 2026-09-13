@@ -566,6 +566,92 @@ and it proves its own tamper-resistance.
     the index. The index about machine commerce is bought *by* machines — the
     loop closes.
 
+## Machine TCA — the ETHOnline 2026 continuity layer
+
+- **ETHOnline 2026 · Continuity** — the hackathon track ACR entered as an existing project.
+  Everything since the frozen baseline tag `v1.0-submission` is documented in `CONTINUITY.md`;
+  the diagram's band T is that work, drawn as a layer on the earlier product. *The extension
+  built onto a house that was already standing, with the old walls left visible.*
+- **Machine TCA (transaction-cost analysis) — `/tca/{payer}`, `/tca/human`, `by_seller`** — what
+  an agent's purchases actually cost against the benchmark it could see at the moment each one
+  settled: volume-weighted slippage, the dollars overpaid, and a breakdown by seller with the worst
+  first. `/tca/human` is the same card across every wallet one person owns. *The receipt that
+  says "you paid 3% over the going rate, mostly at that one shop".*
+- **ReceiptMirror (`0xA9CD…DB65`)** — the contract every real x402 settlement is mirrored onto,
+  so the tape of who paid whom, how much, for what, lives on Arc and not only in a seller's
+  memory. A per-payer monotone guard refuses a receipt older than the last one recorded for that
+  payer, so a keeper cannot withhold a settlement until a later print suits it. *Carbon copies
+  of every till receipt, filed in a public cabinet that only accepts them in order.*
+- **HumanIdMirror (`0x7f41…d8e5`) · cluster · rotation** — the contract that records which
+  payer wallets belong to one verified person, per 7-day rotation window, as an opaque cluster id
+  `keccak(nullifier, salt, window)`. The salt is committed on chain (its hash), never published;
+  the nullifier — World's per-person identifier — never appears. Ids change completely every
+  window, so a resolution expires rather than lingers, and re-resolving is an operator chore
+  (`make resolve-humans`) the ops console fails loudly on when missed. *A weekly guest list that
+  groups rooms by guest without printing anyone's name, and is torn up every Monday.*
+- **ACROracleV2 (`0xFCa0…FFEA`) · `policyHash` · `humanAdjustedBound`** — the second oracle,
+  posted beside v1 (which the futures venue settles against and cannot change). Each v2 print
+  carries the hash of the cleaning policy that produced it and a second manipulation bound
+  denominated in people rather than wallets: sybils are free, humans are not. *The same price,
+  stamped with the recipe used and an honest note on what it would cost a real person to move it.*
+- **the `acr-tape` subgraph (The Graph · Studio `ethonline` v0.2.0) · indexed · mapping** —
+  the index of Arc that turns settlements into numbers: `Settlement.slippageBp` is benchmarked
+  in the mapping itself, at the settling block, against the arrival print — the last print
+  posted before the settlement — so nothing downstream recomputes it and nothing can disagree.
+  Seven data sources (both oracles, both mirrors, the venue, the registry, the attestor); daily
+  rollups `SellerDay` / `PayerDay`; a `SellerWindow` denominated in people; `Settlement.human`
+  stamped from HumanIdMirror. Substreams is not available for Arc (Studio-only), which is stated
+  rather than skipped. *A public ledger-reader that writes "over/under the going rate" on every
+  receipt the moment it is filed.*
+- **ratings · fairness · human depth · `weight_covered_pct` · `human_share`** — a seller's grade
+  from the same tape: how far its fills sit from the benchmark (fairness), how many distinct
+  people — not wallets — bought from it (human depth), what share of its volume came from
+  wallets the chain ties to a person, and what share of the published methodology's weights the
+  grade actually rests on. Components with no data yet are excluded from the weighting rather
+  than scored zero, so a grade never claims 100% coverage. *A shop review that also says how
+  many of the reviewers were real, and how much of the scorecard was filled in.*
+- **the reroute · `reroute_suggestion` · `--reroute`** — from `by_seller`, the arithmetic of
+  moving volume from the seller a wallet overpaid most to the one it overpaid least, with the
+  saving in basis points on past fills. Stated as a suggestion, never a promise: past fills are
+  not future ones. With `--reroute`, the buyer agent reads its own TCA before buying, drops the
+  worst seller from the run and pays the suggested one first — the signal deciding the next
+  nanopayment. *"You would have saved 3% at the shop next door" — and then walking there.*
+- **`make recompute` · sybils flagged** — re-derives the index from the settlements the subgraph
+  indexed and compares it against what the chain published. On a demo tape where every payer
+  buys from every seller the cleaning stack flags the whole tape as one funding community and a
+  cleaned estimate is undefined; the script says so and prints the uncleaned figure, labelled.
+  *Re-doing the sums from the public ledger to see whether the posted price holds up.*
+- **the agent gate · `AGENT-CARD` · three tiers (anonymous · carded · human)** — a signed
+  EIP-712 card an agent presents; the gate believes the key, not a registry, so nobody is
+  enrolled. The card's domain names no `verifyingContract` — it binds to an `audience` string
+  and a 15-minute lifetime instead — and may claim a human cluster the chain can confirm. Three
+  tiers of rate limit follow: the shared host ceiling with no card, a budget per key with one,
+  a budget per person when the claim is confirmed (never a silent downgrade: an unconfirmable
+  claim is a 401). The tier rides on the receipt. *An ID card the robot made itself; the more
+  it proves, the bigger its own allowance.*
+- **Google Cloud Model Armor** — Google's screening service for prompt injection and
+  jailbreaks, applied to carded callers' tape queries in both directions. `/armor/info` says
+  which backend answered; the offline pattern floor is reported as a floor, never as the screen.
+  *A bouncer reading messages in and out, and a sign saying whether the bouncer is the real one.*
+- **World AgentKit · AgentBook · `HUMAN-PROOF` · CAIP-122 · Sandbox** — the proof that an agent
+  acts for a real, unique person: the gate issues a challenge nonce, the agent's wallet signs a
+  CAIP-122 message naming it, the gate recovers the signer and looks the wallet up in AgentBook
+  (World's registry of agent wallets to humans), then derives the person's cluster for this
+  window. The nonce is spent on use. All demo identities are World ID Sandbox ones, flagged
+  `sandbox` onto the chain and into every count. `make prove-human` runs the whole path with
+  nothing secret — judge-runnable. *Showing a ticket that proves a person is behind the robot,
+  without showing the person.*
+- **the MCP server (`mcp/`) · `my_tca` · `query_tape` · `skills/acr-analyst`** — six read-only
+  tools any MCP host (Claude, for one) can call: a wallet's TCA, a reroute suggestion, a seller's
+  rating, the benchmark, the on-chain rate, and any named subgraph operation. Every call carries
+  an agent card; `my_tca("me")` signs the AgentKit challenge. The analyst skill is the same tape
+  explained to an agent in English — "Ask the Tape". *A phrasebook and a phone line so an AI
+  assistant can ask the market what things cost.*
+- **the loop closes** — settlement → mirrored on chain → indexed by the subgraph → measured as
+  TCA → decided as a reroute → paid as the next Circle Gateway nanopayment, which is itself a
+  settlement. Nothing in the chain is asserted; each link is a public record the next one reads.
+  *The receipt teaches the buyer, the buyer changes shops, the new receipt lands on the pile.*
+
 ---
 
 *See also: `docs/ARCHITECTURE-DIAGRAM.md` (the visual blueprint), `docs/methodology.md` (the formal

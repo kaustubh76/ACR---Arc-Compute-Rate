@@ -80,13 +80,19 @@ query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!, $windowId: ID!) 
 }
 """
 
+# `$since` is a DAY index (PayerDay keys on it); `$sinceTs` is the same instant in
+# unix seconds for the settlement rows. Both filters exist because the two halves
+# of this card were once on different windows: the headline came from seven days
+# of PayerDay and the per-seller breakdown from EVERY settlement the payer ever
+# made — so on a busy wallet `by_seller` summed to 708% of the week's volume and
+# the reroute priced its saving on fills the headline did not count.
 _PAYER_DAYS = """
-query PayerDays($payer: Bytes!, $since: Int!) {
+query PayerDays($payer: Bytes!, $since: Int!, $sinceTs: BigInt!) {
   payerDays(where: { payer: $payer, day_gte: $since }, orderBy: day, orderDirection: desc, first: 400) {
     day spent bmSpent wSlipTenthBp overpay n nAll
   }
   settlements(
-    where: { payer: $payer, benchmarked: true }
+    where: { payer: $payer, benchmarked: true, settledAt_gte: $sinceTs }
     orderBy: settledAt orderDirection: desc first: 500
   ) {
     seller { id } amount slippageTenthBp synthetic human index
@@ -104,14 +110,18 @@ query HumanCluster($cluster: ID!) {
 }
 """
 
+# `first: 1000` is The Graph's HARD ceiling. This query asked for 2000 and the
+# gateway refused it with a GraphQL error that `graph_query` reported as "the
+# subgraph did not answer" — so every verified human proof in production was met
+# with an outage message, and no test saw it because the tests stub the query.
 _HUMAN_DAYS = """
-query HumanDays($payers: [Bytes!]!, $since: Int!) {
+query HumanDays($payers: [Bytes!]!, $since: Int!, $sinceTs: BigInt!) {
   payerDays(where: { payer_in: $payers, day_gte: $since }, orderBy: day, orderDirection: desc, first: 800) {
     day spent bmSpent wSlipTenthBp overpay n nAll
   }
   settlements(
-    where: { payer_in: $payers, benchmarked: true }
-    orderBy: settledAt orderDirection: desc first: 2000
+    where: { payer_in: $payers, benchmarked: true, settledAt_gte: $sinceTs }
+    orderBy: settledAt orderDirection: desc first: 1000
   ) {
     seller { id } amount slippageTenthBp synthetic human index
   }
@@ -135,6 +145,13 @@ def _window_now() -> int:
 
 def _day_now() -> int:
     return int(time.time()) // 86400
+
+
+def _window_vars(days: int) -> dict:
+    """The two spellings of one cutoff: a day index for the daily rollups, unix
+    seconds for the settlement rows — so both halves of a card cover one window."""
+    since = _day_now() - days
+    return {"since": since, "sinceTs": str(since * 86400)}
 
 
 def _vw_bp(weighted_tenth_bp: int, benchmarked_volume: int) -> float | None:
@@ -338,7 +355,7 @@ def payer_tca(payer: str, days: int = 7) -> dict:
     if not url:
         return _unavailable("ACR_SUBGRAPH_URL is unset")
     data = graph_query(
-        url, _PAYER_DAYS, {"payer": payer.lower(), "since": _day_now() - days}, key
+        url, _PAYER_DAYS, {"payer": payer.lower(), **_window_vars(days)}, key
     )
     if not data:
         return _unavailable("the subgraph did not answer")
@@ -443,7 +460,7 @@ def human_tca(cluster: str, window: int, days: int = 7) -> dict:
         return {**_unavailable("no wallets are resolved to this human in this window"),
                 "human": human}
 
-    data = graph_query(url, _HUMAN_DAYS, {"payers": wallets, "since": _day_now() - days}, key)
+    data = graph_query(url, _HUMAN_DAYS, {"payers": wallets, **_window_vars(days)}, key)
     if not data:
         return {**_unavailable("the subgraph did not answer"), "human": human}
     return {**_card(data, days), "human": human}

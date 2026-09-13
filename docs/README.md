@@ -37,6 +37,7 @@ New here? The [root README](../README.md) is the shortest complete answer to
 |---|---|
 | [agent-runbook.md](agent-runbook.md) | The live Circle Agent Stack loop: the buyer agent discovers listings, pays x402 nanopayments, and receipts print on `/exchange` |
 | [TESTNET_RUNBOOK.md](TESTNET_RUNBOOK.md) | The ordered `[OPERATOR]` / `[AUTOMATED]` sequence to bring the whole system up on Arc testnet |
+| [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md) | Arc mainnet (`eip155:5042`, genesis 2026-09-16): the same five deploys in order, `make deploy-mainnet-dry` with a chain-id preflight, and what to set after each address exists. Deployment-ready, stated as such |
 | [DEPLOY.md](DEPLOY.md) | The cloud deployment runbook — Render (API) + Vercel (Terminal) |
 | [GRAPH-RUNBOOK.md](GRAPH-RUNBOOK.md) | The five ordered steps to bring the `acr-tape` subgraph up on Studio. Two of them are **not recoverable if done out of order** |
 | [acr-openapi.md](acr-openapi.md) · [.pdf](acr-openapi.pdf) | The seller API's endpoint reference, rendered from the live OpenAPI 3.1 schema |

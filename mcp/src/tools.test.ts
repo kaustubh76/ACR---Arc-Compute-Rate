@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { callTool, TOOLS } from "./tools.js";
+import { signAgentKitChallenge, callTool, TOOLS } from "./tools.js";
 
 /** A fetch stand-in that records calls and replays canned bodies. */
 function fake(routes: Record<string, unknown>, seen: string[] = []) {
@@ -152,9 +152,9 @@ test('my_tca("me") says why it cannot answer, rather than looking unverified-but
     { api: "https://acr.test", fetchImpl: humanGate({ available: true }) },
   )) as { available: boolean; reason: string };
   assert.equal(out.available, false);
-  // An AgentKit proof comes from the agent's own World credential; the plugin
-  // cannot mint one, and pretending otherwise would be the failure.
-  assert.match(out.reason, /cannot be created here/);
+  // A dev gate with no nullifier: say which credential is missing. (The AgentKit
+  // gate's answer is pinned separately — it names ACR_HUMAN_AGENT_KEY.)
+  assert.match(out.reason, /ACR_HUMAN_NULLIFIER/);
 });
 
 test('my_tca with an address does not touch the human gate', async () => {
@@ -201,4 +201,59 @@ test("with a key, every tool's upstream call carries an agent card", async () =>
   // No key: the fetch is returned UNCHANGED, so anonymous costs nothing extra.
   const bare = withCard(inner, { chainId: 5042002 });
   assert.equal(bare, inner);
+});
+
+
+test('my_tca("me") signs an AgentKit challenge when the gate asks for one', async () => {
+  /* Production runs the AgentKit verifier; the dev-gate nullifier format was met
+     with "malformed agentkit header". With a wallet key lent by the host the
+     plugin signs the CAIP-122 message the verifier recovers. */
+  const { recoverMessageAddress, privateKeyToAccount } = await import("viem/accounts").then(async (a) => ({
+    ...a,
+    ...(await import("viem")),
+  }));
+  const key = `0x${"42".repeat(32)}`;
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  let calls = 0;
+  const gate = async (url: string, init?: { headers?: Record<string, string> }) => {
+    seen.push({ url, headers: init?.headers });
+    calls += 1;
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({ scheme: "agentkit", nonce: "n0nce", header: "HUMAN-PROOF", resource: "/tca/human" }),
+      };
+    }
+    return { ok: true, status: 200, json: async () => ({ available: true, human: { wallet_count: 3 } }) };
+  };
+  const out = (await callTool("my_tca", { target: "me" }, { api: "https://acr.test", fetchImpl: gate, humanKey: key })) as {
+    available: boolean;
+  };
+  assert.equal(out.available, true);
+  const header = seen[1].headers?.["HUMAN-PROOF"];
+  assert.ok(header, "the proof rides in the header the challenge named");
+  const payload = JSON.parse(Buffer.from(header!, "base64").toString()) as {
+    address: `0x${string}`; nonce: string; uri: string; signedMessage: string; signature: `0x${string}`;
+  };
+  assert.equal(payload.nonce, "n0nce");
+  assert.equal(payload.uri, "/tca/human");
+  assert.match(payload.signedMessage, /Nonce: n0nce/);
+  const who = await recoverMessageAddress({ message: payload.signedMessage, signature: payload.signature });
+  assert.equal(who, privateKeyToAccount(key as `0x${string}`).address);
+  assert.equal(payload.address, who);
+});
+
+test('my_tca("me") against an AgentKit gate with no key says what to set', async () => {
+  const gate = async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ scheme: "agentkit", nonce: "n", header: "HUMAN-PROOF" }),
+  });
+  const out = (await callTool("my_tca", { target: "me" }, { api: "https://acr.test", fetchImpl: gate, nullifier: "0xdev" })) as {
+    available: boolean; reason: string;
+  };
+  assert.equal(out.available, false);
+  assert.match(out.reason, /ACR_HUMAN_AGENT_KEY/);
+  assert.ok(typeof signAgentKitChallenge === "function");
 });

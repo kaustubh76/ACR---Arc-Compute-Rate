@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -1031,6 +1032,9 @@ def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
     s = get_settings()
     return {
         "backend": "agentkit" if isinstance(verifier, AgentKitVerifier) else "dev",
+        # WHICH roster the proof is checked against. "agentkit" alone read as a
+        # World Chain lookup; with the fixture roster it is the demo wallets only.
+        "agentbook": verifier.book().source if isinstance(verifier, AgentKitVerifier) else None,
         "sandbox": s.humanid_sandbox,
         "app_id": s.humanid_app_id or None,
         "proof_header": "HUMAN-PROOF",
@@ -1195,6 +1199,18 @@ def tca_human(
     return human_tca(proof.cluster, proof.window, days=days)
 
 
+_EVM_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+def _require_address(value: str, what: str) -> str:
+    """422 on anything that is not an address. `GET /tca/undefined` used to answer
+    200 `"the subgraph did not answer"` — a caller's typo reported as our outage,
+    which is the one confusion a provenance surface must never produce."""
+    if not _EVM_ADDRESS.match(value):
+        raise HTTPException(status_code=422, detail=f"{what} must be a 0x-prefixed 20-byte address, got {value!r}")
+    return value
+
+
 @app.get("/tca/{payer}")
 def tca(
     payer: str,
@@ -1208,7 +1224,7 @@ def tca(
     check for free is a benchmark nobody checks.
     """
     _meter_agent(request, agent)
-    return payer_tca(payer, days=days)
+    return payer_tca(_require_address(payer, "payer"), days=days)
 
 
 @app.get("/rating/{seller}")
@@ -1221,7 +1237,7 @@ def rating(
     """Grade a seller from the same tape, with `n` and the synthetic share on
     every card so a reader can discount it without being told to."""
     _meter_agent(request, agent)
-    return seller_rating(seller, days=days)
+    return seller_rating(_require_address(seller, "seller"), days=days)
 
 
 @app.get("/fleet")

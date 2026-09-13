@@ -17,6 +17,10 @@ export interface AgentConfig {
   requireAttested: boolean;
   /** Pause between queries (ms). */
   delayMs: number;
+  /** Read /tca/{payer} before buying and let it choose the seller (needs --discover). */
+  reroute: boolean;
+  /** The saving, in bp on past fills, below which a reroute suggestion is ignored. */
+  rerouteMinBp: number;
 }
 
 export const DEFAULTS: AgentConfig = {
@@ -28,6 +32,8 @@ export const DEFAULTS: AgentConfig = {
   discover: false,
   requireAttested: false,
   delayMs: 200,
+  reroute: false,
+  rerouteMinBp: 25,
 };
 
 export function parseArgs(argv: string[]): AgentConfig {
@@ -67,11 +73,21 @@ export function parseArgs(argv: string[]): AgentConfig {
       case "--delay-ms":
         cfg.delayMs = Number(next());
         break;
+      case "--reroute":
+        cfg.reroute = true;
+        break;
+      case "--reroute-min-bp":
+        cfg.rerouteMinBp = Number(next());
+        break;
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
   }
   if (!Number.isFinite(cfg.count) || cfg.count < 1) throw new Error("--count must be >= 1");
   if (!Number.isFinite(cfg.limitUsdc) || cfg.limitUsdc <= 0) throw new Error("--limit must be > 0");
+  if (!Number.isFinite(cfg.rerouteMinBp) || cfg.rerouteMinBp < 0) throw new Error("--reroute-min-bp must be >= 0");
+  // The signal names SELLERS, and only the catalog maps a seller to a resource.
+  // With --paths there is no catalog in hand, so there is nothing to reroute between.
+  if (cfg.reroute && !cfg.discover) throw new Error("--reroute needs --discover (the catalog is what maps a seller to a listing)");
   return cfg;
 }

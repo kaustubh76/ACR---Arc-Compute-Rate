@@ -131,30 +131,86 @@ async function humanTca(
   api: string,
   days: number,
   nullifier?: string,
+  humanKey?: string,
 ): Promise<unknown> {
   const url = `${api}/tca/human?days=${days}`;
   const challenge = await f(url);
-  const body = (await challenge.json().catch(() => ({}))) as { nonce?: string };
+  const body = (await challenge.json().catch(() => ({}))) as {
+    nonce?: string;
+    scheme?: string;
+    header?: string;
+    resource?: string;
+  };
   if (challenge.ok) return body; // already authorized upstream
+  if (!body?.nonce) return { available: false, reason: "the gate issued no challenge", body };
+  const header = body.header ?? "HUMAN-PROOF";
+
+  /* Two gates, two proofs. The dev gate takes a bare nullifier; the AgentKit gate
+     takes a signed CAIP-122 message from a wallet registered in AgentBook, which
+     this plugin CAN produce when the host lends it that wallet's key — the same
+     flow `scripts/prove_human.py` runs. Neither credential is ever put in a URL. */
+  if (body.scheme === "agentkit") {
+    if (!humanKey) {
+      return {
+        available: false,
+        reason:
+          "this gate verifies AgentKit proofs: set ACR_HUMAN_AGENT_KEY to the key of a wallet " +
+          "registered in AgentBook (a demo buyer's key derives from its public label), and " +
+          "the plugin signs the challenge for you. ACR_HUMAN_NULLIFIER is for the dev gate only.",
+        challenge: body,
+      };
+    }
+    const proof = await signAgentKitChallenge(humanKey, body.nonce, body.resource ?? "/tca/human", api);
+    return readJson(f, url, { [header]: proof });
+  }
   if (!nullifier) {
     return {
       available: false,
       reason:
         "no human proof available to this plugin. Set ACR_HUMAN_NULLIFIER for the dev " +
         "gate, or call /tca/human directly with a proof minted from your own World " +
-        "credential — an AgentKit proof cannot be created here.",
+        "credential.",
       challenge: body,
     };
   }
-  if (!body?.nonce) return { available: false, reason: "the gate issued no challenge", body };
-  return readJson(f, url, { "HUMAN-PROOF": `humanid ${nullifier}:${body.nonce}` });
+  return readJson(f, url, { [header]: `humanid ${nullifier}:${body.nonce}` });
+}
+
+/** A CAIP-122 message naming the gate's nonce and resource, signed EIP-191 by the
+ *  wallet, carried as base64 JSON — the shape `AgentKitVerifier` reads. Exported
+ *  so a test can pin the wire form without a network. */
+export async function signAgentKitChallenge(
+  key: string,
+  nonce: string,
+  resource: string,
+  api: string,
+): Promise<string> {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const account = privateKeyToAccount(key.trim() as `0x${string}`);
+  const issuedAt = new Date().toISOString();
+  const host = api.replace(/^https?:\/\//, "");
+  const raw =
+    `${host} wants you to sign in with your account:\n${account.address}\n\n` +
+    `URI: ${resource}\nVersion: 1\nChain ID: 480\nNonce: ${nonce}\nIssued At: ${issuedAt}`;
+  const signature = await account.signMessage({ message: raw });
+  const payload = {
+    address: account.address,
+    nonce,
+    issuedAt,
+    uri: resource,
+    chainId: "eip155:480",
+    signedMessage: raw,
+    signature,
+    type: "eip191",
+  };
+  return Buffer.from(JSON.stringify(payload)).toString("base64");
 }
 
 /** Dispatch one tool call. Returns the payload the host will render. */
 export async function callTool(
   name: string,
   args: Record<string, unknown>,
-  opts: { api?: string; fetchImpl?: Fetchish; nullifier?: string } = {},
+  opts: { api?: string; fetchImpl?: Fetchish; nullifier?: string; humanKey?: string } = {},
 ): Promise<unknown> {
   const api = (opts.api ?? DEFAULT_API).replace(/\/$/, "");
   const f = opts.fetchImpl ?? (globalThis.fetch as unknown as Fetchish);
@@ -163,12 +219,12 @@ export async function callTool(
   switch (name) {
     case "my_tca":
       return String(args.target) === "me"
-        ? humanTca(f, api, days, opts.nullifier)
+        ? humanTca(f, api, days, opts.nullifier, opts.humanKey)
         : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
 
     case "reroute_suggestion": {
       const tca = (await (String(args.target) === "me"
-        ? humanTca(f, api, days, opts.nullifier)
+        ? humanTca(f, api, days, opts.nullifier, opts.humanKey)
         : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`))) as {
         available?: boolean;
         reroute?: unknown;

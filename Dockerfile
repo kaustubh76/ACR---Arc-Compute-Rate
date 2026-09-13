@@ -16,6 +16,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY packages/ packages/
 COPY services/ services/
+# The human-denominated bound's basket (anchors/_basket/C-HUMAN.json). Without it
+# `human_caps` raises FileNotFoundError, the pipeline swallows that into None, and
+# every ACROracleV2 print is posted with humanAdjustedBound = 0 — which is what
+# production did for a month while the same code computed ~$10 locally.
+COPY anchors/ anchors/
 
 # `--extra circle` pulls the Circle Developer-Controlled Wallets SDK so the oracle
 # poster can sign+relay prints under Circle custody in-cloud. `--extra armor`

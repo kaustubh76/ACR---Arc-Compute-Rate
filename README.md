@@ -10,7 +10,12 @@
 > **A live, on-chain reference rate for machine compute.**
 > *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
-Built for the **Arc / Circle 7-week hackathon — Agentic Economy track**.
+Built for the **Arc / Circle 7-week hackathon (Agentic Economy)**, and continued for
+**ETHOnline 2026 as a Continuity project** — baseline `v1.0-submission`, every change since
+documented in [`CONTINUITY.md`](CONTINUITY.md). Submitted to three partner tracks, each with
+something a judge can run: [**Arc**](#arc--both-continuity-bounties) (both continuity bounties
+named below), [**The Graph**](#the-graph--best-ai-use-case-continuity) and
+[**World**](#world--agentkit-continuity).
 
 ---
 
@@ -48,6 +53,14 @@ Arc testnet, chain `5042002`:
 | `AttestationRegistry` | [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) |
 | `ACRFutures` (self-rolling) | [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) |
 | `FeedAccessAttestor` | [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47) |
+| `ACROracleV2` (policy hash + human-denominated bound) | [`0xFCa0…FFEA`](https://testnet.arcscan.app/address/0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA) |
+| `ReceiptMirror` (every x402 settlement, on chain) | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
+| `HumanIdMirror` (which wallets are one person, per week) | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
+
+**Mainnet:** Arc public mainnet (`eip155:5042`) opens 2026-09-16. ACR is **deployment-ready,
+not deployed**: the same five Foundry scripts, in order, with a chain-id preflight —
+`make deploy-mainnet-dry` simulates all of them today ([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md)).
+The first mainnet transaction hash will be added here the day it lands.
 
 Check it yourself:
 
@@ -55,6 +68,67 @@ Check it yourself:
 curl -s https://acr-api-1fto.onrender.com/health
 curl -s https://acr-api-1fto.onrender.com/onchain/ACR-INF   # the settlement-grade on-chain print
 ```
+
+---
+
+## The three tracks, and what to run for each
+
+### Arc — both continuity bounties
+
+Submitted for **Launch on Arc Testnet & Push to Mainnet (Continuity)** *and* **Best DeFi or
+Agentic Application (Continuity)** — named here because the prize text asks to be clear which.
+
+- **Live on Arc testnet since July; mainnet-ready** (table above; `make deploy-mainnet-dry`).
+- **An agent with decision logic tied to a real signal, spending USDC autonomously.** The buyer
+  agent reads *its own* transaction costs from the tape The Graph indexes and moves its next
+  Circle Gateway nanopayment to the seller it overpaid least:
+  ```bash
+  cd apps/agent && npm run start -- --live --count 3 --limit 0.02 --discover --reroute \
+    --api https://acr-api-1fto.onrender.com      # AGENT_PRIVATE_KEY = a funded EOA
+  # reroute: 0xa1c8…fca4 → 0xefe0…df19 — past fills say 2893 bp cheaper; next payment goes to /compute/acr-seller-inf-open
+  ```
+  Every settlement lands in `GET /marketplace/receipts` with the **tier the agent's card
+  earned** (`anonymous` / `carded` / `human`) and is mirrored on chain to `ReceiptMirror`.
+- Circle developer tools in the path: **Gateway x402** nanopayments (`exact` scheme,
+  `eip155:5042002`), **developer-controlled wallets** signing every print, the **Agent
+  Stack** buyer SDK (`@circle-fin/x402-batching`).
+
+### The Graph — Best AI Use Case (Continuity)
+
+The Graph is **load-bearing**: every x402 settlement is benchmarked *in the subgraph mapping*
+against the print it could have seen, and that `slippageBp` is the only input TCA, seller
+ratings and the reroute have ([`graph/README.md`](graph/README.md); Studio `ethonline`
+**v0.2.0** on `arc-testnet`, ~3 s behind head). Meaningful work, not raw queries:
+
+```bash
+curl -s https://acr-api-1fto.onrender.com/tca/0x674055533B05Ec3fD135fC21c4d91a4A2D3193d3 | jq .reroute
+make recompute                    # re-derive the index from the indexed tape and compare against the chain
+```
+
+**Ask the Tape** in natural language: [`skills/acr-analyst/SKILL.md`](skills/acr-analyst/SKILL.md)
+(a schema map for any agent, usable with The Graph's Subgraph MCP) and [`mcp/`](mcp/README.md),
+six read-only tools for any MCP host — `reroute_suggestion`, `seller_rating`, `query_tape`…
+Substreams is N/A on Arc (Studio-only), stated rather than skipped.
+
+### World — AgentKit Continuity
+
+Distinguishing a bot from **an agent acting for a real, unique human**, durably:
+
+- **One budget per person, not per wallet.** An agent's signed card may claim the human
+  cluster `HumanIdMirror` records for its wallet this week; the gate confirms it on chain
+  and meters every wallet that person owns as one. Try it on
+  [`/developers`](https://arc-compute-rate.vercel.app/developers) — *as a demo human* →
+  `tier: human`.
+- **A proof, verified, then one TCA across all of a person's wallets** — runnable by a judge
+  with nothing secret (the demo buyers' keys derive from public labels):
+  ```bash
+  make prove-human                # 401 challenge → CAIP-122 signature → /tca/human → the nonce is spent
+  ```
+- **The adversary model moves a published number.** `ACROracleV2` posts a
+  `humanAdjustedBound` beside the wallet-denominated attack cost: sybils are free, people
+  are not. `/tape` shows `human_share` per seller and `distinctHumans` vs `distinctPayers`.
+- All demo identities are **World ID Sandbox** ones, flagged `sandbox` onto the chain and into
+  every count. Feedback for the World team: [`FEEDBACK_WORLD.md`](FEEDBACK_WORLD.md).
 
 ---
 
@@ -109,7 +183,7 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 
 ### Measured numbers
 
-Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **34** real Gateway x402 settlements from **2 distinct payers** (**27** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA); 100% Foundry invariants passing.
+Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **39** real Gateway x402 settlements from **3 distinct payers** (**27** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **5** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
 ---
 
@@ -123,9 +197,11 @@ Measured, not aspirational — run `make verify-live` for the current set. At ti
 | [`apps/terminal/`](apps/terminal) | The ACR Terminal (Next.js) — prints, curve, tape, attack demo, ops console |
 | [`apps/agent/`](apps/agent) | The machine buyer (TypeScript, Circle Gateway `x402-batching` client) |
 | [`redteam/`](redteam) | The wash-flow adversary used to attack our own index |
-| [`skills/acr-hedge/`](skills) | A Circle Skill published *back*: teaches any agent the discover → pay → read → hedge loop |
-| [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
-| [`.github/workflows/`](.github/workflows) | CI (4 jobs) + the keepalive ping |
+| [`graph/`](graph) | The `acr-tape` subgraph: settlements benchmarked in the mapping, humans per window (The Graph, Studio) |
+| [`mcp/`](mcp) | Six read-only MCP tools — Machine TCA for any MCP host, carded |
+| [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
+| [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md); `CONTINUITY.md` for what changed since the baseline |
+| [`.github/workflows/`](.github/workflows) | CI (6 jobs) + the keepalive ping + the dispatch-only buyer |
 
 ---
 

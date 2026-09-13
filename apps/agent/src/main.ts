@@ -2,6 +2,8 @@
  *
  *   npm run start -- --dev  --count 20                         # offline demo
  *   npm run start -- --live --count 60 --limit 0.01 --discover # Arc testnet
+ *   npm run start -- --live --count 10 --limit 0.01 --discover --reroute
+ *                                  # ...and let this wallet's own TCA pick the seller
  *
  * Live mode needs AGENT_PRIVATE_KEY in the env (never an argv — it would show
  * in `ps`) and a Gateway balance (see docs/agent-runbook.md).
@@ -18,6 +20,7 @@ import { fetchCatalog, maxAdvertisedPrice, pickResources } from "./catalog.js";
 import { CARD_HEADER, mintCardHeader, withCard } from "./card.js";
 import { DevPayer, FetchLike, GatewayPayer, Payer, PaymentResult, priceFromChallenge } from "./payer.js";
 import { printReceipt, printSummary, summarize } from "./receipts.js";
+import { applyReroute, describe as describeReroute, fetchTca } from "./reroute.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -76,6 +79,17 @@ export async function runAgent(cfg: AgentConfig, deps: RunDeps): Promise<Payment
     log(`discovered ${items.length} listings, buying from ${targets.length}`);
     if (cfg.requireAttested && targets.length < items.length) {
       log(`  (skipped ${items.length - targets.length} unattested listings)`);
+    }
+    /* The decision. This wallet's OWN transaction costs, read from the tape the
+       subgraph indexes, choose which seller the next payment goes to. Stated in
+       the log before any money moves, so the receipt that follows can be read
+       against the reason for it. A wallet with no fills yet holds and says so —
+       its first purchases are what create the signal. */
+    if (cfg.reroute) {
+      const tca = await fetchTca(cfg.api, deps.payer.address, fetchImpl);
+      const applied = applyReroute(targets, items, tca, { minBp: cfg.rerouteMinBp });
+      targets = applied.targets;
+      log(describeReroute(applied.decision));
     }
     // Check the cap against the DEAREST listing, not the first one: the fleet
     // prices per seller, so `targets[0]` no longer speaks for the rest.

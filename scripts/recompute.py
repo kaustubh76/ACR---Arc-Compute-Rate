@@ -26,11 +26,43 @@ from __future__ import annotations
 import argparse
 import sys
 
-from acr_core import ALL_INDEX_IDS, get_settings
+import numpy as np
+from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from acr_estimator import estimate_index
-from acr_estimator.cleaning import POLICY_VERSION, policy_hash
+from acr_estimator.cleaning import POLICY_VERSION, clean, policy_hash
+from acr_estimator.hedonic import adjust_prices
+from acr_estimator.robust import estimate as robust_estimate
 from acr_oracle_client import OracleClient
 from acr_tape import GraphSource
+
+
+def _explain_zero(index_id: str, events, attestations, s) -> None:
+    """Say WHY a recompute has nothing to estimate from, and what the tape says
+    before cleaning — so the Verify pillar produces a number a reader can compare,
+    labelled as the uncleaned number it is, instead of a bare exit 1.
+
+    On the real testnet tape every one of a handful of demo payers buys from every
+    demo seller, so the funding graph is ONE community and the sybil rule zeroes
+    every weight. That is the cleaning stack doing exactly what it is for on a
+    tape that is, in fact, one funding source — not a bug, and not "the subgraph
+    returned nothing", which is how an unexplained exit read."""
+    svc = spec_for(index_id).service
+    window = sorted((e for e in events if e.service == svc), key=lambda e: (e.ts, e.event_id))
+    if not window:
+        return
+    cr = clean(window, cluster_cap=s.cluster_volume_cap, seed=s.estimator_seed)
+    kept = int((cr.weights > 0).sum())
+    print(f"  cleaning    kept {kept}/{len(window)} settlement(s); excluded {cr.excluded_fraction:.0%} of notional "
+          f"(self-deal {len(cr.flagged_self_dealing)} · wash {len(cr.flagged_wash)} · sybil {len(cr.flagged_sybil)})")
+    if len(cr.communities) == 1 and cr.flagged_sybil:
+        print("  reason      the whole tape is ONE funding community: every payer buys from every seller, "
+              "so the sybil rule — which exists for exactly that shape — excludes it all. "
+              "A cleaned estimate is undefined on a tape this concentrated.")
+    adjusted, _ = adjust_prices(window, attestations)
+    rob = robust_estimate(adjusted, np.ones(len(window)), alpha=s.trim_alpha,
+                          n_bootstrap=s.ci_bootstrap, ci_level=s.ci_level, seed=s.estimator_seed)
+    print(f"  uncleaned   {rob.value:.6f}  CI [{rob.ci_lo:.6f}, {rob.ci_hi:.6f}]  "
+          f"(robust estimate with NO exclusions — a comparison figure, not a print)")
 
 
 def main() -> int:
@@ -70,6 +102,7 @@ def main() -> int:
             print_, diag = estimate_index(index_id, events, attestations, settings=s)
         except ValueError as exc:
             print(f"  · not recomputable — {exc}")
+            _explain_zero(index_id, events, attestations, s)
             continue
 
         cr = diag.cleaning

@@ -84,3 +84,35 @@ def test_the_press_wallet_is_watched_with_a_hard_floor(monkeypatch):
     assert c["ok"] is False, "0.25 USDC is below the critical floor and must FAIL"
     assert c["warn"] is False, "the floor is a failure, not a warning — that was the whole bug"
     assert "critical floor" in (c["detail"] or "")
+
+
+def test_the_console_fails_when_the_rotation_window_has_no_humans(monkeypatch):
+    """At 00:00 UTC on the boundary every resolution expires at once and only a
+    manual chore brings them back. The one surface an operator opens must go RED
+    then — not warn, and not leave it to a chip saying "out of date"."""
+    from index_api import ops, tca
+    from index_api.ops import Recorder
+
+    monkeypatch.setattr(tca, "_cfg", lambda: ("https://example.invalid", ""))
+    monkeypatch.setattr(tca, "graph_query", lambda *a, **k: {"humanClusters": []})
+    def _only(rec):
+        (sec,) = rec.sections
+        (c,) = sec["checks"]
+        return c
+
+    rec = Recorder()
+    ops._humans_this_window(rec, 2959)
+    c = _only(rec)
+    assert c["ok"] is False and "0 cluster(s)" in c["label"] and "resolve-humans" in c["detail"]
+
+    monkeypatch.setattr(tca, "graph_query", lambda *a, **k: {"humanClusters": [{"id": "0x1", "walletCount": 3}, {"id": "0x2", "walletCount": 1}]})
+    rec = Recorder()
+    ops._humans_this_window(rec, 2959)
+    c = _only(rec)
+    assert c["ok"] is True and "2 cluster(s), 4 wallet(s)" in c["label"]
+
+    # No subgraph: unknown, never a false pass.
+    monkeypatch.setattr(tca, "_cfg", lambda: ("", ""))
+    rec = Recorder()
+    ops._humans_this_window(rec, 2959)
+    assert _only(rec)["ok"] is None

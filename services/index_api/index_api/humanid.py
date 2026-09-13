@@ -315,7 +315,12 @@ class AgentKitVerifier(HumanVerifier):
     def challenge(self, request: Request) -> HumanProofRequired:
         body, headers = self._challenge_body(request, self.nonces.issue())
         body["scheme"] = "agentkit"
-        body["header"] = self.HEADER
+        # `header` names what THIS server reads — HUMAN-PROOF. For a day it named
+        # World's own header, `agentkit`, which `require_human` did not read, so a
+        # client doing exactly what the challenge said was re-challenged forever.
+        # Both are read now; the SDK's name is listed as the alternative.
+        body["header"] = PROOF_HEADER
+        body["also_accepted"] = self.HEADER
         return HumanProofRequired(body=body, headers=headers)
 
     @staticmethod
@@ -594,9 +599,16 @@ def reset_verifier() -> None:
 async def require_human(
     request: Request,
     human_proof: str | None = Header(default=None, alias=PROOF_HEADER),
+    agentkit_proof: str | None = Header(default=None, alias=AgentKitVerifier.HEADER),
 ) -> HumanProof:
-    """FastAPI dependency: 401 unless a valid human proof is present."""
+    """FastAPI dependency: 401 unless a valid human proof is present.
+
+    Reads our header and World's (`agentkit`), so a client built from the SDK
+    reference and one built from our challenge both get through. Ours wins when
+    both are sent; nothing is merged.
+    """
     verifier = get_verifier()
+    human_proof = human_proof if human_proof is not None else agentkit_proof
     if human_proof is None:
         raise verifier.challenge(request)
     proof = await verifier.prove(request, human_proof)

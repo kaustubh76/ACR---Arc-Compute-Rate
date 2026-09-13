@@ -26,6 +26,10 @@ import { callTool, DEFAULT_API, TOOLS, type Fetchish } from "./tools.js";
 
 const api = process.env.ACR_API ?? DEFAULT_API;
 const nullifier = process.env.ACR_HUMAN_NULLIFIER;
+/* The AgentKit gate's credential: the key of a wallet registered in AgentBook. The
+   plugin signs each challenge with it (CAIP-122, EIP-191); it never leaves this
+   process. A demo buyer's key derives from its public label — see mcp/README.md. */
+const humanKey = (process.env.ACR_HUMAN_AGENT_KEY ?? "").trim() || undefined;
 
 /* The card, wrapped around the ONE fetch every tool uses. ACR_AGENT_PRIVATE_KEY
    makes this server a carded caller; ACR_AGENT_HUMAN_CLUSTER (opt-in, verified on
@@ -50,6 +54,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const out = await callTool(req.params.name, (req.params.arguments ?? {}) as Record<string, unknown>, {
     api,
     nullifier,
+    humanKey,
     fetchImpl,
   });
   return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };

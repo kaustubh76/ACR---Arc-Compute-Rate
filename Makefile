@@ -1,4 +1,4 @@
-.PHONY: help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet prove-human help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -16,6 +16,7 @@ help:
 	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
+	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -23,6 +24,8 @@ help:
 	@echo "  make deploy-testnet-dry  simulate the Foundry deploy against Arc testnet (no broadcast)"
 	@echo "  make deploy-testnet  deploy ACROracle + AttestationRegistry to Arc testnet"
 	@echo "  make verify-testnet  read-only checks: chain id, code, signer, latest prints"
+	@echo "  make deploy-mainnet-dry  simulate all five deploys on Arc MAINNET (refuses a wrong chain id; docs/MAINNET_RUNBOOK.md)"
+	@echo "  make deploy-mainnet  broadcast them, in order"
 	@echo "  make post-once       one estimator cycle → signed postPrint txs on Arc"
 	@echo "  make attest-once     write the demo sellers' EIP-712 attestations on-chain"
 	@echo "  make seed-sellers    tiny USDC transfers so ArcSource sees the attested sellers"
@@ -209,6 +212,45 @@ deploy-humanid:
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
+# --- Arc MAINNET (eip155:5042; public genesis 2026-09-16) --------------------
+# The same five Foundry scripts the testnet runs on, in the order their own
+# console output demands (v1 bundle -> v2 -> mirrors). Nothing is defaulted here
+# that differs between the chains: the RPC, the chain id and the USDC address
+# must be stated on the command line, and the dry run refuses to proceed if the
+# RPC answers with a different chain id than the one named. The full ordered
+# sequence, with what to set after each step, is docs/MAINNET_RUNBOOK.md.
+#
+#   ACR_MAINNET_RPC_URL=https://rpc.arc.network ACR_MAINNET_USDC=0x... make deploy-mainnet-dry
+#
+ACR_MAINNET_CHAIN_ID ?= 5042
+MAINNET_SCRIPTS = Deploy.s.sol DeployOracleV2.s.sol DeployReceiptMirror.s.sol DeployHumanIdMirror.s.sol
+
+define mainnet_preflight
+	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
+	@test -n "$(ACR_MAINNET_USDC)" || { echo "ACR_MAINNET_USDC not set: the USDC address is NOT defaulted on mainnet (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set"; exit 1; }
+	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set: HumanIdMirror is deployed WITH its commitment (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
+	@got=$$(cast chain-id --rpc-url $(ACR_MAINNET_RPC_URL)); test "$$got" = "$(ACR_MAINNET_CHAIN_ID)" || { echo "RPC answers chain id $$got, expected $(ACR_MAINNET_CHAIN_ID) — wrong network, refusing"; exit 1; }
+	@echo "  chain id $(ACR_MAINNET_CHAIN_ID) confirmed at $(ACR_MAINNET_RPC_URL)"
+endef
+
+deploy-mainnet-dry:
+	$(mainnet_preflight)
+	@for s in $(MAINNET_SCRIPTS); do \
+	  echo ""; echo "▸ simulate $$s"; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)) || exit 1; \
+	done
+	@echo ""; echo "  dry run complete: every script simulates on chain $(ACR_MAINNET_CHAIN_ID). Nothing was broadcast."
+
+deploy-mainnet:
+	$(mainnet_preflight)
+	@echo ""; echo "  BROADCASTING to chain $(ACR_MAINNET_CHAIN_ID). Each script prints the addresses to set before the next."
+	@for s in $(MAINNET_SCRIPTS); do \
+	  echo ""; echo "▸ broadcast $$s"; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast) || exit 1; \
+	done
+	@echo ""; echo "  now follow docs/MAINNET_RUNBOOK.md from step 3 (addresses -> render.yaml mainnet profile -> subgraph -> resolve-humans)."
+
 # Prove the DEPLOYED product is live — every pillar, one exit code. Read-only
 # and safe against production: no writes, no faucet drips, no Circle users.
 # VERIFY_STRICT=1 also fails on cron age and funding runway (warnings by default,
@@ -304,6 +346,12 @@ mirror-receipts:
 resolve-humans:
 	uv run python scripts/resolve_humans.py $(ARGS)
 
+# A judge-runnable human proof: challenge -> CAIP-122 signature with a demo
+# buyer's (public-by-construction) key -> one TCA across every wallet that human
+# owns -> the nonce is spent. Against production by default; ARGS=--api ... for local.
+prove-human:
+	uv run python scripts/prove_human.py $(ARGS)
+
 attest-once:
 	uv run python scripts/attest_once.py
 
@@ -347,10 +395,10 @@ terminal:
 # --- buyer agent (apps/agent) ---
 
 agent:
-	cd apps/agent && npm run start -- --dev --count 20 --discover
+	cd apps/agent && npm run start -- --dev --count 20 --discover --reroute
 
 agent-live:
-	cd apps/agent && npm run start -- --live --count 60 --limit 0.01 --discover
+	cd apps/agent && npm run start -- --live --count 60 --limit 0.01 --discover --reroute
 
 interop:
 	cd apps/agent && npm run interop

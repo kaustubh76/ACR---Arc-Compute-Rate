@@ -280,7 +280,7 @@ export function TapeView() {
             <Ed x="Freshness" p="Is this up to date" />
           </h2>
           <span className="label">
-            <Ed x="indexed from Arc" p="read from the public record" />
+            <Ed x="indexed from Arc by The Graph" p="read from the public record by The Graph" />
           </span>
         </div>
         <div className="panel panel-pad">
@@ -304,10 +304,17 @@ export function TapeView() {
               </span>
               <span style={{ minWidth: 0 }}>
                 <span className="label" style={{ display: "block" }}>
-                  <Ed x="Deployment" p="Which copy of the reader" />
+                  <Ed x="Subgraph deployment" p="Which copy of the reader" />
                 </span>
                 <span className="mono muted" style={{ fontSize: 12, wordBreak: "break-all" }}>
                   {meta.deployment}
+                </span>
+                {/* Named, because a reader cannot tell an API mirror from an indexer.
+                    Every slippage figure on this page was computed in the subgraph's
+                    own mapping at the block the settlement landed; nothing below
+                    recomputes it, which is what makes the provenance worth naming. */}
+                <span className="muted" style={{ display: "block", fontSize: 12, marginTop: 2 }}>
+                  <Ed x="Subgraph Studio, ethonline v0.2.0: every cost below was benchmarked in the mapping at the settling block" p="a public index of the chain; each cost below was worked out as the purchase landed, not later" />
                 </span>
               </span>
             </div>

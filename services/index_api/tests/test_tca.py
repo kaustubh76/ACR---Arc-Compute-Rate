@@ -294,3 +294,40 @@ def test_every_query_declares_the_variables_it_uses():
     # A guard that enumerates nothing passes vacuously, which is the failure
     # shape this whole test exists to catch one level down.
     assert seen >= 10, f"only found {seen} operations — the scan stopped matching"
+
+
+def test_the_breakdown_and_the_headline_cover_the_same_window(monkeypatch):
+    """On the busiest live payer, `by_seller` summed to 7.08 of the week's volume:
+    the daily rollups were filtered to seven days and the settlement rows were not,
+    so the reroute priced its saving on fills the headline never counted. Both
+    halves now carry the same cutoff — a day index for one, unix seconds for the
+    other — and the query itself must say so."""
+    captured: dict = {}
+
+    def _spy(url, query, variables, key):
+        captured["query"] = query
+        captured["variables"] = variables
+        return {"payerDays": [], "settlements": []}
+
+    monkeypatch.setattr(tca_mod, "_cfg", lambda: ("https://example.invalid", ""))
+    monkeypatch.setattr(tca_mod, "graph_query", _spy)
+    tca_mod.payer_tca(PAYER, days=7)
+    assert "settledAt_gte: $sinceTs" in captured["query"]
+    v = captured["variables"]
+    assert int(v["sinceTs"]) == v["since"] * 86400, "one cutoff, two spellings"
+    assert v["since"] == tca_mod._day_now() - 7
+    # The human card takes the same two variables, by the same rule.
+    assert "settledAt_gte: $sinceTs" in tca_mod._HUMAN_DAYS
+
+
+def test_no_query_asks_the_graph_for_more_than_its_hard_ceiling():
+    """The Graph refuses `first` above 1000 with a GraphQL error, which the client
+    reports as "the subgraph did not answer". `_HUMAN_DAYS` asked for 2000, so the
+    one endpoint a verified human proof gates answered every proof with an outage.
+    Pinned for every query string in the module."""
+    import re
+
+    for name, text in vars(tca_mod).items():
+        if isinstance(text, str) and "query " in text and "{" in text:
+            for n in re.findall(r"first:\s*(\d+)", text):
+                assert int(n) <= 1000, f"{name} asks first: {n}"

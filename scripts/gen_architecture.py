@@ -357,8 +357,8 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1590, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1642, 510, 180, "TESTS · 670 py + 156 forge + 143 terminal + 24 agent",
-         ["4 CI jobs: python · contracts · agent · terminal", "anvil-gated on-chain integration · eval gate",
+    card("h_tests", 2260, 1642, 510, 180, "TESTS · 677 py + 156 forge + 143 terminal + 31 agent",
+         ["6 CI jobs: python · contracts · agent · terminal · subgraph · mcp", "anvil-gated on-chain integration · eval gate",
           "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
           "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
 
@@ -379,7 +379,7 @@ def build() -> None:
           "real x402 settled via Circle Gateway · durable receipts",
           "attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP",
           "100% Foundry invariants passing",
-          "670 py · 156 forge · 143 terminal · 24 agent — green"], INK, body_size=12)
+          "677 py · 156 forge · 143 terminal · 31 agent — green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
@@ -457,8 +457,53 @@ def build() -> None:
     for i, (t, lines) in enumerate(why):
         card(f"f{i}", 80 + i * 566, 2135, 520, 150, t, lines, TEAL)
 
+    # ---------- T · MACHINE TCA (ETHOnline 2026 continuity) ----------
+    # Everything since the v1.0-submission baseline, in one band, so a judge can
+    # see the continuity work as a layer on the frozen product rather than hunt
+    # for it. Left to right is the data's own order: settlement → mirror → index
+    # → measure → decide → pay — and the loop re-enters Zone K at the buyer.
+    zone(60, 2720, 3420, 330,
+         "T · MACHINE TCA — ETHOnline 2026 CONTINUITY (new since v1.0-submission) · "
+         "a person, not a wallet, is the unit    ·    Arc + The Graph + World", BLUE)
+    card("t_mirrors", 80, 2795, 540, 215, "ReceiptMirror.sol · HumanIdMirror.sol · ACROracleV2.sol",
+         ["0xA9CD…DB65  every x402 settlement, mirrored on Arc",
+          "0x7f41…d8e5  which wallets are ONE person, per 7-day window",
+          "  cluster = keccak(nullifier, salt, window) — never a World ID",
+          "0xFCa0…FFEA  v2 print: policyHash + humanAdjustedBound",
+          "monotone per-payer guard · salt committed on chain"], ORANGE, body_size=12)
+    card("t_graph", 650, 2795, 540, 215, "acr-tape SUBGRAPH (The Graph · Studio ethonline v0.2.0)",
+         ["7 data sources on arc-testnet · ~3 s behind head",
+          "Settlement.slippageBp benchmarked IN THE MAPPING",
+          "  vs the arrival print, at the settling block",
+          "Settlement.human · SellerDay / PayerDay · SellerWindow",
+          "graph/ · 57 matchstick tests · no Substreams on Arc (stated)"], TEAL, body_size=12)
+    card("t_tca", 1220, 2795, 540, 215, "MACHINE TCA · RATINGS · REROUTE",
+         ["/tca/{payer}  vw slippage · overpaid · by_seller · human_share",
+          "/rating/{seller}  fairness · human depth · weight_covered_pct",
+          "/tca/human  one card across EVERY wallet a person owns",
+          "reroute: worst → best seller, saving in bp on past fills",
+          "make recompute  re-derive the index from the indexed tape"], BLUE, body_size=12)
+    card("t_gate", 1790, 2795, 540, 215, "AGENT GATE + MODEL ARMOR",
+         ["AGENT-CARD: EIP-712, no verifyingContract, audience + 15-min TTL",
+          "three tiers: anonymous (host) · carded (key) · human (cluster)",
+          "human claim confirmed on HumanIdMirror or 401, never a downgrade",
+          "Google Cloud Model Armor on carded /graph/query, both directions",
+          "the tier rides on the RECEIPT and the settlement ticker"], PURPLE, body_size=12)
+    card("t_world", 2360, 2795, 540, 215, "WORLD · AgentKit CONTINUITY",
+         ["HUMAN-PROOF: CAIP-122 signature → AgentBook → cluster",
+          "make prove-human  judge-runnable, nothing secret",
+          "humanAdjustedBound: sybils are free, people are not",
+          "Sandbox identities flagged onto chain + every count",
+          "FEEDBACK_WORLD.md · rotation chore on /ops"], GOLD, body_size=12)
+    card("t_reroute", 2930, 2795, 530, 215, "THE LOOP CLOSES · apps/agent --reroute · MCP",
+         ["buyer reads ITS OWN /tca before paying",
+          "drops the worst seller, pays the suggested one first",
+          "Circle Gateway nanopayment → ReceiptMirror → subgraph → /tca",
+          "mcp/: 6 tools (reroute_suggestion · my_tca('me') · query_tape)",
+          "skills/acr-analyst: Ask the Tape, in English"], PURPLE, body_size=12)
+
     # ---------- 7-week roadmap ----------
-    zone(60, 2360, 3420, 340,
+    zone(60, 3080, 3420, 340,
          "7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper", GRAY)
     weeks = [
         ("W1 — TAPE", ["indexer live on Arc testnet", "empirical batching study", "OSS: microstructure paper"]),
@@ -470,7 +515,7 @@ def build() -> None:
         ("W7 — SHIP", ["freeze Monday", "paper polish + rehearse", "attack demo twice"]),
     ]
     for i, (t, lines) in enumerate(weeks):
-        card(f"w{i}", 80 + i * 486, 2430, 450, 240, t, lines, GRAY if i != 3 else ORANGE)
+        card(f"w{i}", 80 + i * 486, 3150, 450, 240, t, lines, GRAY if i != 3 else ORANGE)
 
     # ---------- WIRING (all bound · orthogonal routing) ----------
     # Zone A → indexer: fan up the A|B corridor (x≈690–706) into the indexer's left.
@@ -525,6 +570,12 @@ def build() -> None:
     wire("k_hedger", "d_future", GREEN, side_a="R", side_b="L", lane=2230)  # trades the gap on-chain
     # Poster Circle wallet also signs the on-chain feed-access attestation.
     wire("c_signer", "c_attestor", ORANGE, side_a="R", side_b="R", lane=2820)
+    # Zone T, left to right: settlement → mirror → index → measure → decide → pay.
+    wire("t_mirrors", "t_graph", TEAL, side_a="R", side_b="L")
+    wire("t_graph", "t_tca", BLUE, side_a="R", side_b="L")
+    wire("t_tca", "t_gate", PURPLE, side_a="R", side_b="L")
+    wire("t_gate", "t_world", GOLD, side_a="R", side_b="L")
+    wire("t_world", "t_reroute", PURPLE, side_a="R", side_b="L")
 
 
 def validate() -> dict:

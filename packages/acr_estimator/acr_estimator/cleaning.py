@@ -52,7 +52,7 @@ def policy_hash(settings=None) -> str:
 
     "The keeper decides what is wash" is the fair objection to any cleaned
     benchmark. The answer is not to ask for trust but to publish the rule: every
-    print carries this hash, and ``acr recompute --rederive-cleaning`` re-runs
+    print carries this hash, and ``make recompute`` (scripts/recompute.py) re-runs
     the same stack from on-chain funding edges and reports whether its exclusions
     match. That argument only holds if the hash covers everything that can change
     an exclusion — so it spans the tunable parameters AND the algorithm version,
