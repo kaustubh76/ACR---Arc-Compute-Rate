@@ -79,9 +79,13 @@ def test_a_dev_receipt_never_reaches_the_chain():
     assert not ok and "real settlement" in why
 
 
-def test_a_flat_platform_receipt_is_refused():
-    """No seller means no unit price. Mirroring it would add volume a rating
-    divides by while contributing no slippage — it would dilute every grade."""
+def test_a_receipt_with_no_seller_is_still_refused():
+    """No seller means no unit price, and that is still a refusal.
+
+    What changed is upstream: the press's own paid endpoints now resolve to a
+    platform listing in `_record()`, so a platform receipt ARRIVES here with a
+    seller. This gate therefore covers only a genuinely malformed receipt — one
+    that reached the mirror without going through `_record()` at all."""
     ok, why = mirrorable(_receipt(seller=""), NOW)
     assert not ok and "unit price" in why
 
@@ -194,8 +198,116 @@ def test_an_unconfigured_client_stands_down_quietly():
 
 def test_a_receipt_for_an_unknown_resource_is_skipped():
     c = _FakeClient()
-    verdict = mirror_once([_receipt(resource="/prints/ACR-INF")], client=c, now=NOW)
-    # It passed `mirrorable` (it has a seller and a quantity) but no fleet
-    # listing resolves it, so there is no index to benchmark it against.
+    # `/compute/<label>` for a label that is not in FLEET: it passed `mirrorable`
+    # (a seller and a quantity were stamped on it somehow) but nothing resolves
+    # it, so there is no index to mirror it under. Used to use /prints here —
+    # that path now resolves to the platform listing, and is asserted positively
+    # below, so this needs a resource that is unlisted on purpose.
+    verdict = mirror_once([_receipt(resource="/compute/not-a-seller")], client=c, now=NOW)
     assert c.opened == []
     assert verdict is not None and "no listing" in verdict
+
+
+# --- platform receipts: the press as its own seller --------------------------
+# The buyer agent's DEFAULT discovery buys /prints, /curve and /vol. Until these
+# existed, every one of those settlements was refused above and vanished from the
+# tape — sixty real x402 settlements from a verified human did exactly that on
+# 2026-09-13. The fix is one resolver; these pin what it must and must not do.
+
+
+class _CapturingClient(_FakeClient):
+    """Records the kwargs too, so the index id and service can be asserted."""
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.open_kw: dict = {}
+        self.finalize_kw: dict = {}
+
+    def open_settlement(self, tx_ref, **kw):
+        self.open_kw = kw
+        return super().open_settlement(tx_ref, **kw)
+
+    def finalize_settlement(self, tx_ref, **kw):
+        self.finalize_kw = kw
+        return super().finalize_settlement(tx_ref, **kw)
+
+
+def _platform_receipt(**over) -> PaymentReceipt:
+    """A /vol receipt AS `_record()` now enriches it — the shape refused this morning."""
+    from index_api.fleet import listing_for_resource
+
+    resource = over.pop("resource", "/vol/ACR-INF")
+    listing = listing_for_resource(resource)
+    assert listing is not None, "the platform resolver must recognise its own paid path"
+    return _receipt(
+        resource=resource,
+        seller=listing.seller,
+        unit=listing.unit,
+        quantity=listing.quantity,
+        amount_usdc=listing.amount_usdc,
+        **over,
+    )
+
+
+def test_a_platform_receipt_is_now_mirrorable():
+    """The exact receipt the mirror refused this morning, after enrichment."""
+    ok, why = mirrorable(_platform_receipt(), NOW)
+    assert ok, why
+
+
+def test_a_platform_receipt_carries_the_flat_price_as_its_unit_price():
+    """One query per call, so the unit price IS the price the 402 advertised —
+    the one figure a judge can check without trusting us."""
+    from acr_core import get_settings
+
+    r = _platform_receipt()
+    assert r.quantity == 1.0
+    assert r.unit == "$/query"
+    assert r.unit_price == get_settings().x402_price_usdc
+
+
+def test_a_platform_receipt_mirrors_under_the_query_index_not_a_compute_one():
+    """THE LOAD-BEARING ASSERTION. The subgraph benchmarks a settlement against
+    the print ring of its indexId. A $0.0001 query fee measured against a $0.49
+    ACR-INF print would read as -99.98% slippage — garbage in the seller's grade
+    and the payer's TCA, wearing the shape of a measurement. ACR-QUERY has no
+    ring, so it lands `benchmarked = false` with a stated reason instead."""
+    from acr_core import Service
+    from index_api.fleet import PLATFORM_INDEX_ID
+
+    c = _CapturingClient()
+    mirror_once([_platform_receipt()], client=c, now=NOW)
+    assert c.opened == ["ref-1"] and c.finalized == ["ref-1"]
+    assert c.open_kw["index_id"] == PLATFORM_INDEX_ID
+    assert c.open_kw["index_id"] not in ("ACR-INF", "ACR-GPU", "ACR-DATA")
+    assert c.finalize_kw["service"] == Service.DATA
+    assert c.finalize_kw["quantity"] == 1.0
+
+
+def test_every_platform_family_resolves_and_every_free_read_does_not():
+    from index_api.fleet import PLATFORM_INDEX_ID, listing_for_resource
+
+    for path in ("/prints", "/prints/ACR-INF", "/curve/ACR-GPU", "/vol/ACR-DATA",
+                 "/seller-scores/ACR-INF?days=7", "https://acr-api-1fto.onrender.com/vol/ACR-INF"):
+        l = listing_for_resource(path)
+        assert l is not None and l.index_id == PLATFORM_INDEX_ID, path
+    for path in ("/health", "/fleet", "/humanid/info", "/terminal/data", "/graph/operations", ""):
+        assert listing_for_resource(path) is None, path
+
+
+def test_a_compute_path_still_resolves_to_the_fleet_unchanged():
+    from index_api.fleet import FLEET, listing_for_resource
+
+    l = listing_for_resource("/compute/acr-seller-inf-mid-a")
+    assert l is FLEET["acr-seller-inf-mid-a"]
+    assert l.index_id == "ACR-INF"
+
+
+def test_platform_listings_never_enter_the_fleet_summary_or_comparable_sets():
+    """/fleet and the catalog iterate FLEET. The press sells benchmark queries,
+    not inference, and must not appear as a compute seller anyone is compared
+    against — or a reroute suggestion could be built on it."""
+    from index_api.fleet import PLATFORM_INDEX_ID, fleet_summary, listings_for_index
+
+    assert all(row["index_id"] != PLATFORM_INDEX_ID for row in fleet_summary())
+    assert listings_for_index(PLATFORM_INDEX_ID) == []

@@ -85,6 +85,28 @@ describe("settlement mirror", () => {
     assert.fieldEquals("PayerDay", payerDay(5100), "overpay", "0");
   });
 
+  test("a platform receipt under ACR-QUERY is real volume, never benchmarked", () => {
+    // The press's own paid endpoints (/prints, /curve, /vol) are mirrored under
+    // an index id that has NO print ring — deliberately. A $0.0001 query fee
+    // benchmarked against a $0.49 compute print would read as -99.98% slippage
+    // and pollute both the seller's grade and the payer's TCA with a number
+    // wearing the shape of a measurement. This pins that an index the oracle
+    // has never printed for lands unbenchmarked with the reason stated, while
+    // the volume still counts. Prints for OTHER indices must not rescue it.
+    handlePricePosted(pricePosted("ACR-INF", ARRIVAL, 3600, 1000, 1));
+    handleSettlementOpened(settlementOpened("q1", "ACR-QUERY", BigInt.fromI32(101), 100, 2000, 2));
+    handleSettlementFinalized(settlementFinalized("q1", ONE_UNIT, 2100, 3));
+
+    assert.fieldEquals("Settlement", id("q1"), "index", "ACR-QUERY");
+    assert.fieldEquals("Settlement", id("q1"), "benchmarked", "false");
+    assert.fieldEquals("Settlement", id("q1"), "unbenchmarkedReason", "NO_PRINT_YET");
+    // Volume is real and counted; slippage is never written for it.
+    const day = sellerDay(2100);
+    assert.fieldEquals("SellerDay", day, "nAll", "1");
+    assert.fieldEquals("SellerDay", day, "n", "0");
+    assert.fieldEquals("SellerDay", day, "wSlipTenthBp", "0");
+  });
+
   test("an unbenchmarked settlement fires no histogram bucket", () => {
     // A settlement with no price to compare against must not land in b2 and
     // inflate the "priced fairly" bucket a seller grade is then built on.
