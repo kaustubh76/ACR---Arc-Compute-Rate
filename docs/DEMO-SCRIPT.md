@@ -67,7 +67,7 @@ speak through them rather than pausing, and if you run long, beat 6 is the one t
 
 ## Spare beats · scripted swaps, ~20 s each
 
-Three features shipped after this script was first cut and deserve a slot **if one opens** — a dead
+Four features shipped after this script was first cut and deserve a slot **if one opens** — a dead
 beat-2 run, an aged-out beat 4, or a director's cut that drops beat 6. A spare *replaces* a beat;
 it never extends the video past 3:00. Words counted like the main table (spoken at 150 wpm).
 
@@ -76,6 +76,7 @@ it never extends the video past 3:00. Words counted like the main table (spoken 
 | **S1 · the plain edition** (43 words ≈ 17 s) | Any page. Click **PLAIN EDITION** in the masthead; the whole page re-sets; click back to expert. | “One more thing: this paper ships in two languages. Flip the masthead to plain, and every page re-sets itself in beginner English — same numbers, no jargon. That coverage is a test in CI: a page that loses its plain translation fails the build.” |
 | **S2 · every endpoint answers** (44 words ≈ 18 s) | `/developers`, the **Endpoints** table (columns end in **Try**). Click the `/health` row — the JSON and latency land inline; the receipts roll below records the call. | “Under develop, every endpoint answers for itself. Click any free row — the response and its latency land right there, and the receipts roll below remembers your session. Thirteen GETs run from the page, and the paid rows say exactly why they won’t.” |
 | **S3 · who is calling, and what screens it** (50 words ≈ 20 s) | `/developers`, **Endpoints**. Click **Try** on `/agent/whoami` — `tier: anonymous`. Then `/armor/info` — `backend: gcp · live: true · asia-south1`. Point at `screened` and `blocked`; both are non-zero because the demo script drove a real injection through the gate on 2026-09-12. | "Agents calling agents need a name and a screen — the paywall gives neither. No card: anonymous. A signed card: a key. A card the chain ties to a person: one budget for every wallet they own. In front of it, Google's Model Armor, which refused an injection by name." *Frozen: `pi_and_jailbreak`, `asia-south1`; point at the live counters, never read them.* |
+| **S4 · drive the loop** (52 words ≈ 21 s) | `/loop`. Press **Drive it** — six stations light, the agent's own line prints. Press **Screen it** with the injection preset — the Model Armor station goes red: `403 · pi_and_jailbreak`. Press **Prove it** as the fleet — three dots become one bill, replay `401`. | "Every purchase is benchmarked as it lands, and the buyer reads its own bill and changes shops: that line is the agent's. In front of it, Google's Model Armor refusing an injection by name. And a person, not a wallet: three wallets, one bill, one proof, spent on use." *Frozen: `pi_and_jailbreak`, `3 wallets`; the counters are live, point, don't read.* |
 
 ## After
 

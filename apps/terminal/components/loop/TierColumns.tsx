@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Ed } from "@/components/Ed";
 import { useGate } from "@/lib/useLive";
+import { RETRY_NOTE, WakeNote, type WakeState } from "./Wake";
 
 /* Who is calling — three tiers, three buttons, one route.
  *
@@ -37,11 +38,11 @@ async function probe(extra: Record<string, unknown>): Promise<Probe> {
     });
     return (await res.json()) as Probe;
   } catch {
-    return { detail: "could not reach the press from here. Press again" };
+    return { detail: RETRY_NOTE.x };
   }
 }
 
-export function TierColumns() {
+export function TierColumns({ wake }: { wake: WakeState }) {
   const gate = useGate()?.data?.agent ?? null;
   const [out, setOut] = useState<Partial<Record<Tier, Probe>>>({});
   const [busy, setBusy] = useState<Tier | null>(null);
@@ -84,11 +85,14 @@ export function TierColumns() {
     <section className="section">
       <div className="section-head">
         <Ed x="Who is calling" p="Who is asking" className="label" />
-        {gate ? (
-          <span className="label muted">
-            {gate.cards_verified} <Ed x="cards verified" p="ID cards checked" /> · {gate.human_tier_granted} <Ed x="reached the human tier" p="traced to a person" />
-          </span>
-        ) : null}
+        <span className="label muted" style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+          {gate ? (
+            <>
+              {gate.cards_verified} <Ed x="cards verified" p="ID cards checked" /> · {gate.human_tier_granted} <Ed x="reached the human tier" p="traced to a person" /> · <Ed x="since this boot" p="since the last restart" />
+            </>
+          ) : null}
+          <WakeNote wake={wake} />
+        </span>
       </div>
       <Ed
         as="p"
@@ -127,7 +131,7 @@ export function TierColumns() {
                       ) : null}
                     </>
                   ) : (
-                    <span className="vermilion">{r.status ?? ""} {r.detail ?? "no tier in the answer"}</span>
+                    <span className="vermilion">{r.status ?? ""} {r.detail ?? <Ed x="no tier in the answer" p="no answer" />}</span>
                   )}
                 </div>
               ) : null}

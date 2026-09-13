@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet prove-human help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -17,6 +17,7 @@ help:
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
 	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
+	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -258,6 +259,12 @@ deploy-mainnet:
 verify-live:
 	uv run python scripts/verify_live.py
 
+# Prove the deployed /loop PAGE — the routes its four instruments press, with the
+# bodies they send, against the alias (VERIFY_TERMINAL_URL to point elsewhere).
+# verify-live proves the seller; this proves what a judge clicks. Read-only.
+verify-loop:
+	uv run python scripts/verify_loop.py
+
 # Re-measure every number the judge-facing docs claim and fail on drift. The
 # claims are PARSED from the docs, not mirrored in the script, so a figure that
 # moves is caught rather than quietly agreed with. CLAIMS_FAST=1 skips suite
@@ -379,6 +386,7 @@ demo-full:
 	uv run python scripts/demo_agent.py
 	uv run python scripts/verify_claims.py
 	uv run python scripts/verify_live.py
+	uv run python scripts/verify_loop.py
 
 eval:
 	uv run python scripts/eval.py --hours 12

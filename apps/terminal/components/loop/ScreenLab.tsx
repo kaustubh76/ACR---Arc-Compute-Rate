@@ -6,6 +6,7 @@ import { Ed } from "@/components/Ed";
 import { screenState } from "@/lib/gate";
 import { HONEST, INJECTION, TEXT_CAP, type ScreenVerdict } from "@/lib/screen";
 import { useGateLive } from "@/lib/useLive";
+import { RETRY_NOTE, WakeNote, type WakeState } from "./Wake";
 
 /* The screen — Google Cloud Model Armor, with a text box in front of it.
  *
@@ -32,7 +33,7 @@ interface Result {
   note: string | null;
 }
 
-export function ScreenLab() {
+export function ScreenLab({ wake }: { wake: WakeState }) {
   const { gate: gateEnv, refresh } = useGateLive();
   const armor = gateEnv?.data?.armor ?? null;
   const state = screenState(armor);
@@ -49,10 +50,15 @@ export function ScreenLab() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text, carded }),
       });
-      setR((await res.json()) as Result);
+      const j = (await res.json()) as Result & { detail?: string };
+      if (res.status === 429) {
+        setR({ status: 429, verdict: "unavailable", matched: [], echoed: false, ms: 0, carded, screened_delta: null, blocked_delta: null, counts: null, note: j.detail ?? "slow down" });
+      } else {
+        setR(j);
+      }
       void refresh();
     } catch {
-      setR({ status: null, verdict: "unavailable", matched: [], echoed: false, ms: 0, carded, screened_delta: null, blocked_delta: null, counts: null, note: "the browser could not reach the press" });
+      setR({ status: null, verdict: "unavailable", matched: [], echoed: false, ms: 0, carded, screened_delta: null, blocked_delta: null, counts: null, note: RETRY_NOTE.x });
     } finally {
       setBusy(false);
     }
@@ -120,7 +126,7 @@ export function ScreenLab() {
         <div className="flow-station" role="listitem">
           <div className={`flow-node gcp${replyCls}`}>
             <span className="label"><Ed x="model armor · reply" p="Google filter · out" /></span>
-            <span className="flow-value">{!r || !gotThrough && v !== "reply_blocked" ? "…" : !r.carded ? <Ed x="skipped" p="skipped" /> : v === "reply_blocked" ? <span className="vermilion">502</span> : <span className="green"><Ed x="passed" p="passed" /></span>}</span>
+            <span className="flow-value">{!r || (!gotThrough && v !== "reply_blocked") ? "…" : !r.carded ? <Ed x="skipped" p="skipped" /> : v === "reply_blocked" ? <span className="vermilion">502</span> : <span className="green"><Ed x="passed" p="passed" /></span>}</span>
             <span className="flow-cap"><Ed x="a refused reply is a 502: the caller did nothing wrong" p="a stopped reply is our problem, not yours" /></span>
           </div>
           <span className="flow-arrow" aria-hidden />
@@ -150,11 +156,17 @@ export function ScreenLab() {
           {busy ? <span className="dot breathe" aria-hidden /> : null}
           <Ed x="Screen it" p="Send it" />
         </button>
+        <WakeNote wake={wake} />
         {r?.screened_delta != null ? (
           <span className="mono muted" style={{ fontSize: 12.5 }}>
-            <Ed x="inspections" p="checks" /> +{r.screened_delta} · <Ed x="blocked" p="stopped" /> +{r.blocked_delta ?? 0}
+            <Ed x="inspections" p="checks" /> +{r.screened_delta} · <Ed x="blocked" p="stopped" /> +{r.blocked_delta ?? 0} · <Ed x="since this boot" p="since the last restart" /> {r.counts ? `${r.counts.screened}/${r.counts.blocked}` : ""}
+          </span>
+        ) : r && r.status === 200 ? (
+          <span className="mono muted" style={{ fontSize: 12.5 }}>
+            <Ed x="counters unread this time; the card decided the verdict" p="the counts could not be read this time; the ID card decided" />
           </span>
         ) : null}
+        {r?.status === 429 && r.note ? <span className="mono gold" style={{ fontSize: 12.5 }}>{r.note}</span> : null}
       </div>
       <Ed
         as="p"

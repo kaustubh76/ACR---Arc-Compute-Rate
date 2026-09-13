@@ -10,6 +10,7 @@ import { applyReroute, describe } from "@/lib/reroute";
 import { bp, followedReroute, type TapeRecentRow, type TcaCard } from "@/lib/tape";
 import { useCatalog, useMarketReceipts, useTape } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
+import { WakeNote, type WakeState } from "./Wake";
 
 /* The loop, with a driver's seat.
  *
@@ -32,7 +33,7 @@ const STEP_MS = 650;
 
 type Picker = "fleet" | "ci" | "busiest" | "custom";
 
-export function LoopFlow() {
+export function LoopFlow({ wake }: { wake: WakeState }) {
   const [picker, setPicker] = useState<Picker>("fleet");
   const [custom, setCustom] = useState("");
   const payer = picker === "fleet" ? FLEET_PAYER : picker === "ci" ? CI_PAYER : picker === "custom" && ADDR.test(custom) ? custom : undefined;
@@ -205,6 +206,16 @@ export function LoopFlow() {
           {driving ? <span className="dot breathe" aria-hidden /> : null}
           <Ed x="Drive it" p="Run it" />
         </button>
+        <WakeNote wake={wake} />
+        {!card && !wake.waking ? (
+          <span className="mono muted" style={{ fontSize: 12.5 }}>
+            {data?.tca && !data.tca.available ? (
+              <Ed x="no priced fills for this wallet yet: pick another, or buy something" p="no checked buys for this wallet yet: pick another" />
+            ) : (
+              <Ed x="reading the tape…" p="reading the record…" />
+            )}
+          </span>
+        ) : null}
         <label className="mono muted" style={{ fontSize: 12.5, display: "inline-flex", gap: 10, alignItems: "center" }}>
           <Ed x="threshold" p="only switch if it saves" />
           <input type="range" min={0} max={5000} step={25} value={minBp} onChange={(e) => setMinBp(Number(e.target.value))} aria-label="reroute threshold in basis points" />

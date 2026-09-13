@@ -18,10 +18,17 @@ export const HONEST = "Comparing this week's inference fills against the benchma
 /** Cap on what the route forwards. Well under the API's SCREEN_CAP (4096). */
 export const TEXT_CAP = 600;
 
-export function verdictOf(status: number | null, screenedDelta: number | null): ScreenVerdict {
+export function verdictOf(status: number | null, screenedDelta: number | null, carded = true): ScreenVerdict {
   if (status === 403) return "blocked";
   if (status === 502) return "reply_blocked";
-  if (status === 200) return screenedDelta != null && screenedDelta > 0 ? "passed" : "unscreened";
+  if (status === 200) {
+    // The counters are the proof; when they could be read, they decide. When
+    // they could not (the press mid-wake, a timed-out /armor/info), the card
+    // decides — a carded 200 went through the screen by construction, a bare
+    // one never does — and the UI says the counters were unread.
+    if (screenedDelta != null) return screenedDelta > 0 ? "passed" : "unscreened";
+    return carded ? "passed" : "unscreened";
+  }
   return "unavailable";
 }
 

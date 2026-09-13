@@ -24,6 +24,10 @@ import type { Envelope } from "@/lib/types";
 export function LoopView({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
   const data: TerminalData = conn.env.data;
+  /* The press naps between visits on the free tier. Every instrument below is
+     told so, and says so on its button, instead of sitting dead or timing out
+     without a word — the first press a judge makes is the one that would. */
+  const wake = { waking: conn.state === "waking", wakeS: conn.wakeRemainingS ?? null };
 
   return (
     <>
@@ -41,10 +45,10 @@ export function LoopView({ initial }: { initial: Envelope<TerminalData> }) {
         p="Each buy is checked against the fair rate as it lands, the robot reads its bill and switches shops, and the gate knows who is asking."
       />
 
-      <LoopFlow />
-      <TierColumns />
-      <ScreenLab />
-      <PersonNotWallet data={data} />
+      <LoopFlow wake={wake} />
+      <TierColumns wake={wake} />
+      <ScreenLab wake={wake} />
+      <PersonNotWallet data={data} wake={wake} />
 
       <section className="section">
         <div className="section-head">

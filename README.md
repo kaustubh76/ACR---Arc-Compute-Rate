@@ -44,6 +44,7 @@ Arc testnet, chain `5042002`:
 | | |
 |---|---|
 | **Terminal (dashboard)** | https://arc-compute-rate.vercel.app |
+| **The loop, drivable** | [arc-compute-rate.vercel.app/loop](https://arc-compute-rate.vercel.app/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
 | **Seller API (x402-gated)** | https://acr-api-1fto.onrender.com |
 | **Judge-facing status** | [`docs/SUBMISSION.md`](docs/SUBMISSION.md) |
 

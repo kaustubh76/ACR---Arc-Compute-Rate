@@ -9,6 +9,7 @@ import { boundMultiple, logFrac, windowEndsInS } from "@/lib/loop";
 import { useClusters, useHumanId } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import type { TerminalData } from "@/lib/types";
+import { RETRY_NOTE, WakeNote, type WakeState } from "./Wake";
 
 /* A person, not a wallet — World's AgentKit, drawn and driven.
  *
@@ -46,7 +47,7 @@ interface Prove {
 
 const short = (a: string) => (a.length > 14 ? `${a.slice(0, 10)}…${a.slice(-4)}` : a);
 
-export function PersonNotWallet({ data }: { data: TerminalData }) {
+export function PersonNotWallet({ data, wake }: { data: TerminalData; wake: WakeState }) {
   const info = useHumanId()?.data?.info ?? null;
   const clustersEnv = useClusters();
   const clusters = clustersEnv?.data?.clusters ?? [];
@@ -70,7 +71,7 @@ export function PersonNotWallet({ data }: { data: TerminalData }) {
       });
       setProof((await res.json()) as Prove);
     } catch {
-      setProof({ status: null, address: null, body: null, replay_status: null, replay_detail: null, note: "the browser could not reach the press" });
+      setProof({ status: null, address: null, body: null, replay_status: null, replay_detail: null, note: RETRY_NOTE.x });
     } finally {
       setBusy(false);
     }
@@ -173,6 +174,7 @@ export function PersonNotWallet({ data }: { data: TerminalData }) {
           {busy ? <span className="dot breathe" aria-hidden /> : null}
           <Ed x="Prove it" p="Prove it" />
         </button>
+        <WakeNote wake={wake} />
         {proof && !ok ? <span className="mono vermilion" style={{ fontSize: 12.5 }}>{proof.note ?? proof.body?.detail ?? "refused"}</span> : null}
       </div>
 
@@ -185,7 +187,12 @@ export function PersonNotWallet({ data }: { data: TerminalData }) {
         </span>
       </div>
       <div className="rings" aria-label="clusters this window">
-        {thisWindow.length === 0 && clustersEnv ? (
+        {/* Three states, never collapsed: unread (the tape did not answer), nobody
+            (the tape answered and the window is empty: the rotation rolled), or
+            rings. An index hiccup must not read as "no person exists". */}
+        {clustersEnv && clustersEnv.live === false ? (
+          <Ed as="p" className="muted" style={{ fontSize: 13 }} x="The tape did not answer, so no cluster is drawn. An outage is not an empty window." p="The record did not answer, so nothing is drawn. No answer is not the same as nobody." />
+        ) : thisWindow.length === 0 && clustersEnv ? (
           <Ed as="p" className="muted" style={{ fontSize: 13 }} x="No person is resolved for this window yet. The 7-day rotation rolled and the resolver has not run; the ops console is red until it does." p="Nobody is on this week's list yet. The week rolled over and the list has not been redone; the ops page shows it in red." />
         ) : null}
         {thisWindow.map((c) => (

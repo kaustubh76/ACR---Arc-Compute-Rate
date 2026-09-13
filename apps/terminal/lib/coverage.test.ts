@@ -54,6 +54,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/FuturesTeaser.tsx": 3,
   "components/TapeTeaser.tsx": 3,
   "components/loop/LoopFlow.tsx": 10,
+  "components/loop/Wake.tsx": 1,
   "components/loop/TierColumns.tsx": 8,
   "components/loop/ScreenLab.tsx": 12,
   "components/loop/PersonNotWallet.tsx": 14,

@@ -7,7 +7,10 @@ test("five verdicts, and a 200 is only a pass when the screen actually looked", 
   assert.equal(verdictOf(502, 2), "reply_blocked");
   assert.equal(verdictOf(200, 2), "passed");
   assert.equal(verdictOf(200, 0), "unscreened");
-  assert.equal(verdictOf(200, null), "unscreened");
+  // Counters unread: the card decides, and only then.
+  assert.equal(verdictOf(200, null, true), "passed");
+  assert.equal(verdictOf(200, null, false), "unscreened");
+  assert.equal(verdictOf(200, 0, true), "unscreened", "readable counters win over the card");
   assert.equal(verdictOf(503, 0), "unavailable");
   assert.equal(verdictOf(null, null), "unavailable");
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { CARD_HEADER, mintCard, throwawayKey } from "@/lib/agentcard";
 import { TEXT_CAP, matchedFilters, verdictOf, type ScreenVerdict } from "@/lib/screen";
+import { SCREEN_THROTTLE, Throttle, callerKey } from "@/lib/throttle";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,6 +35,7 @@ interface HeldCard {
 }
 let held: HeldCard | null = null;
 let heldKey: `0x${string}` | null = null;
+const throttle = new Throttle(SCREEN_THROTTLE);
 
 async function card(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -95,6 +97,21 @@ export async function POST(request: Request) {
   if (!text.trim()) {
     return NextResponse.json({ detail: "text is required" }, { status: 400 });
   }
+  // One card for everyone means one budget for everyone; this keeps one visitor
+  // — or one crawler — from spending it. The API's per-key budget is the backstop.
+  const gate = throttle.allow(callerKey(request.headers));
+  if (!gate.ok) {
+    return NextResponse.json(
+      {
+        detail:
+          gate.reason === "caller"
+            ? `easy: ${SCREEN_THROTTLE.perKey} sends a minute per visitor, so the lab's one shared card lasts for everyone. Try again in ${gate.retryInS}s`
+            : `the lab is busy: ${SCREEN_THROTTLE.global} sends a minute across all visitors. Try again in ${gate.retryInS}s`,
+        retry_in_s: gate.retryInS,
+      },
+      { status: 429, headers: { "Retry-After": String(gate.retryInS), "Cache-Control": "no-store" } },
+    );
+  }
 
   const before = await armorCounts();
   const started = Date.now();
@@ -124,7 +141,7 @@ export async function POST(request: Request) {
 
   const out: ScreenResult = {
     status,
-    verdict: verdictOf(status, screenedDelta),
+    verdict: verdictOf(status, screenedDelta, carded),
     matched: matchedFilters(answer),
     echoed: answer != null && JSON.stringify(answer).includes(text),
     ms,
