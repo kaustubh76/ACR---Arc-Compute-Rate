@@ -2,7 +2,7 @@ import { currentWindow } from "@/lib/humans";
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
 import type { Envelope } from "@/lib/types";
-import { humanShareInWindow, sellersFromSettlements, recentForPayer } from "@/lib/tape";
+import { humanShareInWindow, sellerTerms, sellersFromSettlements, recentForPayer } from "@/lib/tape";
 import type {
   GraphTransport,
   SellerRating,
@@ -151,6 +151,11 @@ export async function GET(request: Request) {
     ratings,
     control,
     payer,
+    /* What each seller sells, at what unit price, read off the settlements
+       already in hand. Built once here rather than in each table: the
+       directory and the payer's breakdown must name the same seller the same
+       way, and two derivations of "who is the press" is how they would not. */
+    terms: sellerTerms(settlements),
   };
 
   // `live` means the tape answered — the freshness claim, not merely that this

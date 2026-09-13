@@ -327,7 +327,18 @@ def seller_rating(seller: str, days: int = 7) -> dict:
         "synthetic_share": None if synthetic_share is None else round(synthetic_share, 4),
         "human_share": None if human_share is None else round(human_share, 4),
         "grade": _grade(score) if rated else "Unrated",
-        "unrated_reason": None if rated else f"thin tape (n={n} < {MIN_RATED_N})",
+        # "Thin" is a claim about QUANTITY. A seller whose fills are all
+        # unbenchmarked — the press selling $/query, where no arrival price exists
+        # — has a problem of KIND, and telling a reader its tape is thin sends
+        # them looking for fills that are all there. Say which one it is.
+        "unrated_reason": (
+            None if rated
+            else (
+                f"unbenchmarked — {n_all} fill(s) carry no arrival price, "
+                f"so there is nothing to grade against"
+            ) if (n == 0 and n_all > 0)
+            else f"thin tape (n={n} < {MIN_RATED_N})"
+        ),
         "score": None if score is None else round(score, 4),
         # The share of the published methodology this grade actually rests on.
         # A grade over 55% of the weights is not the same claim as one over 100%.

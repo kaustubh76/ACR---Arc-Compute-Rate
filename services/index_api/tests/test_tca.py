@@ -99,6 +99,29 @@ def test_a_thin_tape_is_unrated_with_the_reason(monkeypatch):
     assert f"n=5 < {MIN_RATED_N}" in r["unrated_reason"]
 
 
+def test_an_all_unbenchmarked_seller_is_unrated_for_KIND_not_quantity(monkeypatch):
+    """The press selling $/query: twelve fills, none of them benchmarkable, because
+    a flat query fee has no arrival price. "Thin tape (n=0 < 20)" would be true
+    arithmetic and the wrong diagnosis — it sends a reader looking for missing
+    fills that are all right there. The reason has to name the kind of problem."""
+    _fake_graph(monkeypatch, {"sellerDays": [_seller_day(n=0, nAll=12)], "seller": {"id": SELLER}})
+    r = tca_mod.seller_rating(SELLER)
+    assert r["grade"] == "Unrated"
+    assert r["n"] == 0 and r["n_all"] == 12
+    assert "unbenchmarked" in r["unrated_reason"]
+    assert "12 fill(s)" in r["unrated_reason"]
+    # The phrase, not the substring: "no THINg to grade against" contains "thin".
+    assert "thin tape" not in r["unrated_reason"]
+
+
+def test_a_genuinely_thin_tape_still_says_thin(monkeypatch):
+    # The other branch must survive: a few benchmarked fills is a quantity problem.
+    _fake_graph(monkeypatch, {"sellerDays": [_seller_day(n=3, nAll=3)], "seller": {"id": SELLER}})
+    r = tca_mod.seller_rating(SELLER)
+    assert "thin tape" in r["unrated_reason"]
+    assert "unbenchmarked" not in r["unrated_reason"]
+
+
 def test_unsupported_components_are_excluded_from_the_weight_not_scored_zero(monkeypatch):
     """A seller must not be marked down for a signal ACR has not started
     collecting. The card says what share of the methodology the grade rests on."""

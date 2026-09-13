@@ -37,7 +37,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
-  "app/tape/view.tsx": 43,
+  "app/tape/view.tsx": 66, // 43 -> 66: the Sells column in both tables, seller names, and the edition-aware slippage titles
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
