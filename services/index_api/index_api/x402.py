@@ -394,6 +394,16 @@ class Facilitator(ABC):
         self._revenue += receipt.amount_usdc
         self.recent.append(receipt)
         self._persist(receipt)
+        # A REAL settlement asks the keeper to mirror it now rather than at the
+        # next tick: in memory it survives only until the next restart, and the
+        # money has already moved. Dev and sim rows never reach the chain.
+        if receipt.scheme in _REAL_SCHEMES:
+            try:
+                from .keeper import kick_mirror
+
+                kick_mirror()
+            except Exception:  # noqa: BLE001 — the payment already succeeded
+                log.warning("could not schedule the settlement mirror", exc_info=True)
         return receipt
 
     @abstractmethod

@@ -582,9 +582,10 @@ def verify_seller() -> dict | None:
     t = (ops or {}).get("transport") or {}
     if t:
         via = t.get("via")
+        pace = "measuring" if t.get("measuring") else f"~{t.get('pace_per_day')}/day"
         check(via in ("studio-dev", "gateway"),
               f"subgraph via {via}: {t.get('queries')} queries this boot, {t.get('cache_hits')} cached, "
-              f"~{t.get('pace_per_day')}/day" + (f" (dev cap {t.get('daily_cap')})" if via == "studio-dev" else ""),
+              f"{pace}" + (f" (dev cap {t.get('daily_cap')})" if via == "studio-dev" else ""),
               warn_only=True)
         if via == "studio-dev":
             check(False, "queries go to Studio's development URL: capped at 3,000/day and shown on no dashboard "

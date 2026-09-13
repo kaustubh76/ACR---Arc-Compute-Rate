@@ -72,3 +72,23 @@ def test_the_two_paths_are_told_apart_by_host():
     assert via_of("https://gateway-arbitrum.network.thegraph.com/api/k/subgraphs/id/QmX") == "gateway"
     assert via_of("https://example.org/graphql") == "custom"
     assert via_of("") == "unset"
+
+
+def test_the_pace_is_the_last_hour_times_24_and_nothing_before_ten_minutes(monkeypatch):
+    """Boot-average × 86 400 turned a deploy's first-minute burst into an
+    11,000/day alarm on every restart. The pace is now the last hour × 24, and
+    nothing is claimed under ten minutes of uptime."""
+    calls: list = []
+    _stub(monkeypatch, {"data": {"ok": 1}}, calls)
+    url = "https://api.studio.thegraph.com/query/1/x/v0.2.0"
+    for i in range(5):
+        graph_query(url, "{ ok }", {"i": i})
+    t = transport_info(url)
+    assert t["measuring"] is True and t["pace_per_day"] is None and t["last_hour"] == 5
+    # Ten minutes in: the same five queries are a pace of 120 a day, not 4 million.
+    monkeypatch.setitem(graph_client._ledger, "started_at", graph_client.time.time() - 601)
+    t = transport_info(url)
+    assert t["measuring"] is False and t["pace_per_day"] == 5 * 24
+    # An hour-old query falls out of the window.
+    graph_client._recent.appendleft(graph_client.time.time() - 3_700)
+    assert transport_info(url)["last_hour"] == 5

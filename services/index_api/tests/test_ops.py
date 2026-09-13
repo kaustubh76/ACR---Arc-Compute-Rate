@@ -132,17 +132,27 @@ def test_the_console_names_which_graph_path_carries_the_queries(monkeypatch):
         return c
 
     graph_client._reset_for_tests()
-    # A dev-URL pace far over the cap: 100 queries in the first second of uptime.
-    monkeypatch.setattr(graph_client, "_ledger", {**graph_client._ledger, "queries": 100, "started_at": graph_client.time.time() - 1})
+    now = graph_client.time.time()
+    # A burst in the first minute of uptime is NOT a pace: unknown, never a warning.
+    graph_client._recent.extend([now] * 100)
+    monkeypatch.setattr(graph_client, "_ledger", {**graph_client._ledger, "queries": 100, "started_at": now - 30})
     rec = Recorder()
     ops._subgraph_transport(rec, "https://api.studio.thegraph.com/query/1/x/v0.2.0")
     c = _only(rec)
-    assert c["ok"] is False and "via studio-dev" in c["label"] and "step 6" in c["detail"]
+    assert c["ok"] is None and "measuring" in c["label"]
+    # The same hundred in the last hour, ten minutes in: 2,400/day, over 70% of 3,000 → warn.
+    monkeypatch.setattr(graph_client, "_ledger", {**graph_client._ledger, "queries": 100, "started_at": now - 700})
+    rec = Recorder()
+    ops._subgraph_transport(rec, "https://api.studio.thegraph.com/query/1/x/v0.2.0")
+    c = _only(rec)
+    assert c["ok"] is False and "via studio-dev" in c["label"] and "2,400/day" in c["label"] and "step 6" in c["detail"]
 
+    graph_client._recent.clear()
+    graph_client._recent.extend([now] * 10)
     rec = Recorder()
     ops._subgraph_transport(rec, "https://gateway.thegraph.com/api/subgraphs/id/QmX")
     c = _only(rec)
-    assert c["ok"] is True and "via gateway" in c["label"] and "usage page" in c["detail"]
+    assert c["ok"] is True and "via gateway" in c["label"] and "240/day" in c["label"] and "usage page" in c["detail"]
 
     rec = Recorder()
     ops._subgraph_transport(rec, "")

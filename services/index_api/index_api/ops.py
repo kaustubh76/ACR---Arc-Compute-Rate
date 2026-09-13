@@ -356,18 +356,20 @@ def _subgraph_transport(rec: Recorder, url: str) -> None:
     if t["via"] == "unset":
         rec.check(None, "subgraph queries: no ACR_SUBGRAPH_URL")
         return
-    pace = t["pace_per_day"]
-    label = (f"subgraph queries this boot: {t['queries']} ({t['cache_hits']} cached, {t['errors']} errors) "
-             f"· via {t['via']} · ~{pace:,}/day at this pace")
+    pace = t.get("pace_per_day")
+    head = f"subgraph queries this boot: {t['queries']} ({t['cache_hits']} cached, {t['errors']} errors) · via {t['via']}"
+    dev_detail = (f"{t['host']} · Studio's development URL: {t['daily_cap'] or 0:,}/day, counted on no dashboard. "
+                  "Publish and switch to the gateway with an API key (docs/GRAPH-RUNBOOK.md step 6)")
+    if t.get("measuring"):
+        # Under ten minutes of uptime a deploy's first-paint burst is all there is
+        # to measure, and a number from it is a wrong number. Unknown, not a pass.
+        rec.check(None, f"{head} · pace: measuring (under 10 min of uptime)",
+                  detail=dev_detail if t["via"] == "studio-dev" else t["host"])
+        return
+    label = f"{head} · {t['last_hour']} in the last hour, ~{pace:,}/day at that pace"
     if t["via"] == "studio-dev":
         over = pace > 0.7 * t["daily_cap"]
-        rec.check(
-            not over,
-            label,
-            warn_only=True,
-            detail=(f"{t['host']} · Studio's development URL: {t['daily_cap']:,}/day, counted on no dashboard. "
-                    "Publish and switch to the gateway with an API key (docs/GRAPH-RUNBOOK.md step 6)"),
-        )
+        rec.check(not over, label, warn_only=True, detail=dev_detail)
     else:
         rec.check(True, label, detail=f"{t['host']} · counted on the API key's usage page in Subgraph Studio")
 

@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import deque
 
 log = logging.getLogger("acr_tape.graph")
 
@@ -36,6 +37,15 @@ STUDIO_DEV_DAILY_CAP = 3_000
 #: reader could see — and it collapses a dozen viewers polling the same twelve
 #: ratings into one query per seller per window. Hits are counted, not hidden.
 CACHE_TTL_S = 20.0
+
+#: A pace needs a window, not a boot average: the first minute after a deploy is
+#: a burst (every page's first paint), and boot-average × 86 400 turned that
+#: burst into an 11,000/day alarm that cried wolf on every restart. The last hour
+#: × 24 is what a day at THIS load would cost, and nothing is claimed before ten
+#: minutes of uptime have been seen.
+PACE_WINDOW_S = 3_600.0
+PACE_MIN_UPTIME_S = 600.0
+_recent: deque[float] = deque(maxlen=20_000)
 
 _lock = threading.Lock()
 _cache: dict[str, tuple[float, dict]] = {}
@@ -71,14 +81,21 @@ def transport_info(url: str = "") -> dict:
         snap = dict(_ledger)
     host = snap.get("host") or (urllib.parse.urlsplit(url).hostname if url else None)
     via = via_of(url) if url else ("studio-dev" if host == "api.studio.thegraph.com" else "unset")
-    uptime_s = max(1.0, time.time() - float(snap.pop("started_at")))
-    per_day = snap["queries"] * 86_400.0 / uptime_s
+    now = time.time()
+    uptime_s = max(1.0, now - float(snap.pop("started_at")))
+    with _lock:
+        while _recent and now - _recent[0] > PACE_WINDOW_S:
+            _recent.popleft()
+        last_hour = len(_recent)
+    measuring = uptime_s < PACE_MIN_UPTIME_S
     return {
         **snap,
         "host": host,
         "via": via,
         "uptime_s": round(uptime_s),
-        "pace_per_day": round(per_day),
+        "last_hour": last_hour,
+        "measuring": measuring,
+        "pace_per_day": None if measuring else last_hour * 24,
         "daily_cap": STUDIO_DEV_DAILY_CAP if via == "studio-dev" else None,
         "cache_ttl_s": CACHE_TTL_S,
     }
@@ -87,6 +104,7 @@ def transport_info(url: str = "") -> dict:
 def _reset_for_tests() -> None:
     with _lock:
         _cache.clear()
+        _recent.clear()
         _ledger.update(queries=0, errors=0, cache_hits=0, last_at=None, last_latency_ms=None,
                        host=None, started_at=time.time())
 
@@ -119,6 +137,7 @@ def graph_query(
     with _lock:
         _ledger["queries"] += 1
         _ledger["host"] = urllib.parse.urlsplit(url).hostname
+        _recent.append(now)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310
             payload = json.loads(r.read() or b"{}")

@@ -305,3 +305,42 @@ class TestStatus:
     def test_a_failure_is_recorded_as_a_verdict(self):
         keeper.record("roll", "failed: boom")
         assert keeper.status()["roll"]["verdict"] == "failed: boom"
+
+
+def test_a_settlement_kicks_one_mirror_pass_that_skips_the_cooldown(monkeypatch):
+    """Twelve real settlements vanished on 2026-09-13: they lived only in memory
+    until the keeper's next 120 s tick, and a restart came first. A settlement
+    now schedules a pass a few seconds later; a burst coalesces into one; the
+    pass bypasses the tick's cooldown; and with no event loop (a script, a sync
+    test) it says so instead of raising — the payment already succeeded."""
+    import asyncio
+
+    monkeypatch.setenv("ACR_KEEPER", "1")
+    calls: list[bool] = []
+
+    def fake_mirror_once(_futures=None, *, force=False):
+        calls.append(force)
+        return "mirrored 1"
+
+    monkeypatch.setattr(keeper, "mirror_once", fake_mirror_once)
+    monkeypatch.setattr(keeper, "_mirror_kick", None)
+
+    assert keeper.kick_mirror() is False, "no running loop: nothing scheduled, nothing raised"
+
+    async def burst():
+        assert keeper.kick_mirror(delay_s=0.05) is True
+        assert keeper.kick_mirror(delay_s=0.05) is True, "a second settlement rides the pending pass"
+        assert keeper.kick_mirror(delay_s=0.05) is True
+        await asyncio.sleep(0.3)
+
+    asyncio.run(burst())
+    assert calls == [True], "one pass for the burst, and it was forced past the cooldown"
+
+
+def test_the_forced_pass_still_refuses_to_overlap_a_running_one(monkeypatch):
+    monkeypatch.setenv("ACR_KEEPER", "1")
+    assert keeper._mirror_lock.acquire(blocking=False)
+    try:
+        assert keeper.mirror_once(force=True) is None, "a pass in flight means this one stands down"
+    finally:
+        keeper._mirror_lock.release()

@@ -28,8 +28,10 @@ Three rules this module lives by, because it shares a process with the press:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import threading
 import time
 
 from acr_core import get_settings
@@ -86,6 +88,16 @@ _hb_cursor = 0
 _last_roll_check = 0.0
 #: Last mirror sweep.
 _last_mirror = 0.0
+#: One mirror pass at a time. The tick and a settlement-triggered pass can
+#: coincide; the contract's replay guards make a double pass safe but not free.
+_mirror_lock = threading.Lock()
+#: The pending settlement-triggered pass, if any. Kept so a burst of purchases
+#: coalesces into ONE pass a few seconds after the last of them.
+_mirror_kick: asyncio.Task | None = None
+#: How long after a settlement the mirror runs. Long enough for a buyer loop's
+#: next few receipts to join the same pass, short enough that a restart in the
+#: gap is a narrow accident rather than a 120 s window.
+MIRROR_KICK_DELAY_S = float(os.environ.get("ACR_KEEPER_MIRROR_KICK_S", "3"))
 
 #: Last observed outcome per chore, for the Terminal. The keeper's verdicts
 #: went only to the server log, so the one question a reader of a live venue
@@ -453,7 +465,7 @@ def roll_if_needed(futures) -> str | None:
             f"(+{os.environ.get('ROLL_EXPIRY_DAYS', '14')}d), {posted:.2f} USDC posted")
 
 
-def mirror_once(_futures=None) -> str | None:
+def mirror_once(_futures=None, *, force: bool = False) -> str | None:
     """Put freshly settled receipts on chain, so the subgraph has a tape.
 
     Takes an unused ``_futures`` argument to match the other chores' signature —
@@ -464,22 +476,69 @@ def mirror_once(_futures=None) -> str | None:
 
     Cooldown is stamped before the work, like the other chores: a keeper that
     retried a failing mirror every tick would spend the press's gas on it.
+    ``force`` is the settlement-triggered pass (`kick_mirror`), which skips the
+    cooldown — a receipt that exists only in memory until the next tick is lost
+    to any restart inside that window, and Circle has already settled it.
     """
     global _last_mirror
     if not enabled():
         return None
     now = time.time()
-    if now - _last_mirror < MIRROR_EVERY_S:
+    if not force and now - _last_mirror < MIRROR_EVERY_S:
         return None
+    if not _mirror_lock.acquire(blocking=False):
+        return None  # a pass is already running; it will see the same receipts
 
-    from acr_oracle_client import MirrorClient
+    try:
+        from acr_oracle_client import MirrorClient
 
-    client = MirrorClient()
-    if not client.configured():
-        return None
-    _last_mirror = now
+        client = MirrorClient()
+        if not client.configured():
+            return None
+        _last_mirror = now
 
-    from .mirror import mirror_once as _mirror
-    from .x402 import get_facilitator
+        from .mirror import mirror_once as _mirror
+        from .x402 import get_facilitator
 
-    return _mirror(list(get_facilitator().recent), client=client)
+        return _mirror(list(get_facilitator().recent), client=client)
+    finally:
+        _mirror_lock.release()
+
+
+def kick_mirror(delay_s: float | None = None) -> bool:
+    """Schedule a mirror pass a few seconds from now, coalescing a burst into one.
+
+    Called by the facilitator the moment a REAL settlement is recorded. Until
+    this existed a receipt waited for the keeper's next tick (every 120 s, eight
+    per tick); a restart inside that window — a Render rollover, a free-tier
+    nap — dropped it from the tape permanently while Circle had settled the
+    money. Measured on 2026-09-13: twelve real settlements, gone in five minutes.
+
+    Returns False when there is no running event loop (a sync test, a script),
+    which is the right answer there: nothing is lost, the tick still runs.
+    Never raises: the payment has already succeeded and must not be told
+    otherwise by a scheduling detail.
+    """
+    global _mirror_kick
+    if not enabled():
+        return False
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    if _mirror_kick is not None and not _mirror_kick.done():
+        return True  # already pending — this settlement rides in the same pass
+
+    async def _later() -> None:
+        await asyncio.sleep(MIRROR_KICK_DELAY_S if delay_s is None else delay_s)
+        try:
+            verdict = await asyncio.to_thread(mirror_once, None, force=True)
+            record("mirror", verdict)
+            if verdict:
+                log.info("keeper mirror (settlement-triggered): %s", verdict)
+        except Exception as exc:  # noqa: BLE001 — a chore must never cost a beat
+            record("mirror", f"failed: {exc}")
+            log.warning("settlement-triggered mirror failed", exc_info=True)
+
+    _mirror_kick = loop.create_task(_later())
+    return True
