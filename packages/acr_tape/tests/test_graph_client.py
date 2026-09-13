@@ -92,3 +92,28 @@ def test_the_pace_is_the_last_hour_times_24_and_nothing_before_ten_minutes(monke
     # An hour-old query falls out of the window.
     graph_client._recent.appendleft(graph_client.time.time() - 3_700)
     assert transport_info(url)["last_hour"] == 5
+
+
+def test_the_cache_forgets_expired_pages_on_insert_and_holds_a_byte_budget(monkeypatch):
+    """The press was OOM-killed at 512 MiB three minutes after this cache landed:
+    expired 1,000-row pages lingered until the COUNT crossed 512. Expired entries
+    now leave on every insert, and the live set is capped in bytes and entries."""
+    calls: list = []
+    big = {"rows": [{"id": "x" * 100, "n": i} for i in range(2000)]}  # ~230 KB
+    _stub(monkeypatch, {"data": big}, calls)
+    url = "https://api.studio.thegraph.com/query/1/x/v0.2.0"
+    graph_query(url, "{ a }", {"i": 1})
+    graph_query(url, "{ a }", {"i": 2})
+    assert transport_info(url)["cache_entries"] == 2
+    # Age the first past the TTL; the next insert sweeps it.
+    k1 = next(iter(graph_client._cache))
+    t0, d, b = graph_client._cache[k1]
+    graph_client._cache[k1] = (t0 - graph_client.CACHE_TTL_S - 1, d, b)
+    graph_query(url, "{ a }", {"i": 3})
+    assert transport_info(url)["cache_entries"] == 2, "the expired page is gone, not waiting for a count"
+    # The byte budget: many distinct live pages cannot exceed it.
+    monkeypatch.setattr(graph_client, "CACHE_MAX_BYTES", 600_000)
+    for i in range(10, 30):
+        graph_query(url, "{ a }", {"i": i})
+    assert graph_client.cache_bytes() <= 600_000
+    assert transport_info(url)["cache_entries"] <= 3

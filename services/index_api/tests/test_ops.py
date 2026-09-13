@@ -158,3 +158,30 @@ def test_the_console_names_which_graph_path_carries_the_queries(monkeypatch):
     ops._subgraph_transport(rec, "")
     assert _only(rec)["ok"] is None
     graph_client._reset_for_tests()
+
+
+def test_memory_is_watched_against_the_tier_limit(monkeypatch):
+    """OOM-killed at 512 MiB on 2026-09-13 with nothing saying it was close."""
+    from index_api import ops
+    from index_api.ops import Recorder
+
+    def _only(rec):
+        (sec,) = rec.sections
+        (c,) = sec["checks"]
+        return c
+
+    assert isinstance(ops.rss_mib(), float), "the real reading works on this platform"
+    monkeypatch.setattr(ops, "rss_mib", lambda: 300.0)
+    rec = Recorder()
+    ops._memory(rec)
+    c = _only(rec)
+    assert c["ok"] is True and "300 MiB of 512" in c["label"]
+    monkeypatch.setattr(ops, "rss_mib", lambda: 450.0)
+    rec = Recorder()
+    ops._memory(rec)
+    c = _only(rec)
+    assert c["ok"] is False and "OOM" in c["detail"]
+    monkeypatch.setattr(ops, "rss_mib", lambda: None)
+    rec = Recorder()
+    ops._memory(rec)
+    assert _only(rec)["ok"] is None

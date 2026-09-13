@@ -65,6 +65,9 @@ from .x402 import (
 )
 
 log = logging.getLogger("index_api")
+
+#: Wall-clock start of this process, served on /health (see `rss_mib` there).
+_PROCESS_STARTED_AT = time.time()
 # Surface app INFO logs (webhooks, x402 settles, poster) under `make api`. Without
 # a handler, Python's last-resort logger only prints WARNING+, so successful
 # webhook events would be invisible. One handler, added once, owns the output.
@@ -636,9 +639,19 @@ def health() -> dict:
     # while offline) — the one-curl answer to "is the oracle actually posting?".
     last = [e for e in get_poster().last_posts.values() if e.get("tx")]
     poster_last_tx = max(last, key=lambda e: e.get("at_wall") or 0.0)["tx"] if last else None
+    from .ops import rss_mib
+
     return {
         "status": "ok",
         "indices_live": len(store.latest),
+        # Resident memory, so an OOM on the 512 MiB tier is seen approaching
+        # rather than discovered in Render's event log after the restart.
+        "rss_mib": (lambda m: round(m) if m is not None else None)(rss_mib()),
+        # When this process started. A restart is now a KNOWN way for the store
+        # to run short of the chain (the memory-only receipts of the last few
+        # seconds), so anyone comparing paid_queries against the subgraph can
+        # tell a restart from a bug without Render's event log.
+        "process_started_at": _PROCESS_STARTED_AT,
         # Active modes — makes "why is my query 402ing / which path am I on" a
         # single curl. gate=dev accepts a mock header; gate=circle needs real x402.
         "gate": "circle" if circle else "dev",

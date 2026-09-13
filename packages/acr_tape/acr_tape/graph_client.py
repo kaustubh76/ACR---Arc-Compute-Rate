@@ -48,7 +48,7 @@ PACE_MIN_UPTIME_S = 600.0
 _recent: deque[float] = deque(maxlen=20_000)
 
 _lock = threading.Lock()
-_cache: dict[str, tuple[float, dict]] = {}
+_cache: dict[str, tuple[float, dict, int]] = {}
 #: The process-wide ledger — every query, through every caller, on one transport.
 #: Served on /graph/operations so "how many subgraph queries has this press
 #: made" is a number a reader can check, the way /armor/info answers the same
@@ -98,6 +98,8 @@ def transport_info(url: str = "") -> dict:
         "pace_per_day": None if measuring else last_hour * 24,
         "daily_cap": STUDIO_DEV_DAILY_CAP if via == "studio-dev" else None,
         "cache_ttl_s": CACHE_TTL_S,
+        "cache_bytes": cache_bytes(),
+        "cache_entries": len(_cache),
     }
 
 
@@ -156,10 +158,44 @@ def graph_query(
         return {}
     data = payload.get("data") or {}
     with _lock:
-        _cache[key] = (now, data)
-        # Bounded: a page that asks many distinct questions must not grow this
-        # without limit; the oldest entries go first.
-        if len(_cache) > 512:
-            for k in sorted(_cache, key=lambda k: _cache[k][0])[:128]:
-                _cache.pop(k, None)
+        _cache[key] = (now, data, len(payload_bytes) if (payload_bytes := _approx_bytes(data)) else 0)
+        _sweep(now)
     return data
+
+
+#: The cache's memory budget. The production press runs in 512 MiB, and on
+#: 2026-09-13 it was OOM-killed three minutes after this cache landed: expired
+#: 1,000-row settlement pages lingered until the entry COUNT crossed 512, which a
+#: tape with many payers and sellers reaches with hundreds of stale pages in hand.
+#: Now expired entries go on every insert and the live set is capped in bytes.
+CACHE_MAX_BYTES = 8 * 1024 * 1024
+CACHE_MAX_ENTRIES = 128
+
+
+def _approx_bytes(data: dict) -> bytes:
+    try:
+        return json.dumps(data, separators=(",", ":")).encode()
+    except (TypeError, ValueError):
+        return b""
+
+
+def _sweep(now: float) -> None:
+    """Drop expired entries, then the oldest until the byte and count caps hold.
+    Called under `_lock`."""
+    for k in [k for k, v in _cache.items() if now - v[0] >= CACHE_TTL_S]:
+        _cache.pop(k, None)
+    total = sum(v[2] for v in _cache.values())
+    if total <= CACHE_MAX_BYTES and len(_cache) <= CACHE_MAX_ENTRIES:
+        return
+    for k in sorted(_cache, key=lambda k: _cache[k][0]):
+        v = _cache.pop(k, None)
+        if v is None:
+            continue
+        total -= v[2]
+        if total <= CACHE_MAX_BYTES and len(_cache) <= CACHE_MAX_ENTRIES:
+            break
+
+
+def cache_bytes() -> int:
+    with _lock:
+        return sum(v[2] for v in _cache.values())

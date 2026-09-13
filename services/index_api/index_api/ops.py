@@ -161,9 +161,55 @@ def _oracle(rec: Recorder) -> None:
         )
 
 
+#: The production instance's memory limit (Render free tier), and the point at
+#: which the console goes red. On 2026-09-13 the press was OOM-killed at 512 MiB
+#: three minutes after a settlement, with no surface saying it was close — the
+#: receipt survived only because it had already been mirrored on chain.
+MEMORY_LIMIT_MIB = float(os.environ.get("ACR_MEMORY_LIMIT_MIB", "512"))
+MEMORY_FLOOR_FRAC = 0.8
+
+
+def rss_mib() -> float | None:
+    """Resident set size in MiB, or None where the platform cannot say."""
+    try:
+        import resource
+        import sys
+
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # Linux reports KiB, macOS bytes. Prefer /proc's current RSS where it exists.
+        try:
+            with open("/proc/self/statm") as f:
+                pages = int(f.read().split()[1])
+            import os as _os
+
+            return pages * _os.sysconf("SC_PAGE_SIZE") / 1_048_576
+        except (FileNotFoundError, ValueError, IndexError):
+            return peak / (1_048_576 if sys.platform == "darwin" else 1024)
+    except Exception:  # noqa: BLE001 - never let a diagnostic take a section down
+        return None
+
+
+def _memory(rec: Recorder) -> None:
+    mib = rss_mib()
+    if mib is None:
+        rec.check(None, "memory: unreadable on this platform")
+        return
+    frac = mib / MEMORY_LIMIT_MIB
+    from acr_tape.graph_client import cache_bytes
+
+    rec.check(
+        frac < MEMORY_FLOOR_FRAC,
+        f"memory: {mib:.0f} MiB of {MEMORY_LIMIT_MIB:.0f} ({frac:.0%}) · graph cache {cache_bytes() / 1_048_576:.1f} MiB",
+        detail=None if frac < MEMORY_FLOOR_FRAC
+        else "the instance is OOM-killed at the limit and every memory-only receipt with it; "
+             "the settlement-triggered mirror is the backstop, not a reason to ignore this",
+    )
+
+
 def _press(rec: Recorder) -> None:
     from .app import get_poster
 
+    _memory(rec)
     poster = get_poster()
     posts = getattr(poster, "last_posts", {}) or {}
     landed = [e for e in posts.values() if e.get("tx")]
