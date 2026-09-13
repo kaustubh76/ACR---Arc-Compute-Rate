@@ -295,6 +295,7 @@ export function TapeView() {
   const tca = data?.tca ?? null;
   const card = tca && tca.available ? (tca as TcaCard) : null;
   const recent = data?.recent ?? [];
+  const transport = data?.transport ?? null;
   const nowS = useNow();
   const unreachable = error != null || env?.upstream === "error" || env?.upstream === "timeout";
 
@@ -381,6 +382,20 @@ export function TapeView() {
                 <span className="muted" style={{ display: "block", fontSize: 12, marginTop: 2 }}>
                   <Ed x="Subgraph Studio, ethonline v0.2.0: every cost below was benchmarked in the mapping at the settling block" p="a public index of the chain; each cost below was worked out as the purchase landed, not later" />
                 </span>
+                {/* The press's own count, because The Graph's dashboard counts only
+                    gateway queries made with an API key, and the development URL is
+                    capped at 3,000 a day. Said plainly which path this is. */}
+                {transport && transport.via !== "unset" ? (
+                  <span className="mono muted" style={{ display: "block", fontSize: 12, marginTop: 4 }}>
+                    {fmtInt(transport.queries)} <Ed x="subgraph queries this boot" p="record lookups since the last restart" /> · {fmtInt(transport.cache_hits)}{" "}
+                    <Ed x="served from a 20 s cache" p="answered from a short memory" /> ·{" "}
+                    {transport.via === "gateway" ? (
+                      <Ed x="via The Graph gateway, counted on the API key" p="through The Graph's paid door, where it is counted" />
+                    ) : (
+                      <Ed x="via Studio's development URL (3,000/day, counted on no dashboard)" p="through the free test door, which no dashboard counts" />
+                    )}
+                  </span>
+                ) : null}
               </span>
             </div>
           ) : unreachable ? (

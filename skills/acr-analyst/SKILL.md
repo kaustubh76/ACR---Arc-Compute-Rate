@@ -28,7 +28,8 @@ curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
 
 Or point The Graph's **Subgraph MCP** straight at the deployment — slug
 `ethonline`, **v0.2.0** (`QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6`), queryable at
-`https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` — and ask it
+`https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` (Studio's development URL,
+3,000 queries/day; the gateway form with an API key is the production path) — and ask it
 anything. This skill is the schema map you need either way.
 
 ## Show a card, or share the anonymous ceiling

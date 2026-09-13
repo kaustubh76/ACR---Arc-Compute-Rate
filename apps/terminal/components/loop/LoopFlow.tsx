@@ -46,6 +46,7 @@ export function LoopFlow({ wake }: { wake: WakeState }) {
   const card = data?.tca && data.tca.available ? (data.tca as TcaCard) : null;
   const recent: TapeRecentRow[] = data?.recent ?? [];
   const meta = data?.meta ?? null;
+  const transport = data?.transport ?? null;
   const receipts = ledger?.data?.receipts ?? [];
   const newest = receipts[0];
   const verdict = followedReroute(recent, card?.reroute);
@@ -143,8 +144,15 @@ export function LoopFlow({ wake }: { wake: WakeState }) {
         </Station>
         <Station node="index" cls={on("index")} label={<Ed x="3 · index" p="3 · check" />}>
           <span className="flow-value">{meta ? fmtInt(meta.block) : "…"}</span>
-          <span className="flow-cap">
+          <span className="flow-cap" title={transport?.host ?? undefined}>
             <Ed x="block indexed by The Graph; slippage benchmarked in the mapping" p="the public record is up to this block; every cost checked as it lands" />
+            {transport && transport.via !== "unset" ? (
+              <>
+                {" · "}
+                {fmtInt(transport.queries)} <Ed x="queries this boot" p="lookups since restart" /> ·{" "}
+                {transport.via === "gateway" ? <Ed x="gateway, counted" p="paid door, counted" /> : <Ed x="Studio dev URL, 3,000/day" p="free test door, capped" />}
+              </>
+            ) : null}
           </span>
         </Station>
         <Station node="measure" cls={on("measure")} label={<Ed x="4 · measure" p="4 · the bill" />}>

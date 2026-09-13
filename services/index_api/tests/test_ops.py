@@ -116,3 +116,35 @@ def test_the_console_fails_when_the_rotation_window_has_no_humans(monkeypatch):
     rec = Recorder()
     ops._humans_this_window(rec, 2959)
     assert _only(rec)["ok"] is None
+
+
+def test_the_console_names_which_graph_path_carries_the_queries(monkeypatch):
+    """Studio's development URL is capped at 3,000 queries a day and counted on no
+    dashboard; the gateway is counted and billed. The console says which is in
+    use and, on the dev URL, warns when the pace would cross the cap."""
+    from acr_tape import graph_client
+    from index_api import ops
+    from index_api.ops import Recorder
+
+    def _only(rec):
+        (sec,) = rec.sections
+        (c,) = sec["checks"]
+        return c
+
+    graph_client._reset_for_tests()
+    # A dev-URL pace far over the cap: 100 queries in the first second of uptime.
+    monkeypatch.setattr(graph_client, "_ledger", {**graph_client._ledger, "queries": 100, "started_at": graph_client.time.time() - 1})
+    rec = Recorder()
+    ops._subgraph_transport(rec, "https://api.studio.thegraph.com/query/1/x/v0.2.0")
+    c = _only(rec)
+    assert c["ok"] is False and "via studio-dev" in c["label"] and "step 6" in c["detail"]
+
+    rec = Recorder()
+    ops._subgraph_transport(rec, "https://gateway.thegraph.com/api/subgraphs/id/QmX")
+    c = _only(rec)
+    assert c["ok"] is True and "via gateway" in c["label"] and "usage page" in c["detail"]
+
+    rec = Recorder()
+    ops._subgraph_transport(rec, "")
+    assert _only(rec)["ok"] is None
+    graph_client._reset_for_tests()

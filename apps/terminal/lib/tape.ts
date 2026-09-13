@@ -213,6 +213,23 @@ export interface TapeMeta {
   deployment: string;
 }
 
+/** The press's own ledger of subgraph queries (GET /graph/operations.transport):
+ *  which path carries them and how many. Studio's development URL is capped at
+ *  3,000 a day and counted on no dashboard; the gateway is counted on the API
+ *  key's usage page. Shown so a reader can tell which one they are looking at. */
+export interface GraphTransport {
+  queries: number;
+  errors: number;
+  cache_hits: number;
+  last_at: number | null;
+  last_latency_ms: number | null;
+  host: string | null;
+  via: "studio-dev" | "gateway" | "custom" | "unset";
+  pace_per_day: number;
+  daily_cap: number | null;
+  uptime_s: number;
+}
+
 /** What /api/tape serves. Every field is nullable because every one of them can
  *  be independently unreachable, and "we could not read this" is not a value. */
 /** One of the chosen payer's newest purchases — the evidence the reroute card
@@ -230,6 +247,8 @@ export interface TapeData {
   tca: TcaResult | null;
   /** The payer's newest purchases, newest first. Empty when the tape has none. */
   recent: TapeRecentRow[];
+  /** The press's subgraph-query ledger; null when /graph/operations did not answer. */
+  transport: GraphTransport | null;
   sellers: TapeSeller[];
   /** Grades keyed by lowercase seller address; absent while /rating is down. */
   ratings: Record<string, SellerRating>;

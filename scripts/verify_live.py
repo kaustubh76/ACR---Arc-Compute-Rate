@@ -576,6 +576,19 @@ def verify_seller() -> dict | None:
         return None
     check(health.get("oracle_configured") is True, "oracle configured")
     check(health.get("indices_live") == 3, f"{health.get('indices_live')}/3 indices live")
+    # Which path carries the tape's queries — the one The Graph counts, or the
+    # development URL it does not. A judge reading Studio's dashboard needs this.
+    st, ops = get(f"{API}/graph/operations")
+    t = (ops or {}).get("transport") or {}
+    if t:
+        via = t.get("via")
+        check(via in ("studio-dev", "gateway"),
+              f"subgraph via {via}: {t.get('queries')} queries this boot, {t.get('cache_hits')} cached, "
+              f"~{t.get('pace_per_day')}/day" + (f" (dev cap {t.get('daily_cap')})" if via == "studio-dev" else ""),
+              warn_only=True)
+        if via == "studio-dev":
+            check(False, "queries go to Studio's development URL: capped at 3,000/day and shown on no dashboard "
+                         "(publish + API key, docs/GRAPH-RUNBOOK.md step 6)", warn_only=True)
     # The defect this was written for: the press posts, but the product says
     # "awaiting first live post" because in-memory provenance never rehydrated.
     check(

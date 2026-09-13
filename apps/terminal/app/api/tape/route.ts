@@ -4,6 +4,7 @@ import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
 import type { Envelope } from "@/lib/types";
 import { humanShareInWindow, sellersFromSettlements, recentForPayer } from "@/lib/tape";
 import type {
+  GraphTransport,
   SellerRating,
   TapeData,
   TapeMeta,
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const payerParam = url.searchParams.get("payer");
 
-  const [rawMeta, sellersRes, settleRes, fills] = await Promise.all([
+  const [rawMeta, sellersRes, settleRes, fills, opsRes] = await Promise.all([
     op<{ _meta: { block: { number: number; timestamp: number }; hasIndexingErrors: boolean; deployment: string } }>(
       "meta",
     ),
@@ -78,6 +79,7 @@ export async function GET(request: Request) {
     op<{ fills: { slippageBp: string | null; benchmarked: boolean }[] }>("futuresFills", {
       first: 200,
     }),
+    fetchLiveMeta<{ transport?: GraphTransport }>("/graph/operations", OP_TIMEOUT_MS),
   ]);
 
   const settlements = settleRes?.settlements ?? [];
@@ -144,6 +146,7 @@ export async function GET(request: Request) {
     meta,
     tca: tcaRes.data,
     recent: recentForPayer(settlements, payer),
+    transport: opsRes.data?.transport ?? null,
     sellers,
     ratings,
     control,

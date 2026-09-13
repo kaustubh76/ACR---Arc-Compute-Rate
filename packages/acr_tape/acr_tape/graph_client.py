@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 log = logging.getLogger("acr_tape.graph")
@@ -22,6 +25,70 @@ log = logging.getLogger("acr_tape.graph")
 #: The Graph caps `first` at 1000 and refuses `skip` past 5000 on one query.
 PAGE = 1000
 SKIP_CEILING = 5000
+
+#: Studio's DEVELOPMENT query URL is capped at 3,000 queries a day (docs: "The
+#: development query URL is limited to 3,000 queries per day"). The gateway,
+#: with an API key, is the production path and the one Studio's dashboard counts.
+STUDIO_DEV_DAILY_CAP = 3_000
+
+#: How long one answer is reused for the same (url, query, variables). The
+#: subgraph itself runs ~3 s behind the chain, so twenty seconds changes nothing a
+#: reader could see — and it collapses a dozen viewers polling the same twelve
+#: ratings into one query per seller per window. Hits are counted, not hidden.
+CACHE_TTL_S = 20.0
+
+_lock = threading.Lock()
+_cache: dict[str, tuple[float, dict]] = {}
+#: The process-wide ledger — every query, through every caller, on one transport.
+#: Served on /graph/operations so "how many subgraph queries has this press
+#: made" is a number a reader can check, the way /armor/info answers the same
+#: question for Google. A dashboard can read zero while the calls land.
+_ledger: dict = {
+    "queries": 0,
+    "errors": 0,
+    "cache_hits": 0,
+    "last_at": None,
+    "last_latency_ms": None,
+    "host": None,
+    "started_at": time.time(),
+}
+
+
+def via_of(url: str) -> str:
+    """Which path a URL is: Studio's development endpoint, the network gateway, or
+    something else. Named on /ops because the two are billed and counted apart."""
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if host == "api.studio.thegraph.com":
+        return "studio-dev"
+    if host.endswith("gateway.thegraph.com") or host.endswith("gateway-arbitrum.network.thegraph.com"):
+        return "gateway"
+    return "custom" if host else "unset"
+
+
+def transport_info(url: str = "") -> dict:
+    """The ledger plus the path's identity, for /graph/operations and /ops."""
+    with _lock:
+        snap = dict(_ledger)
+    host = snap.get("host") or (urllib.parse.urlsplit(url).hostname if url else None)
+    via = via_of(url) if url else ("studio-dev" if host == "api.studio.thegraph.com" else "unset")
+    uptime_s = max(1.0, time.time() - float(snap.pop("started_at")))
+    per_day = snap["queries"] * 86_400.0 / uptime_s
+    return {
+        **snap,
+        "host": host,
+        "via": via,
+        "uptime_s": round(uptime_s),
+        "pace_per_day": round(per_day),
+        "daily_cap": STUDIO_DEV_DAILY_CAP if via == "studio-dev" else None,
+        "cache_ttl_s": CACHE_TTL_S,
+    }
+
+
+def _reset_for_tests() -> None:
+    with _lock:
+        _cache.clear()
+        _ledger.update(queries=0, errors=0, cache_hits=0, last_at=None, last_latency_ms=None,
+                       host=None, started_at=time.time())
 
 
 def graph_query(
@@ -37,17 +104,43 @@ def graph_query(
     if not url:
         return {}
     body = json.dumps({"query": query, "variables": variables}).encode()
+    key = url + "\x00" + body.decode()
+    now = time.time()
+    with _lock:
+        hit = _cache.get(key)
+        if hit is not None and now - hit[0] < CACHE_TTL_S:
+            _ledger["cache_hits"] += 1
+            return hit[1]
     headers = {"Content-Type": "application/json", "User-Agent": "acr-graph"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(url, data=body, headers=headers)
+    started = time.monotonic()
+    with _lock:
+        _ledger["queries"] += 1
+        _ledger["host"] = urllib.parse.urlsplit(url).hostname
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310
             payload = json.loads(r.read() or b"{}")
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
         log.warning("graph: query failed (%s)", exc)
+        with _lock:
+            _ledger["errors"] += 1
         return {}
+    with _lock:
+        _ledger["last_at"] = time.time()
+        _ledger["last_latency_ms"] = int((time.monotonic() - started) * 1000)
     if payload.get("errors"):
         log.warning("graph: GraphQL errors: %s", payload["errors"][:2])
+        with _lock:
+            _ledger["errors"] += 1
         return {}
-    return payload.get("data") or {}
+    data = payload.get("data") or {}
+    with _lock:
+        _cache[key] = (now, data)
+        # Bounded: a page that asks many distinct questions must not grow this
+        # without limit; the oldest entries go first.
+        if len(_cache) > 512:
+            for k in sorted(_cache, key=lambda k: _cache[k][0])[:128]:
+                _cache.pop(k, None)
+    return data

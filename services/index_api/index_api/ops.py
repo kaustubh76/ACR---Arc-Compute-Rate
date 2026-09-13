@@ -338,6 +338,38 @@ def _tape(rec: Recorder) -> None:
         if src == "sim"
         else None,
     )
+    _subgraph_transport(rec, s.subgraph_url)
+
+
+def _subgraph_transport(rec: Recorder, url: str) -> None:
+    """Every subgraph query this press made, and which path carried it.
+
+    Studio's development URL is capped at 3,000 queries a day and its dashboard
+    does not count them; the gateway (with an API key) is counted and billed. So
+    the console says which one is in use and, on the dev URL, whether the pace
+    would cross the cap — the fact that would otherwise arrive as a tape that
+    stops answering at 4 pm.
+    """
+    from acr_tape.graph_client import transport_info
+
+    t = transport_info(url)
+    if t["via"] == "unset":
+        rec.check(None, "subgraph queries: no ACR_SUBGRAPH_URL")
+        return
+    pace = t["pace_per_day"]
+    label = (f"subgraph queries this boot: {t['queries']} ({t['cache_hits']} cached, {t['errors']} errors) "
+             f"· via {t['via']} · ~{pace:,}/day at this pace")
+    if t["via"] == "studio-dev":
+        over = pace > 0.7 * t["daily_cap"]
+        rec.check(
+            not over,
+            label,
+            warn_only=True,
+            detail=(f"{t['host']} · Studio's development URL: {t['daily_cap']:,}/day, counted on no dashboard. "
+                    "Publish and switch to the gateway with an API key (docs/GRAPH-RUNBOOK.md step 6)"),
+        )
+    else:
+        rec.check(True, label, detail=f"{t['host']} · counted on the API key's usage page in Subgraph Studio")
 
 
 def _gate(rec: Recorder) -> None:

@@ -113,8 +113,34 @@ Production reads v0.2.0 (`render.yaml`). Query endpoint:
 https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0
 ```
 
-That is the Studio *development* endpoint and needs no gateway API key. A
-`ACR_GRAPH_API_KEY` only matters once the subgraph is published to the network.
+That is the Studio *development* endpoint and needs no gateway API key. **It is capped at
+3,000 queries a day and Studio's dashboard does not count it** — which is why "the portal shows
+zero queries" while the press has made thousands. The press keeps its own count on
+`GET /graph/operations` → `transport` (queries, cache hits, host, `via`, pace per day) and
+`/ops` warns when the pace nears the cap. A `ACR_GRAPH_API_KEY` only matters once the subgraph
+is published to the network — step 6.
+
+## 6 · Publish, and switch to the gateway (the path Studio counts)
+
+Arc is listed on The Graph's supported-networks page as *Subgraphs · Hosted (No issuance)*: it
+can be published to the network and served by the upgrade indexer, without indexing rewards.
+Four clicks in Studio, two values on Render:
+
+1. **Studio → `ethonline` → Publish** (v0.2.0). A wallet transaction on **Arbitrum One**; signal
+   is optional — leave it at 0 for a testnet subgraph. Copy the **Deployment ID** (`Qm…`) or the
+   **Subgraph ID** the publish dialog shows.
+2. **Studio → API Keys → Create**. Name it `acr-press`. Optionally restrict it to this
+   subgraph. This key's **usage page** is where the queries will appear.
+3. **Render** (single-key PUTs, never the bulk env replace):
+   `ACR_SUBGRAPH_URL=https://gateway.thegraph.com/api/subgraphs/id/<DEPLOYMENT ID>` and
+   `ACR_GRAPH_API_KEY=<the key>` (sent as `Authorization: Bearer`, `graph_client.py`).
+4. `SKIP_BUILD=1 ./deploy/redeploy-render.sh`. Then `curl $API/graph/operations | jq .transport`
+   → `"via": "gateway"`; `/ops` → *subgraph queries … via gateway*; `make verify-live` stops
+   warning about the development URL; Studio's API-key usage counts from that moment on.
+
+The free plan is 100,000 queries a month. The press's 20 s query cache (`CACHE_TTL_S` in
+`graph_client.py`) keeps a dozen open tapes from spending that: repeats within the window are
+served from memory and reported as `cache_hits`, never hidden.
 
 `make graph-deploy` refuses while **any** data source still holds a placeholder
 address *or* `startBlock: 0`. That is why it comes last: a subgraph pointed at

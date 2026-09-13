@@ -9,7 +9,8 @@ it; nothing can disagree with it.
 | | |
 |---|---|
 | **Studio** | account `1758707` · slug `ethonline` · **v0.2.0** · `QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6` |
-| **Endpoint** | `https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` |
+| **Endpoint (development)** | `https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` — 3,000 queries/day, not counted on any dashboard |
+| **Endpoint (production)** | `https://gateway.thegraph.com/api/subgraphs/id/<deployment id>` with an API key, after publishing — counted on the key's usage page (`docs/GRAPH-RUNBOOK.md` step 6) |
 | **Network** | `arc-testnet` (`eip155:5042002`); `arc` mainnet is a Studio target too (`docs/MAINNET_RUNBOOK.md`) |
 | **Lag, measured** | ~6 blocks / ~3 s behind Arc's head (2026-09-13), `hasIndexingErrors: false` |
 | **Substreams** | **N/A** — Arc is a Studio-only ("basic" support) network; there is no Substreams endpoint to target, so that challenge is not attempted |

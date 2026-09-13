@@ -1016,9 +1016,22 @@ def graph_operations(
     request: Request,
     agent: VerifiedAgent | None = Depends(optional_agent),
 ) -> dict:
-    """What the proxy will run — the tape's public read API, named."""
+    """What the proxy will run — the tape's public read API, named.
+
+    `transport` is the press's own ledger of subgraph queries — how many, through
+    which host, how fast, how many served from the short cache — because The
+    Graph's dashboard counts gateway queries made with an API key and the Studio
+    development URL is counted nowhere while being capped at 3,000 a day. The
+    same reason `/armor/info` records when Google last answered.
+    """
+    from acr_tape.graph_client import transport_info
+
     _meter_agent(request, agent)
-    return {"operations": sorted(graph_proxy.OPERATIONS), "max_first": graph_proxy.MAX_FIRST}
+    return {
+        "operations": sorted(graph_proxy.OPERATIONS),
+        "max_first": graph_proxy.MAX_FIRST,
+        "transport": transport_info(get_settings().subgraph_url),
+    }
 
 
 @app.get("/humanid/info")

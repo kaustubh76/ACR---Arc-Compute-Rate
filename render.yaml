@@ -55,6 +55,15 @@ services:
       # Studio v0.2.0 of `ethonline` (account 1758707) — the version with the
       # HumanIdMirror data source. Was "" here while the dashboard held the real
       # value, which is the exact drift this file exists to prevent.
+      #
+      # STUDIO'S DEVELOPMENT URL: capped at 3,000 queries a day and counted on no
+      # dashboard. The production path is the network gateway, which Studio
+      # counts on the API key's usage page and bills (100k queries/month free).
+      # Once the subgraph is PUBLISHED from Studio (a wallet transaction on
+      # Arbitrum One) and an API key exists, switch both values below:
+      #   ACR_SUBGRAPH_URL   https://gateway.thegraph.com/api/subgraphs/id/<DEPLOYMENT ID>
+      #   ACR_GRAPH_API_KEY  the key, as a Bearer token (single-key PUT, then a
+      #                      SKIP_BUILD=1 redeploy). docs/GRAPH-RUNBOOK.md step 6.
       - key: ACR_SUBGRAPH_URL
         value: https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0
       - key: ACR_KEEPER_MIRROR_S
