@@ -161,49 +161,40 @@ def _oracle(rec: Recorder) -> None:
         )
 
 
-#: The production instance's memory limit (Render free tier), and the point at
-#: which the console goes red. On 2026-09-13 the press was OOM-killed at 512 MiB
-#: three minutes after a settlement, with no surface saying it was close — the
-#: receipt survived only because it had already been mirrored on chain.
-MEMORY_LIMIT_MIB = float(os.environ.get("ACR_MEMORY_LIMIT_MIB", "512"))
 MEMORY_FLOOR_FRAC = 0.8
 
 
 def rss_mib() -> float | None:
-    """Resident set size in MiB, or None where the platform cannot say."""
-    try:
-        import resource
-        import sys
+    """The instance's resident memory, via the memory module (kept as a name
+    here because /health and the tests read it from ops)."""
+    from .memory import rss_mib as _rss
 
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        # Linux reports KiB, macOS bytes. Prefer /proc's current RSS where it exists.
-        try:
-            with open("/proc/self/statm") as f:
-                pages = int(f.read().split()[1])
-            import os as _os
-
-            return pages * _os.sysconf("SC_PAGE_SIZE") / 1_048_576
-        except (FileNotFoundError, ValueError, IndexError):
-            return peak / (1_048_576 if sys.platform == "darwin" else 1024)
-    except Exception:  # noqa: BLE001 - never let a diagnostic take a section down
-        return None
+    return _rss()
 
 
 def _memory(rec: Recorder) -> None:
+    from acr_tape.graph_client import cache_bytes
+
+    from . import memory
+
     mib = rss_mib()
     if mib is None:
         rec.check(None, "memory: unreadable on this platform")
         return
-    frac = mib / MEMORY_LIMIT_MIB
-    from acr_tape.graph_client import cache_bytes
-
+    limit = memory.MEMORY_LIMIT_MIB
+    frac = mib / limit
     rec.check(
         frac < MEMORY_FLOOR_FRAC,
-        f"memory: {mib:.0f} MiB of {MEMORY_LIMIT_MIB:.0f} ({frac:.0%}) · graph cache {cache_bytes() / 1_048_576:.1f} MiB",
+        f"memory: {mib:.0f} MiB of {limit:.0f} ({frac:.0%}) · graph cache {cache_bytes() / 1_048_576:.1f} MiB",
         detail=None if frac < MEMORY_FLOOR_FRAC
         else "the instance is OOM-killed at the limit and every memory-only receipt with it; "
              "the settlement-triggered mirror is the backstop, not a reason to ignore this",
     )
+    a = memory.last_action
+    if a:
+        rec.check(True, f"memory guard last acted {(time.time() - a['at']) / 60:.0f} min ago: "
+                        f"{a['before_mib']} → {a['after_mib']} MiB, freed {a['freed_mib']} MiB",
+                  warn_only=True, detail="past 90% the warm tick drops the graph cache and returns freed heap to the OS")
 
 
 def _press(rec: Recorder) -> None:

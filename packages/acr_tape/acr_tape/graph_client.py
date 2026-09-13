@@ -199,3 +199,10 @@ def _sweep(now: float) -> None:
 def cache_bytes() -> int:
     with _lock:
         return sum(v[2] for v in _cache.values())
+
+
+def drop_cache() -> None:
+    """Forget every cached page. The memory guard's lever; the next reads
+    simply query again."""
+    with _lock:
+        _cache.clear()

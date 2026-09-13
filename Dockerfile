@@ -42,6 +42,11 @@ RUN useradd --create-home --uid 10001 acr \
 USER acr
 
 ENV PORT=8000
+# glibc gives every thread its own malloc arena (up to 8 x cores); the heavy jobs
+# run on asyncio's thread pool, and the arenas' fragmentation is what kept the
+# hourly press's ~150 MiB transient resident until the 512 MiB kill on
+# 2026-09-13. Two arenas is the usual setting for a small container.
+ENV MALLOC_ARENA_MAX=2
 EXPOSE 8000
 
 # /health also reports gate/signer/tape provenance; the generous start period

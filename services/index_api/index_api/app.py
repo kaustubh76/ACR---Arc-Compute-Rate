@@ -30,7 +30,7 @@ from acr_core import ALL_INDEX_IDS, get_settings, spec_for
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from . import armor, graph_proxy, ratelimit
+from . import armor, graph_proxy, memory, ratelimit
 from .agentgate import (
     CARD_HEADER,
     TIER_ANON,
@@ -318,6 +318,9 @@ async def _warm_chain(stop: asyncio.Event) -> None:
             # no venue dependency, and a deployment with no ACR_FUTURES_ADDRESS
             # would otherwise stop feeding the tape without ever saying so.
             await _run_mirror()
+            # Past 90 % of the tier's limit: drop caches and hand heap back, and
+            # say so on /ops — a stutter instead of an OOM kill (memory.py).
+            await asyncio.to_thread(memory.guard)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
 
@@ -345,6 +348,7 @@ async def _ops_loop(stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
             _ops_cache = await asyncio.to_thread(ops.run_all)
+            await asyncio.to_thread(memory.trim)
         except Exception:  # pragma: no cover - the ledger must never cost a beat
             log.exception("ops verify failed")
         try:
@@ -481,6 +485,9 @@ async def _background(stop: asyncio.Event) -> None:
             if futures.configured:  # refresh the maker book so the curve skew tracks it
                 inv = await asyncio.to_thread(futures.maker_inventory, use_cache=False)
                 store.set_maker_inventory(inv)
+            # The press is the heaviest job the instance runs; give the transient
+            # back to the OS before the next hour lands on top of it (memory.py).
+            await asyncio.to_thread(memory.trim)
             # Rebuild the /terminal/data cache off-loop so the served snapshot
             # reflects the fresh prints + on-chain reads (never on the request path).
             await asyncio.to_thread(_rebuild_terminal_cache)
@@ -639,7 +646,7 @@ def health() -> dict:
     # while offline) — the one-curl answer to "is the oracle actually posting?".
     last = [e for e in get_poster().last_posts.values() if e.get("tx")]
     poster_last_tx = max(last, key=lambda e: e.get("at_wall") or 0.0)["tx"] if last else None
-    from .ops import rss_mib
+    from .memory import rss_mib
 
     return {
         "status": "ok",

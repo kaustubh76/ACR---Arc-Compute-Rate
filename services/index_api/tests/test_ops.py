@@ -185,3 +185,26 @@ def test_memory_is_watched_against_the_tier_limit(monkeypatch):
     rec = Recorder()
     ops._memory(rec)
     assert _only(rec)["ok"] is None
+
+
+def test_the_memory_guard_acts_past_the_line_and_says_what_it_freed(monkeypatch):
+    """OOM-killed at 512 MiB after the hourly press left ~150 MiB of fragmented
+    heap behind. Past 90 % the warm tick drops the graph cache and returns freed
+    heap to the OS, and /ops shows the last action."""
+    from acr_tape import graph_client
+    from index_api import memory
+
+    memory.last_action = None
+    readings = iter([300.0])
+    monkeypatch.setattr(memory, "rss_mib", lambda: next(readings, 300.0))
+    assert memory.guard(limit_mib=512) is None, "below the line: nothing happens"
+
+    readings = iter([480.0, 480.0, 420.0, 420.0])
+    monkeypatch.setattr(memory, "rss_mib", lambda: next(readings, 420.0))
+    graph_client._reset_for_tests()
+    graph_client._cache["k"] = (graph_client.time.time(), {"x": 1}, 10)
+    a = memory.guard(limit_mib=512)
+    assert a and a["before_mib"] == 480 and a["dropped_cache_bytes"] == 10
+    assert graph_client.cache_bytes() == 0, "the cache was dropped"
+    assert memory.last_action is a
+    assert isinstance(memory.trim(), (float, type(None))), "trim never raises, glibc or not"
