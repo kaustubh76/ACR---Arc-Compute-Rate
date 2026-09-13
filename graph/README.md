@@ -52,7 +52,7 @@ everything that measures what agents actually paid.
 ```bash
 npm ci
 npm run codegen && npm run build
-npm test                         # matchstick, 57 tests, no docker
+npm test                         # matchstick, 58 tests, no docker
 make graph-deploy VERSION=v0.2.1 # needs the Studio deploy key; a new version re-indexes
 ```
 

@@ -289,8 +289,8 @@ def test_every_platform_family_resolves_and_every_free_read_does_not():
 
     for path in ("/prints", "/prints/ACR-INF", "/curve/ACR-GPU", "/vol/ACR-DATA",
                  "/seller-scores/ACR-INF?days=7", "https://acr-api-1fto.onrender.com/vol/ACR-INF"):
-        l = listing_for_resource(path)
-        assert l is not None and l.index_id == PLATFORM_INDEX_ID, path
+        lst = listing_for_resource(path)
+        assert lst is not None and lst.index_id == PLATFORM_INDEX_ID, path
     for path in ("/health", "/fleet", "/humanid/info", "/terminal/data", "/graph/operations", ""):
         assert listing_for_resource(path) is None, path
 
@@ -298,9 +298,9 @@ def test_every_platform_family_resolves_and_every_free_read_does_not():
 def test_a_compute_path_still_resolves_to_the_fleet_unchanged():
     from index_api.fleet import FLEET, listing_for_resource
 
-    l = listing_for_resource("/compute/acr-seller-inf-mid-a")
-    assert l is FLEET["acr-seller-inf-mid-a"]
-    assert l.index_id == "ACR-INF"
+    lst = listing_for_resource("/compute/acr-seller-inf-mid-a")
+    assert lst is FLEET["acr-seller-inf-mid-a"]
+    assert lst.index_id == "ACR-INF"
 
 
 def test_platform_listings_never_enter_the_fleet_summary_or_comparable_sets():

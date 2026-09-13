@@ -134,7 +134,7 @@ def _fleet_terms(resource: str, settings) -> tuple[str, float]:
     """
     from .fleet import listing_for_resource
 
-    listing = listing_for_resource(resource)
+    listing = listing_for_resource(resource, settings)
     if listing is None:
         return (settings.x402_pay_to or PAY_TO, settings.x402_price_usdc)
     return (listing.seller, listing.amount_usdc)

@@ -131,7 +131,7 @@ PLATFORM_INDEX_ID = "ACR-QUERY"
 _PLATFORM_FAMILIES = ("prints", "curve", "vol", "seller-scores")
 
 
-def platform_listing_for(resource: str) -> Listing | None:
+def platform_listing_for(resource: str, settings=None) -> Listing | None:
     """The press as its own seller, for its own x402-gated data endpoints.
 
     Kept OUT of ``FLEET`` deliberately. ``fleet_summary()``, ``listings_for_index()``,
@@ -161,7 +161,11 @@ def platform_listing_for(resource: str) -> Listing | None:
 
     from .x402 import PAY_TO
 
-    s = get_settings()
+    # The CALLER's settings when it has some — `_fleet_terms(resource, settings)`
+    # builds the 402 from the settings the gate was constructed with, and a
+    # payee read from the global singleton instead would advertise one address
+    # in the challenge and settle to another whenever the two differ.
+    s = settings or get_settings()
     return Listing(
         label=f"acr-press-{family}",
         seller=(s.x402_pay_to or PAY_TO),
@@ -179,7 +183,7 @@ def platform_listing_for(resource: str) -> Listing | None:
     )
 
 
-def listing_for_resource(resource: str) -> Listing | None:
+def listing_for_resource(resource: str, settings=None) -> Listing | None:
     """Resolve a paid path back to what was sold and by whom.
 
     ``/compute/<label>`` resolves to its fleet listing, exactly as before. The
@@ -194,7 +198,7 @@ def listing_for_resource(resource: str) -> Listing | None:
     if idx >= 0:
         label = resource[idx + len(prefix) :].split("/")[0].split("?")[0]
         return FLEET.get(label)
-    return platform_listing_for(resource)
+    return platform_listing_for(resource, settings)
 
 
 def listings_for_index(index_id: str) -> list[Listing]:
