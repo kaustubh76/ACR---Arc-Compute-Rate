@@ -15,7 +15,10 @@ import {
   humanCell,
   usdc6,
 } from "@/lib/tape";
-import type { SellerRating, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
+import type { SellerRating, SellerTerms, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
+import { sellerLabel } from "@/lib/tape";
+import { deriveDemoSellers } from "@/lib/sellerKeys";
+import { useEdition } from "@/lib/useEdition";
 import { useTape } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useEffect, useState } from "react";
@@ -256,6 +259,24 @@ function Histogram({ row }: { row: SellerRating["histogram"] }) {
   );
 }
 
+/** "$/query · $0.0001" — the unit first, because it is what makes a price
+ *  comparable. Rendered to four places so a $0.0001 query fee survives; the
+ *  /curve corridor bug was a fixed-decimal formatter making ACR-DATA read 0.00.
+ *  Ellipsis when the route had no terms for this seller: absence, not zero. */
+function SellsCell({ t }: { t: SellerTerms | undefined }) {
+  if (!t) return <span className="muted">…</span>;
+  return (
+    <>
+      <span title={t.index}>{t.unit}</span>
+      {t.unitPriceUsd == null ? null : (
+        <>
+          {" "}· <span className="num">{money(t.unitPriceUsd, 4)}</span>
+        </>
+      )}
+    </>
+  );
+}
+
 function GradeChip({ rating }: { rating: SellerRating | undefined }) {
   if (!rating?.available) return <span className="muted">…</span>;
   const grade = rating.grade ?? "Unrated";
@@ -301,6 +322,28 @@ export function TapeView() {
 
   const sellers: TapeSeller[] = data?.sellers ?? [];
   const ratings = data?.ratings ?? {};
+  /* Who sells what, from the route. Absent on an older payload, in which case
+     every seller simply shows its address and no unit — never an invented one. */
+  const terms: Record<string, SellerTerms> = data?.terms ?? {};
+  const fleet = deriveDemoSellers();
+  const plain = useEdition() === "plain";
+  const nameOf = (id: string) => sellerLabel(id, terms[id.toLowerCase()], fleet);
+  /* A null slippage is "nothing to measure against", and it must not wear the
+     colour of a good result. The old cell coloured `(x ?? 0) > 0` — so an
+     unmeasured seller rendered in the same green as a fairly-priced one. */
+  const slipStyle = (v: number | null | undefined) =>
+    v == null
+      ? { textAlign: "right" as const }
+      : { textAlign: "right" as const, color: v > 0 ? "var(--breach)" : "var(--finality)" };
+  const slipTitle = (id: string, v: number | null | undefined, plain: boolean) => {
+    if (v != null) return undefined;
+    const t = terms[id.toLowerCase()];
+    if (t?.isPress)
+      return plain
+        ? "not scored: a flat fee for one question has no fair rate to compare with"
+        : "unbenchmarked: a $/query fee has no arrival price to measure against";
+    return plain ? "not scored yet: no priced sales in this window" : "no benchmarked fills in this window";
+  };
 
   /* Two possible sources, one number. The subgraph's own rollup carries
      `weightedSlipTenthBp` — a product that reduces to basis points exactly one
@@ -487,6 +530,9 @@ export function TapeView() {
                     <th>
                       <Ed x="Seller" p="Bought from" />
                     </th>
+                    <th>
+                      <Ed x="Sells" p="Sells" />
+                    </th>
                     <th style={{ textAlign: "right" }}>
                       <Ed x="Slippage" p="Above fair rate" />
                     </th>
@@ -511,16 +557,16 @@ export function TapeView() {
                   {card.by_seller.map((r) => (
                     <tr key={r.seller}>
                       <td>
-                        <AddressChip address={r.seller} copy={false} />
+                        <AddressChip address={r.seller} copy={false} label={nameOf(r.seller) ?? undefined} />
                         <HumanMark share={r.human_share} of="this payer" />
                       </td>
+                      <td className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        <SellsCell t={terms[r.seller.toLowerCase()]} />
+                      </td>
                       <td
-                        className="mono num"
-                        style={{
-                          textAlign: "right",
-                          color:
-                            (r.vw_slippage_bp ?? 0) > 0 ? "var(--breach)" : "var(--finality)",
-                        }}
+                        className={`mono num${r.vw_slippage_bp == null ? " muted" : ""}`}
+                        style={slipStyle(r.vw_slippage_bp)}
+                        title={slipTitle(r.seller, r.vw_slippage_bp, plain)}
                       >
                         {bp(r.vw_slippage_bp, 1)}
                       </td>
@@ -627,6 +673,9 @@ export function TapeView() {
                   <th>
                     <Ed x="Grade" p="Score" />
                   </th>
+                  <th>
+                    <Ed x="Sells" p="Sells" />
+                  </th>
                   <th style={{ textAlign: "right" }}>
                     <Ed x="Slippage" p="Above fair rate" />
                   </th>
@@ -653,18 +702,23 @@ export function TapeView() {
                   return (
                     <tr key={s.id}>
                       <td>
-                        <AddressChip address={s.id} copy={false} />
+                        <AddressChip address={s.id} copy={false} label={nameOf(s.id) ?? undefined} />
                         <HumanMark share={s.humanShare} of="the window" />
                       </td>
                       <td>
                         <GradeChip rating={r} />
                       </td>
+                      <td className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                        {/* Unit and unit price off the seller's latest fill. The
+                            unit is what makes two prices comparable at all: $0.44
+                            per 1k tokens and $0.0001 per query are not a spread,
+                            they are different goods. */}
+                        <SellsCell t={terms[s.id.toLowerCase()]} />
+                      </td>
                       <td
-                        className="mono num"
-                        style={{
-                          textAlign: "right",
-                          color: (s.vw_slippage_bp ?? 0) > 0 ? "var(--breach)" : "var(--finality)",
-                        }}
+                        className={`mono num${s.vw_slippage_bp == null ? " muted" : ""}`}
+                        style={slipStyle(s.vw_slippage_bp)}
+                        title={slipTitle(s.id, s.vw_slippage_bp, plain)}
                       >
                         {bp(s.vw_slippage_bp, 1)}
                       </td>

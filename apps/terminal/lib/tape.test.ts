@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BUCKETS, MIN_RATED_N, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
+import { BUCKETS, MIN_RATED_N, UNIT_BY_INDEX, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellerLabel, sellerTerms, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
 
 const REPO = join(__dirname, "..", "..", "..");
 
@@ -317,4 +317,90 @@ test("whether the buyer acted is read off the newest purchase, never assumed", (
   assert.equal(followedReroute(at("0xelse"), rr), "elsewhere");
   assert.equal(followedReroute([], rr), "none");
   assert.equal(followedReroute(at("0xbest"), null), "none");
+});
+
+
+/* ── who sells what, at what unit price ─────────────────────────────────────── */
+
+test("the unit table matches the index registry it copies", () => {
+  /* UNIT_BY_INDEX is the fourth copy of a table whose source is
+     packages/acr_core/acr_core/indices.py. A unit that drifted here would label a
+     seller's price in the wrong denomination under a live block number — $0.44
+     "per MB" instead of per 1k tokens — and nothing would throw. Same discipline
+     as RATING_WINDOW_S against HumanIdMirror.sol: read the source off disk. */
+  const py = readFileSync(join(REPO, "packages", "acr_core", "acr_core", "indices.py"), "utf8");
+  for (const [id, unit] of Object.entries(UNIT_BY_INDEX)) {
+    if (id === "ACR-QUERY") continue; // the press's own; not an oracle index, by design
+    const re = new RegExp(`id="${id}",[\\s\\S]*?unit="([^"]+)"`);
+    const m = py.match(re);
+    assert.ok(m, `indices.py should declare ${id}`);
+    assert.equal(unit, m![1], `UNIT_BY_INDEX[${id}] has drifted from indices.py`);
+  }
+  assert.equal(UNIT_BY_INDEX["ACR-QUERY"], "$/query");
+});
+
+const settle = (seller: string, index: string, unitPriceWad: string, benchmarked: boolean, at: number) => ({
+  seller: { id: seller },
+  payer: { id: "0x" + "11".repeat(20) },
+  amount: "100",
+  slippageBp: benchmarked ? "10" : null,
+  benchmarked,
+  synthetic: false,
+  settledAt: String(at),
+  index,
+  unitPrice: unitPriceWad,
+  unbenchmarkedReason: benchmarked ? null : "NO_PRINT_YET",
+});
+
+const FLEET_A = "0x" + "aa".repeat(20);
+const PRESS = "0x" + "bb".repeat(20);
+
+test("a seller's terms come from its LATEST fill, and the press is known by its index", () => {
+  // The op is settledAt desc, so the first row per seller is the newest.
+  const rows = [
+    settle(PRESS, "ACR-QUERY", "100000000000000", false, 300), //  $0.0001/query, newest
+    settle(FLEET_A, "ACR-INF", "440000000000000000", true, 200), // $0.44/1k tokens
+    settle(FLEET_A, "ACR-INF", "430000000000000000", true, 100), // older; must not win
+    settle(PRESS, "ACR-QUERY", "100000000000000", false, 50),
+  ];
+  const t = sellerTerms(rows);
+  assert.equal(t[FLEET_A].unit, "$/1k tokens");
+  assert.equal(t[FLEET_A].unitPriceUsd, 0.44, "the newest fill sets the price");
+  assert.equal(t[FLEET_A].isPress, false);
+  assert.equal(t[FLEET_A].allUnbenchmarked, false);
+  assert.equal(t[PRESS].unit, "$/query");
+  assert.equal(t[PRESS].unitPriceUsd, 0.0001);
+  assert.equal(t[PRESS].isPress, true, "ACR-QUERY IS the press — no configured address needed");
+  assert.equal(t[PRESS].allUnbenchmarked, true, "a query fee has nothing to be benchmarked against");
+});
+
+test("one benchmarked fill anywhere means the seller CAN be measured", () => {
+  const rows = [
+    settle(FLEET_A, "ACR-INF", "440000000000000000", false, 300), // newest, unbenchmarked
+    settle(FLEET_A, "ACR-INF", "440000000000000000", true, 100), //  older, benchmarked
+  ];
+  assert.equal(sellerTerms(rows)[FLEET_A].allUnbenchmarked, false);
+});
+
+test("an unknown index keeps its raw id as the unit rather than a blank", () => {
+  const t = sellerTerms([settle(FLEET_A, "ACR-NEW", "1000000000000000000", false, 1)]);
+  assert.equal(t[FLEET_A].unit, "ACR-NEW");
+});
+
+test("sellerLabel names the fleet from its derivation, the press from its index, and nobody else", () => {
+  const fleet = [{ label: "acr-seller-inf-mid-a", address: FLEET_A }];
+  const terms = sellerTerms([
+    settle(FLEET_A, "ACR-INF", "440000000000000000", true, 2),
+    settle(PRESS, "ACR-QUERY", "100000000000000", false, 1),
+  ]);
+  assert.equal(sellerLabel(FLEET_A, terms[FLEET_A], fleet), "acr-seller-inf-mid-a");
+  assert.equal(sellerLabel(FLEET_A.toUpperCase(), terms[FLEET_A], fleet), "acr-seller-inf-mid-a", "case-insensitive on the address");
+  assert.equal(sellerLabel(PRESS, terms[PRESS], fleet), "ACR press");
+  // A stranger paying the fleet is real flow and gets no invented name.
+  assert.equal(sellerLabel("0x" + "cc".repeat(20), undefined, fleet), null);
+});
+
+test("a settlement with no seller is skipped, never keyed as empty", () => {
+  const rows = [{ ...settle(FLEET_A, "ACR-INF", "1", true, 1), seller: null }];
+  assert.deepEqual(sellerTerms(rows), {});
 });

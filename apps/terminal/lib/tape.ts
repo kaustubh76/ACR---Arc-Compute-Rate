@@ -255,6 +255,10 @@ export interface TapeData {
   /** Benchmarked futures fills — the control group. Zero by construction. */
   control: { fills: number; nonZero: number } | null;
   payer: string | null;
+  /** What each seller sells and at what unit price, keyed by lowercase address.
+   *  Built once in the route from the settlements it already fetched, so both
+   *  tables render from one source. Optional: an older payload lacks it. */
+  terms?: Record<string, SellerTerms>;
 }
 
 /** The `human_depth` rating component — who traded here, counted in PEOPLE.
@@ -355,6 +359,94 @@ export interface TapeSettlement {
    *  cluster for the window the settlement landed in. Optional because an older
    *  index answer may predate the field; absent reads as false, never as true. */
   human?: boolean;
+  /** The index the mirror recorded it under — `ACR-INF`, or `ACR-QUERY` for the
+   *  press's own paid endpoints. Optional: an older answer may lack it. */
+  index?: string;
+  /** WAD 1e18 USD per unit, computed by the mapping as amount / quantity. */
+  unitPrice?: Big | null;
+  /** WAD 1e18, in the index's own unit. */
+  quantity?: Big | null;
+  /** Why `benchmarked` is false, when it is — `NO_PRINT_YET` for an index the
+   *  oracle has never printed for, which is every `ACR-QUERY` fill by design. */
+  unbenchmarkedReason?: string | null;
+}
+
+/* ── who sells what, at what unit price ─────────────────────────────────────── */
+
+/** The unit each index is priced in.
+ *
+ *  This is the FOURTH copy of a table whose source of truth is
+ *  `packages/acr_core/acr_core/indices.py` (`unit=` on each index). tape.test.ts
+ *  reads the first three off that file and asserts they match, the way
+ *  RATING_WINDOW_S is pinned to HumanIdMirror.sol — a unit that drifted here would
+ *  label a seller's price in the wrong denomination under a live block number.
+ *  `ACR-QUERY` is the press's own: one paid query, so `$/query`. */
+export const UNIT_BY_INDEX: Record<string, string> = {
+  "ACR-INF": "$/1k tokens",
+  "ACR-GPU": "$/GPU-sec",
+  "ACR-DATA": "$/MB",
+  "ACR-QUERY": "$/query",
+};
+
+/** What one seller sells, read off its most recent settlement. */
+export interface SellerTerms {
+  index: string;
+  /** From UNIT_BY_INDEX; the raw index id when the table has no entry, never "". */
+  unit: string;
+  /** Dollars per unit, from the settlement's WAD unitPrice. null when unreadable. */
+  unitPriceUsd: number | null;
+  /** The press selling its own data endpoints — every such fill is `ACR-QUERY`.
+   *  Derived from the tape rather than from a configured payee, so it stays true
+   *  if the payee ever changes. */
+  isPress: boolean;
+  /** Every fill seen for this seller was unbenchmarked. For the press that is by
+   *  design (a query fee has no arrival price); for a compute seller it means the
+   *  tape has no print old enough yet. Either way, a null slippage here is
+   *  "nothing to measure against", never "measured as zero". */
+  allUnbenchmarked: boolean;
+}
+
+/** Per-seller terms from the settlements the route already fetched.
+ *
+ *  The op is `orderBy: settledAt desc`, so the FIRST settlement seen for a seller
+ *  is its most recent and sets its terms. Every fill still contributes to
+ *  `allUnbenchmarked`, because one benchmarked fill anywhere in the window is
+ *  enough to say the seller CAN be measured. Keyed by lowercase address — the
+ *  same convention `TapeData.ratings` uses. */
+export function sellerTerms(rows: readonly TapeSettlement[]): Record<string, SellerTerms> {
+  const out: Record<string, SellerTerms> = {};
+  for (const r of rows) {
+    const id = r.seller?.id?.toLowerCase();
+    if (!id) continue;
+    const index = r.index ?? "";
+    if (!(id in out)) {
+      out[id] = {
+        index,
+        unit: UNIT_BY_INDEX[index] ?? index,
+        unitPriceUsd: wad18(r.unitPrice),
+        isPress: index === "ACR-QUERY",
+        allUnbenchmarked: true,
+      };
+    }
+    if (r.benchmarked) out[id].allUnbenchmarked = false;
+  }
+  return out;
+}
+
+/** A name for a seller, or null so the chip falls back to the short address.
+ *
+ *  Fleet sellers are named from the same derivation that funds them
+ *  (`deriveDemoSellers`), so the label can never drift from the wallet. The press
+ *  is named from its index rather than from a configured address, for the reason
+ *  `SellerTerms.isPress` gives. A stranger paying the fleet gets no invented name. */
+export function sellerLabel(
+  id: string,
+  terms: SellerTerms | undefined,
+  fleet: readonly { label: string; address: string }[],
+): string | null {
+  if (terms?.isPress) return "ACR press";
+  const hit = fleet.find((f) => f.address.toLowerCase() === id.toLowerCase());
+  return hit ? hit.label : null;
 }
 
 /** The seller directory, grouped out of raw settlements.
