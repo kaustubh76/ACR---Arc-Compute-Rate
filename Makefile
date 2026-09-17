@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview deck pitch clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -11,8 +11,6 @@ help:
 	@echo "  make eval-gate       assert the headline resistance claims (CI gate)"
 	@echo "  make ci              lint + full test suite + eval gate (mirrors GitHub CI)"
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
-	@echo "  make deck            render the long-form slide deck (docs/presentation.html + .pdf)"
-	@echo "  make pitch           render the pitch pages (8-slide deck + teleprompter + docs/submission-brief.pdf)"
 	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
@@ -379,8 +377,8 @@ demo-agent:
 
 # The whole ladder, one exit code. SEPARATE RECIPE LINES, never `&&`: a chained
 # target waits on a process that may never exit and silently skips everything
-# after it, which is how `make deck && make pitch` spent a week not rendering the
-# pitch. Each leg prints its own verdict and make stops on the first failure.
+# after it, which is how a chained deck-and-pitch render once spent a week
+# rendering nothing. Each leg prints its own verdict and make stops on the first failure.
 demo-full:
 	uv run python scripts/run_demo.py
 	uv run python scripts/demo_agent.py
@@ -537,6 +535,11 @@ glossary-check:
 
 diagram:
 	uv run python scripts/gen_architecture.py
+	# The one rendered view the repo keeps: the full canvas, embedded by
+	# docs/ARCHITECTURE-DIAGRAM.md and held to the canvas by verify_claims.
+	# Regenerated with the canvas, so the two cannot disagree.
+	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --scale 0.5
+	rm -f docs/assets/acr_architecture.preview.png
 
 # docs/acr-openapi.md claimed for weeks to be "rendered from the live OpenAPI 3.1
 # schema" with no recipe anywhere, and sat at 24 of 43 routes. This is the recipe.
@@ -552,30 +555,6 @@ openapi-doc-check:
 
 diagram-preview:
 	uv run python scripts/preview_excalidraw.py
-
-deck:
-	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --scale 0.5
-	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 700,280,2120,950 --name core
-	# The band crops the brief inlines. They were one-off invocations nobody wrote
-	# down, so `chain.svg` sat two test-counts stale while every other artifact
-	# had moved on — a generated file with an unrecorded recipe is a hand-edited
-	# file that nobody admits to. Recorded now, and regenerated with the rest.
-	uv run python scripts/preview_excalidraw.py acr_architecture.excalidraw --out docs/assets --crop 2150,260,1350,1720 --name chain
-	rm -f docs/assets/acr_architecture.core.png docs/assets/acr_architecture.chain.png
-	rm -f docs/assets/acr_architecture.preview.png docs/assets/acr_architecture.core.png
-	# --no-stdin OR THIS TARGET HANGS FOREVER WHEN RUN WITHOUT A TERMINAL. marp
-	# checks whether stdin is a TTY and, finding a pipe, waits for a document on it
-	# — so `make deck` works by hand and blocks indefinitely from a script, from CI,
-	# or from anything that redirects output. The symptom is a silent stall with one
-	# INFO line ("Currently waiting data from stdin stream"), which is easy to read
-	# as a slow render. Measured 2026-09-12: 11 minutes of nothing.
-	npx -y @marp-team/marp-cli --no-stdin --html docs/presentation.md -o docs/presentation.html
-	npx -y @marp-team/marp-cli --no-stdin --html --allow-local-files docs/presentation.md -o docs/presentation.pdf || echo "PDF export needs Chrome/Edge — HTML deck is ready"
-
-# The short deck, from its one source: docs/pitch/deck.html is what a judge is
-# shown; index.html and the PDF are generated from it and never hand-edited.
-pitch:
-	uv run python scripts/build_pitch.py
 
 clean:
 	rm -rf .venv contracts/out contracts/cache apps/terminal/.next apps/agent/node_modules scripts/_out

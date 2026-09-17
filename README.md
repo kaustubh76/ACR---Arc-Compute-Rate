@@ -10,12 +10,9 @@
 > **A live, on-chain reference rate for machine compute.**
 > *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
-Built for the **Arc / Circle 7-week hackathon (Agentic Economy)**, and continued for
-**ETHOnline 2026 as a Continuity project** — baseline `v1.0-submission`, every change since
-documented in [`CONTINUITY.md`](CONTINUITY.md). Submitted to three partner tracks, each with
-something a judge can run: [**Arc**](#arc--both-continuity-bounties) (both continuity bounties
-named below), [**The Graph**](#the-graph--best-ai-use-case-continuity) and
-[**World**](#world--agentkit-continuity).
+Built on **Arc**, indexed on **The Graph**, underwritten by **World** — each with something
+you can run yourself, [below](#the-three-integrations-and-what-to-run-for-each). ACR began as
+a hackathon project; that material is preserved, unmaintained, in [`hackathon/`](hackathon/).
 
 ---
 
@@ -46,7 +43,7 @@ Arc testnet, chain `5042002`:
 | **Terminal (dashboard)** | https://arc-compute-rate.vercel.app |
 | **The loop, drivable** | [arc-compute-rate.vercel.app/loop](https://arc-compute-rate.vercel.app/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
 | **Seller API (x402-gated)** | https://acr-api-1fto.onrender.com |
-| **Judge-facing status** | [`docs/SUBMISSION.md`](docs/SUBMISSION.md) |
+| **Documentation** | [`docs/README.md`](docs/README.md) — start with [`methodology.md`](docs/methodology.md) |
 
 | Contract | Address |
 |---|---|
@@ -72,12 +69,9 @@ curl -s https://acr-api-1fto.onrender.com/onchain/ACR-INF   # the settlement-gra
 
 ---
 
-## The three tracks, and what to run for each
+## The three integrations, and what to run for each
 
-### Arc — both continuity bounties
-
-Submitted for **Launch on Arc Testnet & Push to Mainnet (Continuity)** *and* **Best DeFi or
-Agentic Application (Continuity)** — named here because the prize text asks to be clear which.
+### Arc — the chain, and the money
 
 - **Live on Arc testnet since July; mainnet-ready** (table above; `make deploy-mainnet-dry`).
 - **An agent with decision logic tied to a real signal, spending USDC autonomously.** The buyer
@@ -94,7 +88,7 @@ Agentic Application (Continuity)** — named here because the prize text asks to
   `eip155:5042002`), **developer-controlled wallets** signing every print, the **Agent
   Stack** buyer SDK (`@circle-fin/x402-batching`).
 
-### The Graph — Best AI Use Case (Continuity)
+### The Graph — the public tape
 
 The Graph is **load-bearing**: every x402 settlement is benchmarked *in the subgraph mapping*
 against the print it could have seen, and that `slippageBp` is the only input TCA, seller
@@ -111,7 +105,7 @@ make recompute                    # re-derive the index from the indexed tape an
 six read-only tools for any MCP host — `reroute_suggestion`, `seller_rating`, `query_tape`…
 Substreams is N/A on Arc (Studio-only), stated rather than skipped.
 
-### World — AgentKit Continuity
+### World — humans, not wallets
 
 Distinguishing a bot from **an agent acting for a real, unique human**, durably:
 
@@ -120,7 +114,7 @@ Distinguishing a bot from **an agent acting for a real, unique human**, durably:
   and meters every wallet that person owns as one. Try it on
   [`/developers`](https://arc-compute-rate.vercel.app/developers) — *as a demo human* →
   `tier: human`.
-- **A proof, verified, then one TCA across all of a person's wallets** — runnable by a judge
+- **A proof, verified, then one TCA across all of a person's wallets** — runnable by anyone
   with nothing secret (the demo buyers' keys derive from public labels):
   ```bash
   make prove-human                # 401 challenge → CAIP-122 signature → /tca/human → the nonce is spent
@@ -129,7 +123,7 @@ Distinguishing a bot from **an agent acting for a real, unique human**, durably:
   `humanAdjustedBound` beside the wallet-denominated attack cost: sybils are free, people
   are not. `/tape` shows `human_share` per seller and `distinctHumans` vs `distinctPayers`.
 - All demo identities are **World ID Sandbox** ones, flagged `sandbox` onto the chain and into
-  every count. Feedback for the World team: [`FEEDBACK_WORLD.md`](FEEDBACK_WORLD.md).
+  every count.
 
 ---
 
@@ -157,7 +151,7 @@ make ci           # what CI runs: lint + tests + the eval gate
 
 make pipeline     # estimator on simulated exhaust → live ACR prints
 make demo         # the 5-step "Attack the Index" demo
-make eval         # ACR-vs-VWAP error series (the judge chart)
+make eval         # ACR-vs-VWAP error series (the resistance chart)
 
 make api          # x402-gated index API on :8000
 make terminal     # ACR Terminal on :3000
@@ -170,9 +164,9 @@ Everything runs **credential-free**. With no Circle or Arc keys set, the tape fa
 
 ---
 
-## For judges — the two-minute path
+## New here — the two-minute path
 
-1. **Read** [`docs/SUBMISSION.md`](docs/SUBMISSION.md) — what is live, what is simulated, and the honesty tiers that separate them.
+1. **Read** [`docs/methodology.md`](docs/methodology.md) — what the number is, how it is recovered, and what it costs to move. The full index is [`docs/README.md`](docs/README.md).
 2. **Open** the [Terminal](https://arc-compute-rate.vercel.app). Hit the **plain** toggle in the masthead to re-set the entire site in beginner English; [`/companion`](https://arc-compute-rate.vercel.app/companion) is the glossary.
 3. **Verify** the claims rather than trusting them:
    ```bash
@@ -185,6 +179,8 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 ### Measured numbers
 
 Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
+
+Suites, all green and re-measured on every push: **696 py** · **156 forge** · **165 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -201,7 +197,8 @@ Measured, not aspirational — run `make verify-live` for the current set. At ti
 | [`graph/`](graph) | The `acr-tape` subgraph: settlements benchmarked in the mapping, humans per window (The Graph, Studio) |
 | [`mcp/`](mcp) | Six read-only MCP tools — Machine TCA for any MCP host, carded |
 | [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
-| [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md); `CONTINUITY.md` for what changed since the baseline |
+| [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
+| [`hackathon/`](hackathon) | The two hackathon submissions this began as — preserved, not maintained |
 | [`.github/workflows/`](.github/workflows) | CI (6 jobs) + the keepalive ping + the dispatch-only buyer |
 
 ---
@@ -224,7 +221,7 @@ Which Circle wallet product does which job, and the constraint forcing each choi
 
 ## CI and automation
 
-`ci.yml` runs **4 jobs on every push and PR** — `python` (ruff + pytest + the eval gate + a claim audit), `contracts` (`forge test`), `agent`, and `terminal` (node:test + a full Next build). It uses **zero secrets** and is fully hermetic: it stands up a local anvil, and a dedicated step fails the build if the on-chain suites *skip*, because a test that skips looks exactly like a test that passes — that is how a real regression once stayed green for a day.
+`ci.yml` runs **6 jobs** on every push and PR — `python` (ruff + pytest + the eval gate + the claims audit), `contracts` (`forge test`), `agent`, `terminal` (node:test + a full Next build), `subgraph` (matchstick) and `mcp`. It uses **zero secrets** and is fully hermetic: it stands up a local anvil, and a dedicated step fails the build if the on-chain suites *skip*, because a test that skips looks exactly like a test that passes — that is how a real regression once stayed green for a day.
 
 A `keepalive` cron pings the free-tier seller API every 10 minutes and runs `verify_live.py` against the deployment, so a silently-dead pillar surfaces without anyone looking.
 
@@ -234,7 +231,16 @@ The four futures workflows (`futures-heartbeat`, `futures-lifecycle`, `futures-r
 
 ## Known limitations
 
-Documented honestly and in full in [`docs/SUBMISSION.md` §8](docs/SUBMISSION.md) — including which surfaces are served by the simulator rather than the live Arc tape, and the original deploy EOA that is still an authorized `ACROracle` signer. The short version: the published tape on this deployment is `sim`, and the docs say so on the page rather than in a footnote.
+Stated here rather than discovered:
+
+- **The published tape on this deployment is `sim`.** About 18,500 real Arc settlements collapse to a single price, so no index is honestly publishable from them yet; the site says so on the page.
+- **The public API runs on a 512 MB free tier** that can restart. A 10-minute keep-alive, a post-on-wake press and a settlement-triggered mirror keep the chain row even when memory does not.
+- **Arc's public RPC rate-limits** (`413` on ranges near 15,000 blocks, `429` under load). Reads are paged and paced; a throttle is never treated as a range error.
+- **The carded tier is evadable by design.** Anyone can mint an agent card — that is what permissionless means — so a per-card limit is a per-key limit. Only the *human* tier is scarce.
+- **`scopeHash` is signed but not enforced.** It is in the card and in the signature; the gate checks it against nothing yet.
+- **Human resolutions expire weekly.** Each 7-day window starts with every wallet unresolved until `make resolve-humans` runs; the ops console fails loudly when it is missed.
+- **Single-chain by construction.** The benchmark's dependents live where it prints; there is no bridge, and CCTP is unused on purpose.
+- **The original deploy EOA is still an authorized `ACROracle` signer** beside the Circle custody wallet.
 
 ---
 
@@ -242,13 +248,12 @@ Documented honestly and in full in [`docs/SUBMISSION.md` §8](docs/SUBMISSION.md
 
 | Doc | What it is |
 |---|---|
-| [`docs/SUBMISSION.md`](docs/SUBMISSION.md) | **Start here.** The judge-facing status page: what is live, the evidence, the honesty tiers, the limitations |
-| [`docs/methodology.md`](docs/methodology.md) | The methodology paper — the estimand, the estimator, the manipulation bound |
+| [`docs/methodology.md`](docs/methodology.md) | **Start here.** The methodology paper — the estimand, the estimator, the manipulation bound |
 | [`docs/ARCHITECTURE-DIAGRAM.md`](docs/ARCHITECTURE-DIAGRAM.md) | The architecture canvas explained zone by zone |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Every technical term in plain English, with analogies |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Implementation notes and the layout → blueprint mapping |
 
-The full index, including runbooks and the build log, is [`docs/README.md`](docs/README.md).
+The full index, including the runbooks, is [`docs/README.md`](docs/README.md).
 
 ---
 

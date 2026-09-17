@@ -20,7 +20,7 @@
 
 ## 0. What this file is
 
-`acr_architecture.excalidraw` is the complete product blueprint for ACR, built for the **Arc / Circle 7-week hackathon — Agentic Economy track**. It is a single canvas (~3,480 × 2,700 units, 221 elements) containing:
+`acr_architecture.excalidraw` is the complete product blueprint for ACR. It is a single canvas (~3,480 × 2,700 units, 221 elements) containing:
 
 - The full estimator pipeline (all four pillars) with the data flow numbered ①–⑩
 - The on-chain contract layer and the cash-settled instrument layer
@@ -30,6 +30,10 @@
 - The 7-week execution roadmap with cut-lines
 
 **How to open:** go to [excalidraw.com](https://excalidraw.com) → `File → Open` → select the `.excalidraw` file. Everything is native Excalidraw shapes — fully editable, no plugins needed.
+
+![The ACR architecture canvas, rendered](assets/acr_architecture.preview.svg)
+
+*Rendered by `make diagram` from the same canvas, and held to it by `verify_claims.py`.*
 
 **How to read it in 10 seconds:** start at the top-left (Market Exhaust), follow the numbered arrows left-to-right through the blue Estimator Core to the gold ACR Prints box, then right into the orange on-chain layer and green instrument layer. The bottom two rails are context (Why Arc + roadmap). The right column is what judges score.
 
@@ -205,7 +209,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 |---|---|
 | `acr_architecture.excalidraw` | The **comprehensive, implementation-accurate** canvas: 221 elements (67 rectangles, 119 text, 35 fully-bound arrows) covering the four-pillar estimator in detail, the role-based custody signer, EIP-712 verification, the x402 facilitator (concrete Circle wiring), robustness diagnostics, TapeSource, on-chain reads, **the on-chain `ACRFutures` venue + Public Desk (Circle user-controlled wallets)**, **the self-owning, self-rolling venue keeper**, **the autonomous hedger (an agent that reads the rate, then trades on it)**, **the `FeedAccessAttestor` (on-chain paid-feed access)**, **the agentic-economy demand side (live x402 buyer · Agent Marketplace · Circle webhooks · durable receipts)**, Circle SCP deploy, the verification surface, **and a "PLAIN ENGLISH" glossary panel**. Open at excalidraw.com. |
 | `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. Rendered live at [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion) — and the Terminal masthead's one-click **plain** edition re-sets the whole site in this register. |
-| `acr_flows.excalidraw` | **"How each piece works, step by step"** — 180 elements, six end-to-end flows (hourly oracle press · x402 sale · venue keeper · autonomous hedger · attack demo · verification), one box per step with the real component name in every box. The companion to the architecture canvas: that one shows *what exists*, this one shows *what happens*. |
+| `hackathon/canvases/acr_flows.excalidraw` | **"How each piece works, step by step"** — 180 elements, six end-to-end flows (hourly oracle press · x402 sale · venue keeper · autonomous hedger · attack demo · verification), one box per step with the real component name in every box. The companion to the architecture canvas: that one shows *what exists*, this one shows *what happens*. |
 | `acr_architecture_v1_blueprint.excalidraw` | The original 143-element blueprint (kept for reference). |
 | `docs/ARCHITECTURE-DIAGRAM.md` | This document. |
 | `README.md` | The project README — what ACR is, quickstart, what is live. |
