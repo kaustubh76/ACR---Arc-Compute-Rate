@@ -218,7 +218,7 @@ def build() -> None:
     zone(2860, 40, 620, 250, "LEGEND", GRAY)
     legend = [
         (TEAL, "market exhaust / inputs"), (BLUE, "estimator core (the product)"),
-        (GOLD, "ACR prints / judge"), (ORANGE, "on-chain (Foundry)"),
+        (GOLD, "ACR prints / positioning"), (ORANGE, "on-chain (Foundry)"),
         (GREEN, "instrument (cash-settled)"), (PURPLE, "distribution (x402)"),
         (RED, "adversarial / red team"), (GRAY, "zones / verification"),
     ]
@@ -362,12 +362,12 @@ def build() -> None:
           "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
           "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
 
-    # ---------- Judge Fit + Demo Metrics (far right) ----------
-    card("j_judge", 2860, 320, 620, 240, "JUDGE FIT (surgical)",
+    # ---------- Positioning + live metrics (far right) ----------
+    card("j_judge", 2860, 320, 620, 240, "WHY A BENCHMARK (positioning)",
          ["ICE administers LIBOR via IBA — on Arc roster", "Apollo · BNY · Mastercard: benchmark-native",
           "SOFR was methodology-first, liquidity-second", "the rate's administrator ≠ the rail's operator",
           "(the LIBOR neutrality lesson = the moat)"], GOLD)
-    card("j_metrics", 2860, 590, 620, 470, "DEMO-DAY METRICS · LIVE ON ARC",
+    card("j_metrics", 2860, 590, 620, 470, "LIVE ON ARC · MEASURED",
          ["Terminal (Vercel) · Seller API (Render) · chain 5042002",
           "ACROracle            0x4f00…2609",
           "AttestationRegistry  0x23ae…dFb7",
@@ -457,13 +457,13 @@ def build() -> None:
     for i, (t, lines) in enumerate(why):
         card(f"f{i}", 80 + i * 566, 2135, 520, 150, t, lines, TEAL)
 
-    # ---------- T · MACHINE TCA (ETHOnline 2026 continuity) ----------
-    # Everything since the v1.0-submission baseline, in one band, so a judge can
+    # ---------- T · MACHINE TCA ----------
+    # The transaction-cost layer, in one band, so a reader can
     # see the continuity work as a layer on the frozen product rather than hunt
     # for it. Left to right is the data's own order: settlement → mirror → index
     # → measure → decide → pay — and the loop re-enters Zone K at the buyer.
     zone(60, 2720, 3420, 330,
-         "T · MACHINE TCA — ETHOnline 2026 CONTINUITY (new since v1.0-submission) · "
+         "T · MACHINE TCA · "
          "a person, not a wallet, is the unit    ·    Arc + The Graph + World", BLUE)
     card("t_mirrors", 80, 2795, 540, 215, "ReceiptMirror.sol · HumanIdMirror.sol · ACROracleV2.sol",
          ["0xA9CD…DB65  every x402 settlement, mirrored on Arc",
@@ -489,12 +489,12 @@ def build() -> None:
           "human claim confirmed on HumanIdMirror or 401, never a downgrade",
           "Google Cloud Model Armor on carded /graph/query, both directions",
           "the tier rides on the RECEIPT and the settlement ticker"], PURPLE, body_size=12)
-    card("t_world", 2360, 2795, 540, 215, "WORLD · AgentKit CONTINUITY",
+    card("t_world", 2360, 2795, 540, 215, "WORLD · HUMANS, NOT WALLETS",
          ["HUMAN-PROOF: CAIP-122 signature → AgentBook → cluster",
-          "make prove-human  judge-runnable, nothing secret",
+          "make prove-human  runnable by anyone, nothing secret",
           "humanAdjustedBound: sybils are free, people are not",
           "Sandbox identities flagged onto chain + every count",
-          "FEEDBACK_WORLD.md · rotation chore on /ops"], GOLD, body_size=12)
+          "rotation chore on /ops · resolutions expire weekly"], GOLD, body_size=12)
     card("t_reroute", 2930, 2795, 530, 215, "THE LOOP CLOSES · apps/agent --reroute · MCP",
          ["buyer reads ITS OWN /tca before paying",
           "drops the worst seller, pays the suggested one first",

@@ -53,6 +53,10 @@ and it proves its own tamper-resistance.
 
 ## Estimator & statistics (the four pillars)
 
+- **Positioning** — where ACR sits in the market and why: a rate's administrator must not be
+  the rail's operator (the LIBOR lesson), and a benchmark is published methodology-first,
+  liquidity-second (the SOFR path). It is the reasoning on the canvas's *why a benchmark* card,
+  not a feature. *Knowing which shelf the product goes on before building the product.*
 - **Observation model / state-space** — a math model that says *"what we see =
   the true signal, distorted and delayed, plus noise."* *A muffled phone call:
   model the muffling so you can recover the words.*
@@ -582,11 +586,12 @@ and it proves its own tamper-resistance.
   memory. A per-payer monotone guard refuses a receipt older than the last one recorded for that
   payer, so a keeper cannot withhold a settlement until a later print suits it. *Carbon copies
   of every till receipt, filed in a public cabinet that only accepts them in order.*
-- **HumanIdMirror (`0x7f41…d8e5`) · cluster · rotation** — the contract that records which
+- **HumanIdMirror (`0x7f41…d8e5`) · cluster · rotation · resolutions** — the contract that records which
   payer wallets belong to one verified person, per 7-day rotation window, as an opaque cluster id
   `keccak(nullifier, salt, window)`. The salt is committed on chain (its hash), never published;
   the nullifier — World's per-person identifier — never appears. Ids change completely every
-  window, so a resolution expires rather than lingers, and re-resolving is an operator chore
+  window, so a resolution expires rather than lingers — the **resolutions** on chain are only
+  ever this week's — and re-resolving is an operator chore
   (`make resolve-humans`) the ops console fails loudly on when missed. *A weekly guest list that
   groups rooms by guest without printing anyone's name, and is torn up every Monday.*
 - **ACROracleV2 (`0xFCa0…FFEA`) · `policyHash` · `humanAdjustedBound`** — the second oracle,

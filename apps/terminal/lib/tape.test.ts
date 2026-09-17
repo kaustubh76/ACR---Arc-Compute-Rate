@@ -9,7 +9,7 @@ const REPO = join(__dirname, "..", "..", "..");
 test("volume-weighted slippage uses the one correct reduction", () => {
   /* wSlipTenthBp is a PRODUCT — sum(amount x slippageTenthBp) — not a rate.
      These are the real numbers the live subgraph published for the three
-     mirrored settlements, hand-checked in docs/SPIKE-LOG.md. */
+     mirrored settlements, hand-checked in hackathon/ethonline-2026/SPIKE-LOG.md. */
   // amount is USDC 1e6 (0.005229 USDC -> 5229) and slippageTenthBp is bp x 10.
   assert.equal(Math.round(bpFromWeighted(5229 * 6471, 5229)! * 10) / 10, 647.1);
   assert.equal(Math.round(bpFromWeighted(5101 * 3865, 5101)! * 10) / 10, 386.5);

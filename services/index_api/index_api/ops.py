@@ -229,7 +229,7 @@ def _cadence(rec: Recorder) -> None:
     """The gap between press runs — the TAIL, not the average.
 
     ``make print-gaps`` measures this from a laptop and its result is a claim in
-    SUBMISSION.md §5; this is the same measurement standing up on the page.
+    hackathon/arc-circle-2026/SUBMISSION.md §5; this is the same measurement standing up on the page.
 
     It reports what that script reports — n / median / max / over-window —
     rather than a histogram, because ``summarize()`` has no buckets and any bin

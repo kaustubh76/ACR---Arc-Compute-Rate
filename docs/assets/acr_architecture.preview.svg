@@ -121,7 +121,7 @@
 <text x="2858" y="65.5" font-size="15" fill="#495057">LEGEND</text>
 <text x="2892" y="94.7" font-size="13" fill="#1e1e1e">market exhaust / inputs</text>
 <text x="2892" y="118.7" font-size="13" fill="#1e1e1e">estimator core (the product)</text>
-<text x="2892" y="142.7" font-size="13" fill="#1e1e1e">ACR prints / judge</text>
+<text x="2892" y="142.7" font-size="13" fill="#1e1e1e">ACR prints / positioning</text>
 <text x="2892" y="166.7" font-size="13" fill="#1e1e1e">on-chain (Foundry)</text>
 <text x="2892" y="190.7" font-size="13" fill="#1e1e1e">instrument (cash-settled)</text>
 <text x="2892" y="214.7" font-size="13" fill="#1e1e1e">distribution (x402)</text>
@@ -285,13 +285,13 @@
 <text x="2253" y="1697.4" font-size="11" fill="#1e1e1e">anvil-gated on-chain integration · eval gate</text>
 <text x="2253" y="1708.4" font-size="11" fill="#1e1e1e">workflows: heartbeat · lifecycle · recover · keepalive · x402-buy</text>
 <text x="2253" y="1719.4" font-size="11" fill="#1e1e1e">glossary gate · ruff · make deck · hermetic conftest (Circle mocked)</text>
-<text x="2853" y="343.5" font-size="15" fill="#f08c00">JUDGE FIT (surgical)</text>
+<text x="2853" y="343.5" font-size="15" fill="#f08c00">WHY A BENCHMARK (positioning)</text>
 <text x="2853" y="366.2" font-size="13" fill="#1e1e1e">ICE administers LIBOR via IBA — on Arc roster</text>
 <text x="2853" y="379.2" font-size="13" fill="#1e1e1e">Apollo · BNY · Mastercard: benchmark-native</text>
 <text x="2853" y="392.2" font-size="13" fill="#1e1e1e">SOFR was methodology-first, liquidity-second</text>
 <text x="2853" y="405.2" font-size="13" fill="#1e1e1e">the rate's administrator ≠ the rail's operator</text>
 <text x="2853" y="418.2" font-size="13" fill="#1e1e1e">(the LIBOR neutrality lesson = the moat)</text>
-<text x="2853" y="613.5" font-size="15" fill="#1e1e1e">DEMO-DAY METRICS · LIVE ON ARC</text>
+<text x="2853" y="613.5" font-size="15" fill="#1e1e1e">LIVE ON ARC · MEASURED</text>
 <text x="2853" y="635.3" font-size="12" fill="#1e1e1e">Terminal (Vercel) · Seller API (Render) · chain 5042002</text>
 <text x="2853" y="647.3" font-size="12" fill="#1e1e1e">ACROracle            0x4f00…2609</text>
 <text x="2853" y="659.3" font-size="12" fill="#1e1e1e">AttestationRegistry  0x23ae…dFb7</text>
@@ -378,7 +378,7 @@
 <text x="2903" y="2158.5" font-size="15" fill="#0c8599">AGENT MARKETPLACE</text>
 <text x="2903" y="2181.2" font-size="13" fill="#1e1e1e">ACR listed as a payable service</text>
 <text x="2903" y="2194.2" font-size="13" fill="#1e1e1e">agents discover + pay natively (Zone K)</text>
-<text x="58" y="2745.5" font-size="15" fill="#1971c2">T · MACHINE TCA — ETHOnline 2026 CONTINUITY (new since v1.0-submission) · a person, not a wallet, is the unit    ·    Arc + The Graph + World</text>
+<text x="58" y="2745.5" font-size="15" fill="#1971c2">T · MACHINE TCA · a person, not a wallet, is the unit    ·    Arc + The Graph + World</text>
 <text x="73" y="2818.5" font-size="15" fill="#e8590c">ReceiptMirror.sol · HumanIdMirror.sol · ACROracleV2.sol</text>
 <text x="73" y="2840.3" font-size="12" fill="#1e1e1e">0xA9CD…DB65  every x402 settlement, mirrored on Arc</text>
 <text x="73" y="2852.3" font-size="12" fill="#1e1e1e">0x7f41…d8e5  which wallets are ONE person, per 7-day window</text>
@@ -403,12 +403,12 @@
 <text x="1783" y="2864.3" font-size="12" fill="#1e1e1e">human claim confirmed on HumanIdMirror or 401, never a downgrade</text>
 <text x="1783" y="2876.3" font-size="12" fill="#1e1e1e">Google Cloud Model Armor on carded /graph/query, both directions</text>
 <text x="1783" y="2888.3" font-size="12" fill="#1e1e1e">the tier rides on the RECEIPT and the settlement ticker</text>
-<text x="2353" y="2818.5" font-size="15" fill="#f08c00">WORLD · AgentKit CONTINUITY</text>
+<text x="2353" y="2818.5" font-size="15" fill="#f08c00">WORLD · HUMANS, NOT WALLETS</text>
 <text x="2353" y="2840.3" font-size="12" fill="#1e1e1e">HUMAN-PROOF: CAIP-122 signature → AgentBook → cluster</text>
-<text x="2353" y="2852.3" font-size="12" fill="#1e1e1e">make prove-human  judge-runnable, nothing secret</text>
+<text x="2353" y="2852.3" font-size="12" fill="#1e1e1e">make prove-human  runnable by anyone, nothing secret</text>
 <text x="2353" y="2864.3" font-size="12" fill="#1e1e1e">humanAdjustedBound: sybils are free, people are not</text>
 <text x="2353" y="2876.3" font-size="12" fill="#1e1e1e">Sandbox identities flagged onto chain + every count</text>
-<text x="2353" y="2888.3" font-size="12" fill="#1e1e1e">FEEDBACK_WORLD.md · rotation chore on /ops</text>
+<text x="2353" y="2888.3" font-size="12" fill="#1e1e1e">rotation chore on /ops · resolutions expire weekly</text>
 <text x="2923" y="2818.5" font-size="15" fill="#9c36b5">THE LOOP CLOSES · apps/agent --reroute · MCP</text>
 <text x="2923" y="2840.3" font-size="12" fill="#1e1e1e">buyer reads ITS OWN /tca before paying</text>
 <text x="2923" y="2852.3" font-size="12" fill="#1e1e1e">drops the worst seller, pays the suggested one first</text>

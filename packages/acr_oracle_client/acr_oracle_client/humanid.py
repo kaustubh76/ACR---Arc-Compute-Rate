@@ -11,7 +11,7 @@ changes, so the durable identifier never reaches ARC and this tape
 cannot be joined to another service's data keyed by the same human.
 
 Rotation does NOT make a fleet unlinkable — wallets are the join key and they do
-not rotate. See `contracts/src/HumanIdMirror.sol` and `docs/WORLD-MODULE.md` for
+not rotate. See `contracts/src/HumanIdMirror.sol` and `hackathon/ethonline-2026/WORLD-MODULE.md` for
 the full argument and for what would actually be required to hide the grouping.
 
 ONE implementation, deliberately. The API derives a cluster id from a verified

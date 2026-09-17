@@ -198,7 +198,7 @@ def capture_hedger_state() -> dict:
 
     try:
         # Spend comes from the DURABLE receipts archive — the same committed
-        # file SUBMISSION.md cites — never the live facilitator's counters
+        # file the README cites — never the live facilitator's counters
         # (ephemeral under an "archived" label) and never the sim ledger,
         # which knows no real payer and turned the agent's 7 real settlements
         # into a confident "paid 0". An archive the repo already version-
