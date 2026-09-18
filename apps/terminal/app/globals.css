@@ -1108,6 +1108,17 @@ table.sheet .row-link:focus-visible {
   opacity: 0.35;
   cursor: not-allowed;
 }
+/* The second of two ways to pay: present, never louder than the visitor's own
+   wallet. Same face as .btn with the rule dimmed. */
+.btn-quiet {
+  color: var(--ink-2, var(--sand));
+  border-color: rgba(233, 161, 63, 0.22);
+}
+.btn-quiet:hover:not(:disabled) {
+  background: rgba(233, 161, 63, 0.12);
+  color: var(--sand);
+  box-shadow: none;
+}
 .btn-adversary {
   color: var(--breach);
   border-color: rgba(239, 106, 90, 0.5);
@@ -1657,6 +1668,18 @@ details.disclosure summary .disclosure-count {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+}
+.act-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.deposit-row {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
 }
 .console-out .specimen pre {
   white-space: pre-wrap;

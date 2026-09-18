@@ -264,6 +264,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         onRevenue={refresh}
         sample={env.data.x402_exchange_sample ?? null}
         prints={env.data.prints}
+        chain={env.data.chain}
+        sellerBase={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"}
       />
 
       <Ed

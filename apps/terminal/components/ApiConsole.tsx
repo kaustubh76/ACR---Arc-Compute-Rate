@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBuyerReady, useX402Info } from "@/lib/useLive";
-import { refKind } from "@/lib/chain";
+import { chainFacts, refKind } from "@/lib/chain";
+import {
+  connectWallet,
+  depositToGateway,
+  injectedProvider,
+  payWithWallet,
+  type WalletSession,
+} from "@/lib/walletPayer";
 import { INDICES, PRICE_FALLBACK_USDC, isIndexId } from "@/lib/indices";
 import { Ed } from "@/components/Ed";
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
@@ -10,6 +17,7 @@ import { fmt, fmtInt, fmtPrice } from "@/lib/format";
 import type {
   ConsoleResult,
   ExchangeSample,
+  ChainFactsData,
   LiveBuyResponse,
   LiveBuyResult,
   PrintRow,
@@ -153,6 +161,8 @@ export function ApiConsole({
   onRevenue,
   sample,
   prints,
+  chain,
+  sellerBase,
 }: {
   live: boolean;
   externalPath?: string | null;
@@ -162,8 +172,58 @@ export function ApiConsole({
   /** The free terminal feed. Carries `curve` and `vol` verbatim, so the console
    *  can show the shape of what the selected endpoint sells without paying. */
   prints: Record<string, PrintRow>;
+  /** The payload's chain facts — the wallet path pays on the chain the SELLER reports. */
+  chain?: ChainFactsData | null;
+  /** The seller's public base, so the browser pays it directly (CORS exposes the 402 headers). */
+  sellerBase: string;
 }) {
   const info = useX402Info();
+  const facts = chainFacts(chain ?? null);
+  // The visitor's own wallet: the human revenue path. Same x402 protocol, same
+  // receipts tape as the agents; the signer is whoever is holding the mouse.
+  const [wallet, setWallet] = useState<WalletSession | null>(null);
+  const [walletBal, setWalletBal] = useState<{ usdc_wallet: number; usdc_gateway: number } | null>(null);
+  const [walletBusy, setWalletBusy] = useState<"connect" | "deposit" | "pay" | null>(null);
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+  const [depositAmt, setDepositAmt] = useState("0.01");
+  const refreshWalletBal = useCallback(async (address: string) => {
+    try {
+      const r = await fetch(`/api/wallet/balances?address=${address}`, { cache: "no-store" });
+      if (r.ok) setWalletBal((await r.json()) as { usdc_wallet: number; usdc_gateway: number });
+    } catch {
+      /* balances are a convenience; paying still works without them */
+    }
+  }, []);
+  const walletConnect = useCallback(async () => {
+    setWalletBusy("connect");
+    setWalletErr(null);
+    try {
+      const s = await connectWallet(facts);
+      setWallet(s);
+      await refreshWalletBal(s.address);
+    } catch (e) {
+      setWalletErr(e instanceof Error ? e.message : "wallet connection failed");
+    } finally {
+      setWalletBusy(null);
+    }
+  }, [facts, refreshWalletBal]);
+  const walletDeposit = useCallback(async () => {
+    if (!wallet) return;
+    setWalletBusy("deposit");
+    setWalletErr(null);
+    try {
+      await depositToGateway(wallet, facts, depositAmt);
+      // Gateway credits a deposit after finality; poll a few times rather than lie.
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 5_000));
+        await refreshWalletBal(wallet.address);
+      }
+    } catch (e) {
+      setWalletErr(e instanceof Error ? e.message : "deposit failed");
+    } finally {
+      setWalletBusy(null);
+    }
+  }, [wallet, facts, depositAmt, refreshWalletBal]);
   const mode = info?.data?.facilitator; // "dev" | "circle" | undefined
   const gateLive = info ? info.live : live;
   const buyerReady = useBuyerReady();
@@ -233,6 +293,37 @@ export function ApiConsole({
       setBusy(false);
     }
   }, [path, runQuery, onRevenue, info]);
+
+  // The same exchange, signed by the VISITOR: 402 → their wallet signs the
+  // Gateway authorization → paid retry → the receipt lands on the public tape.
+  const payFromWallet = useCallback(async () => {
+    if (!wallet) return;
+    setWalletBusy("pay");
+    setWalletErr(null);
+    setLiveErr(null);
+    setLiveOut(null);
+    try {
+      const r = await payWithWallet(wallet, facts, `${sellerBase}${path}`);
+      const out: LiveBuyResult = {
+        path,
+        status: r.status,
+        price_usdc: r.amountUsdc,
+        tx_ref: r.receipt?.transaction ?? "",
+        network: r.receipt?.network ?? facts.caip2,
+        ...(r.status !== 200 ? { error: `status ${r.status}` } : {}),
+      };
+      setLiveOut(out);
+      if (r.status === 200) {
+        setTally((t) => ({ n: t.n + 1, usdc: t.usdc + r.amountUsdc }));
+        onRevenue();
+        void refreshWalletBal(wallet.address);
+      }
+    } catch (e) {
+      setWalletErr(e instanceof Error ? e.message : "payment failed");
+    } finally {
+      setWalletBusy(null);
+    }
+  }, [wallet, facts, sellerBase, path, onRevenue, refreshWalletBal]);
 
   // Complete the loop for real against Circle: sign + settle a single query
   // through the funded Gateway buyer, and surface the real gateway-ref/tx.
@@ -543,15 +634,66 @@ export function ApiConsole({
                   <span className="label">
                     <Ed x="Act II · real Circle settlement" p="Act II · real money moves (Circle)" />
                   </span>
-                  {buyerReady?.buyer_ready ? (
-                    <button className="btn" onClick={settleReal} disabled={liveBusy}>
-                      {liveBusy ? "signing + settling…" : "Settle for real →"}
-                    </button>
-                  ) : (
-                    <span className="chip chip-gold">funded buyer required</span>
-                  )}
+                  <span className="act-actions">
+                    {wallet ? (
+                      <button className="btn" onClick={payFromWallet} disabled={walletBusy !== null}>
+                        {walletBusy === "pay" ? "your wallet is signing…" : "Pay from your wallet →"}
+                      </button>
+                    ) : injectedProvider() ? (
+                      <button className="btn" onClick={walletConnect} disabled={walletBusy !== null}>
+                        {walletBusy === "connect" ? "connecting…" : "Connect your wallet"}
+                      </button>
+                    ) : null}
+                    {buyerReady?.buyer_ready ? (
+                      <button className="btn btn-quiet" onClick={settleReal} disabled={liveBusy}>
+                        {liveBusy ? "signing + settling…" : "Settle via the house buyer →"}
+                      </button>
+                    ) : !injectedProvider() ? (
+                      <span className="chip chip-gold">
+                        <Ed x="a wallet or a funded buyer required" p="you need a wallet, or the house buyer" />
+                      </span>
+                    ) : null}
+                  </span>
                 </div>
-                {buyerReady?.buyer_ready ? (
+                {wallet && (
+                  <div className="lab-note" style={{ marginTop: 4 }}>
+                    <Ed
+                      x={
+                        <>
+                          <b>{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</b> on {facts.name}
+                          {walletBal
+                            ? ` · wallet ${walletBal.usdc_wallet.toFixed(4)} USDC · Gateway ${walletBal.usdc_gateway.toFixed(4)} USDC`
+                            : ""}
+                          . x402 pays from the Gateway balance.
+                        </>
+                      }
+                      p={
+                        <>
+                          <b>{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</b> on {facts.name}
+                          {walletBal
+                            ? ` · in wallet ${walletBal.usdc_wallet.toFixed(4)} · ready to spend ${walletBal.usdc_gateway.toFixed(4)}`
+                            : ""}
+                          . Payments come from the ready-to-spend part.
+                        </>
+                      }
+                    />
+                    {walletBal && walletBal.usdc_gateway < (info?.data?.price_usdc ?? PRICE_FALLBACK_USDC) && (
+                      <span className="deposit-row">
+                        <input
+                          value={depositAmt}
+                          onChange={(e) => setDepositAmt(e.target.value)}
+                          aria-label="USDC to deposit"
+                          style={{ width: 80 }}
+                        />
+                        <button className="btn btn-quiet" onClick={walletDeposit} disabled={walletBusy !== null}>
+                          {walletBusy === "deposit" ? "two signatures, then finality…" : "Deposit to Gateway"}
+                        </button>
+                      </span>
+                    )}
+                    {walletErr && <pre className="vermilion">{walletErr}</pre>}
+                  </div>
+                )}
+                {buyerReady?.buyer_ready || wallet ? (
                   liveOut ? (
                     liveOut.status === 200 ? (
                       <pre>
