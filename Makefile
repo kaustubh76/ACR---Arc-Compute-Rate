@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -24,6 +24,7 @@ help:
 	@echo "  make deploy-testnet  deploy ACROracle + AttestationRegistry to Arc testnet"
 	@echo "  make verify-testnet  read-only checks: chain id, code, signer, latest prints"
 	@echo "  make deploy-mainnet-dry  simulate all five deploys on Arc MAINNET (refuses a wrong chain id; docs/MAINNET_RUNBOOK.md)"
+	@echo "  make verify-mainnet      the mainnet preflight with custody ENFORCED: owners, no pending transfer, deploy key retired"
 	@echo "  make deploy-mainnet  broadcast them, in order"
 	@echo "  make post-once       one estimator cycle → signed postPrint txs on Arc"
 	@echo "  make attest-once     write the demo sellers' EIP-712 attestations on-chain"
@@ -210,6 +211,14 @@ deploy-humanid:
 
 verify-testnet:
 	uv run python scripts/verify_deploy.py
+
+# The mainnet preflight: verify_deploy against the mainnet RPC with the custody checks
+# ENFORCED. Off mainnet those checks print ⚠ and pass; on chain 5042 they are ✗ and
+# fail — a deploy key that still owns or signs anything stops the launch here.
+verify-mainnet:
+	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set"; exit 1; }
+	@test -n "$(ACR_EXPECTED_OWNER)" || { echo "ACR_EXPECTED_OWNER not set: the custody checks need to know who should own the contracts (docs/MAINNET_RUNBOOK.md §3 step 5)"; exit 1; }
+	ACR_ARC_RPC_URL=$(ACR_MAINNET_RPC_URL) ACR_ARC_CHAIN_ID=$(ACR_MAINNET_CHAIN_ID) ACR_CUSTODY_STRICT=1 uv run python scripts/verify_deploy.py
 
 # --- Arc MAINNET (eip155:5042; public genesis 2026-09-16) --------------------
 # The same five Foundry scripts the testnet runs on, in the order their own

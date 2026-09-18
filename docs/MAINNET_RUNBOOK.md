@@ -28,7 +28,8 @@ the subgraph mappings, the Terminal — reads the chain id from configuration an
 ```sh
 export ACR_MAINNET_RPC_URL=https://...            # Arc's mainnet RPC
 export ACR_MAINNET_USDC=0x...                     # Arc's mainnet USDC (read it from Arc's docs, do not guess)
-export DEPLOYER_PRIVATE_KEY=0x...                 # funded with >= 1 USDC for gas
+export DEPLOYER_PRIVATE_KEY=0x...                 # a FRESH key, funded with >= 1 USDC for gas — single-use, see §3b
+export ACR_EXPECTED_OWNER=0x...                   # who owns the contracts after §3b: the multisig, or the custody wallet until one exists
 export ACR_HUMANID_SALT_COMMITMENT=0x...          # keccak of the salt — the SALT itself never leaves the operator's machine
 make deploy-mainnet-dry                           # five simulations; exits 1 on a wrong chain id
 ```
@@ -64,9 +65,33 @@ seller-attestation demo is wanted on mainnet.
    tape is generated, or the first week's settlements carry `human: false` forever.
 4. **Signers.** Authorise the poster on v1 and v2, the mirror signer on ReceiptMirror, the
    resolver on HumanIdMirror — each script prints the `authorized signer` it set.
-5. **Prove it.** `make verify-testnet` reads whatever chain `ACR_ARC_RPC_URL` names;
-   `ACR_ARC_RPC_URL=$ACR_MAINNET_RPC_URL make verify-testnet`, then `make verify-live` against
-   the redeployed API. Paste the first `postPrint` transaction hash into `README.md` and this file.
+5. **Custody — before any user touches it.** The pre-mainnet audit
+   ([`SECURITY-AUDIT.md`](SECURITY-AUDIT.md), C1) read the testnet chain and found the deploy
+   key owning five contracts and signing both oracles. On mainnet the deploy key is
+   **single-use**: it broadcasts, it hands over, it is retired. For each oracle, from the
+   deploy key:
+
+   ```sh
+   cast send $ORACLE 'setSigner(address,bool)' $DEPLOYER false --rpc-url $ACR_MAINNET_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY
+   cast send $ORACLE_V2 'setSigner(address,bool)' $DEPLOYER false ...
+   ```
+
+   and for every owned contract (both oracles, the attestor, both mirrors — and the venue,
+   which `Deploy.s.sol` leaves with the deployer):
+
+   ```sh
+   cast send $CONTRACT 'transferOwnership(address)' $ACR_EXPECTED_OWNER ...   # from the deploy key
+   cast send $CONTRACT 'acceptOwnership()' ...                                 # FROM $ACR_EXPECTED_OWNER — two-step, on purpose
+   ```
+
+   After the last `acceptOwnership`, the deploy key owns nothing and signs nothing. Move it
+   out of `.env`. If a Safe exists on Arc mainnet, `ACR_EXPECTED_OWNER` is the Safe; if not
+   yet, it is the Circle custody owner wallet, and this file says so until that changes.
+6. **Prove it.** `make verify-mainnet` — the same preflight as testnet plus the custody
+   checks, which are **hard failures on chain 5042**: no pending transfer, every owner equals
+   `ACR_EXPECTED_OWNER`, the deploy key is neither owner nor signer, the press wallet signs.
+   Then `make verify-live` against the redeployed API. Paste the first `postPrint`
+   transaction hash into `README.md` and this file.
 
 ## 4 · What does not move on day one
 
