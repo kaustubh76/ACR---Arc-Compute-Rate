@@ -135,6 +135,10 @@ export interface ChainFactsData {
   /** HumanIdMirror — the identity layer's contract on Arc. Same rule as the
    *  attestor: null until configured, and omitted rather than zero-addressed. */
   humanid_address?: string | null;
+  /** Circle's identifiers for this chain; absent on a payload from an older API. */
+  circle_blockchain?: string | null;
+  gateway_chain?: string | null;
+  private_mainnet?: boolean;
   gate: "dev" | "circle";
   tape_source: string;
   signer: string | null;
@@ -441,6 +445,8 @@ export interface X402Info {
   price_usdc: number;
   scheme: string;
   network: string;
+  gateway_chain?: string | null;
+  private_mainnet?: boolean;
   pay_to?: string | null;
   payment_header: string;
   gated_endpoints: string[];

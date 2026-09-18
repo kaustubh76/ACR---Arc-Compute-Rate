@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CHAIN } from "@/lib/chain";
 
 import { Ed } from "@/components/Ed";
 import { useGate } from "@/lib/useLive";
@@ -54,7 +55,7 @@ export function TierColumns({ wake }: { wake: WakeState }) {
       if (tier === "carded") {
         const ch = await probe({ path: "/agent/challenge" });
         let audience = "acr-index-api";
-        let chainId = 5042002;
+        let chainId: number = CHAIN.chainId;
         try {
           const j = JSON.parse((ch as { body?: string }).body ?? "{}") as { audience?: string; chain_id?: number };
           audience = j.audience ?? audience;

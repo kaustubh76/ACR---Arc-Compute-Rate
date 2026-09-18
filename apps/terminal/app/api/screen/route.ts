@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { CHAIN } from "@/lib/chain";
 import { apiBase } from "@/lib/api";
 import { CARD_HEADER, mintCard, throwawayKey } from "@/lib/agentcard";
 import { TEXT_CAP, matchedFilters, verdictOf, type ScreenVerdict } from "@/lib/screen";
@@ -51,7 +52,7 @@ async function card(): Promise<string> {
     .catch((): Challenge => ({}));
   const minted = await mintCard({
     privateKey: heldKey,
-    chainId: Number(ch.chain_id ?? 5042002),
+    chainId: Number(ch.chain_id ?? CHAIN.chainId),
     audience: String(ch.audience ?? "acr-index-api"),
     name: "acr-terminal-screen-lab",
     role: "reader",

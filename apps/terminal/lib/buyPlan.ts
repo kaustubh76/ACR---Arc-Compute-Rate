@@ -61,7 +61,10 @@ export const MAINNET_CAIP2 = "eip155:5042";
  *  explicitly with `ACR_TERMINAL_BUYER=1`. The default is the safe direction:
  *  a mainnet terminal that forgot the variable cannot spend.
  *  (docs/SECURITY-AUDIT.md, H2.) */
-export function buyerAllowedOn(network: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
+export function buyerAllowedOn(
+  network: string | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   if ((network ?? "").trim() !== MAINNET_CAIP2) return true;
   return env.ACR_TERMINAL_BUYER === "1";
 }

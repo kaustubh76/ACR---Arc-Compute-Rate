@@ -66,6 +66,20 @@ def violations(settings: ACRSettings) -> list[str]:
         )
     if not settings.humanid_app_id.strip():
         out.append("ACR_HUMANID_APP_ID is unset: a proof scoped to no app authorizes nothing")
+    rpc = settings.arc_rpc_url.strip()
+    if not rpc.startswith("https://") or "127.0.0.1" in rpc or "localhost" in rpc:
+        out.append("ACR_ARC_RPC_URL is not a mainnet https endpoint (Arc mainnet's RPC is "
+                   "permissioned during the preview; read it from docs.arc.io)")
+    if not settings.explorer_base.strip():
+        out.append("ACR_EXPLORER_BASE resolved empty: every transaction link would be dead")
+    prof = settings.chain_profile
+    if settings.x402_gateway_wallet.strip().lower() != prof.gateway_wallet.lower():
+        out.append(
+            f"ACR_X402_GATEWAY_WALLET is not Arc mainnet's GatewayWallet ({prof.gateway_wallet}): "
+            "a testnet Gateway address left in the environment fails every payment"
+        )
+    if not settings.circle_blockchain:
+        out.append("no Circle blockchain enum for this chain id: the Desk cannot open wallets")
     if settings.cors_origins.strip() in ("", "*"):
         out.append("ACR_CORS_ORIGINS is '*': name the Terminal's origin on mainnet")
     return out

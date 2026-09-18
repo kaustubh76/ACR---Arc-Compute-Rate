@@ -8,9 +8,57 @@ is the whole reason the bound is computable on Arc.
 
 from __future__ import annotations
 
-from pydantic import field_validator
+from dataclasses import dataclass
+
+from pydantic import field_validator, model_validator
 from pydantic_core import PydanticUseDefault
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+@dataclass(frozen=True)
+class ChainProfile:
+    """What differs between Arc networks, from primary sources — never guessed.
+
+    Mainnet values: docs.arc.io (RPC endpoints, contract addresses) and
+    developers.circle.com (Gateway and Wallets supported-blockchains), read 2026-09-18.
+    Testnet values are the ones this deployment has run against since July.
+    """
+
+    name: str
+    explorer: str
+    #: Circle's GatewayWallet on this chain — the contract a payer deposits into.
+    gateway_wallet: str
+    #: The blockchain enum Circle's Wallets (W3S) API uses for this chain.
+    circle_blockchain: str
+    #: The chain key Circle's Gateway SDK (`@circle-fin/x402-batching`) uses.
+    gateway_chain: str
+    #: Arc mainnet is in a permissioned preview: Gateway hides it without a header,
+    #: and its RPC/explorer need credentials. Flips to False at GA via env.
+    private_mainnet: bool
+
+
+CHAIN_PROFILES: dict[int, ChainProfile] = {
+    5042: ChainProfile(
+        name="Arc",
+        explorer="https://explorer.arc.io",
+        gateway_wallet="0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE",
+        circle_blockchain="ARC",
+        gateway_chain="arc",
+        private_mainnet=True,
+    ),
+    5042002: ChainProfile(
+        name="Arc Testnet",
+        explorer="https://testnet.arcscan.app",
+        gateway_wallet="0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+        circle_blockchain="ARC-TESTNET",
+        gateway_chain="arcTestnet",
+        private_mainnet=False,
+    ),
+    31337: ChainProfile(
+        name="anvil", explorer="", gateway_wallet="", circle_blockchain="", gateway_chain="",
+        private_mainnet=False,
+    ),
+}
 
 
 class ACRSettings(BaseSettings):
@@ -107,8 +155,12 @@ class ACRSettings(BaseSettings):
     usdc_address: str = "0x3600000000000000000000000000000000000000"
     #: CAIP-2 network id; empty → derived as ``eip155:{arc_chain_id}``.
     arc_network_caip2: str = ""
-    #: Block-explorer base URL (tx/address links in the Terminal).
-    explorer_base: str = "https://testnet.arcscan.app"
+    #: Block-explorer base URL (tx/address links in the Terminal). Empty → the
+    #: chain profile's; set it only to override.
+    explorer_base: str = ""
+    #: Arc mainnet's permissioned-preview flag. None → the profile's (True on 5042).
+    #: Set ACR_ARC_PRIVATE_MAINNET=0 at GA.
+    arc_private_mainnet: bool | None = None
 
     # --- Circle Developer-Controlled Wallets (empty → raw-key / offline) ---
     circle_api_key: str = ""  # PREFIX:ID:SECRET
@@ -173,7 +225,7 @@ class ACRSettings(BaseSettings):
     #: Circle GatewayWallet contract (the EIP-712 verifyingContract buyers sign
     #: against — `extra.verifyingContract` in PaymentRequirements). Default is
     #: the shared testnet GatewayWallet (all Gateway testnet chains, incl. Arc).
-    x402_gateway_wallet: str = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+    x402_gateway_wallet: str = ""  # empty → the chain profile's GatewayWallet
 
     # --- World / AgentKit human proofs (empty verifier url → dev-mode gate) ---
     #: Verifier selection, mirroring `x402_mode`: "auto" (AgentKit iff the URL and
@@ -317,6 +369,45 @@ class ACRSettings(BaseSettings):
     #: full-width corridor); κ=400 models the deep simulated book and lands
     #: the base spread at ~50bp, with the inventory term skewing on top.
     as_kappa: float = 400.0
+
+    @property
+    def chain_profile(self) -> ChainProfile:
+        return CHAIN_PROFILES.get(int(self.arc_chain_id)) or ChainProfile(
+            name=f"chain {self.arc_chain_id}", explorer="", gateway_wallet="",
+            circle_blockchain="", gateway_chain="", private_mainnet=False,
+        )
+
+    @property
+    def chain_name(self) -> str:
+        return self.chain_profile.name
+
+    @property
+    def circle_blockchain(self) -> str:
+        """Circle Wallets' enum for this chain (`ARC-TESTNET`, `ARC`)."""
+        return self.chain_profile.circle_blockchain
+
+    @property
+    def gateway_chain(self) -> str:
+        """Circle Gateway SDK chain key (`arcTestnet`, `arc`)."""
+        return self.chain_profile.gateway_chain
+
+    @property
+    def private_mainnet(self) -> bool:
+        if self.arc_private_mainnet is not None:
+            return bool(self.arc_private_mainnet)
+        return self.chain_profile.private_mainnet
+
+    @model_validator(mode="after")
+    def _resolve_chain_defaults(self):
+        """Fill the chain-shaped blanks from the profile, so every reader of
+        `explorer_base` / `x402_gateway_wallet` keeps working unchanged and a
+        testnet-only literal never has to be typed into an env for mainnet."""
+        prof = self.chain_profile
+        if not self.explorer_base.strip():
+            self.explorer_base = prof.explorer
+        if not self.x402_gateway_wallet.strip():
+            self.x402_gateway_wallet = prof.gateway_wallet
+        return self
 
     def caip2(self) -> str:
         """CAIP-2 network id for x402 PaymentRequirements (e.g. ``eip155:5042002``)."""

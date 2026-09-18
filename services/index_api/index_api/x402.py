@@ -45,7 +45,6 @@ USDC_DECIMALS = 6
 #: Dev pay-to address (a valid checksummed dummy — the live seller wallet comes
 #: from ACR_X402_PAY_TO).
 PAY_TO = "0xACacE0000000000000000000000000000000CafE"
-NETWORK = "arc-testnet"
 ASSET = "USDC"
 
 
@@ -442,7 +441,7 @@ class DevFacilitator(Facilitator):
                 "WWW-Authenticate": "x402",
                 "X-402-Price": f"{price}",
                 "X-402-Asset": ASSET,
-                "X-402-Network": NETWORK,
+                "X-402-Network": s.caip2(),
                 "X-402-Pay-To": pay_to,
                 # Same envelope as the JSON body — buyer SDKs (GatewayClient)
                 # parse the header, not the body.
@@ -547,6 +546,10 @@ class CircleFacilitator(Facilitator):
 
         body = {"paymentPayload": payload, "paymentRequirements": reqs}
         base = self.settings.x402_facilitator_url
+        # Arc mainnet is a permissioned preview on Gateway: without this header the
+        # API does not know the network exists and every verify fails with a reason
+        # that reads like a bad payment. Sent only on that chain, dropped at GA.
+        hdrs = {"X-ARC-PRIVATE-MAINNET-ENABLED": "true"} if self.settings.private_mainnet else {}
         try:
             client, owns = self._http, False
             if client is None:  # pragma: no cover - live path builds its own client
@@ -555,7 +558,7 @@ class CircleFacilitator(Facilitator):
                 client = httpx.AsyncClient(timeout=self.settings.x402_max_timeout_seconds)
                 owns = True
             try:
-                vr = await client.post(facilitator_endpoint(base, "verify"), json=body)
+                vr = await client.post(facilitator_endpoint(base, "verify"), json=body, headers=hdrs)
                 valid, invalid_reason = self._parse_verify(vr.json())
                 if not valid:
                     # Surface Circle's real reason in the server log — a bare 402
@@ -565,7 +568,7 @@ class CircleFacilitator(Facilitator):
                         status_code=402,
                         detail=f"payment invalid: {invalid_reason or 'unspecified'}"[:160],
                     )
-                sr = await client.post(facilitator_endpoint(base, "settle"), json=body)
+                sr = await client.post(facilitator_endpoint(base, "settle"), json=body, headers=hdrs)
                 settle = sr.json()
                 ok, tx, network, error_reason = self._parse_settle(settle)
                 if not ok:

@@ -29,6 +29,7 @@ MAINNET_OK = dict(
     humanid_mode="agentkit",
     humanid_app_id="app_1234",
     cors_origins="https://arc-compute-rate.vercel.app",
+    arc_rpc_url="https://rpc.mainnet.arc.io",
 )
 
 
@@ -47,7 +48,8 @@ def test_testnet_defaults_are_not_a_violation():
 def test_mainnet_defaults_are_refused_with_every_reason_listed():
     """One pass, every violation — a deploy should not fix them one boot at a time."""
     bad = violations(_s(arc_chain_id=MAINNET_CHAIN_ID))
-    assert len(bad) == 6
+    # x402 mode, facilitator, pay-to, humanid mode, app id, CORS, RPC (defaults to localhost)
+    assert len(bad) == 7
     with pytest.raises(MainnetGuardError) as e:
         assert_mainnet_ready(_s(arc_chain_id=MAINNET_CHAIN_ID))
     for needle in ("ACR_X402_MODE", "ACR_X402_FACILITATOR_URL", "ACR_X402_PAY_TO",
@@ -87,6 +89,48 @@ def test_an_explicit_mode_with_no_backend_is_still_refused():
 def test_wildcard_cors_is_refused_on_mainnet():
     bad = violations(_s(**{**MAINNET_OK, "cors_origins": "*"}))
     assert len(bad) == 1 and "ACR_CORS_ORIGINS" in bad[0]
+
+
+# --- the chain profile: what a mainnet environment must not carry over --------
+
+def test_a_localhost_or_plain_http_rpc_is_refused_on_mainnet():
+    for rpc in ("http://127.0.0.1:8545", "http://rpc.mainnet.arc.io", "https://localhost:8545", ""):
+        bad = violations(_s(**{**MAINNET_OK, "arc_rpc_url": rpc}))
+        assert len(bad) == 1 and "ACR_ARC_RPC_URL" in bad[0], rpc
+
+
+def test_a_testnet_gateway_wallet_left_in_the_environment_is_refused():
+    """The single most likely copy-paste failure: the testnet GatewayWallet in a
+    mainnet env. Every payment would fail verify with a reason that reads like a
+    bad signature. The profile knows mainnet's address; the guard holds it."""
+    testnet_gw = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+    bad = violations(_s(**{**MAINNET_OK, "x402_gateway_wallet": testnet_gw}))
+    assert len(bad) == 1 and "GatewayWallet" in bad[0] and "0x77777777Dcc4" in bad[0]
+
+
+def test_mainnet_defaults_resolve_from_the_profile_and_pass():
+    """With nothing chain-shaped set, the profile fills explorer and Gateway wallet
+    with the documented mainnet values — so the guard passes, and a mainnet env
+    never has to contain a literal it could get wrong."""
+    s = _s(**MAINNET_OK)
+    assert s.chain_name == "Arc"
+    assert s.explorer_base == "https://explorer.arc.io"
+    assert s.x402_gateway_wallet == "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
+    assert s.circle_blockchain == "ARC" and s.gateway_chain == "arc"
+    assert s.private_mainnet is True
+    assert violations(s) == []
+
+
+def test_private_mainnet_flag_flips_at_ga_by_env():
+    assert _s(**{**MAINNET_OK, "arc_private_mainnet": False}).private_mainnet is False
+
+
+def test_testnet_profile_is_unchanged_by_all_of_this():
+    s = _s()
+    assert (s.chain_name, s.circle_blockchain, s.gateway_chain, s.private_mainnet) == (
+        "Arc Testnet", "ARC-TESTNET", "arcTestnet", False)
+    assert s.explorer_base == "https://testnet.arcscan.app"
+    assert s.x402_gateway_wallet == "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
 
 
 # --- the testnet-only money surfaces ----------------------------------------

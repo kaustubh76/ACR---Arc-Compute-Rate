@@ -10,6 +10,7 @@
  */
 
 import { webcrypto } from "node:crypto";
+import { agentChain } from "./chain.js";
 // The Circle Gateway SDK calls a bare `crypto.getRandomValues` (Web Crypto). Under
 // tsx/esbuild the global isn't always present in the SDK's module scope, so it
 // throws "crypto is not defined" at pay time — polyfill it before that import runs.
@@ -46,7 +47,7 @@ export interface RunDeps {
 
 /** Arc Testnet. The card's EIP-712 domain binds to it, so a card minted for one
  *  chain is not presentable on another. */
-const ARC_CHAIN_ID = 5042002;
+const ARC_CHAIN_ID = agentChain().chainId;
 
 /** The buying loop: round-robin the targets, enforce the spend cap, collect
  * receipts. Exported (with injectable payer/fetch) so tests drive it offline. */

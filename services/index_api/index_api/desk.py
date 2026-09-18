@@ -2,7 +2,8 @@
 user-controlled wallet (SCA on Arc Testnet, Gas Station-sponsored gas).
 
 Backend half of the challenge-response model: this module mints Circle users /
-session tokens, initializes SCA wallets on ``ARC-TESTNET``, drips a capped
+session tokens, initializes SCA wallets on the chain's Circle blockchain (``ARC-TESTNET``
+or ``ARC``, from settings), drips a capped
 USDC collateral stake from the custody wallet, and creates contractExecution
 challenges (approve / postCollateral / trade). The frontend Web SDK
 (`@circle-fin/w3s-pw-web-sdk`) executes the challengeIds — the user's PIN
@@ -233,7 +234,7 @@ def open_session(user_id: str) -> dict:
             "/v1/w3s/user/initialize",
             {
                 "idempotencyKey": str(uuid.uuid4()),
-                "blockchains": ["ARC-TESTNET"],
+                "blockchains": [get_settings().circle_blockchain],
                 "accountType": "SCA",
             },
             user_token=tok["userToken"],
@@ -252,7 +253,7 @@ def wallet_of(user_token: str) -> dict | None:
         "wallets", []
     )
     for w in wallets:
-        if w.get("blockchain") == "ARC-TESTNET":
+        if w.get("blockchain") == get_settings().circle_blockchain:
             return {"wallet_id": w["id"], "address": w["address"]}
     return None
 
@@ -368,7 +369,7 @@ class FaucetLedger:
         """
         rows = _circle(
             "GET",
-            "/v1/w3s/transactions?blockchain=ARC-TESTNET&custodyType=ENDUSER"
+            f"/v1/w3s/transactions?blockchain={get_settings().circle_blockchain}&custodyType=ENDUSER"
             "&operation=TRANSFER&pageSize=50",
         )["data"].get("transactions", [])
         return [

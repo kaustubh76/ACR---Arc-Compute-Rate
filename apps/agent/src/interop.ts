@@ -9,6 +9,8 @@
  *   npm run interop -- [--api http://127.0.0.1:8000] [--chain-id 5042002]
  */
 
+import { agentChain } from "./chain.js";
+
 const args = process.argv.slice(2);
 
 /** Value after a flag; undefined when the flag is absent or dangling. */
@@ -18,8 +20,8 @@ function flagValue(name: string): string | undefined {
 }
 
 const api = (flagValue("--api") ?? "http://127.0.0.1:8000").replace(/\/$/, "");
-const parsedChainId = Number(flagValue("--chain-id") ?? 5042002);
-const chainId = Number.isFinite(parsedChainId) && parsedChainId > 0 ? parsedChainId : 5042002;
+const parsedChainId = Number(flagValue("--chain-id") ?? agentChain().chainId);
+const chainId = Number.isFinite(parsedChainId) && parsedChainId > 0 ? parsedChainId : agentChain().chainId;
 
 interface Check {
   name: string;

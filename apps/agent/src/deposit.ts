@@ -12,6 +12,7 @@
  */
 
 import { webcrypto } from "node:crypto";
+import { agentChain } from "./chain.js";
 // Same gotcha as main.ts: the Circle SDKs call bare Web Crypto globals; under
 // tsx/esbuild the global isn't always present in module scope — polyfill first.
 if (!globalThis.crypto) (globalThis as unknown as { crypto: Crypto }).crypto = webcrypto as unknown as Crypto;
@@ -22,9 +23,21 @@ import {
   getBalances,
 } from "@circle-fin/unified-balance-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
+import type { UnifiedBalanceChainIdentifier } from "@circle-fin/unified-balance-kit";
 
-/* Arc Testnet's identifier in the kit's chain registry (eip155:5042002). */
-const CHAIN = "Arc_Testnet" as const;
+/* The kit's chain name for the Arc this agent is on (see ./chain.ts). Null on a
+   chain this kit version cannot deposit on — refused below, never guessed. */
+function ubkChain(): UnifiedBalanceChainIdentifier {
+  const c = agentChain();
+  if (!c.ubkChain) {
+    throw new Error(
+      `the Unified Balance Kit in use has no identifier for chain ${c.chainId}: deposit through ` +
+        "the GatewayWallet contract directly, or set AGENT_UBK_CHAIN once a kit that knows it ships",
+    );
+  }
+  return c.ubkChain as UnifiedBalanceChainIdentifier;
+}
+const CHAIN = ubkChain();
 
 function keyFromEnv(): `0x${string}` {
   const key = (process.env.AGENT_PRIVATE_KEY ?? "").trim();

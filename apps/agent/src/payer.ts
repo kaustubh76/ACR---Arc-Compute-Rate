@@ -7,6 +7,7 @@
  */
 
 import { decodeConfirmation } from "./receipts.js";
+import { agentChain } from "./chain.js";
 
 export interface PaymentResult {
   status: number;
@@ -68,7 +69,7 @@ export class DevPayer implements Payer {
       data: await r2.json(),
       paidUsdc: price,
       transaction: confirmation?.transaction ?? "dev-settled",
-      network: confirmation?.network ?? "eip155:5042002",
+      network: confirmation?.network ?? agentChain().caip2,
       payer: confirmation?.payer || this.address,
     };
   }
@@ -83,7 +84,7 @@ export interface PayingClient {
 }
 
 export class GatewayPayer implements Payer {
-  readonly label = "circle gateway (x402, arcTestnet)";
+  readonly label = `circle gateway (x402, ${agentChain().gatewayChain})`;
 
   private constructor(
     readonly address: string,
@@ -114,9 +115,14 @@ export class GatewayPayer implements Payer {
     extraHeaders?: () => Promise<Record<string, string>>,
   ): Promise<GatewayPayer> {
     const { GatewayClient } = await import("@circle-fin/x402-batching/client");
+    const chain = agentChain();
+    const rpcUrl = (process.env.ACR_ARC_RPC_URL ?? "").trim();
     const client = new GatewayClient({
-      chain: "arcTestnet",
+      chain: chain.gatewayChain,
       privateKey: privateKey as `0x${string}`,
+      // Arc mainnet has no public RPC during the preview: the SDK needs ours.
+      ...(rpcUrl ? { rpcUrl } : {}),
+      ...(chain.privateMainnet ? { arcPrivateMainnet: true } : {}),
     });
     return new GatewayPayer(client.account.address, client, extraHeaders);
   }
@@ -128,7 +134,7 @@ export class GatewayPayer implements Payer {
       data: res.data,
       paidUsdc: Number(res.formattedAmount),
       transaction: res.transaction,
-      network: "eip155:5042002",
+      network: agentChain().caip2,
       payer: this.address,
     };
   }

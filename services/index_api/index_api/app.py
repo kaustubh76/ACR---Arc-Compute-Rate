@@ -789,6 +789,10 @@ def x402_info(fac: Facilitator = Depends(get_facilitator)) -> dict:
         # CAIP-2 for BOTH gates — the catalog, receipts, and this descriptor
         # must name the same network or the Terminal surfaces disagree.
         "network": s.caip2(),
+        # The Gateway SDK's chain key and the permissioned-preview flag, so a payer
+        # built in the browser or on the terminal's server needs no chain table.
+        "gateway_chain": s.gateway_chain or None,
+        "private_mainnet": s.private_mainnet,
         "pay_to": (s.x402_pay_to if circle else PAY_TO) or None,
         "payment_header": "PAYMENT-SIGNATURE",
         "gated_endpoints": GATED_ENDPOINTS,
@@ -1502,8 +1506,13 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
         # Network identity card — the frontend contract for every chain-aware
         # surface (explorer links, gate badge, poster provenance). Shape is fixed.
         "chain": {
-            "name": "Arc Testnet",
+            "name": settings.chain_name,
             "chain_id": settings.arc_chain_id,
+            # Circle's identifiers for this chain, so a browser payer and the Desk
+            # can be built without a testnet literal anywhere in the frontend.
+            "circle_blockchain": settings.circle_blockchain or None,
+            "gateway_chain": settings.gateway_chain or None,
+            "private_mainnet": settings.private_mainnet,
             "caip2": settings.caip2(),
             "rpc_url": settings.arc_rpc_url,
             "explorer_base": settings.explorer_base,
