@@ -101,7 +101,18 @@ contract ACROracleV2 {
         _;
     }
 
-    constructor() {
+    /// @notice The most a print may move from the previous one for its index, in
+    ///         basis points. A signer key is the benchmark's root of trust, and
+    ///         until this existed a single compromised key could set the
+    ///         settlement price of every open series to anything at all in one
+    ///         transaction. Bounded, it can still walk the price — one step per
+    ///         print, each an event on a public chain — but not jump it. The
+    ///         first print for an index has nothing to move from and is unbounded.
+    uint256 public immutable MAX_MOVE_BPS;
+
+    constructor(uint256 maxMoveBps_) {
+        require(maxMoveBps_ > 0 && maxMoveBps_ <= 10_000, "bad move bound");
+        MAX_MOVE_BPS = maxMoveBps_;
         owner = msg.sender;
         isSigner[msg.sender] = true;
         emit SignerSet(msg.sender, true);
@@ -213,6 +224,10 @@ contract ACROracleV2 {
 
         Print storage prev = _latest[p.indexId];
         require(!prev.exists || p.timestamp > prev.timestamp, "non-monotone ts");
+        if (prev.exists) {
+            uint256 move = p.value > prev.value ? p.value - prev.value : prev.value - p.value;
+            require(move * 10_000 <= prev.value * MAX_MOVE_BPS, "move exceeds bound");
+        }
 
         address signer = ecrecover(printDigest(p), v, r, s);
         require(signer != address(0) && isSigner[signer], "bad signer");
@@ -290,6 +305,47 @@ contract ACROracleV2 {
         Print memory p = _latest[indexId];
         require(p.exists, "no print");
         return (p.policyHash, p.windowStart, p.windowEnd, p.humanAdjustedBound);
+    }
+
+    // --- settlement views: primitives, not structs -------------------------------
+    //
+    // The venue decodes what these return. v1 and v2 carry different `Print`
+    // shapes, so a struct-returning view binds a venue to one oracle generation
+    // forever (its oracle pointer is immutable). Primitives do not, and these two
+    // are implemented identically on both, so one venue source settles against
+    // either. Both key on `postedAt` — the block time the CHAIN assigned — never
+    // on `timestamp`, which is the signer's Fixing-clock value.
+
+    /// @notice The first print POSTED at or after `fromPostedAt` — the settlement
+    ///         print for a series expiring then: the first mark the chain saw after
+    ///         expiry, so the price is fixed by expiry, not by who calls settle and
+    ///         when. Binary search over `_history`, whose `postedAt` never decreases.
+    function firstPrintPostedAtOrAfter(bytes32 indexId, uint64 fromPostedAt)
+        external
+        view
+        returns (bool found, uint256 value, uint64 postedAt)
+    {
+        Print[] storage h = _history[indexId];
+        uint256 lo = 0;
+        uint256 hi = h.length;
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            if (h[mid].postedAt < fromPostedAt) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo == h.length) return (false, 0, 0);
+        return (true, h[lo].value, h[lo].postedAt);
+    }
+
+    /// @notice The latest print as primitives — value and when it was posted.
+    ///         `exists` false means no print for this index yet.
+    function latestPrintPrimitive(bytes32 indexId)
+        external
+        view
+        returns (bool exists, uint256 value, uint64 postedAt)
+    {
+        Print storage p = _latest[indexId];
+        return (p.exists, p.value, p.postedAt);
     }
 
     function historyLength(bytes32 indexId) external view returns (uint256) {

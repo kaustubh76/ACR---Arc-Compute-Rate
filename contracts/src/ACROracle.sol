@@ -218,6 +218,47 @@ contract ACROracle {
         return block.timestamp - p.postedAt > maxAge;
     }
 
+    // --- settlement views: primitives, not structs -------------------------------
+    //
+    // The venue decodes what these return. v1 and v2 carry different `Print`
+    // shapes, so a struct-returning view binds a venue to one oracle generation
+    // forever (its oracle pointer is immutable). Primitives do not, and these two
+    // are implemented identically on both, so one venue source settles against
+    // either. Both key on `postedAt` — the block time the CHAIN assigned — never
+    // on `timestamp`, which is the signer's Fixing-clock value.
+
+    /// @notice The first print POSTED at or after `fromPostedAt` — the settlement
+    ///         print for a series expiring then: the first mark the chain saw after
+    ///         expiry, so the price is fixed by expiry, not by who calls settle and
+    ///         when. Binary search over `_history`, whose `postedAt` never decreases.
+    function firstPrintPostedAtOrAfter(bytes32 indexId, uint64 fromPostedAt)
+        external
+        view
+        returns (bool found, uint256 value, uint64 postedAt)
+    {
+        Print[] storage h = _history[indexId];
+        uint256 lo = 0;
+        uint256 hi = h.length;
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            if (h[mid].postedAt < fromPostedAt) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo == h.length) return (false, 0, 0);
+        return (true, h[lo].value, h[lo].postedAt);
+    }
+
+    /// @notice The latest print as primitives — value and when it was posted.
+    ///         `exists` false means no print for this index yet.
+    function latestPrintPrimitive(bytes32 indexId)
+        external
+        view
+        returns (bool exists, uint256 value, uint64 postedAt)
+    {
+        Print storage p = _latest[indexId];
+        return (p.exists, p.value, p.postedAt);
+    }
+
     function historyLength(bytes32 indexId) external view returns (uint256) {
         return _history[indexId].length;
     }

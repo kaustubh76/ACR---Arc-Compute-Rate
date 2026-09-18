@@ -178,14 +178,118 @@ contract ACRFuturesTest is Test {
         futures.settle(0);
     }
 
-    function test_Settle_FreshnessGuardReverts() public {
+    // --- settlement: the price is fixed by expiry, not by the caller ----------
+    //
+    // `settle` uses the FIRST print the chain saw at or after expiry (keyed on
+    // `postedAt`, which no signer chooses) and requires it to have landed within
+    // MAX_SETTLE_AGE of expiry. Freshness is about whether the feed was alive when
+    // it mattered — not about how long ago someone got round to calling settle.
+
+    function test_Settle_FeedAliveAtExpiry_SettlesAnyTimeLater() public {
         _trade(alice, 1e18);
         vm.warp(expiry + 60);
-        _postPrint(0.6e18, uint64(expiry)); // fresh at this instant
-        // ...but let it go stale beyond MAX_SETTLE_AGE with no new print
-        vm.warp(block.timestamp + futures.MAX_SETTLE_AGE() + 1);
+        _postPrint(0.6e18, uint64(expiry)); // the feed was alive at expiry
+        // Nobody calls settle for a month. The print that fixed the price is
+        // still the print that fixed the price.
+        vm.warp(expiry + 30 days);
+        futures.settle(0);
+        assertEq(futures.getSeries(0).settlementPrice, 0.6e18, "settled at the expiry print");
+    }
+
+    function test_Settle_LatePrint_IsStale() public {
+        _trade(alice, 1e18);
+        // The feed was down at expiry and only printed 2h01 after it.
+        vm.warp(expiry + futures.MAX_SETTLE_AGE() + 1);
+        _postPrint(0.6e18, uint64(expiry));
         vm.expectRevert("stale print");
         futures.settle(0);
+    }
+
+    function test_Settle_NoPrintSinceExpiry_Reverts() public {
+        _trade(alice, 1e18);
+        vm.warp(expiry + 60); // only the opening print exists, from before expiry
+        vm.expectRevert("no print since expiry");
+        futures.settle(0);
+    }
+
+    function test_Settle_UsesFirstPostExpiryPrint_NotTheLatest() public {
+        // The timing game this closes: two post-expiry prints, 0.60 then 0.90.
+        // Whoever calls settle, whenever, gets 0.60 — the first the chain saw.
+        _trade(alice, 1e18); // alice long: she would prefer 0.90
+        vm.warp(expiry + 60);
+        _postPrint(0.6e18, uint64(expiry));
+        vm.warp(expiry + 3600);
+        _postPrint(0.9e18, uint64(expiry) + 1);
+        vm.warp(expiry + 3700);
+        vm.prank(alice);
+        futures.settle(0);
+        assertEq(futures.getSeries(0).settlementPrice, 0.6e18, "first post-expiry print wins");
+        // alice long 1 * 0.10 * 1000 = +100, not +400
+        assertEq(futures.collateral(0, alice), 2_100e6, "alice settled at 0.60");
+    }
+
+    // --- the escape hatch ------------------------------------------------------
+    //
+    // A press that dies after expiry used to lock every open position's margin
+    // with no path out. After SETTLE_GRACE, anyone clears the series at the best
+    // print that exists.
+
+    function test_SettleStale_BeforeGrace_Reverts() public {
+        _trade(alice, 1e18);
+        vm.warp(expiry + 1 days); // feed dead since before expiry
+        vm.expectRevert("grace not elapsed");
+        futures.settleStale(0);
+        vm.expectRevert("no print since expiry"); // and the normal path is closed too
+        futures.settle(0);
+    }
+
+    function test_SettleStale_AfterGrace_ClearsAtLastPrint_AndEveryoneLeaves() public {
+        _trade(alice, 2e18); // alice long 2 at 0.50, maker short 2
+        uint256 potBefore = usdc.balanceOf(address(futures));
+        vm.warp(expiry + futures.SETTLE_GRACE()); // the press never came back
+        vm.expectEmit(true, false, false, true);
+        emit ACRFutures.SettledStale(0, 0.5e18, uint64(1_000_000), 3);
+        vm.prank(bob); // anyone
+        futures.settleStale(0);
+        // last print was the opening 0.50 == every entry: flat PnL, full refunds
+        assertEq(futures.collateral(0, alice), 2_000e6);
+        assertEq(futures.collateral(0, maker), 2_000e6);
+        assertEq(futures.collateral(0, bob), 2_000e6);
+        assertEq(usdc.balanceOf(address(futures)), potBefore, "pot conserved");
+        for (uint256 i = 0; i < 3; i++) {
+            address t = futures.traderAt(0, i);
+            uint256 bal = futures.collateral(0, t);
+            vm.prank(t);
+            futures.withdrawCollateral(0, bal); // nothing is locked
+            assertEq(futures.collateral(0, t), 0);
+        }
+        assertEq(usdc.balanceOf(address(futures)), 0, "every dollar left the venue");
+    }
+
+    function test_SettleStale_PrefersThePostExpiryPrint_WhenTheFeedResumedLate() public {
+        _trade(alice, 1e18);
+        vm.warp(expiry + 3 hours); // too late for `settle` ...
+        _postPrint(0.6e18, uint64(expiry));
+        vm.warp(expiry + futures.SETTLE_GRACE());
+        futures.settleStale(0); // ... but the right price for the escape hatch
+        assertEq(futures.getSeries(0).settlementPrice, 0.6e18);
+    }
+
+    function test_SettleStale_ThenSettle_Reverts() public {
+        _trade(alice, 1e18);
+        vm.warp(expiry + futures.SETTLE_GRACE());
+        futures.settleStale(0);
+        vm.expectRevert("already settled");
+        futures.settle(0);
+        vm.expectRevert("already settled");
+        futures.settleStale(0);
+    }
+
+    function test_Constructor_RefusesAnOracleWithoutTheSettlementViews() public {
+        // MockUSDC has no `latestPrintPrimitive`: a venue pointed at it would open
+        // and trade, then revert on every settle. Refused at deploy instead.
+        vm.expectRevert("oracle lacks settlement views");
+        new ACRFutures(address(usdc), address(usdc), MARGIN_BPS);
     }
 
     function test_Settle_DoubleSettleReverts() public {
