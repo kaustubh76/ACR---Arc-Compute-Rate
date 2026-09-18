@@ -419,11 +419,9 @@ and it proves its own tamper-resistance.
   panels: the take-a-position widget, the maker's book, the live fill tape, and the
   bid/ask corridor chart. *The betting slip, the odds board, the ticker, and the
   price chart.*
-- **`make deck` / marp** — renders the submission slides (`docs/presentation.md` →
-  `.html`/`.pdf`) with the marp tool. *The "export to slides" button.*
-
-## Live deployment & operations
-
+- **`make deck` / marp** — the command that rendered the hackathon slides with the marp tool.
+  The target is gone; its output is archived under `hackathon/`. *The old "export to
+  slides" button, kept in the manual so the word still means something.*
 - **LIVE on Arc testnet** — ACR is not just buildable, it's **running in production**
   on Arc's test network (chain 5042002). *The shop is open, not just built.*
 - **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
@@ -573,7 +571,7 @@ and it proves its own tamper-resistance.
 ## Machine TCA — the ETHOnline 2026 continuity layer
 
 - **ETHOnline 2026 · Continuity** — the hackathon track ACR entered as an existing project.
-  Everything since the frozen baseline tag `v1.0-submission` is documented in `CONTINUITY.md`;
+  Everything since the frozen baseline tag `v1.0-submission` is documented in `hackathon/ethonline-2026/CONTINUITY.md`;
   the diagram's band T is that work, drawn as a layer on the earlier product. *The extension
   built onto a house that was already standing, with the old walls left visible.*
 - **Machine TCA (transaction-cost analysis) — `/tca/{payer}`, `/tca/human`, `by_seller`** — what

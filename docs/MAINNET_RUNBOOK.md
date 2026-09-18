@@ -59,7 +59,7 @@ seller-attestation demo is wanted on mainnet.
    Production runs ONE chain; the Terminal's `NEXT_PUBLIC_ACR_CHAIN_ID` follows it.
 2. **Subgraph.** `graph/subgraph.yaml`: network `arc`, each data source's `startBlock` = its
    deploy block; `make graph-deploy VERSION=v1.0.0-mainnet`. The Graph's registry lists `arc`
-   as a Studio target (verified 2026-09-01, `docs/SPIKE-LOG.md`).
+   as a Studio target (verified 2026-09-01, `hackathon/ethonline-2026/SPIKE-LOG.md`).
 3. **Humans.** `make resolve-humans ARGS=--commit` for the current rotation window BEFORE any
    tape is generated, or the first week's settlements carry `human: false` forever.
 4. **Signers.** Authorise the poster on v1 and v2, the mirror signer on ReceiptMirror, the

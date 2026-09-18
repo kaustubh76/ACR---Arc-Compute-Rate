@@ -149,7 +149,7 @@ exactly like a quiet market — and a `startBlock` of 0 makes the indexer scan t
 whole chain instead of starting at the deploy.
 
 Then set `ACR_SUBGRAPH_URL` (and `ACR_GRAPH_API_KEY`, server-side only), and
-record in `docs/SPIKE-LOG.md`: `_meta.block` against RPC head, whether
+record in `hackathon/ethonline-2026/SPIKE-LOG.md`: `_meta.block` against RPC head, whether
 `hasIndexingErrors` is false, and how long the backfill from block 53066540
 actually took. If it is slow, raise `startBlock` and say so there.
 

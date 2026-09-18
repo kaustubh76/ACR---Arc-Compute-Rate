@@ -14,7 +14,6 @@
 - **Seller API (x402-gated):** https://acr-api-1fto.onrender.com
 - **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) · **ACRFutures:** [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) (self-rolling) · **FeedAccessAttestor:** [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47)
 - **CI:** 4 jobs (python · contracts · agent · terminal) on every push — `.github/workflows/ci.yml`
-- **Status for judges:** [`docs/SUBMISSION.md`](docs/SUBMISSION.md)
 
 ---
 
@@ -224,7 +223,6 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |
 | `.github/workflows/` | CI (4 jobs) + the keep-alive ping for the free-tier press |
-| `docs/SUBMISSION.md` | The judge-facing status page |
 | `docs/WALLETS.md` | Which Circle wallet product does which job — and the constraint that forces each choice |
 
 **Suggested exports:** select the Estimator Core + On-chain + Instrument zones only → export PNG for the pitch deck's architecture slide. The Demo Theater box exports standalone as the demo-script slide. The Why-Arc rail exports as the "only on Arc" slide.
