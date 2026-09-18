@@ -79,6 +79,17 @@ and open series. They cannot take collateral or alter the oracle history. The re
   nothing yet. It is signed for forward compatibility; do not rely on it for authorization.
 - **The human tier** — a CAIP-122 signature plus an on-chain `HumanIdMirror.clusterOf` check.
   A claim the chain cannot confirm is a 401, not a downgrade to carded.
+- **The Desk feed pass** — the one way a smart account (which cannot sign x402) buys the
+  product. Its payment is a plain USDC transfer to the seller that the chain saw; the server
+  verifies the transfer *from the chain* (recipient, amount, age, unused hash), the press signs
+  a `FeedAccess` attestation for `pass_window_s`, relays it, and from then on a request carrying
+  that wallet's `DESK-SESSION` is served — the gate asks `FeedAccessAttestor.hasFeedAccess` on
+  chain, never a header. A pass is one payment, one hash, one window; a reused hash is refused
+  by the contract's nonce. What you are trusting: that the press signs only what the chain
+  showed it, which is the same trust as every print.
+- **Paying from your own wallet** — the terminal's browser payer signs the same Gateway
+  authorization the agents sign; your key never leaves your wallet, and this server only ever
+  reads your balances through its own RPC.
 - **On mainnet the service refuses to start** unless every gate is explicit and configured
   (`acr_core.mainnet_guard`); the faucet, the demo buyer and the attack lab do not exist
   there, and no environment variable can bring them back.

@@ -294,6 +294,48 @@ export function ApiConsole({
     }
   }, [path, runQuery, onRevenue, info]);
 
+  // A Desk pass: this browser's Desk wallet may hold one. A session is minted
+  // for the same stored identity the Desk uses, and the read carries it — the
+  // gate then asks the chain whether that wallet paid, not us.
+  const [deskPassBusy, setDeskPassBusy] = useState(false);
+  const [hasDeskIdentity, setHasDeskIdentity] = useState(false);
+  useEffect(() => {
+    try {
+      setHasDeskIdentity(!!localStorage.getItem("acr-desk-user"));
+    } catch {
+      /* storage blocked: no Desk identity to offer */
+    }
+  }, []);
+  const readWithDeskPass = useCallback(async () => {
+    setDeskPassBusy(true);
+    setError(null);
+    try {
+      const uid = localStorage.getItem("acr-desk-user");
+      if (!uid) throw new Error("open the Desk once to create a wallet first");
+      const sess = await fetch("/api/desk/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: uid }),
+      }).then((r) => r.json() as Promise<{ user_token?: string }>);
+      if (!sess.user_token) throw new Error("the Desk session could not be opened");
+      const res = await fetch("/api/console", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path, payer: "0xpass", desk_session: sess.user_token }),
+      });
+      const r = (await res.json()) as ConsoleResult & { detail?: string };
+      if (!res.ok) throw new Error(r.detail ?? `read failed ${res.status}`);
+      setResult(r);
+      setExpanded(false);
+      if (r.paid) onRevenue();
+      else setError("this wallet holds no feed pass — buy one on the Desk, then read here");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "read failed");
+    } finally {
+      setDeskPassBusy(false);
+    }
+  }, [path, onRevenue]);
+
   // The same exchange, signed by the VISITOR: 402 → their wallet signs the
   // Gateway authorization → paid retry → the receipt lands on the public tape.
   const payFromWallet = useCallback(async () => {
@@ -642,6 +684,11 @@ export function ApiConsole({
                     ) : injectedProvider() ? (
                       <button className="btn" onClick={walletConnect} disabled={walletBusy !== null}>
                         {walletBusy === "connect" ? "connecting…" : "Connect your wallet"}
+                      </button>
+                    ) : null}
+                    {hasDeskIdentity ? (
+                      <button className="btn btn-quiet" onClick={readWithDeskPass} disabled={deskPassBusy}>
+                        {deskPassBusy ? "asking the chain…" : "Read with your Desk pass →"}
                       </button>
                     ) : null}
                     {buyerReady?.buyer_ready ? (

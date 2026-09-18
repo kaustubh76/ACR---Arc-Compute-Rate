@@ -26,7 +26,7 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 
 | Doc | Covers |
 |---|---|
-| [acr-openapi.md](acr-openapi.md) | The seller API, endpoint by endpoint, rendered from the live OpenAPI 3.1 schema (`make openapi-doc-check` fails when stale). Mirrored at [`/developers`](https://arc-compute-rate.vercel.app/developers). |
+| [acr-openapi.md](acr-openapi.md) · [.pdf](acr-openapi.pdf) | The seller API, endpoint by endpoint, rendered from the live OpenAPI 3.1 schema (`make openapi-doc-check` fails when stale). Mirrored at [`/developers`](https://arc-compute-rate.vercel.app/developers). |
 | [agent-runbook.md](agent-runbook.md) | The Circle Agent Stack loop end to end: the buyer discovers listings, pays x402 nanopayments, reads its own transaction costs and reroutes. |
 | [AGENT-MODULE.md](AGENT-MODULE.md) | The agent card, the gate, and a rate limit denominated in **people** rather than keys — why the EIP-712 domain names no `verifyingContract`, and why the carded tier is evadable on purpose. |
 | [WALLETS.md](WALLETS.md) | Which of Circle's wallet products does which job here, and the constraint that forced each choice. The most reusable document in the repo. |

@@ -23,7 +23,8 @@ const WALLET_ID_RE = /^[a-f0-9-]{8,64}$/i;
 // own wallet pays the gas and rings the bell. Every refusal (not expired, no
 // fresh print, already settled) is made server-side before a challenge is
 // minted, so a PIN is never spent on a transaction that would revert.
-const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw", "settle"]);
+// "pass": the feed pass — a USDC transfer to the seller the chain then verifies.
+const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw", "settle", "pass"]);
 
 /* 28s, just inside maxDuration. The read endpoints (`limits`, `withdrawable`)
    make sequential Arc RPC calls whose retry backoff alone can approach 15s on a
@@ -117,6 +118,29 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
       return forward("/desk/withdrawable", {
         method: "POST",
         body: JSON.stringify({ address }),
+      });
+    }
+    case "pass-status": {
+      const token = body.user_token;
+      if (typeof token !== "string" || !TOKEN_RE.test(token)) {
+        return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
+      }
+      return forward("/desk/pass/status", {
+        method: "POST",
+        body: JSON.stringify({ user_token: token }),
+      });
+    }
+    case "pass-claim": {
+      const { user_token, tx_hash } = body as { user_token?: unknown; tx_hash?: unknown };
+      if (typeof user_token !== "string" || !TOKEN_RE.test(user_token)) {
+        return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
+      }
+      if (tx_hash !== undefined && (typeof tx_hash !== "string" || !/^(0x[0-9a-fA-F]{64})?$/.test(tx_hash))) {
+        return NextResponse.json({ detail: "bad tx_hash" }, { status: 400 });
+      }
+      return forward("/desk/pass/claim", {
+        method: "POST",
+        body: JSON.stringify({ user_token, tx_hash: tx_hash ?? "" }),
       });
     }
     case "challenge": {

@@ -643,16 +643,53 @@ def reset_facilitator() -> None:
     _facilitator = None
 
 
+def pass_receipt(desk_session: str) -> PaymentReceipt | None:
+    """A receipt-shaped answer for a Desk session holding a pass, or None. Amount
+    zero and a `pass:` reference, so nothing downstream mistakes it for a
+    settlement — it never reaches the receipts tape."""
+    from web3 import Web3
+
+    from . import desk, feedpass
+    from .desk import DeskError
+
+    s = get_settings()
+    try:
+        w = desk.wallet_of(desk_session)
+    except DeskError:
+        return None
+    except Exception:  # noqa: BLE001 — Circle down is "no pass", not a 500
+        return None
+    if not w:
+        return None
+    w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 10}))
+    has, until = feedpass.access(w3, w["address"])
+    if not has:
+        return None
+    return PaymentReceipt(
+        payer=w["address"], amount_usdc=0.0, tx_ref=f"pass:{until}", network=s.caip2(),
+        scheme="feed-pass", settled_at=float(until), resource="", seller=s.x402_pay_to or "",
+    )
+
+
 async def require_payment(
     request: Request,
     response: Response,
     payment_signature: str | None = Header(default=None, alias="PAYMENT-SIGNATURE"),
     x_payment: str | None = Header(default=None, alias="X-Payment"),
+    desk_session: str | None = Header(default=None, alias="DESK-SESSION"),
 ) -> PaymentReceipt:
     """FastAPI dependency: 402 unless a valid x402 payment is present. Accepts the
-    canonical ``PAYMENT-SIGNATURE`` header or the legacy ``X-Payment``."""
+    canonical ``PAYMENT-SIGNATURE`` header or the legacy ``X-Payment`` — or a
+    ``DESK-SESSION`` whose wallet holds a feed pass on chain (index_api.feedpass):
+    the Desk's smart accounts cannot sign x402, so their payment is a USDC transfer
+    the chain saw, and the gate asks the chain rather than a header."""
     fac = get_facilitator()
     header = payment_signature or x_payment
+    if header is None and desk_session:
+        receipt = pass_receipt(desk_session)
+        if receipt is not None:
+            request.state.payment = receipt
+            return receipt
     if header is None:
         raise fac.challenge(request)
     receipt = await fac.process(request, header, response)

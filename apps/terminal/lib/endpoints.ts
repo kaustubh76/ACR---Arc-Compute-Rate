@@ -104,6 +104,8 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "POST", path: "/desk/limits", gate: "public", family: "desk", run: null, why: "session" },
   { method: "POST", path: "/desk/withdrawable", gate: "public", family: "desk", run: null, why: "session" },
   { method: "POST", path: "/desk/challenge", gate: "public", family: "desk", run: null, why: "session" },
+  { method: "POST", path: "/desk/pass/status", gate: "public", family: "desk", run: null, why: "session" },
+  { method: "POST", path: "/desk/pass/claim", gate: "public", family: "desk", run: null, why: "session" },
 
   { method: "GET", path: "/revenue", gate: "public", family: "ops", run: "/revenue" },
   { method: "GET", path: "/x402/info", gate: "public", family: "ops", run: "/x402/info" },

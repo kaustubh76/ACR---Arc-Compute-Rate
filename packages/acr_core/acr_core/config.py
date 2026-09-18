@@ -306,6 +306,15 @@ class ACRSettings(BaseSettings):
     #: default; the API serves public read data + the x402 gate); set to the
     #: Terminal's origin(s) to lock it down. Empty disables CORS entirely.
     cors_origins: str = "*"
+    # --- the Desk feed pass: a plain on-chain USDC payment that buys timed access ---
+    #: What a pass costs, in USDC, paid by the Desk's smart account to `x402_pay_to`.
+    pass_price_usdc: float = 1.0
+    #: How long a pass grants, in seconds. Short by design: re-buying is one PIN
+    #: ceremony, and a signer compromise should cost days, not a quarter.
+    pass_window_s: int = 86_400
+    #: A claim must name a transfer mined within this many seconds — a receipt
+    #: from last month is not a purchase made today.
+    pass_claim_max_age_s: int = 3_600
     #: The faucet, the demo buyer and the attack lab. Honoured on testnet only;
     #: on mainnet `acr_core.mainnet_guard.testnet_surfaces_enabled` is False
     #: regardless of this value — see that module for why no env can flip it.

@@ -493,6 +493,60 @@ export function PublicDesk({
       setNote("the settlement is still confirming. This page will catch up on its own");
     });
 
+  // The feed pass: the one thing a Desk wallet can BUY from the product. A smart
+  // account cannot sign x402, so its payment is a plain USDC transfer the chain
+  // saw; the server verifies it there and mints an attestation the gate honours.
+  type PassStatus = {
+    price_usdc: number;
+    window_s: number;
+    available: boolean;
+    has_access: boolean;
+    paid_until: number | null;
+  };
+  const [pass, setPass] = useState<PassStatus | null>(null);
+  const refreshPass = useCallback(async (s: Session) => {
+    try {
+      const st = await api<PassStatus>("/api/desk/pass-status", { user_token: s.user_token });
+      setPass(st);
+      return st;
+    } catch {
+      return null;
+    }
+  }, []);
+  useEffect(() => {
+    if (session?.wallet) void refreshPass(session);
+  }, [session, refreshPass]);
+
+  const buyPass = () =>
+    step(async () => {
+      if (!session?.wallet) return;
+      const { address } = session.wallet;
+      const ch = await api<{ challenge_id: string }>("/api/desk/challenge", {
+        user_token: session.user_token,
+        wallet_id: session.wallet.wallet_id,
+        action: "pass",
+        index_id: indexId,
+        address,
+      });
+      await executeChallenge(session, ch.challenge_id);
+      // The chain decides. The claim looks the transfer up through Circle's own
+      // record, then verifies it on chain before the press signs anything —
+      // so a claim can be early; it just says "not confirmed yet".
+      let last = "the payment is still confirming";
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        try {
+          await api<unknown>("/api/desk/pass-claim", { user_token: session.user_token });
+          await refreshPass(session);
+          return;
+        } catch (e) {
+          last = e instanceof Error ? e.message : last;
+          if (!/confirm|not found|moment/i.test(last)) throw e;
+        }
+      }
+      setNote(`${last}. Your pass will be claimable once the transfer confirms`);
+    });
+
   const withdraw = (row: ExitRow) =>
     step(async () => {
       if (!session?.wallet) return;
@@ -960,6 +1014,33 @@ export function PublicDesk({
             </span>
           </p>
         ))}
+
+      {/* The pass — what a Desk wallet buys FROM the product, not on it. */}
+      {session?.wallet && pass?.available ? (
+        <p style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {pass.has_access && pass.paid_until ? (
+            <span className="chip chip-gold">
+              <Ed
+                x={`feed pass · until ${new Date(pass.paid_until * 1000).toUTCString().slice(5, 22)} UTC`}
+                p={`you can read the paid feed until ${new Date(pass.paid_until * 1000).toUTCString().slice(5, 22)} UTC`}
+              />
+            </span>
+          ) : (
+            <button className="btn" onClick={buyPass} disabled={busy}>
+              <Ed
+                x={busy ? "confirming…" : `buy a feed pass · ${pass.price_usdc} USDC / ${Math.round(pass.window_s / 3600)}h`}
+                p={busy ? "paying…" : `unlock the paid feed · ${pass.price_usdc} dollars for ${Math.round(pass.window_s / 3600)} hours`}
+              />
+            </button>
+          )}
+          <span className="muted">
+            <Ed
+              x="one on-chain USDC transfer; the press attests it and the gate serves this wallet without a payment header"
+              p="one payment from this wallet, and the paid feed opens for you: no card, no key to manage"
+            />
+          </span>
+        </p>
+      ) : null}
 
       <FillToast payload={fillToast} explorer={explorer} />
     </section>

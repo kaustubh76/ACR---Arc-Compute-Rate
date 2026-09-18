@@ -1681,10 +1681,89 @@ class DeskFaucetRequest(BaseModel):
     user_token: str
 
 
+class DeskPassStatusRequest(BaseModel):
+    user_token: str
+
+
+class DeskPassClaimRequest(BaseModel):
+    user_token: str
+    #: The transfer to claim. Omitted → the newest completed transfer this wallet
+    #: made to the seller, found through Circle's own record and then verified on
+    #: chain like any other — the browser never has to learn a hash.
+    tx_hash: str = ""
+
+
+@app.post("/desk/pass/status")
+def desk_pass_status(req: DeskPassStatusRequest, request: Request) -> dict:
+    """What a pass costs, and whether this session's wallet holds one — read from
+    the chain, never from our own memory. POST so the token stays out of logs."""
+    ratelimit.check(request, "wallet", ratelimit.session_ident(req.user_token))
+    from . import desk, feedpass
+
+    q = feedpass.quote()
+    w = _desk_call(desk.wallet_of, req.user_token)
+    has, until = (False, 0)
+    if w:
+        has, until = feedpass.access(_pass_w3(), w["address"])
+    return {
+        "price_usdc": q.price_usdc,
+        "window_s": q.window_s,
+        "pay_to": q.pay_to or None,
+        "attestor": q.attestor,
+        "available": bool(q.pay_to and q.attestor),
+        "wallet": (w or {}).get("address"),
+        "has_access": has,
+        "paid_until": until or None,
+    }
+
+
+@app.post("/desk/pass/claim")
+def desk_pass_claim(req: DeskPassClaimRequest, request: Request) -> dict:
+    """Turn a mined USDC transfer into a pass: verify it on chain, sign the
+    attestation with the press, relay it, answer with what the chain now says.
+    Every check runs before the signature exists (index_api.feedpass)."""
+    ratelimit.check(request, "challenge", ratelimit.session_ident(req.user_token))
+    from . import desk, feedpass
+
+    w = _desk_call(desk.wallet_of, req.user_token)
+    if not w:
+        raise HTTPException(409, "this session has no wallet yet — finish the PIN ceremony first")
+    signer = _pass_signer()
+    if signer is None:
+        raise HTTPException(503, "no press signer configured: a pass cannot be attested")
+    tx_hash = req.tx_hash.strip()
+    if not tx_hash:
+        q = feedpass.quote()
+        found = _desk_call(desk.recent_transfers_from, w["address"], q.pay_to) if q.pay_to else []
+        if not found:
+            raise HTTPException(404, "no completed payment from this wallet to the seller yet — "
+                                     "give the transfer a moment to confirm, then claim again")
+        tx_hash = found[0]["tx_hash"]
+    try:
+        out = feedpass.mint(_pass_w3(), signer, wallet=w["address"], tx_hash=tx_hash)
+    except feedpass.PassError as e:
+        raise HTTPException(e.status, e.detail) from e
+    feedpass.forget(w["address"])
+    return out
+
+
+def _pass_w3():
+    from web3 import Web3
+
+    s = get_settings()
+    return Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
+
+
+def _pass_signer():
+    from acr_oracle_client import build_role_signer
+
+    return build_role_signer("poster", get_settings())
+
+
 class DeskChallengeRequest(BaseModel):
     user_token: str
     wallet_id: str
-    action: str  # approve | collateral | trade | withdraw
+    action: str  # approve | collateral | trade | withdraw | settle | pass
     index_id: str = "ACR-GPU"
     qty: float = 0.0
     address: str = ""  # the SCA — lets the server size the action to live margin
