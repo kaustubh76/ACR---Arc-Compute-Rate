@@ -113,7 +113,8 @@ def _custody(w3, s, hard: bool) -> bool:
             owner = c.functions.owner().call()
             pending = c.functions.pendingOwner().call()
         except Exception:
-            okk &= rep(False, f"{label}: owner()/pendingOwner() unreadable")
+            okk &= rep(False, f"{label}: owner()/pendingOwner() unreadable at {addr[:10]}… — "
+                             "no such contract on this chain? (a testnet address left in .env)")
             continue
         owners[label] = owner
         okk &= rep(pending == ZERO, f"{label}: no pending ownership transfer")

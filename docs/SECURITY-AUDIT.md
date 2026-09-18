@@ -166,6 +166,18 @@ left the README when hackathon material was archived. Re-stated in `docs/SECURIT
   C2, C3 and M1 land.
 - A disclosure policy (root `SECURITY.md`) now; a bounty when there is money worth stealing.
 
+## The mainnet ceremony, rehearsed
+
+On 2026-09-18 the full deploy-and-custody flow was run against a local anvil exactly as the
+runbook prescribes for mainnet: `DeployMainnet.s.sol` in one broadcast (venue on v2, press
+signer set, deploy key's signer bit revoked on all five signing contracts, ownership transfer
+started), `acceptOwnership()` from the new owner on all six owned contracts, then
+`verify_deploy.py` with the custody checks enforced. Every check was green — owners equal the
+expected owner, no pending transfers, the deploy key neither owns nor signs anything, the press
+signs both oracles. The rehearsal also caught two paper cuts fixed in the same commit: a deploy
+script that named the wrong environment variable, and a verifier message that did not say
+which address it could not read.
+
 ## Re-running this audit
 
 ```bash
