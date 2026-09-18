@@ -180,7 +180,7 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 
 Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **696 py** · **156 forge** · **165 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **716 py** · **176 forge** · **166 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -231,7 +231,7 @@ The four futures workflows (`futures-heartbeat`, `futures-lifecycle`, `futures-r
 
 ## Known limitations
 
-Stated here rather than discovered:
+Stated here rather than discovered. The full trust model — who can do what, and what happens when something fails — is [`docs/SECURITY.md`](docs/SECURITY.md); to report a vulnerability, [`SECURITY.md`](SECURITY.md).
 
 - **The published tape on this deployment is `sim`.** About 18,500 real Arc settlements collapse to a single price, so no index is honestly publishable from them yet; the site says so on the page.
 - **The public API runs on a 512 MB free tier** that can restart. A 10-minute keep-alive, a post-on-wake press and a settlement-triggered mirror keep the chain row even when memory does not.

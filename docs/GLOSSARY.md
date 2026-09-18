@@ -380,8 +380,10 @@ and it proves its own tamper-resistance.
 - **`Traded` event / trade tape / fill** — every executed trade emits a `Traded`
   log; the Terminal streams these as the live tape. *The ticker of trades
   scrolling by.*
-- **socialized-loss settlement** — at expiry (via `latestPrintWithAge`, rejecting
-  a mark older than `MAX_SETTLE_AGE` = 7200s), losers are floored to zero and any
+- **socialized-loss settlement** — at expiry (at the first print the chain saw after
+  it, which must have landed within `MAX_SETTLE_AGE` = 7200s of expiry; after
+  `SETTLE_GRACE` = 7 days, `settleStale` uses the best print that exists so nothing
+  stays locked), losers are floored to zero and any
   shortfall haircuts the winners pro-rata, so the contract never pays out more
   USDC than it holds (**solvency**, no minting). *If a loser can't cover, the pot
   is shared out fairly rather than promising money that isn't there.*

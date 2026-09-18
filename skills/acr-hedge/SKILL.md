@@ -8,7 +8,8 @@ description: Hedge compute-price risk on Arc using ACR — discover the priced i
 ACR (Arc Compute Rate) publishes a manipulation-resistant benchmark for machine-service
 prices — ACR-INF ($/1k tokens), ACR-GPU ($/GPU-sec), ACR-DATA ($/MB) — pressed hourly
 on-chain on Arc Testnet (chain 5042002), with a cash-settled weekly futures venue that
-settles only against a print less than two hours old. This skill is the loop the
+settles at the first print after expiry (posted within two hours of it; a 7-day
+escape hatch covers a dead feed). This skill is the loop the
 reference agent runs: **pay for the print, then trade on it — and because the venue
 fills every trade at that same print, the position you end up holding is the print you
 bought.** One wallet buys both legs; one URL shows both.
@@ -84,7 +85,7 @@ curl -s https://acr-api-1fto.onrender.com/futures   # per-index series: id, mark
 
 ACRFutures: `0x29d97c629a8278f7ec4218ab0bd8baa9182642fe` (testnet.arcscan.app). Every
 fill takes the oracle mark; the designated maker mirrors your side; 20% initial margin;
-settlement refuses a print older than 2 hours.
+settlement takes the first print after expiry, and needs it within 2 hours of expiry.
 
 ## Step 4 — Hedge
 

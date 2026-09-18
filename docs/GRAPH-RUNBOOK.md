@@ -7,9 +7,10 @@ Read the two warnings first — they are the only ways this sequence can cost
 something real.
 
 > **Never repoint `ACR_ORACLE_ADDRESS`.** `ACRFutures.oracle` is `immutable`,
-> and `settle()` refuses a print older than `MAX_SETTLE_AGE = 7200`. Two hours
-> after the last v1 print, every expired open series becomes unsettleable and
-> its collateral sits stranded until v1 prints again. v2 is deployed *alongside*
+> and `settle()` needs a print posted within `MAX_SETTLE_AGE = 7200` of expiry. On the
+> venue deployed before the escape hatch, a feed that stays quiet strands every expired
+> series until v1 prints again; the current source adds `settleStale` after a 7-day
+> grace (docs/SECURITY.md). v2 is deployed *alongside*
 > v1 and the poster writes to both. v1 is never allowed to go stale to serve v2.
 
 > **Backfill v2 before its first live post.** `postPrint` enforces *strictly*

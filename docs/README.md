@@ -35,6 +35,7 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 
 | Doc | Covers |
 |---|---|
+| [SECURITY.md](SECURITY.md) | **Read this before putting money on the venue.** The trust model: what a signer can and cannot do, every owner power by contract, what happens when the press dies or a key is stolen, and how a winner can be paid less than their gain. |
 | [SECURITY-AUDIT.md](SECURITY-AUDIT.md) | The pre-mainnet audit, dated 2026-09-18: every finding with its severity, the live-chain evidence, and the status column each fix updates. |
 
 ## Run it — operating the system

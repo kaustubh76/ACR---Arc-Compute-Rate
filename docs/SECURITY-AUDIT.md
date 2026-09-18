@@ -1,6 +1,6 @@
 # Security & transparency audit — before Arc mainnet
 
-**Date:** 2026-09-18 · **Scope:** the seven contracts, the seller API, the terminal's server
+**Date:** 2026-09-18 (fixes landed the same day) · **Scope:** the seven contracts, the seller API, the terminal's server
 routes, key custody, dependencies · **Chain state read from:** Arc testnet `5042002` at the
 time of writing · **Status column:** updated by the commit that closes each finding.
 
@@ -34,18 +34,18 @@ not us?** Findings are ranked by that answer, not by how clever the bug is.
 
 | # | Severity | Finding | Status |
 |---|---|---|---|
-| C1 | **Critical** | One hot EOA owns five contracts and signs both oracles | OPEN |
-| C2 | **Critical** | The oracle accepts any value a signer signs — no move bound | OPEN |
-| C3 | **Critical** | Venue collateral is locked if the press dies after expiry — no escape hatch | OPEN |
-| H1 | High | Both gates fail open in `auto` mode, which is the default | OPEN |
-| H2 | High | Testnet-only money surfaces have no mainnet kill-switch | OPEN |
-| M1 | Medium | Settlement price is the caller's choice among post-expiry prints | OPEN |
-| M2 | Medium | Socialized-loss clearing is undisclosed to users | OPEN |
-| M3 | Medium | Owner powers are single-key, untimelocked, and unpublished | OPEN |
-| M4 | Medium | `scopeHash` is signed but unenforced | OPEN (disclosed) |
-| L1 | Low | CORS default `*` on the read API | OPEN |
-| L2 | Low | Next.js 14.2.33 — critical advisory, fix is 16.3.5 | OPEN |
-| L3 | Low | `cryptography` 49.0.0 and `aiohttp` 3.14.1 advisories | OPEN |
+| C1 | **Critical** | One hot EOA owns five contracts and signs both oracles | **FIXED for mainnet** — `DeployMainnet.s.sol` revokes the deployer's signer bit on every contract in the deploy broadcast and starts the ownership hand-over; `make verify-mainnet` fails if either is undone. Testnet: still as found (advisory ⚠). |
+| C2 | **Critical** | The oracle accepts any value a signer signs — no move bound | **FIXED in source** — `ACROracleV2.MAX_MOVE_BPS` (2 000); the mainnet venue settles against v2. Invariant `MoveNeverExceedsBound`. The testnet oracles predate it. |
+| C3 | **Critical** | Venue collateral is locked if the press dies after expiry — no escape hatch | **FIXED in source** — `ACRFutures.settleStale` after `SETTLE_GRACE` (7 days), callable by anyone. The testnet venue predates it. |
+| H1 | High | Both gates fail open in `auto` mode, which is the default | **FIXED** — `acr_core.mainnet_guard`: on chain 5042 the API refuses to boot unless both modes are explicit and configured. |
+| H2 | High | Testnet-only money surfaces have no mainnet kill-switch | **FIXED** — `/desk/faucet`, `/demo/buyer/start`, `/demo/attack/start` are 404 on mainnet regardless of environment; the terminal's `/api/buy` is 404 on mainnet unless `ACR_TERMINAL_BUYER=1`. |
+| M1 | Medium | Settlement price is the caller's choice among post-expiry prints | **FIXED in source** — `settle` uses the first print posted at or after expiry (`firstPrintPostedAtOrAfter`, keyed on chain time). |
+| M2 | Medium | Socialized-loss clearing is undisclosed to users | **DISCLOSED** — `docs/SECURITY.md`, linked from the README's *Known limitations*. |
+| M3 | Medium | Owner powers are single-key, untimelocked, and unpublished | **DISCLOSED** — the owner-powers table in `docs/SECURITY.md`. Timelock / multisig: open until one exists on Arc. |
+| M4 | Medium | `scopeHash` is signed but unenforced | **DISCLOSED** — `docs/SECURITY.md`; enforcement is open. |
+| L1 | Low | CORS default `*` on the read API | **FIXED for mainnet** — the guard requires an explicit origin on chain 5042. |
+| L2 | Low | Next.js 14.2.33 — critical advisory, fix is 16.3.5 | OPEN — a two-major upgrade; its own PR. `nanoid` fixed in place; `postcss`/`undici` ride on Next. |
+| L3 | Low | `cryptography` 49.0.0 and `aiohttp` 3.14.1 advisories | **FIXED** — `cryptography` 50.0.1, `aiohttp` 3.14.3. |
 
 ### C1 · One hot EOA owns five contracts and signs both oracles
 
