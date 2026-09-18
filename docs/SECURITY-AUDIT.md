@@ -35,7 +35,7 @@ not us?** Findings are ranked by that answer, not by how clever the bug is.
 | # | Severity | Finding | Status |
 |---|---|---|---|
 | C1 | **Critical** | One hot EOA owns five contracts and signs both oracles | **FIXED for mainnet** — `DeployMainnet.s.sol` revokes the deployer's signer bit on every contract in the deploy broadcast and starts the ownership hand-over; `make verify-mainnet` fails if either is undone. Testnet: still as found (advisory ⚠). |
-| C2 | **Critical** | The oracle accepts any value a signer signs — no move bound | **FIXED in source** — `ACROracleV2.MAX_MOVE_BPS` (2 000); the mainnet venue settles against v2. Invariant `MoveNeverExceedsBound`. The testnet oracles predate it. |
+| C2 | **Critical** | The oracle accepts any value a signer signs — no move bound | **FIXED in source** — `ACROracleV2.MAX_MOVE_BPS` (2 000); the mainnet venue settles against v2. Invariant `MoveNeverExceedsBound`; the anvil round trip in `test_oracle_v2_onchain.py` proves the revert through the Python client. The testnet oracles predate it. |
 | C3 | **Critical** | Venue collateral is locked if the press dies after expiry — no escape hatch | **FIXED in source** — `ACRFutures.settleStale` after `SETTLE_GRACE` (7 days), callable by anyone. The testnet venue predates it. |
 | H1 | High | Both gates fail open in `auto` mode, which is the default | **FIXED** — `acr_core.mainnet_guard`: on chain 5042 the API refuses to boot unless both modes are explicit and configured. |
 | H2 | High | Testnet-only money surfaces have no mainnet kill-switch | **FIXED** — `/desk/faucet`, `/demo/buyer/start`, `/demo/attack/start` are 404 on mainnet regardless of environment; the terminal's `/api/buy` is 404 on mainnet unless `ACR_TERMINAL_BUYER=1`. |

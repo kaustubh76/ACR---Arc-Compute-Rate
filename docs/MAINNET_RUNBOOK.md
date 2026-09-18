@@ -112,8 +112,15 @@ for adding one contract to an existing deployment; they are not the mainnet path
 6. **Prove it.** `make verify-mainnet` — the same preflight as testnet plus the custody
    checks, which are **hard failures on chain 5042**: no pending transfer, every owner equals
    `ACR_EXPECTED_OWNER`, the deploy key is neither owner nor signer, the press wallet signs.
-   Then `make verify-live` against the redeployed API. Paste the first `postPrint`
-   transaction hash into `README.md` and this file.
+   Then `make verify-live` against the redeployed API; its last section, *revenue*, checks
+   the two ways a human pays (a 402 a wallet can sign, a Desk pass claim that refuses a
+   stranger). Paste the first `postPrint` transaction hash into `README.md` and this file.
+7. **Buy one thing yourself.** On the terminal, `/exchange` → any listing → *connect your
+   wallet to buy* → *buy with your wallet*. A row on the tape, a receipt under
+   `/api/marketplace/receipts`, and `/api/revenue` moving by the listing's price is the
+   first mainnet revenue, and the proof the storefront works without the house buyer (which
+   is off on 5042 unless `ACR_TERMINAL_BUYER=1`). Until Arc's RPC is public, this needs a
+   wallet whose RPC is the credentialed one.
 
 ## 4 · What does not move on day one
 
