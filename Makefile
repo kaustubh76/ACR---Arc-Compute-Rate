@@ -231,13 +231,16 @@ verify-mainnet:
 #   ACR_MAINNET_RPC_URL=https://rpc.arc.network ACR_MAINNET_USDC=0x... make deploy-mainnet-dry
 #
 ACR_MAINNET_CHAIN_ID ?= 5042
-MAINNET_SCRIPTS = Deploy.s.sol DeployOracleV2.s.sol DeployReceiptMirror.s.sol DeployHumanIdMirror.s.sol
+# One script, one broadcast: the venue on v2, the deploy key retired as a signer on every
+# contract, ownership hand-over started (docs/SECURITY-AUDIT.md C1, C2).
+MAINNET_SCRIPTS = DeployMainnet.s.sol
 
 define mainnet_preflight
 	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_MAINNET_USDC)" || { echo "ACR_MAINNET_USDC not set: the USDC address is NOT defaulted on mainnet (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set"; exit 1; }
 	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set: HumanIdMirror is deployed WITH its commitment (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
+	@test -n "$(ACR_PRESS_SIGNER)" || { echo "ACR_PRESS_SIGNER not set: the press custody wallet that will sign prints; the deploy key is retired as a signer in the same broadcast (docs/MAINNET_RUNBOOK.md)"; exit 1; }
 	@got=$$(cast chain-id --rpc-url $(ACR_MAINNET_RPC_URL)); test "$$got" = "$(ACR_MAINNET_CHAIN_ID)" || { echo "RPC answers chain id $$got, expected $(ACR_MAINNET_CHAIN_ID) — wrong network, refusing"; exit 1; }
 	@echo "  chain id $(ACR_MAINNET_CHAIN_ID) confirmed at $(ACR_MAINNET_RPC_URL)"
 endef
