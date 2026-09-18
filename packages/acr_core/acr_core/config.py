@@ -254,6 +254,10 @@ class ACRSettings(BaseSettings):
     #: default; the API serves public read data + the x402 gate); set to the
     #: Terminal's origin(s) to lock it down. Empty disables CORS entirely.
     cors_origins: str = "*"
+    #: The faucet, the demo buyer and the attack lab. Honoured on testnet only;
+    #: on mainnet `acr_core.mainnet_guard.testnet_surfaces_enabled` is False
+    #: regardless of this value — see that module for why no env can flip it.
+    testnet_surfaces: bool = True
 
     # --- The Graph ---
     #: Subgraph query URL (Subgraph Studio). Empty → every subgraph-backed

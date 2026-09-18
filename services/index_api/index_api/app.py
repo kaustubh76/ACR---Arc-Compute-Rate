@@ -26,7 +26,13 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from acr_core import ALL_INDEX_IDS, get_settings, spec_for
+from acr_core import (
+    ALL_INDEX_IDS,
+    assert_mainnet_ready,
+    get_settings,
+    spec_for,
+    testnet_surfaces_enabled,
+)
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
@@ -282,7 +288,7 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
     # `futures.configured` branch below was not enough: this outer guard would
     # still have returned first on a mirror-only deployment.
-    from acr_core import get_settings as _gs
+    from acr_core import testnet_surfaces_enabled as _gs
 
     mirror_configured = bool(_gs().receipt_mirror_address)
     if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
@@ -497,6 +503,10 @@ async def _background(stop: asyncio.Event) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # On Arc mainnet, refuse to start unless every gate is explicit and configured.
+    # Both gates fail OPEN in `auto` mode; a stack trace at deploy time is the
+    # only signal an operator reliably reads. Off mainnet this is a no-op.
+    assert_mainnet_ready(get_settings())
     stop = asyncio.Event()
     tasks = [
         asyncio.create_task(_background(stop)),
@@ -1575,7 +1585,22 @@ class AttackStartRequest(BaseModel):
 _demo_tasks: set[asyncio.Task] = set()
 
 
-@app.post("/demo/attack/start")
+def _testnet_surface(name: str):
+    """A route-level dependency: the faucet, the demo buyer and the attack lab spend
+    OUR money on a stranger's request, so they exist only off mainnet —
+    `testnet_surfaces_enabled` is False on chain 5042 no matter what the environment
+    says. As a dependency it runs BEFORE body validation, so the answer is 404 for any
+    request shape — and 404 rather than 403, because a route that admits it exists
+    invites the next attempt."""
+
+    def _check() -> None:
+        if not testnet_surfaces_enabled(get_settings()):
+            raise HTTPException(404, f"{name} is not available on this network")
+
+    return _check
+
+
+@app.post("/demo/attack/start", dependencies=[Depends(_testnet_surface('the attack lab'))])
 async def demo_attack_start(req: AttackStartRequest | None = None) -> dict:
     """Kick a live wash-flow attack run for the Terminal's Attack Lab (ungated —
     it drives the human demo). Single-flight: 409 while a run is in progress."""
@@ -1608,7 +1633,7 @@ class BuyerStartRequest(BaseModel):
     delay_ms: int = 400
 
 
-@app.post("/demo/buyer/start")
+@app.post("/demo/buyer/start", dependencies=[Depends(_testnet_surface('the demo buyer'))])
 async def demo_buyer_start(req: BuyerStartRequest | None = None) -> dict:
     """Release the Exchange's floor buyer (ungated — it drives the human demo):
     N real x402 two-act exchanges through this app's own gate, receipts landing
@@ -1710,7 +1735,7 @@ def desk_wallet(req: DeskWalletRequest, request: Request) -> dict:
     }
 
 
-@app.post("/desk/faucet")
+@app.post("/desk/faucet", dependencies=[Depends(_testnet_surface('the faucet'))])
 def desk_faucet(req: DeskFaucetRequest, request: Request) -> dict:
     """Claim + start the one-per-wallet 0.5 USDC stake from the custody wallet.
     The destination is THIS SESSION'S wallet — never a caller-supplied address.
