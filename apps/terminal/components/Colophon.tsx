@@ -3,7 +3,7 @@
 import { useConnection } from "@/lib/useConnection";
 import { blockedCount, screenState, screenedCount } from "@/lib/gate";
 import { useGate, useHumanId } from "@/lib/useLive";
-import { deployedContracts } from "@/lib/chain";
+import { chainFacts, deployedContracts, isMainnet } from "@/lib/chain";
 import { ArcHorizon } from "./ArcHorizon";
 import { ContractRegister } from "./chain/ContractRegister";
 import { Ed } from "./Ed";
@@ -44,6 +44,7 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
   const env = conn.env;
   const rows = deployedContracts(env.data.chain, env.data.oracle);
+  const onMainnet = isMainnet(chainFacts(env.data.chain));
   /* What "verified" means in THIS deployment, read from the press rather than
      stated from a constant. The gate is an environment variable: a footer that
      named it from a literal would keep claiming one backend after an operator
@@ -128,9 +129,15 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
               mainnet runbook rehearsed. A judge reading "Arc Testnet" cannot
               otherwise tell whether mainnet is a plan or a paragraph. */}
           {" · "}
-          <span title="make deploy-mainnet-dry simulates all five deploys on eip155:5042; docs/MAINNET_RUNBOOK.md">
-            <Ed x="MAINNET-READY FOR 5042 (2026-09-16)" p="READY FOR THE REAL NETWORK ON 2026-09-16" />
-          </span>
+          {onMainnet ? (
+            <span title="eip155:5042 — the network this page reads from">
+              <Ed x="ON ARC MAINNET (5042)" p="ON THE REAL NETWORK" />
+            </span>
+          ) : (
+            <span title="make deploy-mainnet-dry simulates all five deploys on eip155:5042; docs/MAINNET_RUNBOOK.md">
+              <Ed x="MAINNET-READY FOR 5042" p="READY FOR THE REAL NETWORK" />
+            </span>
+          )}
         </p>
 
         {/* The identity line. Rendered only when the press answers, because a

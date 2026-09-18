@@ -151,6 +151,14 @@ export async function connectWallet(f: Facts): Promise<WalletSession> {
   } catch (e) {
     const code = (e as { code?: number }).code;
     if (code !== 4902) throw e; // 4902: unknown chain → add it
+    if (!f.rpc) {
+      // Arc mainnet's permissioned preview: there is no public RPC to give the
+      // wallet, so it cannot be added. Say so, and name the path that works.
+      throw new Error(
+        `${f.name} is not in your wallet and has no public RPC yet (permissioned preview). ` +
+          "Pay through the Desk pass for now, or come back at mainnet GA.",
+      );
+    }
     await eth.request({ method: "wallet_addEthereumChain", params: [addChainParams(f)] });
   }
   const client = createWalletClient({ chain: viemChain(f), transport: custom(eth), account: address });

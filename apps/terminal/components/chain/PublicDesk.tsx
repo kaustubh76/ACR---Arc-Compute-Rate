@@ -7,7 +7,8 @@ import { TxLink } from "./TxLink";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
 import { formatQty, headroomBar, newestFillSince } from "@/lib/futuresBook";
-import type { FuturesDeskRow, FuturesTradeRow } from "@/lib/types";
+import type { ChainFactsData, FuturesDeskRow, FuturesTradeRow } from "@/lib/types";
+import { chainFacts, isMainnet } from "@/lib/chain";
 import { deskPhase, type DeskPhase } from "@/lib/deskPhase";
 import { DeskSteps } from "./DeskSteps";
 import { DESK_ADDRESS_KEY } from "@/lib/useDeskAddress";
@@ -119,11 +120,15 @@ export function PublicDesk({
   desks,
   live,
   explorer,
+  chain,
   wakeRemainingS,
 }: {
   desks?: Record<string, FuturesDeskRow>;
   live: boolean;
   explorer?: string;
+  /** The payload's chain facts. On mainnet there is no faucet: the stake is the
+   *  reader's own USDC, sent to the wallet this desk opens for them. */
+  chain?: ChainFactsData | null;
   /** Seconds left on the wake estimate, passed down from the page that already
    *  owns the connection ladder. A prop rather than a useConnection() call in
    *  here: this component renders inside a page whose envelope arrives from the
@@ -136,6 +141,7 @@ export function PublicDesk({
   const [session, setSession] = useState<Session | null>(null);
   const [usdc, setUsdc] = useState<number | null>(null);
   const [indexId, setIndexId] = useState("ACR-GPU");
+  const mainnet = isMainnet(chainFacts(chain ?? null));
   const [position, setPosition] = useState<Position | null>(null);
   const [limits, setLimits] = useState<Limits | null>(null);
   const [exit, setExit] = useState<Withdrawable | null>(null);
@@ -678,8 +684,16 @@ export function PublicDesk({
 
       <p className="muted" style={{ maxWidth: 620 }}>
         <Ed
-          x="Open a PIN-secured Circle wallet, stake $0.50 of testnet USDC, and take a real position on ACRFutures. Withdraw whenever you like."
-          p="Make a small wallet locked by your PIN, get 50 cents of test money, and place a real trade. You can take it back out any time."
+          x={
+            mainnet
+              ? "Open a PIN-secured Circle wallet, fund it with your own USDC, and take a real position on ACRFutures. Withdraw whenever you like."
+              : "Open a PIN-secured Circle wallet, stake $0.50 of testnet USDC, and take a real position on ACRFutures. Withdraw whenever you like."
+          }
+          p={
+            mainnet
+              ? "Make a small wallet locked by your PIN, put your own dollars in, and place a real trade. You can take it back out any time."
+              : "Make a small wallet locked by your PIN, get 50 cents of test money, and place a real trade. You can take it back out any time."
+          }
         />
       </p>
 
@@ -688,8 +702,16 @@ export function PublicDesk({
           stake are ours. A reader should not have to infer that. */}
       <p className="muted" style={{ maxWidth: 620 }}>
         <Ed
-          x="Honest framing: the stake is our testnet grant and the maker opposite you is our bot. The wallet, PIN and fills are real, on-chain."
-          p="To be straight: the 50 cents is ours and so is the trader on the other side. Only your PIN moves your money, and the trades are real."
+          x={
+            mainnet
+              ? "Honest framing: the money is yours, the maker opposite you is our bot, and a winner can be haircut at settlement (docs/SECURITY.md)."
+              : "Honest framing: the stake is our testnet grant and the maker opposite you is our bot. The wallet, PIN and fills are real, on-chain."
+          }
+          p={
+            mainnet
+              ? "To be straight: it is your money, the trader on the other side is ours, and if a loser cannot pay, winners get a little less."
+              : "To be straight: the 50 cents is ours and so is the trader on the other side. Only your PIN moves your money, and the trades are real."
+          }
         />
       </p>
 
@@ -742,10 +764,40 @@ export function PublicDesk({
         </p>
       )}
 
-      {phase === "unfunded" && (
+      {phase === "unfunded" && !mainnet && (
         <button className="btn" onClick={stake} disabled={busy}>
           <Ed x={busy ? "settling…" : "take your $0.50 stake"} p={busy ? "sending…" : "get my 50 cents"} />
         </button>
+      )}
+      {phase === "unfunded" && mainnet && session?.wallet && (
+        <div className="lab-note" style={{ marginTop: 4 }}>
+          <Ed
+            x={
+              <>
+                No faucet here: send USDC on Arc to <b className="mono">{session.wallet.address}</b> from any wallet or
+                exchange. Gas is sponsored, so a few dollars is a full stake.
+              </>
+            }
+            p={
+              <>
+                There is no free money on the real network. Send some USDC to{" "}
+                <b className="mono">{session.wallet.address}</b> and it appears here.
+              </>
+            }
+          />
+          <span className="deposit-row">
+            <button
+              className="btn btn-quiet"
+              onClick={() => void navigator.clipboard?.writeText(session.wallet!.address)}
+              disabled={busy}
+            >
+              <Ed x="copy address" p="copy the address" />
+            </button>
+            <button className="btn" onClick={() => void step(async () => { await refreshWallet(session); })} disabled={busy}>
+              <Ed x={busy ? "reading…" : "I have funded it →"} p={busy ? "checking…" : "I sent it →"} />
+            </button>
+          </span>
+        </div>
       )}
 
       {phase === "collateral" && (

@@ -704,7 +704,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        Arc testnet · real Circle Gateway settlement; needs a funded{" "}
+                        {chainFacts(env.data.chain).name} · real Circle Gateway settlement; needs a funded{" "}
                         <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
                         <span className="mono">docs/agent-runbook.md</span>)
                       </>

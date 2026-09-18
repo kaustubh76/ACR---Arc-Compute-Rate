@@ -208,3 +208,151 @@ services:
       # server-side: session-bound faucet, rate limits, qty clamps.
       - key: ACR_CORS_ORIGINS
         value: "*"
+
+  # =====================================================================
+  # Arc MAINNET — the second service, recorded before it exists.
+  #
+  # Same image, a different identity. Everything the mainnet guard
+  # (acr_core.mainnet_guard) refuses to boot without is named here, so the
+  # first mainnet deploy is a review of this block and a dashboard paste of
+  # the `sync: false` values — not a memory exercise. Values that only exist
+  # after `make deploy-mainnet` (the addresses) are left empty on purpose and
+  # filled from that script's output; every surface that depends on one says
+  # "unconfigured" rather than inventing a zero address.
+  #
+  # Arc mainnet is a PERMISSIONED PREVIEW at the time of writing: the RPC needs
+  # credentials (so it is a secret here, unlike testnet's), and Circle's
+  # Gateway hides the network unless the paywall sends its preview header —
+  # ACR_ARC_PRIVATE_MAINNET drives that, and flips to "0" at GA.
+  # =====================================================================
+  - type: web
+    name: acr-api-mainnet
+    runtime: image
+    plan: starter # NOT free: a sleeping press stranded testnet collateral twice (docs/SECURITY-AUDIT.md C3)
+    region: oregon
+    image:
+      url: docker.io/kaushtubh02/acr-api:latest
+    healthCheckPath: /health
+    envVars:
+      # --- the chain: docs.arc.io, never guessed --------------------------
+      - key: ACR_ARC_CHAIN_ID
+        value: "5042"
+      - key: ACR_ARC_RPC_URL
+        sync: false # https://rpc.mainnet.arc.io with credentials, or a provider URL
+      - key: ACR_ARC_PRIVATE_MAINNET
+        value: "1" # → "0" at GA; the guard, the paywall header and the SDK all read it
+      # ACR_EXPLORER_BASE and ACR_X402_GATEWAY_WALLET resolve from the chain
+      # profile (https://explorer.arc.io, 0x77777777Dcc4…). Set them only to
+      # override; a testnet value left here fails the guard on purpose.
+
+      # --- the deployed contracts: from `make deploy-mainnet`'s output -----
+      - key: ACR_ORACLE_ADDRESS
+        value: ""
+      - key: ACR_ORACLE_V2_ADDRESS
+        value: ""
+      - key: ACR_REGISTRY_ADDRESS
+        value: ""
+      - key: ACR_FUTURES_ADDRESS
+        value: "" # settles against v2 on mainnet (DeployMainnet.s.sol)
+      - key: ACR_ATTESTOR_ADDRESS
+        value: "" # the feed pass lives here; empty → /desk/pass reports unavailable
+      - key: ACR_RECEIPT_MIRROR_ADDRESS
+        value: ""
+      - key: ACR_HUMANID_MIRROR_ADDRESS
+        value: ""
+
+      # --- the tape --------------------------------------------------------
+      - key: ACR_SUBGRAPH_URL
+        value: "" # the `arc` (5042) Studio deployment, then the gateway URL once published
+      - key: ACR_GRAPH_API_KEY
+        sync: false
+      - key: ACR_KEEPER_MIRROR_S
+        value: "120"
+      - key: ACR_TAPE_SOURCE
+        value: sim # until real mainnet settlements carry a compute-price signal — labelled on every response
+      - key: ACR_SIM_EVENTS_PER_SERVICE
+        value: "2500"
+      - key: ACR_SIM_HORIZON_SECONDS
+        value: "14400"
+      - key: ACR_ATTACK_SIM_EVENTS_PER_SERVICE
+        value: "800"
+      - key: ACR_REFRESH_SECONDS
+        value: "3600"
+
+      # --- Circle: a MAINNET custody wallet set, not the testnet one --------
+      - key: ACR_CIRCLE_API_KEY
+        sync: false
+      - key: ACR_CIRCLE_ENTITY_SECRET
+        sync: false
+      - key: ACR_CIRCLE_WEBHOOK_PUBLIC_KEY
+        sync: false
+      - key: ACR_CIRCLE_WALLET_ID
+        value: "" # the press: signs prints, attestations and feed passes; ACR_PRESS_SIGNER at deploy
+      - key: ACR_CIRCLE_WALLET_SET_ID
+        value: ""
+      - key: ACR_CIRCLE_MAKER_WALLET_ID
+        value: ""
+      - key: ACR_CIRCLE_TAKER_WALLET_ID
+        value: ""
+      - key: ACR_CIRCLE_BASE_URL
+        value: https://api.circle.com
+
+      # --- the gates: EXPLICIT, or the service refuses to boot --------------
+      - key: ACR_X402_MODE
+        value: circle
+      - key: ACR_X402_FACILITATOR_URL
+        sync: false # the mainnet Gateway API host, from developers.circle.com — not the -testnet one
+      - key: ACR_X402_PAY_TO
+        value: "" # the mainnet treasury wallet: revenue AND feed-pass payments land here
+      - key: ACR_HUMANID_MODE
+        value: agentkit
+      - key: ACR_HUMANID_APP_ID
+        sync: false
+      - key: ACR_HUMANID_VERIFIER_URL
+        sync: false
+      - key: ACR_HUMANID_SALT
+        sync: false # the linkability secret; its commitment is a constructor arg of HumanIdMirror
+      - key: ACR_HUMANID_SALT_COMMITMENT
+        value: ""
+      - key: ACR_HUMANID_SANDBOX
+        value: "false" # Orb-verified people on mainnet; "true" would discount every human
+      - key: ACR_CORS_ORIGINS
+        value: https://arc-compute-rate.vercel.app # "*" fails the guard on mainnet
+
+      # --- what a human pays --------------------------------------------------
+      - key: ACR_PASS_PRICE_USDC
+        value: "1.0"
+      - key: ACR_PASS_WINDOW_S
+        value: "86400"
+
+      # --- the operator console: off unless a token is set --------------------
+      - key: ACR_OPS_TOKEN
+        sync: false
+
+      # --- the agent gate + the screen ----------------------------------------
+      - key: ACR_AGENT_AUDIENCE
+        value: acr-index-api
+      - key: ACR_ARMOR_MODE
+        value: auto
+      - key: ACR_ARMOR_PROJECT_ID
+        value: gen-lang-client-0589290672
+      - key: ACR_ARMOR_LOCATION
+        value: asia-south1
+      - key: ACR_ARMOR_TEMPLATE
+        value: EthOnline_Project
+      - key: ACR_ARMOR_CREDENTIALS_FILE
+        value: /etc/secrets/acr_armor_sa.json
+
+      # --- paths + self -------------------------------------------------------
+      - key: ACR_SELF_URL
+        value: "" # this service's own public URL, once Render assigns it
+      - key: ACR_RECEIPT_LOG_PATH
+        value: data/x402_receipts.jsonl
+      - key: ACR_RECEIPT_ARCHIVE_PATH
+        value: services/index_api/index_api/receipts_live.jsonl
+      - key: ACR_WEBHOOK_LOG_PATH
+        value: data/webhook_events.jsonl
+      # No faucet, no demo buyer, no attack lab: `testnet_surfaces_enabled` is
+      # False on 5042 whatever is set here. Recorded so nobody looks for the knob.
+      - key: ACR_TESTNET_SURFACES
+        value: "0"

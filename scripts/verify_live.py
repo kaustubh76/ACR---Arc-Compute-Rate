@@ -785,6 +785,63 @@ def verify_desk(live_series: dict | None) -> None:
         )
 
 
+def verify_revenue(settings) -> None:
+    """The two ways a HUMAN pays — the surfaces that turn visitors into revenue.
+    Probed the way a visitor's browser would, without a wallet or a session: the
+    shape must be right and the gate must say what it costs."""
+    print("\nrevenue — the two ways a human pays")
+    # 1. The browser payer needs the seller to advertise a Gateway batching
+    #    option on THIS network with a verifying contract, or a wallet has
+    #    nothing it can sign. /x402/info also has to name the SDK chain key.
+    status, info = get(f"{API}/x402/info")
+    ok = status == 200 and isinstance(info, dict)
+    check(ok, f"/x402/info -> {status}")
+    if ok:
+        # Absent key = an API deployed before the browser payer existed: degraded,
+        # not down. Present and empty = broken.
+        check(bool(info.get("gateway_chain")),
+              f"seller names its Gateway SDK chain ({info.get('gateway_chain') or 'not on this deploy yet'})",
+              warn_only="gateway_chain" not in info)
+        check(info.get("network") == settings.caip2(), f"seller's network {info.get('network')} == {settings.caip2()}")
+        gated = (info.get("gated_endpoints") or ["/prints"])[0]
+        import base64
+
+        req = urllib.request.Request(f"{API}{gated}", headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:  # pragma: no cover
+                st, hdr = r.status, r.headers.get("PAYMENT-REQUIRED")
+        except urllib.error.HTTPError as e:
+            st, hdr = e.code, e.headers.get("PAYMENT-REQUIRED")
+        except Exception:  # noqa: BLE001
+            st, hdr = 0, None
+        check(st == 402 and bool(hdr), f"{gated} -> {st} with PAYMENT-REQUIRED (a wallet can start the exchange)")
+        if hdr:
+            try:
+                env = json.loads(base64.b64decode(hdr))
+                batching = [
+                    o for o in env.get("accepts", [])
+                    if o.get("network") == settings.caip2()
+                    and (o.get("extra") or {}).get("name") == "GatewayWalletBatched"
+                    and (o.get("extra") or {}).get("verifyingContract")
+                ]
+                check(bool(batching), "the 402 offers a Gateway batching option a browser wallet can sign")
+            except Exception:  # noqa: BLE001
+                check(False, "the PAYMENT-REQUIRED header decodes")
+    # 2. The Desk pass: the route exists and refuses a stranger cleanly (a real
+    #    session needs Circle's PIN ceremony, which no probe should run).
+    st, body = post(f"{API}/desk/pass/status", {"user_token": "probe-not-a-session-token-0000"})
+    check(st in (400, 401, 403, 404, 422, 502, 503) and st != 500,
+          f"/desk/pass/status refuses a stranger with {st}, not a 500")
+    # 3. The terminal's server-side balance read, with a known address: numbers back.
+    st, body = get(f"{TERMINAL}/api/wallet/balances?address=0x95DE70736E21e70DF921Fb3ab91dD56750965b59")
+    good = st == 200 and isinstance(body, dict) and "usdc_wallet" in body and "usdc_gateway" in body
+    check(good,
+          f"terminal /api/wallet/balances -> {st}"
+          + (f", wallet {body.get('usdc_wallet')} · gateway {body.get('usdc_gateway')} USDC" if good
+             else (" (route not on this deploy yet)" if st == 404 else "")),
+          warn_only=st == 404)  # a terminal deployed before the wallet payer: degraded, not down
+
+
 def verify_hedger(settings) -> None:
     """The autonomous agent — did it actually pay and trade, or is it a panel?
 
@@ -1105,6 +1162,7 @@ def main() -> None:
     section(verify_agent)
     section(verify_humans)
     section(verify_desk, live)
+    section(verify_revenue, s)
     section(verify_hedger, s)
     section(verify_terminal, live)
     section(verify_funding, w3, s)

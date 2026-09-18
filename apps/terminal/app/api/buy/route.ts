@@ -13,15 +13,22 @@ export const dynamic = "force-dynamic";
 /** GET — is a funded buyer available, and is the seller on the real Circle gate? */
 export async function GET() {
   let gate: "dev" | "circle" | null = null;
+  let network: string | null = null;
   try {
     const res = await fetch(`${apiBase()}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
-    if (res.ok) gate = ((await res.json()) as X402Info).facilitator;
+    if (res.ok) {
+      const j = (await res.json()) as X402Info;
+      gate = j.facilitator;
+      network = j.network ?? null;
+    }
   } catch {
     /* seller offline → gate stays null */
   }
   const env: LiveBuyResponse = {
     live: gate !== null,
-    buyer_ready: buyerConfigured() && gate === "circle",
+    // "ready" means it would actually run: configured, on the real gate, and
+    // allowed on this network — so the UI never offers a button that 404s.
+    buyer_ready: buyerConfigured() && gate === "circle" && buyerAllowedOn(network),
     gate,
     payer: null,
     results: [],

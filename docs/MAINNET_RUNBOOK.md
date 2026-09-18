@@ -69,9 +69,27 @@ for adding one contract to an existing deployment; they are not the mainnet path
 
 ## 3 · After the addresses exist
 
-1. **Configuration.** Add a mainnet profile to `render.yaml` (the testnet block stays; the two
-   differ in `ACR_ARC_RPC_URL`, `ACR_ARC_CHAIN_ID`, the six contract addresses, `ACR_USDC_ADDRESS`).
-   Production runs ONE chain; the Terminal's `NEXT_PUBLIC_ACR_CHAIN_ID` follows it.
+1. **Configuration.** `render.yaml` already carries the mainnet service, `acr-api-mainnet`,
+   with every variable the guard requires — review that block, paste the `sync: false`
+   values into the dashboard, fill the addresses from the deploy output. The service
+   **refuses to boot** on 5042 until the gates are explicit and configured
+   (`acr_core.mainnet_guard`); read its one raise, fix every line it lists, redeploy.
+
+   The terminal (Vercel) is a separate build with its own variables:
+
+   | variable | value | why |
+   |---|---|---|
+   | `NEXT_PUBLIC_ACR_API` | the mainnet API's public URL | the browser pays the seller directly; this is who it pays |
+   | `NEXT_PUBLIC_ACR_CHAIN_ID` | `5042` | `lib/chain.test.ts` fails the build if the cold-start bundle is from another chain |
+   | `ACR_API` | same as above | server routes |
+   | `ACR_ARC_RPC_URL` | the credentialed mainnet RPC | server-side reads (balances, on-chain routes); never reaches the browser |
+   | `ACR_TERMINAL_BUYER` | **unset** | the house buyer must not spend on a stranger's click; set to `1` only deliberately |
+   | `ACR_BUYER_PRIVATE_KEY` | **unset** | same; there is no house buyer on mainnet unless you mean it |
+
+   Then, BEFORE the Vercel deploy: `make snapshot` against the mainnet API, so the bundle a
+   visitor sees while the press naps is mainnet data under a mainnet masthead. The build
+   fails otherwise — that is the test doing its job.
+
 2. **Subgraph.** `graph/subgraph.yaml`: network `arc`, each data source's `startBlock` = its
    deploy block; `make graph-deploy VERSION=v1.0.0-mainnet`. The Graph's registry lists `arc`
    as a Studio target (verified 2026-09-01, `hackathon/ethonline-2026/SPIKE-LOG.md`).

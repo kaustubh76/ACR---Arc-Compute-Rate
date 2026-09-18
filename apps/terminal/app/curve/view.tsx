@@ -206,6 +206,7 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
           desks={roster?.desks ?? env.data.futures}
           live={futLive && roster?.source !== "bundle"}
           explorer={explorer}
+          chain={env.data.chain}
           wakeRemainingS={conn.state === "waking" ? conn.wakeRemainingS : null}
         />
       </div>
