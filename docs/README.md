@@ -31,6 +31,12 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 | [AGENT-MODULE.md](AGENT-MODULE.md) | The agent card, the gate, and a rate limit denominated in **people** rather than keys — why the EIP-712 domain names no `verifyingContract`, and why the carded tier is evadable on purpose. |
 | [WALLETS.md](WALLETS.md) | Which of Circle's wallet products does which job here, and the constraint that forced each choice. The most reusable document in the repo. |
 
+## Trust it — what can go wrong, and what we did about it
+
+| Doc | Covers |
+|---|---|
+| [SECURITY-AUDIT.md](SECURITY-AUDIT.md) | The pre-mainnet audit, dated 2026-09-18: every finding with its severity, the live-chain evidence, and the status column each fix updates. |
+
 ## Run it — operating the system
 
 | Doc | Covers |
