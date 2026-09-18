@@ -50,3 +50,18 @@ export function chooseTargets(
 export function withinCap(spent: number, price: number, cap: number): boolean {
   return spent + price <= cap + 1e-9;
 }
+
+/** Arc public mainnet, CAIP-2. */
+export const MAINNET_CAIP2 = "eip155:5042";
+
+/** Whether this server may originate REAL settlements against the network the
+ *  seller reports. On testnet, always. On mainnet — where each press of the
+ *  button spends the operator's real USDC on a stranger's request, capped per
+ *  call and unthrottled across calls — only when the operator has said so
+ *  explicitly with `ACR_TERMINAL_BUYER=1`. The default is the safe direction:
+ *  a mainnet terminal that forgot the variable cannot spend.
+ *  (docs/SECURITY-AUDIT.md, H2.) */
+export function buyerAllowedOn(network: string | null | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
+  if ((network ?? "").trim() !== MAINNET_CAIP2) return true;
+  return env.ACR_TERMINAL_BUYER === "1";
+}

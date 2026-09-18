@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { buyerConfigured, getGatewayClient, SPEND_CAP_USDC } from "@/lib/gatewayBuyer";
-import { chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
+import { buyerAllowedOn, chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { LiveBuyResponse, LiveBuyResult, X402Info } from "@/lib/types";
 
@@ -57,16 +57,23 @@ export async function POST(req: NextRequest) {
   // The real buyer only makes sense against the real Circle gate — the dev
   // mock gate emits a 402 the Gateway SDK won't recognize as a batching option.
   let gate: "dev" | "circle" | null = null;
+  let network: string | null = null;
   let price = PRICE_FALLBACK_USDC;
   try {
     const info = await fetch(`${base}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (info.ok) {
       const j = (await info.json()) as X402Info;
       gate = j.facilitator;
+      network = j.network ?? null;
       if (Number.isFinite(j.price_usdc) && j.price_usdc > 0) price = j.price_usdc;
     }
   } catch {
     /* handled below */
+  }
+  // On mainnet this button spends real USDC on a stranger's request. It exists
+  // there only when the operator has said so; otherwise it does not exist at all.
+  if (!buyerAllowedOn(network)) {
+    return NextResponse.json({ detail: "not available on this network" }, { status: 404 });
   }
   if (gate !== "circle") {
     return NextResponse.json(
