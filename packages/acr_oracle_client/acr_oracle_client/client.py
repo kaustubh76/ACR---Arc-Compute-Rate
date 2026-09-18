@@ -211,6 +211,18 @@ _V2_PRINT_COMPONENTS = [
 
 ORACLE_ABI_V2 = [
     {
+        "type": "function",
+        "name": "firstPrintPostedAtOrAfter",
+        "stateMutability": "view",
+        "inputs": [{"name": "indexId", "type": "bytes32"}, {"name": "fromPostedAt", "type": "uint64"}],
+        "outputs": [
+            {"name": "found", "type": "bool"},
+            {"name": "value", "type": "uint256"},
+            {"name": "postedAt", "type": "uint64"},
+        ],
+    },
+
+    {
         "name": "postPrint",
         "type": "function",
         "stateMutability": "nonpayable",
@@ -345,6 +357,18 @@ _PRINT_TUPLE = {
     ],
 }
 ORACLE_ABI = [
+    {
+        "type": "function",
+        "name": "firstPrintPostedAtOrAfter",
+        "stateMutability": "view",
+        "inputs": [{"name": "indexId", "type": "bytes32"}, {"name": "fromPostedAt", "type": "uint64"}],
+        "outputs": [
+            {"name": "found", "type": "bool"},
+            {"name": "value", "type": "uint256"},
+            {"name": "postedAt", "type": "uint64"},
+        ],
+    },
+
     # The backfill reads v1's history on chain rather than over logs — Arc caps
     # eth_getLogs at ~15k blocks, so paging a year of prints would be dozens of
     # round trips against a throttled RPC. These two were missing until v2
@@ -687,6 +711,26 @@ class OracleClient:
                 return [c["name"] for c in outputs[0]["components"]]
             return [o.get("name", "") for o in outputs]
         return []
+
+    def read_first_print_posted_at_or_after(
+        self, index_id: str, from_posted_at: int
+    ) -> dict | None:  # pragma: no cover - live chain
+        """The first print the chain saw at or after `from_posted_at` — the venue's
+        settlement print for a series expiring then. None when no such print
+        exists, and None on an oracle deployed before the view did (the call
+        reverts there): callers treat both as "the new rule cannot be evaluated".
+        """
+        if self._connect() is None or not self.oracle_address:
+            return None
+        try:
+            found, value, posted_at = self._contract().functions.firstPrintPostedAtOrAfter(
+                index_id_to_bytes32(index_id), int(from_posted_at)
+            ).call()
+        except Exception:
+            return None
+        if not found:
+            return None
+        return {"index_id": index_id, "value": value / WAD, "posted_at": int(posted_at)}
 
     def read_latest(self, index_id: str) -> dict | None:  # pragma: no cover - live chain
         """Read back the latest on-chain print for ``index_id`` (WAD-descaled).

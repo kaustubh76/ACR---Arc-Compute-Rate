@@ -283,6 +283,18 @@ FUTURES_ABI = [
      "inputs": [{"name": "seriesId", "type": "uint256"}, {"name": "amount", "type": "uint256"}], "outputs": []},
     {"type": "function", "name": "settle", "stateMutability": "nonpayable",
      "inputs": [{"name": "seriesId", "type": "uint256"}], "outputs": []},
+    # The escape hatch (docs/SECURITY-AUDIT.md C3): after expiry + SETTLE_GRACE with
+    # the series still open, anyone clears it at the best print that exists. Absent
+    # from the venue deployed before it existed — `settle_grace()` is the probe.
+    {"type": "function", "name": "settleStale", "stateMutability": "nonpayable",
+     "inputs": [{"name": "seriesId", "type": "uint256"}], "outputs": []},
+    {"type": "function", "name": "SETTLE_GRACE", "stateMutability": "view",
+     "inputs": [], "outputs": [{"name": "", "type": "uint64"}]},
+    {"type": "event", "name": "SettledStale", "anonymous": False, "inputs": [
+        {"name": "seriesId", "type": "uint256", "indexed": True},
+        {"name": "settlementPrice", "type": "uint256", "indexed": False},
+        {"name": "printPostedAt", "type": "uint64", "indexed": False},
+        {"name": "participants", "type": "uint256", "indexed": False}]},
     {"type": "event", "name": "Traded", "anonymous": False, "inputs": [
         {"name": "seriesId", "type": "uint256", "indexed": True},
         {"name": "taker", "type": "address", "indexed": True},
@@ -613,3 +625,19 @@ class FuturesClient:
         if not self.can_write():
             return None
         return self._send(self._contract().functions.settle(int(series_id)))
+
+    def settle_grace(self) -> int | None:  # pragma: no cover - live chain
+        """`SETTLE_GRACE` in seconds, or None on a venue deployed before the escape
+        hatch existed — the one probe that tells the two generations apart."""
+        if self._connect() is None:
+            return None
+        try:
+            return int(self._contract().functions.SETTLE_GRACE().call())
+        except Exception:
+            return None
+
+    def settle_stale(self, series_id: int) -> str | None:  # pragma: no cover - live chain
+        """The escape hatch: valid only once expiry + SETTLE_GRACE has passed."""
+        if not self.can_write():
+            return None
+        return self._send(self._contract().functions.settleStale(int(series_id)))
