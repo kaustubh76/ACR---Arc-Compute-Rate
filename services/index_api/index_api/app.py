@@ -789,7 +789,7 @@ def x402_info(fac: Facilitator = Depends(get_facilitator)) -> dict:
         # CAIP-2 for BOTH gates — the catalog, receipts, and this descriptor
         # must name the same network or the Terminal surfaces disagree.
         "network": s.caip2(),
-        # The Gateway SDK's chain key and the permissioned-preview flag, so a payer
+        # The Gateway SDK's chain key and the private-mainnet header flag, so a payer
         # built in the browser or on the terminal's server needs no chain table.
         "gateway_chain": s.gateway_chain or None,
         "private_mainnet": s.private_mainnet,
@@ -1514,7 +1514,12 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             "gateway_chain": settings.gateway_chain or None,
             "private_mainnet": settings.private_mainnet,
             "caip2": settings.caip2(),
-            "rpc_url": settings.arc_rpc_url,
+            # The payload is public, and the server's RPC may carry a provider key:
+            # both fields name the chain's PUBLIC endpoint (EIP-3085 for a visitor's
+            # wallet; the terminal's server-side fallback). Local anvil has no
+            # public endpoint, so there the server's own is the only one.
+            "rpc_url": settings.public_rpc_url or settings.arc_rpc_url,
+            "public_rpc_url": settings.public_rpc_url,
             "explorer_base": settings.explorer_base,
             "usdc_address": settings.usdc_address,
             "gateway_wallet": settings.x402_gateway_wallet,

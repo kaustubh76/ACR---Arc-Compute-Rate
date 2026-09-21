@@ -1,11 +1,11 @@
 /* Which Arc the agent is on, from one variable — never a literal in a payer.
  *
  * Mirrors `acr_core.config.CHAIN_PROFILES`. Mainnet values come from docs.arc.io
- * and developers.circle.com (read 2026-09-18); testnet values are the ones this
- * agent has paid on since July. The Unified Balance Kit (1.3.1) has NO Arc mainnet
- * identifier — its enum holds `Arc_Testnet` only — so `ubkChain` is null there and
- * the kit-based deposit refuses rather than guess a name the kit would reject.
- * AGENT_UBK_CHAIN overrides it once a kit version that knows mainnet ships. */
+ * and developers.circle.com (read 2026-09-18, re-probed 2026-09-21: the mainnet
+ * RPC is public and Gateway lists Arc without the private-preview header); testnet
+ * values are the ones this agent has paid on since July. The Unified Balance Kit
+ * names mainnet `Arc` from 1.7.0 (1.3.1 knew `Arc_Testnet` only), which is why the
+ * dependency is pinned there. AGENT_UBK_CHAIN still overrides it. */
 
 export interface AgentChain {
   chainId: number;
@@ -14,7 +14,7 @@ export interface AgentChain {
   gatewayChain: "arcTestnet" | "arc";
   /** `@circle-fin/unified-balance-kit` chain name; null = this kit cannot deposit here. */
   ubkChain: string | null;
-  /** Arc mainnet is a permissioned preview until GA. */
+  /** Send Gateway the Arc private-mainnet header (harmless now the preview ended). */
   privateMainnet: boolean;
 }
 
@@ -30,8 +30,8 @@ const PROFILES: Record<number, AgentChain> = {
     chainId: 5042,
     caip2: "eip155:5042",
     gatewayChain: "arc",
-    ubkChain: null, // kit 1.3.1 has no mainnet Arc; see the header
-    privateMainnet: true,
+    ubkChain: "Arc",
+    privateMainnet: false,
   },
 };
 

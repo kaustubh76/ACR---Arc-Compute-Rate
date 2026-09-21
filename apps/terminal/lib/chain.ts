@@ -27,10 +27,18 @@ export const CHAIN = {
   privateMainnet: false,
 } as const;
 
-/** Arc public mainnet. The network where the faucet does not exist, the stake is the
- *  reader's own money, and — during the permissioned preview — a visitor's wallet has
- *  no public RPC to reach. Every mainnet-only branch in the UI asks this, not a literal. */
+/** Arc public mainnet. The network where the faucet does not exist and the stake is
+ *  the reader's own money. Every mainnet-only branch in the UI asks this, not a literal. */
 export const MAINNET_CHAIN_ID = 5042;
+
+/** The RPC a visitor's wallet is given per chain (EIP-3085), from docs.arc.io's
+ *  connect page, re-probed 2026-09-21 with no credentials. The payload's
+ *  `public_rpc_url` wins when present; this is the fallback for an older payload,
+ *  and it is NEVER the server's `rpc_url`, which may carry a provider key. */
+export const PUBLIC_RPC: Record<number, string> = {
+  5042: "https://rpc.mainnet.arc.io",
+  5042002: "https://rpc.testnet.arc.io",
+};
 export function isMainnet(f: { chainId: number }): boolean {
   return f.chainId === MAINNET_CHAIN_ID;
 }
@@ -42,7 +50,7 @@ export function chainFacts(chain?: ChainFactsData | null) {
     chainId: chain?.chain_id ?? CHAIN.chainId,
     caip2: chain?.caip2 ?? CHAIN.caip2,
     explorer: chain?.explorer_base ?? CHAIN.explorer,
-    rpc: chain?.rpc_url ?? CHAIN.rpc,
+    rpc: chain?.public_rpc_url || PUBLIC_RPC[chain?.chain_id ?? CHAIN.chainId] || chain?.rpc_url || CHAIN.rpc,
     usdc: chain?.usdc_address ?? CHAIN.usdc,
     gatewayWallet: chain?.gateway_wallet ?? CHAIN.gatewayWallet,
     circleBlockchain: chain?.circle_blockchain ?? CHAIN.circleBlockchain,

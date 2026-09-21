@@ -14,10 +14,11 @@ test("mainnet resolves the SDK chain key and the preview flag", () => {
   const c = agentChain({ ACR_ARC_CHAIN_ID: "5042" });
   assert.equal(c.gatewayChain, "arc");
   assert.equal(c.caip2, "eip155:5042");
-  assert.equal(c.privateMainnet, true);
-  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042", ACR_ARC_PRIVATE_MAINNET: "0" }).privateMainnet, false);
-  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042" }).ubkChain, null, "the kit cannot deposit on mainnet yet");
-  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042", AGENT_UBK_CHAIN: "Arc" }).ubkChain, "Arc", "until a kit that knows it ships");
+  assert.equal(c.privateMainnet, false);
+  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042", ACR_ARC_PRIVATE_MAINNET: "1" }).privateMainnet, true);
+  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042" }).ubkChain, "Arc", "kit 1.7.0 names mainnet");
+  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042", AGENT_UBK_CHAIN: "Arc_X" }).ubkChain, "Arc_X", "the env still overrides");
+  assert.equal(agentChain({ ACR_ARC_CHAIN_ID: "5042" }).privateMainnet, false, "the preview ended");
 });
 
 test("an unknown chain id is refused, not paid on", () => {

@@ -15,9 +15,9 @@ here and in `README.md` the day it lands.
 | | testnet | mainnet |
 |---|---|---|
 | chain id | `5042002` | `5042` |
-| RPC | `https://rpc.testnet.arc.network` | set `ACR_MAINNET_RPC_URL` from Arc's published endpoint |
+| RPC | `https://rpc.testnet.arc.network` | `https://rpc.mainnet.arc.io` is **public** (probed 2026-09-21, `eth_chainId` → `0x13b2`, no credentials); run the press on a keyed provider URL (Alchemy, QuickNode, dRPC, Blockdaemon all list Arc) and set `ACR_MAINNET_RPC_URL` to that |
 | USDC | `0x3600…0000` (native) — **defaulted** in the scripts | **not defaulted**: `ACR_MAINNET_USDC` is required, so a testnet constant cannot ride onto mainnet by omission |
-| explorer | `testnet.arcscan.app` | `arcscan.app` (`apps/terminal/lib/chain.ts` keys on chain id) |
+| explorer | `testnet.arcscan.app` | `https://explorer.arc.io` (public; the chain profile carries it) |
 | gas | USDC | USDC — `Deploy.s.sol` 4.13M · `DeployOracleV2` 1.51M · `DeployReceiptMirror` 1.43M · `DeployHumanIdMirror` 1.00M · `DeployFutures` 2.23M ≈ **0.46 USDC** total at testnet prices |
 
 Everything else — the estimator, the oracle's EIP-712 domain (binds `chainId`), the x402 gate,
@@ -82,7 +82,7 @@ for adding one contract to an existing deployment; they are not the mainnet path
    | `NEXT_PUBLIC_ACR_API` | the mainnet API's public URL | the browser pays the seller directly; this is who it pays |
    | `NEXT_PUBLIC_ACR_CHAIN_ID` | `5042` | `lib/chain.test.ts` fails the build if the cold-start bundle is from another chain |
    | `ACR_API` | same as above | server routes |
-   | `ACR_ARC_RPC_URL` | the credentialed mainnet RPC | server-side reads (balances, on-chain routes); never reaches the browser |
+   | `ACR_ARC_RPC_URL` | a keyed provider URL for mainnet | server-side reads (balances, on-chain routes); never reaches the browser — a visitor's wallet is handed the payload's `public_rpc_url` (`https://rpc.mainnet.arc.io`) |
    | `ACR_TERMINAL_BUYER` | **unset** | the house buyer must not spend on a stranger's click; set to `1` only deliberately |
    | `ACR_BUYER_PRIVATE_KEY` | **unset** | same; there is no house buyer on mainnet unless you mean it |
 
@@ -119,8 +119,8 @@ for adding one contract to an existing deployment; they are not the mainnet path
    wallet to buy* → *buy with your wallet*. A row on the tape, a receipt under
    `/api/marketplace/receipts`, and `/api/revenue` moving by the listing's price is the
    first mainnet revenue, and the proof the storefront works without the house buyer (which
-   is off on 5042 unless `ACR_TERMINAL_BUYER=1`). Until Arc's RPC is public, this needs a
-   wallet whose RPC is the credentialed one.
+   is off on 5042 unless `ACR_TERMINAL_BUYER=1`). No USDC on Arc yet? The same row bridges
+   it from Base, Ethereum, Arbitrum, OP or Polygon (CCTP, inside the terminal) first.
 
 ## 4 · What does not move on day one
 

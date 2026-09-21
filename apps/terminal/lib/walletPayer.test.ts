@@ -40,10 +40,12 @@ test("addChainParams: hex chain id, USDC as the 18-decimal native asset, from th
   assert.equal(p.chainId, "0x4cef52");
   assert.equal(p.chainName, "Arc Testnet");
   assert.deepEqual(p.nativeCurrency, { name: "USDC", symbol: "USDC", decimals: 18 });
-  assert.deepEqual(p.rpcUrls, ["https://rpc.testnet.arc.network"]);
-  const m = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042, name: "Arc", rpc_url: "", explorer_base: "" } as never));
+  assert.deepEqual(p.rpcUrls, ["https://rpc.testnet.arc.io"], "the public endpoint, not the bundle's server RPC");
+  const m = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042, name: "Arc", rpc_url: "https://arc.g.alchemy.com/v2/SECRET", explorer_base: "" } as never));
   assert.equal(m.chainId, "0x13b2");
-  assert.deepEqual(m.rpcUrls, [], "no public RPC during the preview: nothing invented");
+  assert.deepEqual(m.rpcUrls, ["https://rpc.mainnet.arc.io"], "a keyed server RPC never reaches a wallet");
+  const q = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042, public_rpc_url: "https://rpc.mainnet.arc.io/x" } as never));
+  assert.deepEqual(q.rpcUrls, ["https://rpc.mainnet.arc.io/x"], "the payload's public_rpc_url wins");
 });
 
 test("usdcUnits is the 6-decimal ERC-20 view, never the native 18", () => {

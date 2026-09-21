@@ -546,9 +546,10 @@ class CircleFacilitator(Facilitator):
 
         body = {"paymentPayload": payload, "paymentRequirements": reqs}
         base = self.settings.x402_facilitator_url
-        # Arc mainnet is a permissioned preview on Gateway: without this header the
-        # API does not know the network exists and every verify fails with a reason
-        # that reads like a bad payment. Sent only on that chain, dropped at GA.
+        # Gateway's Arc private-preview header. The preview ended (Gateway lists
+        # Arc mainnet without it, probed 2026-09-21); the flag stays as an env
+        # override because sending it is harmless and not sending it once broke
+        # every verify with a reason that read like a bad payment.
         hdrs = {"X-ARC-PRIVATE-MAINNET-ENABLED": "true"} if self.settings.private_mainnet else {}
         try:
             client, owns = self._http, False

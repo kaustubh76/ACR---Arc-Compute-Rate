@@ -18,9 +18,8 @@
  * Pure decisions (which 402 option, what the header is, what an "add chain"
  * request looks like) are exported so they are tested without a wallet. Chain
  * facts come from the payload (`chainFacts`), never a literal here — the same
- * code pays on testnet today and on mainnet at GA. During Arc mainnet's
- * permissioned preview a visitor's wallet has no public RPC to reach, which is
- * an external limit this file states rather than hides. */
+ * code pays on testnet and on mainnet, and the RPC a wallet is handed is the
+ * chain's PUBLIC one (never the server's, which may carry a provider key). */
 
 import { createWalletClient, custom, defineChain, erc20Abi, parseUnits, type Hex, type WalletClient } from "viem";
 import type { chainFacts } from "./chain";
@@ -151,14 +150,7 @@ export async function connectWallet(f: Facts): Promise<WalletSession> {
   } catch (e) {
     const code = (e as { code?: number }).code;
     if (code !== 4902) throw e; // 4902: unknown chain → add it
-    if (!f.rpc) {
-      // Arc mainnet's permissioned preview: there is no public RPC to give the
-      // wallet, so it cannot be added. Say so, and name the path that works.
-      throw new Error(
-        `${f.name} is not in your wallet and has no public RPC yet (permissioned preview). ` +
-          "Pay through the Desk pass for now, or come back at mainnet GA.",
-      );
-    }
+    if (!f.rpc) throw new Error(`${f.name} has no public RPC to give your wallet; use the Desk instead`);
     await eth.request({ method: "wallet_addEthereumChain", params: [addChainParams(f)] });
   }
   const client = createWalletClient({ chain: viemChain(f), transport: custom(eth), account: address });

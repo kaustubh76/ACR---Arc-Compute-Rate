@@ -68,8 +68,17 @@ def violations(settings: ACRSettings) -> list[str]:
         out.append("ACR_HUMANID_APP_ID is unset: a proof scoped to no app authorizes nothing")
     rpc = settings.arc_rpc_url.strip()
     if not rpc.startswith("https://") or "127.0.0.1" in rpc or "localhost" in rpc:
-        out.append("ACR_ARC_RPC_URL is not a mainnet https endpoint (Arc mainnet's RPC is "
-                   "permissioned during the preview; read it from docs.arc.io)")
+        out.append("ACR_ARC_RPC_URL is not a mainnet https endpoint (the public one is "
+                   "https://rpc.mainnet.arc.io; a keyed provider URL also works)")
+    pub = settings.public_rpc_url.strip()
+    if not pub.startswith("https://"):
+        out.append("ACR_PUBLIC_RPC_URL resolved to nothing a visitor's wallet can use: "
+                   "wallet_addEthereumChain would add a chain with no RPC")
+    if not settings.x402_facilitator_url.strip().startswith("https://gateway-api.circle.com"):
+        out.append(
+            "ACR_X402_FACILITATOR_URL is not Circle's mainnet Gateway "
+            "(https://gateway-api.circle.com): the testnet facilitator does not know eip155:5042"
+        )
     if not settings.explorer_base.strip():
         out.append("ACR_EXPLORER_BASE resolved empty: every transaction link would be dead")
     prof = settings.chain_profile

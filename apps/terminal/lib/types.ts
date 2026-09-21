@@ -123,6 +123,8 @@ export interface ChainFactsData {
   chain_id: number;
   caip2: string;
   rpc_url: string;
+  /** The endpoint a visitor's wallet may be told about; absent on older payloads. */
+  public_rpc_url?: string;
   explorer_base: string;
   usdc_address: string;
   gateway_wallet: string;

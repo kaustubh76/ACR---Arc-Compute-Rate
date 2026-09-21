@@ -220,10 +220,11 @@ services:
   # filled from that script's output; every surface that depends on one says
   # "unconfigured" rather than inventing a zero address.
   #
-  # Arc mainnet is a PERMISSIONED PREVIEW at the time of writing: the RPC needs
-  # credentials (so it is a secret here, unlike testnet's), and Circle's
-  # Gateway hides the network unless the paywall sends its preview header —
-  # ACR_ARC_PRIVATE_MAINNET drives that, and flips to "0" at GA.
+  # Arc mainnet is PUBLIC (re-probed 2026-09-21: https://rpc.mainnet.arc.io
+  # answers eth_chainId 0x13b2 with no credentials; Gateway lists Arc without
+  # its old preview header). The RPC stays `sync: false` because the press
+  # should run on a provider URL with a key, not the shared public endpoint;
+  # what a VISITOR's wallet is told is the profile's public endpoint, never this.
   # =====================================================================
   - type: web
     name: acr-api-mainnet
@@ -238,9 +239,9 @@ services:
       - key: ACR_ARC_CHAIN_ID
         value: "5042"
       - key: ACR_ARC_RPC_URL
-        sync: false # https://rpc.mainnet.arc.io with credentials, or a provider URL
+        sync: false # a keyed provider URL (Alchemy/QuickNode/dRPC list Arc), or https://rpc.mainnet.arc.io
       - key: ACR_ARC_PRIVATE_MAINNET
-        value: "1" # → "0" at GA; the guard, the paywall header and the SDK all read it
+        value: "0" # the preview header; "1" only if Gateway ever asks for it again
       # ACR_EXPLORER_BASE and ACR_X402_GATEWAY_WALLET resolve from the chain
       # profile (https://explorer.arc.io, 0x77777777Dcc4…). Set them only to
       # override; a testnet value left here fails the guard on purpose.
@@ -301,7 +302,7 @@ services:
       - key: ACR_X402_MODE
         value: circle
       - key: ACR_X402_FACILITATOR_URL
-        sync: false # the mainnet Gateway API host, from developers.circle.com — not the -testnet one
+        value: https://gateway-api.circle.com # advertises eip155:5042 at /v1/x402/supported; the guard refuses the -testnet host
       - key: ACR_X402_PAY_TO
         value: "" # the mainnet treasury wallet: revenue AND feed-pass payments land here
       - key: ACR_HUMANID_MODE

@@ -48,8 +48,9 @@ def test_testnet_defaults_are_not_a_violation():
 def test_mainnet_defaults_are_refused_with_every_reason_listed():
     """One pass, every violation — a deploy should not fix them one boot at a time."""
     bad = violations(_s(arc_chain_id=MAINNET_CHAIN_ID))
-    # x402 mode, facilitator, pay-to, humanid mode, app id, CORS, RPC (defaults to localhost)
-    assert len(bad) == 7
+    # x402 mode, facilitator not a URL, facilitator not mainnet's, pay-to, humanid
+    # mode, app id, CORS, RPC (defaults to localhost)
+    assert len(bad) == 8
     with pytest.raises(MainnetGuardError) as e:
         assert_mainnet_ready(_s(arc_chain_id=MAINNET_CHAIN_ID))
     for needle in ("ACR_X402_MODE", "ACR_X402_FACILITATOR_URL", "ACR_X402_PAY_TO",
@@ -117,12 +118,29 @@ def test_mainnet_defaults_resolve_from_the_profile_and_pass():
     assert s.explorer_base == "https://explorer.arc.io"
     assert s.x402_gateway_wallet == "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
     assert s.circle_blockchain == "ARC" and s.gateway_chain == "arc"
-    assert s.private_mainnet is True
+    # The preview ended (probed 2026-09-21): Gateway lists Arc without the header.
+    assert s.private_mainnet is False
+    assert s.public_rpc_url == "https://rpc.mainnet.arc.io"
     assert violations(s) == []
 
 
-def test_private_mainnet_flag_flips_at_ga_by_env():
-    assert _s(**{**MAINNET_OK, "arc_private_mainnet": False}).private_mainnet is False
+def test_private_mainnet_header_can_be_forced_on_by_env():
+    assert _s(**{**MAINNET_OK, "arc_private_mainnet": True}).private_mainnet is True
+
+
+def test_the_wallet_rpc_is_never_the_servers_keyed_one():
+    """A provider URL with a key in it is fine for the server and a leak for the
+    payload; the visitor's wallet gets the profile's public endpoint."""
+    s = _s(**{**MAINNET_OK, "arc_rpc_url": "https://arc-mainnet.g.alchemy.com/v2/SECRET"})
+    assert s.public_rpc_url == "https://rpc.mainnet.arc.io"
+    assert violations(s) == []
+    bad = violations(_s(**{**MAINNET_OK, "public_rpc_url": "http://rpc.mainnet.arc.io"}))
+    assert len(bad) == 1 and "ACR_PUBLIC_RPC_URL" in bad[0]
+
+
+def test_the_testnet_facilitator_is_refused_on_mainnet():
+    bad = violations(_s(**{**MAINNET_OK, "x402_facilitator_url": "https://gateway-api-testnet.circle.com"}))
+    assert len(bad) == 1 and "gateway-api.circle.com" in bad[0]
 
 
 def test_testnet_profile_is_unchanged_by_all_of_this():
@@ -131,6 +149,7 @@ def test_testnet_profile_is_unchanged_by_all_of_this():
         "Arc Testnet", "ARC-TESTNET", "arcTestnet", False)
     assert s.explorer_base == "https://testnet.arcscan.app"
     assert s.x402_gateway_wallet == "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+    assert s.public_rpc_url == "https://rpc.testnet.arc.io"
 
 
 # --- the testnet-only money surfaces ----------------------------------------
