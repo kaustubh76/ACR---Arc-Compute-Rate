@@ -129,3 +129,26 @@ for adding one contract to an existing deployment; they are not the mainnet path
 - **The seller fleet stays on testnet** until real sellers exist; mainnet TCA begins with the
   first real x402 settlement to ReceiptMirror.
 - **No funds are bridged by this runbook.** Gas is the only USDC it spends.
+
+## 5 · Launch day, in order
+
+The community will do steps 1–5 of [`COMMUNITY-TEST.md`](COMMUNITY-TEST.md). Everything below
+has to be true before the link goes out; each line names who can do it (the code cannot).
+
+| # | do | who / what it needs | proves |
+|---|---|---|---|
+| 1 | `make deploy-mainnet` (§2) with a **fresh** funded deploy key, `ACR_PRESS_SIGNER`, `ACR_EXPECTED_OWNER` | operator: keys + ~1 USDC of gas on 5042 | seven contracts, deployer signs nothing |
+| 2 | `acceptOwnership()` ×6 from the owner (§3 step 5); move the deploy key out of `.env` | the owner key | custody |
+| 3 | Render `acr-api-mainnet`: fill the addresses, `ACR_X402_PAY_TO` (treasury), Circle **LIVE** API key + entity secret (test keys do not open `ARC` wallets), `ACR_HUMANID_APP_ID`, a keyed `ACR_ARC_RPC_URL`; deploy the image | Circle console (live env), Render dashboard | the guard lets it boot |
+| 4 | Gas Station policy for `ARC` in the Circle console | Circle console | Desk gas is sponsored; without it the SCA pays gas from its own USDC (the Desk detects and says so) |
+| 5 | `make backfill-oracle-v2`, first `postPrint` from the press wallet | the press | a mainnet print exists |
+| 6 | `make snapshot` against the mainnet API; Vercel: `NEXT_PUBLIC_ACR_API`, `NEXT_PUBLIC_ACR_CHAIN_ID=5042`, `ACR_API`, `ACR_ARC_RPC_URL` (keyed); **no** `ACR_TERMINAL_BUYER`; deploy | Vercel | the terminal's cold-start bundle is mainnet; the dateline chip says *Arc mainnet* |
+| 7 | subgraph: `network: arc`, start blocks from step 1, `make graph-deploy VERSION=v1.0.0-mainnet` | The Graph Studio | TCA reads answer |
+| 8 | `make resolve-humans ARGS=--commit` for the current window | the resolver key | `humans.n` is not silently 0 |
+| 9 | `make verify-mainnet` then `make verify-live` (its *revenue* section checks the 402, the facilitator's chain list, the public RPC, the balances route) | anyone | all ✓ |
+| 10 | Buy one thing yourself from a wallet that had **no** USDC on Arc: bridge → deposit → buy (§3 step 7) | operator, a personal wallet, ~$2 on Base | the five community steps, end to end, before anyone else tries |
+| 11 | Paste the first `postPrint` hash and the first receipt into `README.md`; send the link with `COMMUNITY-TEST.md` | operator | launch |
+
+A tester's failure lands as a *Mainnet test* issue (`.github/ISSUE_TEMPLATE/mainnet-test.md`).
+Read the sentence they pasted first: every path in the terminal fails with one, so a raw code or a
+blank is a bug in the terminal even when the cause is elsewhere.

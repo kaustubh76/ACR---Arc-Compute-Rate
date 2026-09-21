@@ -89,7 +89,10 @@ and open series. They cannot take collateral or alter the oracle history. The re
   showed it, which is the same trust as every print.
 - **Paying from your own wallet** — the terminal's browser payer signs the same Gateway
   authorization the agents sign; your key never leaves your wallet, and this server only ever
-  reads your balances through its own RPC.
+  reads your balances through its own RPC. The RPC your wallet is handed when it adds Arc is
+  the chain's public endpoint from the payload (`public_rpc_url`), never this server's, which
+  may carry a provider key. Bridging in is Circle's CCTP from your wallet: the approve is for
+  the amount you typed, the burn and mint are Circle's contracts, and this server signs nothing.
 - **On mainnet the service refuses to start** unless every gate is explicit and configured
   (`acr_core.mainnet_guard`); the faucet, the demo buyer and the attack lab do not exist
   there, and no environment variable can bring them back.

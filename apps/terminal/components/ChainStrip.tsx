@@ -1,6 +1,6 @@
 "use client";
 
-import { chainFacts } from "@/lib/chain";
+import { chainFacts, isMainnet } from "@/lib/chain";
 import { RATING_WINDOW_DAYS } from "@/lib/humans";
 import { deskTier, formatOi } from "@/lib/futuresBook";
 import { ageWords, editionLabel, publishedAt } from "@/lib/format";
@@ -114,6 +114,23 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
       </span>,
     );
   }
+  /* Which Arc this is, said once where every page can see it. A community
+     tester on launch day needs to know whether the stake is real before the
+     first click; the payload's chain block is the only source, never a literal. */
+  const mainnet = isMainnet(c);
+  parts.push(
+    <a
+      key="net"
+      className={`chip ${mainnet ? "chip-teal" : "chip-gold"}`}
+      href={c.explorer || undefined}
+      target="_blank"
+      rel="noreferrer"
+      title={mainnet ? `chain ${c.chainId} · real USDC · ${c.explorer}` : `chain ${c.chainId} · test USDC from the faucet · ${c.explorer}`}
+    >
+      {mainnet ? <span className="dot breathe" aria-hidden /> : null}
+      <Ed x={mainnet ? "Arc mainnet" : "Arc testnet"} p={mainnet ? "real money" : "play money"} />
+    </a>,
+  );
   parts.push(
     <span key="no">
       <Ed x="Fixing " p="Rate-setting " />

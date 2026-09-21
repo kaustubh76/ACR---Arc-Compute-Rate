@@ -55,10 +55,14 @@ Arc testnet, chain `5042002`:
 | `ReceiptMirror` (every x402 settlement, on chain) | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
 | `HumanIdMirror` (which wallets are one person, per week) | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
 
-**Mainnet:** Arc public mainnet (`eip155:5042`) opens 2026-09-16. ACR is **deployment-ready,
-not deployed**: the same five Foundry scripts, in order, with a chain-id preflight —
-`make deploy-mainnet-dry` simulates all of them today ([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md)).
-The first mainnet transaction hash will be added here the day it lands.
+**Mainnet:** Arc public mainnet (`eip155:5042`) is open: `https://rpc.mainnet.arc.io` answers
+without credentials and Circle's Gateway settles x402 on it. ACR is **launch-ready, not yet
+deployed**: one broadcast (`make deploy-mainnet`) deploys all seven contracts and retires the
+deploy key in the same transaction, and every host is a config diff
+([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 is the launch-day order). A visitor
+with USDC on Base bridges, deposits and buys from the storefront without our help
+([`docs/COMMUNITY-TEST.md`](docs/COMMUNITY-TEST.md)). The first mainnet transaction hash will
+be added here the day it lands.
 
 Check it yourself:
 
@@ -180,7 +184,7 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 
 Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **738 py** · **176 forge** · **173 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **740 py** · **176 forge** · **179 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
 
 ---
 

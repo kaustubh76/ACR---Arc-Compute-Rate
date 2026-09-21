@@ -873,7 +873,10 @@ def provenance() -> dict:
         "tape": tape,
         "simulated_tape": tape == "sim",
         "estimator": "real",
-        "chain": "arc-testnet" if s.oracle_address else None,
+        # The chain the print is on, in the payload's own terms (`eip155:5042`
+        # on mainnet); a literal here would tell every paying agent the wrong
+        # network the day the addresses move.
+        "chain": s.caip2() if s.oracle_address else None,
         "note": (
             "prices are estimated from a calibrated simulated tape; the estimator, "
             "the signature and the on-chain print are real"

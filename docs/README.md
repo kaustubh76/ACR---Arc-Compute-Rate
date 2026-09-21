@@ -43,7 +43,8 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 | Doc | Covers |
 |---|---|
 | [TESTNET_RUNBOOK.md](TESTNET_RUNBOOK.md) | The ordered `[OPERATOR]` / `[AUTOMATED]` sequence to bring the whole system up on Arc testnet. |
-| [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md) | Arc mainnet (`eip155:5042`): the same five deploys in order, `make deploy-mainnet-dry` with a chain-id preflight, and what to set after each address exists. |
+| [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md) | Arc mainnet (`eip155:5042`): one deploy broadcast with custody, the config diff for each host, and the launch-day checklist in order. |
+| [COMMUNITY-TEST.md](COMMUNITY-TEST.md) | For a tester with a browser wallet: the five steps from "see the rate" to a receipt on Arc mainnet, what to report, and the limits stated up front. |
 | [DEPLOY.md](DEPLOY.md) | The cloud pair — Render (API) and Vercel (Terminal). Merging does not deploy the API: Render pulls a prebuilt image. |
 | [GRAPH-RUNBOOK.md](GRAPH-RUNBOOK.md) | The five ordered steps to bring the `acr-tape` subgraph up on Studio. Two of them are **not recoverable if done out of order**. |
 
