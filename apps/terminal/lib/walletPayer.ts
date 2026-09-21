@@ -116,6 +116,17 @@ export function addChainParams(f: Facts) {
   };
 }
 
+/** The one thing a funded-or-not wallet should do next, from two balances and a
+ *  price. The storefront is a state machine, not four buttons: no USDC on Arc →
+ *  bridge some in; USDC but no Gateway balance for the price → deposit; else buy.
+ *  `price` 0 means "any positive Gateway balance is ready". */
+export type FundingStep = "bridge" | "deposit" | "ready";
+export function fundingStep(usdcWallet: number, usdcGateway: number, price: number): FundingStep {
+  if (usdcGateway >= Math.max(price, 1e-6)) return "ready";
+  if (usdcWallet > 0) return "deposit";
+  return "bridge";
+}
+
 /** USDC amounts are 6-decimal on the ERC-20 view — never the 18-decimal native one. */
 export function usdcUnits(amountUsdc: number | string): bigint {
   return parseUnits(String(amountUsdc), 6);
@@ -203,6 +214,24 @@ export interface WalletPayResult {
   receipt: { success?: boolean; transaction?: string; network?: string; payer?: string } | null;
   body: unknown;
   amountUsdc: number;
+  /** When the paid retry is refused (402 again): the reason, as a sentence. */
+  error?: string;
+}
+
+/** Why a signed payment was refused, in the visitor's words. The facilitator's
+ *  reason rides in the second 402's PAYMENT-REQUIRED (`error`) and reads like
+ *  a protocol log; the two a visitor can act on get a sentence, the rest pass
+ *  through so a real bug stays visible. */
+export function explainRefusal(required: PaymentRequired | null, status: number): string {
+  const raw = String((required?.error as string | undefined) ?? "").trim();
+  if (/insufficient|balance|exceeds/i.test(raw)) {
+    return "your Gateway balance is short for this price: deposit USDC into Gateway first";
+  }
+  if (/expired|validAfter|validBefore|timeout/i.test(raw)) {
+    return "the authorization expired before the seller settled it; press again";
+  }
+  if (raw) return `the seller refused the payment: ${raw}`;
+  return status === 402 ? "the seller refused the payment and gave no reason" : `the seller answered ${status}`;
 }
 
 /** The two-act exchange, signed by the visitor: 402 → authorization → paid retry. */
@@ -238,12 +267,16 @@ export async function payWithWallet(s: WalletSession, f: Facts, url: string): Pr
       receipt = null;
     }
   }
-  return {
+  const out: WalletPayResult = {
     status: paid.status,
     receipt,
     body: await paid.json().catch(() => null),
     amountUsdc: Number(option.amount) / 1e6,
   };
+  if (paid.status !== 200) {
+    out.error = explainRefusal(decodePaymentRequired(paid.headers.get("PAYMENT-REQUIRED")), paid.status);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- base64, utf-8 safe

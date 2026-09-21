@@ -2897,3 +2897,22 @@ html[data-edition-turn] .plain-only {
     animation: none !important;
   }
 }
+
+/* WalletFunding: the one-next-step row under a wallet (developers console,
+   /exchange listing). Steps are the bridge's progress, one line each. */
+.wallet-funding select {
+  font: inherit;
+  padding: 2px 6px;
+  background: var(--paper, transparent);
+  color: inherit;
+  border: 1px solid var(--rule, currentColor);
+}
+.bridge-steps {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+.bridge-steps li {
+  margin: 2px 0;
+}

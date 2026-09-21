@@ -13,6 +13,8 @@ import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { useEdition } from "@/lib/useEdition";
 import { chainFacts } from "@/lib/chain";
 import { connectWallet, injectedProvider, payWithWallet, type WalletSession } from "@/lib/walletPayer";
+import { WalletFunding, type WalletBalances } from "@/components/WalletFunding";
+import { readableWalletError } from "@/lib/bridge";
 import {
   useBalances,
   useBuyerReady,
@@ -33,9 +35,14 @@ import type {
   TerminalData,
 } from "@/lib/types";
 
-function priceUsdc(item: CatalogItem): string {
+function priceNumber(item: CatalogItem): number {
   const atomic = item.accepts[0]?.amount ?? item.accepts[0]?.maxAmountRequired;
-  return atomic && /^\d+$/.test(atomic) ? `$${(Number(atomic) / 1e6).toFixed(6)}` : "…";
+  return atomic && /^\d+$/.test(atomic) ? Number(atomic) / 1e6 : 0;
+}
+
+function priceUsdc(item: CatalogItem): string {
+  const n = priceNumber(item);
+  return n > 0 ? `$${n.toFixed(6)}` : "…";
 }
 
 function pathOf(resource: string): string {
@@ -230,13 +237,17 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
   const [wallet, setWallet] = useState<WalletSession | null>(null);
   const [walletErr, setWalletErr] = useState<string | null>(null);
   const [hasWallet, setHasWallet] = useState(false);
+  // Funding lives in <WalletFunding> under the listing the visitor opened; the
+  // storefront only needs "does Gateway cover this price" to light the button.
+  const [walletBal, setWalletBal] = useState<WalletBalances | null>(null);
+  const [balanceTick, setBalanceTick] = useState(0);
   useEffect(() => setHasWallet(injectedProvider() !== null), []);
   const connect = useCallback(async () => {
     setWalletErr(null);
     try {
       setWallet(await connectWallet(facts));
     } catch (e) {
-      setWalletErr(e instanceof Error ? e.message : "wallet connection failed");
+      setWalletErr(readableWalletError(e));
     }
   }, [facts]);
   const buyOneWithWallet = useCallback(
@@ -253,7 +264,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           price_usdc: r.amountUsdc,
           tx_ref: r.receipt?.transaction ?? "",
           network: r.receipt?.network ?? facts.caip2,
-          ...(r.status !== 200 ? { error: `status ${r.status}` } : {}),
+          ...(r.status !== 200 ? { error: r.error ?? `status ${r.status}` } : {}),
         };
         setBuyOut((o) => ({ ...o, [path]: out }));
         if (r.status === 200 && out.tx_ref) {
@@ -261,10 +272,11 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
           void mutate("/api/marketplace/receipts");
           void mutate("/api/revenue");
         } else if (r.status !== 200) {
-          setBuyErr((e) => ({ ...e, [path]: `the seller answered ${r.status}` }));
+          setBuyErr((e) => ({ ...e, [path]: r.error ?? `the seller answered ${r.status}` }));
         }
+        setBalanceTick((t) => t + 1);
       } catch (e) {
-        setBuyErr((e2) => ({ ...e2, [path]: e instanceof Error ? e.message : "payment failed" }));
+        setBuyErr((e2) => ({ ...e2, [path]: readableWalletError(e) }));
       } finally {
         setBuying(null);
       }
@@ -496,7 +508,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                                       e.stopPropagation();
                                       void buyOneWithWallet(item.resource);
                                     }}
-                                    disabled={buying !== null}
+                                    disabled={buying !== null || (walletBal !== null && walletBal.next !== "ready")}
                                   >
                                     {buying === path ? (
                                       <Ed x="your wallet is signing…" p="your wallet is paying…" />
@@ -548,6 +560,17 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                                   <span className="vermilion" style={{ fontSize: 12.5 }}>{walletErr}</span>
                                 ) : null}
                               </div>
+                              {wallet ? (
+                                <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 10 }}>
+                                  <WalletFunding
+                                    wallet={wallet}
+                                    facts={facts}
+                                    price={priceNumber(item)}
+                                    onChange={setWalletBal}
+                                    refreshKey={balanceTick}
+                                  />
+                                </div>
+                              ) : null}
 
                               {out && out.status === 200 ? (
                                 <p className="mono green" style={{ fontSize: 12.5, margin: 0 }}>

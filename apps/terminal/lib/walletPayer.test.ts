@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHAIN, chainFacts } from "./chain";
-import { addChainParams, decodePaymentRequired, paymentHeader, pickBatchingOption, usdcUnits } from "./walletPayer";
+import { addChainParams, decodePaymentRequired, paymentHeader, pickBatchingOption, usdcUnits, explainRefusal, fundingStep } from "./walletPayer";
 
 const batching = {
   scheme: "exact",
@@ -51,4 +51,21 @@ test("addChainParams: hex chain id, USDC as the 18-decimal native asset, from th
 test("usdcUnits is the 6-decimal ERC-20 view, never the native 18", () => {
   assert.equal(usdcUnits("0.0001"), 100n);
   assert.equal(usdcUnits(1), 1_000_000n);
+});
+
+test("explainRefusal: the facilitator's reason becomes a sentence a visitor can act on", () => {
+  assert.match(explainRefusal({ error: "insufficient_balance: depositor has 0" }, 402), /deposit USDC into Gateway/);
+  assert.match(explainRefusal({ error: "authorization validBefore exceeded" }, 402), /expired/);
+  assert.equal(explainRefusal({ error: "invalid signature" }, 402), "the seller refused the payment: invalid signature");
+  assert.equal(explainRefusal(null, 402), "the seller refused the payment and gave no reason");
+  assert.equal(explainRefusal(null, 503), "the seller answered 503");
+});
+
+test("fundingStep: no USDC anywhere → bridge; USDC but a short Gateway → deposit; enough in Gateway → ready", () => {
+  assert.equal(fundingStep(0, 0, 0.001), "bridge");
+  assert.equal(fundingStep(2, 0, 0.001), "deposit");
+  assert.equal(fundingStep(2, 0.0005, 0.001), "deposit");
+  assert.equal(fundingStep(0, 0.001, 0.001), "ready");
+  assert.equal(fundingStep(0, 0.5, 0), "ready", "no price: any Gateway balance is ready");
+  assert.equal(fundingStep(0, 0, 0), "bridge");
 });

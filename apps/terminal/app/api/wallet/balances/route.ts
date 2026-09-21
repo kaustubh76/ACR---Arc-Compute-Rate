@@ -2,19 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, erc20Abi, formatUnits, http, isAddress } from "viem";
 import { bundleSection } from "@/lib/api";
 import { CHAIN, chainFacts } from "@/lib/chain";
-import { GATEWAY_WALLET_ABI } from "@/lib/walletPayer";
+import { GATEWAY_WALLET_ABI, fundingStep } from "@/lib/walletPayer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET ?address=0x… — what a visitor's wallet holds, read from the chain by THIS
- *  server. Two numbers, both in the 6-decimal USDC view: the wallet's USDC
- *  balance, and the Gateway balance it can pay x402 from. Server-side on purpose:
- *  the read goes through our RPC, which on Arc mainnet is credentialed and must
- *  not be handed to a browser. Read-only; the address is the visitor's claim. */
+/** GET ?address=0x…&price=0.001 — what a visitor's wallet holds, read from the
+ *  chain by THIS server, and the one thing to do next. Two numbers, both in the
+ *  6-decimal USDC view: the wallet's USDC balance, and the Gateway balance it
+ *  can pay x402 from; `next` is bridge | deposit | ready against `price`.
+ *  Server-side on purpose: the read goes through our RPC, which may be a keyed
+ *  provider URL that must not reach a browser. Read-only; the address is the
+ *  visitor's claim. */
 export async function GET(req: NextRequest) {
   const address = (req.nextUrl.searchParams.get("address") ?? "").trim();
   if (!isAddress(address)) return NextResponse.json({ detail: "address is not an EVM address" }, { status: 400 });
+  const price = Math.max(0, Number(req.nextUrl.searchParams.get("price") ?? 0) || 0);
 
   const f = chainFacts(bundleSection("chain") ?? null);
   const rpc = process.env.ACR_ARC_RPC_URL ?? f.rpc ?? CHAIN.rpc;
@@ -29,12 +32,15 @@ export async function GET(req: NextRequest) {
         ? client.readContract({ address: gateway, abi: GATEWAY_WALLET_ABI, functionName: "availableBalance", args: [usdc, address] })
         : Promise.resolve(0n),
     ]);
+    const usdcWallet = Number(formatUnits(wallet, 6));
+    const usdcGateway = Number(formatUnits(gatewayAvail, 6));
     return NextResponse.json({
       address,
       network: f.caip2,
-      usdc_wallet: Number(formatUnits(wallet, 6)),
-      usdc_gateway: Number(formatUnits(gatewayAvail, 6)),
+      usdc_wallet: usdcWallet,
+      usdc_gateway: usdcGateway,
       gateway_wallet: gateway || null,
+      next: fundingStep(usdcWallet, usdcGateway, price),
       fetchedAt: Date.now(),
     });
   } catch (e) {
