@@ -56,6 +56,9 @@ You do not need to include your address; the receipt is public anyway.
 - **Bridging is slow** on standard CCTP (minutes, not seconds) and needs gas on the source chain
   in that chain's native token.
 - **Gas on Arc is USDC.** Keep a few cents in the wallet itself, not only in Gateway.
+- **Your Gateway balance goes down a few minutes after the purchase, not instantly.** Circle
+  batches nanopayments; we measured about nine minutes on testnet. The data arrives immediately
+  and the receipt is real from the moment it appears, so do not buy twice thinking it failed.
 - The venue on mainnet is new and thin. A quote may be wide; that is the book, not a bug.
 - If the dateline says *archived* rather than *live*, the press is between prints; reads still
   work, and a purchase settles against the archived rate.

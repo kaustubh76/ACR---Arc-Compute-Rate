@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -304,6 +304,20 @@ verify-claims:
 # neither the repo nor the image.
 x402-capture:
 	uv run python scripts/x402_capture.py
+
+# Prove the HUMAN revenue path with a real payment: a wallet signs, Circle's
+# facilitator settles, the seller serves the data, and the depositor's Gateway
+# balance goes down on chain. Every other walletPayer test is a pure function,
+# so this is the only thing that proves a visitor can actually buy. Spends real
+# USDC and needs a funded Gateway balance, which is why it is not in `make ci`.
+#
+#   PROBE_KEY=0x... SELLER=https://your-seller make wallet-settle-probe
+#
+# The seller must report facilitator=circle; against the dev gate the probe
+# refuses, because a mock header proves nothing.
+wallet-settle-probe:
+	@test -n "$(PROBE_KEY)" || { echo "PROBE_KEY not set: the payer's key (never logged). Needs a funded Gateway balance."; exit 1; }
+	@cd apps/terminal && PROBE_KEY=$(PROBE_KEY) SELLER=$(or $(SELLER),http://127.0.0.1:8000) npm run --silent wallet-settle-probe
 
 # The autonomous hedger: one Circle AGENT wallet buys the index over x402, then
 # trades ACRFutures on what it just read. The only loop here that makes an

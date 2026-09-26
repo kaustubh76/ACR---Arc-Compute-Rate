@@ -147,6 +147,7 @@ has to be true before the link goes out; each line names who can do it (the code
 | 8 | `make resolve-humans ARGS=--commit` for the current window | the resolver key | `humans.n` is not silently 0 |
 | 9 | `make verify-mainnet` then `make verify-live` (its *revenue* section checks the 402, the facilitator's chain list, the public RPC, the balances route) | anyone | all ✓ |
 | 10 | Buy one thing yourself from a wallet that had **no** USDC on Arc: bridge → deposit → buy (§3 step 7) | operator, a personal wallet, ~$2 on Base | the five community steps, end to end, before anyone else tries |
+| 10a | `PROBE_KEY=0x… SELLER=<mainnet api> make wallet-settle-probe` | a funded Gateway balance | the same settle without a browser, as a one-command regression check. Proven on testnet 2026-09-26: 402 → wallet signature → `success` + Gateway id → data served → **100 atomic USDC debited on chain after ~9 min** (Gateway's batch window) |
 | 11 | Paste the first `postPrint` hash and the first receipt into `README.md`; send the link with `COMMUNITY-TEST.md` | operator | launch |
 
 A tester's failure lands as a *Mainnet test* issue (`.github/ISSUE_TEMPLATE/mainnet-test.md`).
