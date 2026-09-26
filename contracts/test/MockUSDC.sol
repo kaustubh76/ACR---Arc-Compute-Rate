@@ -2,7 +2,11 @@
 pragma solidity ^0.8.24;
 
 /// @notice Minimal 6-decimals ERC-20 for collateral tests — just enough surface
-///         (`transfer`/`transferFrom`/`approve`/`balanceOf`) for `ACRFutures`.
+///         (`transfer`/`transferFrom`/`approve`/`balanceOf`) for `ACRFutures`,
+///         plus the `Transfer`/`Approval` events, because code that verifies a
+///         payment reads LOGS rather than balances. Without them a silent mock
+///         makes a log-reading verifier see every payment as zero, which is a
+///         fixture bug that looks exactly like a product bug.
 ///         Not production; test-only.
 contract MockUSDC {
     string public constant name = "Mock USDC";
@@ -12,12 +16,17 @@ contract MockUSDC {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
     function mint(address to, uint256 amount) external {
         balanceOf[to] += amount;
+        emit Transfer(address(0), to, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
         return true;
     }
 
@@ -25,6 +34,7 @@ contract MockUSDC {
         require(balanceOf[msg.sender] >= amount, "balance");
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
         return true;
     }
 
@@ -35,6 +45,7 @@ contract MockUSDC {
         if (a != type(uint256).max) allowance[from][msg.sender] = a - amount;
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
+        emit Transfer(from, to, amount);
         return true;
     }
 }
