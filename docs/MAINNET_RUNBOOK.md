@@ -140,7 +140,8 @@ has to be true before the link goes out; each line names who can do it (the code
 | 1 | `make deploy-mainnet` (§2) with a **fresh** funded deploy key, `ACR_PRESS_SIGNER`, `ACR_EXPECTED_OWNER` | operator: keys + ~1 USDC of gas on 5042 | seven contracts, deployer signs nothing |
 | 2 | `acceptOwnership()` ×6 from the owner (§3 step 5); move the deploy key out of `.env` | the owner key | custody |
 | 2a | **Rebuild and push the image.** `docker build --platform linux/amd64 -t kaushtubh02/acr-api:$(date +%F) -t kaushtubh02/acr-api:latest . && docker push` both tags | Docker Desktop running (ask the daemon: `docker version --format '{{.Server.Version}}'` — `docker info` exits 0 even when it cannot connect), `docker login` | **Render pulls a prebuilt image and there is no CI build**, so `:latest` means "whatever was last pushed". On 2026-09-26 that was a 09-13 build predating `mainnet_guard` itself — a mainnet service from it would have run the fail-open code the audit closed. Prove the new code is *inside* the image rather than trusting the build log: `docker run --rm --platform linux/amd64 --entrypoint sh <tag> -c 'uv run --no-sync python -c "from acr_core.mainnet_guard import violations; from acr_core.config import CHAIN_PROFILES; print(CHAIN_PROFILES[5042].public_rpc)"'`. `render.yaml` pins the dated tag |
-| 3 | Render `acr-api-mainnet`: a **payment method on the workspace** (`starter`, not free — C3), then fill the addresses, `ACR_X402_PAY_TO` (treasury), Circle **LIVE** API key + entity secret (test keys do not open `ARC` wallets), `ACR_HUMANID_APP_ID`, a keyed `ACR_ARC_RPC_URL`; deploy the image | Circle console (live env), Render dashboard | the guard lets it boot |
+| 3 | Render `acr-api-mainnet` **already exists**: `srv-das1navlk1mc73dvsm8g` in workspace `tea-d9dgp6n41pts73d3ueu0`, at `https://acr-api-mainnet.onrender.com`, image pinned, 26 env vars set, **suspended on purpose**. Three things remain, all secrets: `ACR_X402_PAY_TO` (treasury), `ACR_HUMANID_APP_ID`, a keyed `ACR_ARC_RPC_URL` — plus the addresses after step 1 and the Circle **LIVE** key + entity secret (test keys do not open `ARC` wallets). Patch them **one key at a time**: the bulk env PUT replaces every var. Env edits do not restart a service — redeploy with `SKIP_BUILD`. | Circle console (live env), Render dashboard | the guard lets it boot |
+| 3a | **Upgrade the plan from `free` to `starter` before resuming.** It was created on free only because the workspace had no card; `render.yaml` says `starter` and audit C3 is why — a sleeping press stranded testnet collateral twice. Add a card, then `PATCH /v1/services/<id>` with `plan: "starter"`. | a card on the Render workspace | the press does not sleep through a settlement window |
 | 4 | Gas Station policy for `ARC` in the Circle console | Circle console | Desk gas is sponsored; without it the SCA pays gas from its own USDC (the Desk detects and says so) |
 | 5 | `make backfill-oracle-v2`, first `postPrint` from the press wallet | the press | a mainnet print exists |
 | 6 | `make snapshot` against the mainnet API; Vercel: `NEXT_PUBLIC_ACR_API`, `NEXT_PUBLIC_ACR_CHAIN_ID=5042`, `ACR_API`, `ACR_ARC_RPC_URL` (keyed); **no** `ACR_TERMINAL_BUYER`; deploy | Vercel | the terminal's cold-start bundle is mainnet; the dateline chip says *Arc mainnet* |
@@ -150,6 +151,20 @@ has to be true before the link goes out; each line names who can do it (the code
 | 10 | Buy one thing yourself from a wallet that had **no** USDC on Arc: bridge → deposit → buy (§3 step 7) | operator, a personal wallet, ~$2 on Base | the five community steps, end to end, before anyone else tries |
 | 10a | `PROBE_KEY=0x… SELLER=<mainnet api> make wallet-settle-probe` | a funded Gateway balance | the same settle without a browser, as a one-command regression check. Proven on testnet 2026-09-26: 402 → wallet signature → `success` + Gateway id → data served → **100 atomic USDC debited on chain after ~9 min** (Gateway's batch window) |
 | 11 | Paste the first `postPrint` hash and the first receipt into `README.md`; send the link with `COMMUNITY-TEST.md` | operator | launch |
+
+**The guard is your checklist, and it has already run.** Resumed once on 2026-09-26 against the
+pinned image, the service refused to start and said why — in production, not in a test:
+
+```
+MainnetGuardError: refusing to start on Arc mainnet (chain 5042) — 3 violation(s):
+  - ACR_X402_PAY_TO is not an address: paid prints would be paid to nobody
+  - ACR_HUMANID_APP_ID is unset: a proof scoped to no app authorizes nothing
+  - ACR_ARC_RPC_URL is not a mainnet https endpoint (the public one is https://rpc.mainnet.arc.io…)
+```
+
+Exactly three, all of them secrets a repo cannot hold. Everything else in the mainnet profile was
+accepted, so that list is the remaining work — when it comes back empty, the service boots. This is
+audit finding H1 (both gates fail OPEN in `auto`) verified on the deployed artifact.
 
 A tester's failure lands as a *Mainnet test* issue (`.github/ISSUE_TEMPLATE/mainnet-test.md`).
 Read the sentence they pasted first: every path in the terminal fails with one, so a raw code or a
