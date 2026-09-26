@@ -232,7 +232,12 @@ services:
     plan: starter # NOT free: a sleeping press stranded testnet collateral twice (docs/SECURITY-AUDIT.md C3)
     region: oregon
     image:
-      url: docker.io/kaushtubh02/acr-api:latest
+      # PINNED, not :latest. Render pulls a prebuilt image and there is no CI
+      # build, so `latest` silently means "whatever was last pushed" — on
+      # 2026-09-26 that was a 09-13 build predating mainnet_guard itself, i.e.
+      # the fail-open code the audit closed. A dated tag makes the running
+      # code a fact in this file.
+      url: docker.io/kaushtubh02/acr-api:2026-09-26
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
