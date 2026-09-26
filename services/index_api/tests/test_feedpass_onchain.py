@@ -20,7 +20,6 @@ Skipped (not failed) without a node, so the default `make test` stays hermetic.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -86,7 +85,8 @@ def test_a_real_transfer_becomes_a_real_pass(monkeypatch):
     w3, press, reader = conn
 
     from acr_core import reset_settings
-    from acr_oracle_client import build_role_signer, feed_access as fa
+    from acr_oracle_client import build_role_signer
+    from acr_oracle_client import feed_access as fa
     from index_api import feedpass
 
     usdc = _deploy(w3, press, USDC_ART)
