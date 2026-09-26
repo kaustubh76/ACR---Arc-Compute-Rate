@@ -235,10 +235,25 @@ ACR_MAINNET_CHAIN_ID ?= 5042
 # contract, ownership hand-over started (docs/SECURITY-AUDIT.md C1, C2).
 MAINNET_SCRIPTS = DeployMainnet.s.sol
 
+# How the mainnet deploy authenticates. Prefer a Foundry keystore:
+#
+#   cast wallet import acr-deploy --interactive     # once; prompts for key + password
+#   ACR_DEPLOY_ACCOUNT=acr-deploy make deploy-mainnet
+#
+# The key then lives encrypted in ~/.foundry/keystores, never in .env (which any
+# tool reading this repo can cat) and never in argv (which `ps aux` can read on a
+# shared machine). DEPLOYER_PRIVATE_KEY still works, and is fine for anvil and
+# testnet, where the key guards nothing of value.
+ifdef ACR_DEPLOY_ACCOUNT
+deploy_signer := --account $(ACR_DEPLOY_ACCOUNT)
+else
+deploy_signer := --private-key $(DEPLOYER_PRIVATE_KEY)
+endif
+
 define mainnet_preflight
 	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_MAINNET_USDC)" || { echo "ACR_MAINNET_USDC not set: the USDC address is NOT defaulted on mainnet (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
-	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set"; exit 1; }
+	@test -n "$(ACR_DEPLOY_ACCOUNT)$(DEPLOYER_PRIVATE_KEY)" || { echo "no deploy signer: set ACR_DEPLOY_ACCOUNT=<keystore name> (cast wallet import <name> --interactive) or DEPLOYER_PRIVATE_KEY"; exit 1; }
 	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set: HumanIdMirror is deployed WITH its commitment (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_PRESS_SIGNER)" || { echo "ACR_PRESS_SIGNER not set: the press custody wallet that will sign prints; the deploy key is retired as a signer in the same broadcast (docs/MAINNET_RUNBOOK.md)"; exit 1; }
 	@got=$$(cast chain-id --rpc-url $(ACR_MAINNET_RPC_URL)); test "$$got" = "$(ACR_MAINNET_CHAIN_ID)" || { echo "RPC answers chain id $$got, expected $(ACR_MAINNET_CHAIN_ID) — wrong network, refusing"; exit 1; }
@@ -249,7 +264,7 @@ deploy-mainnet-dry:
 	$(mainnet_preflight)
 	@for s in $(MAINNET_SCRIPTS); do \
 	  echo ""; echo "▸ simulate $$s"; \
-	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)) || exit 1; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) $(deploy_signer)) || exit 1; \
 	done
 	@echo ""; echo "  dry run complete: every script simulates on chain $(ACR_MAINNET_CHAIN_ID). Nothing was broadcast."
 
@@ -258,7 +273,7 @@ deploy-mainnet:
 	@echo ""; echo "  BROADCASTING to chain $(ACR_MAINNET_CHAIN_ID). Each script prints the addresses to set before the next."
 	@for s in $(MAINNET_SCRIPTS); do \
 	  echo ""; echo "▸ broadcast $$s"; \
-	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast) || exit 1; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) $(deploy_signer) --broadcast) || exit 1; \
 	done
 	@echo ""; echo "  now follow docs/MAINNET_RUNBOOK.md from step 3 (addresses -> render.yaml mainnet profile -> subgraph -> resolve-humans)."
 
