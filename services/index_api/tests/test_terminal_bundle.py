@@ -302,10 +302,13 @@ def test_snapshot_exchange_sample_is_recorded_not_handwritten():
 
 
 def test_snapshot_chain_guard_refuses_local_chains():
-    # A configured oracle + an anvil chain id must refuse to embed (the
-    # committed fallback would ship a stale local address); the persistent Arc
-    # testnet passes; an unreachable RPC (None) can't prove persistence.
+    # A configured oracle + an anvil chain id must refuse to embed (the committed
+    # fallback would ship a stale local address); an unreachable RPC (None) can't
+    # prove persistence either. The property is PERSISTENCE, so both Arc networks
+    # pass — the guard used to name testnet alone and refused the very bundle a
+    # mainnet build needs.
     gen_snapshot.check_oracle_commit_guard(5042002)  # Arc testnet → allowed
+    gen_snapshot.check_oracle_commit_guard(5042)     # Arc mainnet → allowed
     for cid in (31337, 1337, 12345, None):
         with pytest.raises(SystemExit):
             gen_snapshot.check_oracle_commit_guard(cid)

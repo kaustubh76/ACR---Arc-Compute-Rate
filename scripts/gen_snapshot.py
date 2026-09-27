@@ -35,6 +35,10 @@ WARMUP_REFRESHES = 48
 HOUR = 3600.0
 #: The persistent Arc testnet — the only chain whose oracle data may be committed.
 ARC_TESTNET_CHAIN_ID = 5042002
+ARC_MAINNET_CHAIN_ID = 5042
+#: The chains whose addresses are safe to commit — they outlive the process that
+#: wrote the bundle. Anything else (anvil, an unreachable RPC) is refused below.
+PERSISTENT_CHAIN_IDS = frozenset({ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID})
 #: Ephemeral local chains (anvil/hardhat) — never committable.
 LOCAL_CHAIN_IDS = {31337, 1337}
 
@@ -251,15 +255,21 @@ def _connected_chain_id(reader) -> int | None:
 
 
 def check_oracle_commit_guard(chain_id: int | None) -> None:
-    """Refuse to embed oracle data unless the connected chain is the persistent
-    Arc testnet. Local chains (anvil/hardhat) are ephemeral — a stale address
-    makes the offline Terminal show a false "on-chain ✓" badge — and an
-    unreachable RPC (None) cannot prove persistence either."""
-    if chain_id != ARC_TESTNET_CHAIN_ID:
+    """Refuse to embed oracle data unless the connected chain is PERSISTENT.
+
+    The property that matters is persistence, not which Arc it is: a local chain
+    (anvil/hardhat) is ephemeral, so a committed address from one makes the
+    offline Terminal show a false "on-chain ✓" badge, and an unreachable RPC
+    (None) cannot prove persistence either. This read `!= ARC_TESTNET_CHAIN_ID`
+    while testnet was the only persistent chain ACR had; since 2026-09-27 mainnet
+    is the one the product runs on, and it refused the very bundle a mainnet
+    build requires (`lib/chain.test.ts` fails the build on a chain mismatch).
+    Both Arc networks are allowed now; anything else still is not."""
+    if chain_id not in PERSISTENT_CHAIN_IDS:
         kind = "an ephemeral local chain" if chain_id in LOCAL_CHAIN_IDS else f"chain {chain_id}"
         raise SystemExit(
-            f"refusing to embed oracle data from {kind} — only the persistent "
-            f"Arc testnet ({ARC_TESTNET_CHAIN_ID}) may be committed"
+            f"refusing to embed oracle data from {kind} — only a persistent "
+            f"Arc network ({', '.join(str(c) for c in sorted(PERSISTENT_CHAIN_IDS))}) may be committed"
         )
 
 

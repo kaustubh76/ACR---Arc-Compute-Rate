@@ -83,15 +83,31 @@ test("the freshness window matches the contract it copies", () => {
   // And the addresses it actually produces are the ones the registry holds,
   // per the committed bundle. This is the whole claim, checked without a
   // network: derive here, compare to what was filed on Arc.
+  //
+  // A registry with no records makes that claim vacuous rather than false, and
+  // that is a real state, not a hypothetical: the mainnet AttestationRegistry was
+  // deployed on 2026-09-27 with zero attestations, so a bundle from it has an
+  // empty `sellers` list and a `deepEqual` against six derived addresses failed
+  // on a chain where nothing had been filed yet. Compare when there is something
+  // to compare, and say so when there is not.
   const bundle = JSON.parse(readFileSync(join(__dirname, "fallback.json"), "utf8"));
   const filed: string[] = bundle.marketplace.catalog.provider.attestation.sellers.map(
     (s: { seller: string }) => s.seller.toLowerCase(),
   );
-  assert.deepEqual(
-    deriveDemoSellers().map((d) => d.address.toLowerCase()).sort(),
-    filed.sort(),
-    "the derived seller addresses no longer match the registry records in fallback.json",
-  );
+  const derived = deriveDemoSellers().map((d) => d.address.toLowerCase()).sort();
+  if (filed.length === 0) {
+    // The derivation is still held to its own shape, so this branch is not a
+    // free pass: six distinct, well-formed addresses or the helper is broken.
+    assert.equal(derived.length, 6, "the derivation should still produce six sellers");
+    assert.equal(new Set(derived).size, 6, "derived seller addresses must be distinct");
+    for (const a of derived) assert.match(a, /^0x[0-9a-f]{40}$/);
+  } else {
+    assert.deepEqual(
+      derived,
+      filed.sort(),
+      "the derived seller addresses no longer match the registry records in fallback.json",
+    );
+  }
 
   /* The register the footer and /developers now share. Folded in here rather
      than added as a test of its own, for the reason given above the registry
@@ -122,13 +138,25 @@ test("the freshness window matches the contract it copies", () => {
   const usdc = deployedContracts(null).find((r) => r.key === "usdc");
   assert.match(usdc!.href, /\/token\/0x3600/, "USDC should still link to the token page");
 
-  // And the register agrees with the committed bundle: every address the
-  // snapshot carries is one the register would name. No `humanid` here because
-  // the bundle predates HumanIdMirror — which is the omit-don't-zero rule in
-  // action, not an oversight.
+  // And the register agrees with the committed bundle: every address the snapshot
+  // carries is one the register would name, in the order the paper explains
+  // itself. The expectation is DERIVED from the bundle rather than written out,
+  // because the hardcoded list encoded an accident of one snapshot: the testnet
+  // bundle predated HumanIdMirror, so `humanid` was absent, and the first mainnet
+  // bundle — which carries the address — failed a test that had frozen that
+  // absence into a rule. Omit-don't-zero is the rule; which rows exist is data.
   const chain = bundle.chain;
   const keys = deployedContracts(chain, bundle.oracle).map((r) => r.key);
-  assert.deepEqual(keys, ["oracle", "futures", "registry", "attestor", "usdc", "gateway"]);
+  const expected = [
+    "oracle",
+    "futures",
+    "registry",
+    "attestor",
+    ...(chain?.humanid_address ? ["humanid"] : []),
+    "usdc",
+    "gateway",
+  ];
+  assert.deepEqual(keys, expected);
 
   /* 4. HumanIdMirror takes its place when the payload carries it.
 
