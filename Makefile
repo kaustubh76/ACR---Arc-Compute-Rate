@@ -88,7 +88,7 @@ test-agent:
 	cd apps/agent && npm run build && npm test
 
 test-terminal:
-	cd apps/terminal && npm test && npm run build
+	cd apps/terminal && npm test && npm run lint && npm run build
 
 # All THREE indices. It ran ACR-INF only for months, so ACR-GPU and ACR-DATA
 # were gated by nothing but the paired-swing tests — which measure a swing

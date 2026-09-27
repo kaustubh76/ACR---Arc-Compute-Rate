@@ -8,7 +8,6 @@ import { PaymentToast, type ToastPayload } from "@/components/chain/PaymentToast
 import { SettlementTape } from "@/components/chain/SettlementTape";
 import { WalletPanel } from "@/components/chain/WalletPanel";
 import { Ed } from "@/components/Ed";
-import { Term } from "@/components/Term";
 import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { useEdition } from "@/lib/useEdition";
 import { chainFacts } from "@/lib/chain";

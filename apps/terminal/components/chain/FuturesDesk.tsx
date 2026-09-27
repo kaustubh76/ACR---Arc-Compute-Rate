@@ -88,7 +88,9 @@ export function FuturesDesk({
   source?: FuturesRoster["source"];
 }) {
   const now = useNow();
-  const nowS = now > 0 ? now : Date.now() / 1000;
+  // `useNow` is 0 until mounted, deliberately: a wall clock rendered on the
+  // server cannot match the client's. Falling back to Date.now() here defeated
+  // that and made render impure, so the countdown waits for the real clock.
   const rows = Object.values(desks ?? {});
   const cf = chainFacts(chain);
   const venue = cf.futures;
@@ -219,7 +221,7 @@ export function FuturesDesk({
                           <>
                             {expiryLabel(r.expiry_ts)}
                             <br />
-                            <span className="muted">{countdown(r.expiry_ts, nowS)}</span>
+                            {now > 0 ? <span className="muted">{countdown(r.expiry_ts, now)}</span> : null}
                           </>
                         )}
                       </td>

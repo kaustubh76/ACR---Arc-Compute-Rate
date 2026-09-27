@@ -58,11 +58,11 @@ async function forward(path: string, init: RequestInit): Promise<NextResponse> {
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { action: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ detail: "bad body" }, { status: 400 });
 
-  switch (params.action) {
+  switch ((await params).action) {
     case "session": {
       const userId = body.user_id;
       if (typeof userId !== "string" || !USER_ID_RE.test(userId)) {
@@ -188,9 +188,9 @@ export async function POST(req: NextRequest, { params }: { params: { action: str
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { action: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
   const q = req.nextUrl.searchParams;
-  switch (params.action) {
+  switch ((await params).action) {
     case "position": {
       const series = Number(q.get("series"));
       const addr = q.get("addr") ?? "";

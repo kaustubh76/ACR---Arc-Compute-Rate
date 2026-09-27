@@ -26,6 +26,10 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   const futures = useFutures();
   const futRow = futures.roster?.data?.desks?.[id] ?? env.data.futures?.[id] ?? null;
   const raw = env.data.prints[id];
+  /* Every hook must run before the 404 return below, or the hook COUNT changes
+     between a known and an unknown index and React throws "rendered fewer hooks
+     than expected". `useWorkload` used to sit after it. */
+  const w = useWorkload();
   const directPrint = !env.live ? direct?.data?.prints?.[id] ?? conn.onchain?.data?.prints?.[id] : null;
 
   if (!raw) {
@@ -56,7 +60,6 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   /* The reader's declared usage, expressed against THIS index. Same rules as
      the rate cards: priced off h.value, delta is the history series' ratio
      applied to the bill, and null renders nothing at all. */
-  const w = useWorkload();
   const yourBill = w ? monthlyCost(w, id, h.value) : null;
   const yourBp = deltaBp(history.length ? history : undefined);
   const rawYourMove = yourBill !== null && yourBp !== null ? (yourBill * yourBp) / 1e4 : null;
