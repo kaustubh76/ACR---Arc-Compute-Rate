@@ -45,8 +45,10 @@ function die(msg: string): never {
 }
 
 async function main() {
-  if (!KEY?.startsWith("0x")) die("PROBE_KEY is unset or not 0x-prefixed (a funded payer's key; never logged)");
-  const account = privateKeyToAccount(KEY as `0x${string}`);
+  // .env stores keys bare-hex, so accept both rather than refuse a valid key.
+  const key = KEY?.trim().startsWith("0x") ? KEY.trim() : KEY?.trim() ? `0x${KEY.trim()}` : "";
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) die("PROBE_KEY is unset or not a 32-byte hex key (never logged)");
+  const account = privateKeyToAccount(key as `0x${string}`);
 
   // The seller's own terms decide the network, the price and the Gateway. A
   // literal here would let this pass against the wrong chain.
@@ -110,9 +112,10 @@ async function main() {
   const respHeader = paid.headers.get("PAYMENT-RESPONSE");
   if (respHeader) console.log(`   PAYMENT-RESPONSE ${Buffer.from(respHeader, "base64").toString()}`);
   if (paid.status !== 200) {
+    const failBody = await paid.json().catch(() => null);
     die(
       "the seller refused the signed payment. As a visitor would read it: " +
-        explainRefusal(decodePaymentRequired(paid.headers.get("PAYMENT-REQUIRED")), paid.status),
+        explainRefusal(decodePaymentRequired(paid.headers.get("PAYMENT-REQUIRED")), paid.status, failBody),
     );
   }
 

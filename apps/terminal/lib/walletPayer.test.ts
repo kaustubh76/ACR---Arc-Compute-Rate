@@ -69,3 +69,21 @@ test("fundingStep: no USDC anywhere → bridge; USDC but a short Gateway → dep
   assert.equal(fundingStep(0, 0.5, 0), "ready", "no price: any Gateway balance is ready");
   assert.equal(fundingStep(0, 0, 0), "bridge");
 });
+
+test("explainRefusal: the facilitator's reason arrives in the BODY, not the header", () => {
+  // Measured against mainnet 2026-09-27: the seller answers 402 with
+  // {detail: "payment invalid: self_transfer"} and an unhelpful header, and the
+  // visitor was shown "gave no reason" while the server log had the cause.
+  assert.match(
+    explainRefusal(null, 402, { detail: "payment invalid: self_transfer" }),
+    /seller's own payout address/,
+  );
+  assert.equal(
+    explainRefusal(null, 402, { detail: "payment invalid: something new" }),
+    "the seller refused the payment: payment invalid: something new",
+  );
+  // The header still wins when it carries something, and a body without a
+  // detail must not invent one.
+  assert.match(explainRefusal({ error: "insufficient_balance" }, 402, { detail: "ignored" }), /deposit USDC/);
+  assert.equal(explainRefusal(null, 402, {}), "the seller refused the payment and gave no reason");
+});
