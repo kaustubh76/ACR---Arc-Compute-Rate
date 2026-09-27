@@ -55,14 +55,31 @@ Arc testnet, chain `5042002`:
 | `ReceiptMirror` (every x402 settlement, on chain) | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
 | `HumanIdMirror` (which wallets are one person, per week) | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
 
-**Mainnet:** Arc public mainnet (`eip155:5042`) is open: `https://rpc.mainnet.arc.io` answers
-without credentials and Circle's Gateway settles x402 on it. ACR is **launch-ready, not yet
-deployed**: one broadcast (`make deploy-mainnet`) deploys all seven contracts and retires the
-deploy key in the same transaction, and every host is a config diff
-([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 is the launch-day order). A visitor
-with USDC on Base bridges, deposits and buys from the storefront without our help
-([`docs/COMMUNITY-TEST.md`](docs/COMMUNITY-TEST.md)). The first mainnet transaction hash will
-be added here the day it lands.
+**Mainnet: LIVE on Arc (`eip155:5042`), 2026-09-27.** Seven contracts in one broadcast, with the
+deploy key's signer bit revoked on every one of them in the same transaction (0.157 USDC of gas),
+and the first three prints on chain:
+
+| | Arc mainnet (5042) |
+|---|---|
+| `ACROracle` | [`0xAfe8…6D07`](https://explorer.arc.io/address/0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07) |
+| `ACROracleV2` (`MAX_MOVE_BPS` 2000) | [`0xF77E…2f81`](https://explorer.arc.io/address/0xF77E763ef710096c0b9F02Ea16F76e68E0312f81) |
+| `ACRFutures` (settles against v2) | [`0xdb5D…6d3b`](https://explorer.arc.io/address/0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b) |
+| `AttestationRegistry` | [`0x13CF…5096`](https://explorer.arc.io/address/0x13CF727d1D25283d58Efe7647dCf30e9cE255096) |
+| `ReceiptMirror` | [`0x1a53…5bE3`](https://explorer.arc.io/address/0x1a5390E59d4ce0a386Aa071365A932Dc34d35bE3) |
+| `HumanIdMirror` | [`0x7134…40B5`](https://explorer.arc.io/address/0x7134622a01Add334eA306dDa5A5877b418a940B5) |
+| `FeedAccessAttestor` | [`0xB950…A490`](https://explorer.arc.io/address/0xB9508caD4A5C367C3a62B6767C4837a607EaA490) |
+| Seller API | https://acr-api-mainnet.onrender.com |
+
+The first print, ACR-INF:
+[`0xef9812…65835`](https://explorer.arc.io/tx/0xef9812037003c9dd40d5d9fbbfae03549a67b03045b696fd8aada385e8c65835).
+ACR-GPU and ACR-DATA landed in the same cycle and all three read back through `/onchain/{index}`.
+
+Still open, said plainly: ownership of the six owned contracts is **pending** `acceptOwnership()`
+from the custody wallet (the registry is ownerless by design); the hourly press needs a signer on
+the host before the fixing updates on its own; and the futures venue has no series yet.
+[`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 tracks the rest, and
+[`docs/COMMUNITY-TEST.md`](docs/COMMUNITY-TEST.md) is the five-step walk for a visitor with USDC
+on Base.
 
 Check it yourself:
 
@@ -187,7 +204,7 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 
 Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **744 py** · **176 forge** · **179 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **744 py** · **176 forge** · **180 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
 
 ---
 

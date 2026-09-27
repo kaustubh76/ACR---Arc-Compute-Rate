@@ -132,6 +132,29 @@ for adding one contract to an existing deployment; they are not the mainnet path
 
 ## 5 · Launch day, in order
 
+> **Rows 1, 2a, 3 and 5 are DONE (2026-09-27).** Seven contracts are on chain, the image is
+> rebuilt and pinned, `acr-api-mainnet` is live and answering, and the first three prints are
+> posted. `data/mainnet-addresses.txt` (gitignored) holds every address. What remains, in the
+> order it unblocks things:
+>
+> 1. **`acceptOwnership()` ×6 from `0xE804f54109b627205B31149965e534837D046dAd`** — only that key
+>    can. Until then the *deploy key* still owns the contracts, so
+>    **`data/mainnet-deploy-key.txt` must not be deleted yet**. It holds ~0.84 USDC that should be
+>    swept back to the press afterwards.
+> 2. **A signer for the press on the host.** `/health` reports `signer: none`: the mainnet service
+>    holds no key, by the same rule the testnet service follows (`ACR_CIRCLE_WALLET_ID`, never a
+>    raw key in an env var). So the three prints were posted from a laptop and **the fixing will
+>    not update on its own.** Either create the Circle **live** wallet set and set
+>    `ACR_CIRCLE_WALLET_ID`, or accept a raw `ACR_POSTER_PRIVATE_KEY` on Render — the blast radius
+>    of that key is now bounded by `ACROracleV2.MAX_MOVE_BPS`, which it was not when this rule was
+>    written.
+> 3. **Prove revenue with a payer that is not the treasury.** `ACR_X402_PAY_TO` is the press
+>    wallet, and Circle's facilitator refuses `self_transfer`, so the press cannot buy from
+>    itself. Fund any other wallet, deposit to Gateway, then
+>    `PROBE_KEY=… SELLER=https://acr-api-mainnet.onrender.com make wallet-settle-probe`.
+> 4. **Upgrade the Render plan from `free` to `starter`** (row 3a) and seed a futures series.
+
+
 The community will do steps 1–5 of [`COMMUNITY-TEST.md`](COMMUNITY-TEST.md). Everything below
 has to be true before the link goes out; each line names who can do it (the code cannot).
 
