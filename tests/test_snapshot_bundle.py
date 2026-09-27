@@ -140,8 +140,20 @@ def test_fallback_hedger_section_still_carries_its_agent():
     # report a paying agent as having paid nothing.
     assert h.get("agent") and h.get("payer"), "the hedger needs BOTH identities"
     assert h["agent"].lower() != h["payer"].lower(), "the SCA is not its own EOA"
-    assert h.get("venue") and isinstance(h.get("series_id"), int)
-    assert h.get("position_contracts") is not None, "archived a position that never read"
+    assert h.get("venue"), "archived a hedger with no venue to trade on"
+    # `series_id` is the series the agent is IN, so a venue with no open series
+    # has none — which is the state of a freshly deployed ACRFutures, not a
+    # degraded capture. The two are told apart by consistency: no series means no
+    # position either. A venue address beside a series id of 0, or a position on a
+    # series that does not exist, is the half-state this is here to catch.
+    sid = h.get("series_id")
+    if sid is None:
+        assert not h.get("position_contracts"), (
+            "archived a position on no series — the venue read half-succeeded"
+        )
+    else:
+        assert isinstance(sid, int) and sid > 0, f"series_id {sid!r} is not a real series"
+        assert h.get("position_contracts") is not None, "archived a position that never read"
 
     # Both legs of the loop. `receipts: null` means the ledger was not read at
     # all, which is a different and worse archive than one with no rows — the
