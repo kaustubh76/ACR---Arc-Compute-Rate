@@ -45,7 +45,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
-  "components/ChainStrip.tsx": 8, // incl. the verified-humans chip and the stale-resolution chip
+  "components/ChainStrip.tsx": 9, // incl. the verified-humans chip, the stale-resolution chip and the network chip
   "components/Colophon.tsx": 13, // incl. the identity line and the salt-mismatch warning
   "components/HomeHero.tsx": 5,
   "components/RateBlock.tsx": 4,
@@ -61,6 +61,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/loop/view.tsx": 4,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
+  "components/WalletFunding.tsx": 6, // the balance line, deposit, bridge (busy + idle) and the bridge note
 
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions

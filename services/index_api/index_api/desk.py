@@ -2,7 +2,8 @@
 user-controlled wallet (SCA on Arc Testnet, Gas Station-sponsored gas).
 
 Backend half of the challenge-response model: this module mints Circle users /
-session tokens, initializes SCA wallets on ``ARC-TESTNET``, drips a capped
+session tokens, initializes SCA wallets on the chain's Circle blockchain (``ARC-TESTNET``
+or ``ARC``, from settings), drips a capped
 USDC collateral stake from the custody wallet, and creates contractExecution
 challenges (approve / postCollateral / trade). The frontend Web SDK
 (`@circle-fin/w3s-pw-web-sdk`) executes the challengeIds — the user's PIN
@@ -233,7 +234,7 @@ def open_session(user_id: str) -> dict:
             "/v1/w3s/user/initialize",
             {
                 "idempotencyKey": str(uuid.uuid4()),
-                "blockchains": ["ARC-TESTNET"],
+                "blockchains": [get_settings().circle_blockchain],
                 "accountType": "SCA",
             },
             user_token=tok["userToken"],
@@ -246,13 +247,35 @@ def open_session(user_id: str) -> dict:
     return out
 
 
+def recent_transfers_from(address: str, to: str) -> list[dict]:
+    """Completed USDC transfers this end-user wallet made to `to`, newest first —
+    Circle's own record, used only as a POINTER to a transaction hash that the
+    chain is then asked about. Nothing here is trusted for the amount."""
+    rows = _circle(
+        "GET",
+        f"/v1/w3s/transactions?blockchain={get_settings().circle_blockchain}&custodyType=ENDUSER"
+        "&operation=TRANSFER&pageSize=50",
+    )["data"].get("transactions", [])
+    a, t = address.lower(), to.lower()
+    out = [
+        {"tx_hash": r.get("txHash"), "state": (r.get("state") or "").upper(),
+         "created": r.get("createDate") or ""}
+        for r in rows
+        if (r.get("sourceAddress") or "").lower() == a
+        and (r.get("destinationAddress") or "").lower() == t
+        and r.get("txHash")
+        and (r.get("state") or "").upper() in ("COMPLETE", "CONFIRMED")
+    ]
+    return sorted(out, key=lambda r: r["created"], reverse=True)
+
+
 def wallet_of(user_token: str) -> dict | None:
     """The user's ARC-TESTNET wallet ``{wallet_id, address}`` (None pre-PIN)."""
     wallets = _circle("GET", "/v1/w3s/wallets", user_token=user_token)["data"].get(
         "wallets", []
     )
     for w in wallets:
-        if w.get("blockchain") == "ARC-TESTNET":
+        if w.get("blockchain") == get_settings().circle_blockchain:
             return {"wallet_id": w["id"], "address": w["address"]}
     return None
 
@@ -368,7 +391,7 @@ class FaucetLedger:
         """
         rows = _circle(
             "GET",
-            "/v1/w3s/transactions?blockchain=ARC-TESTNET&custodyType=ENDUSER"
+            f"/v1/w3s/transactions?blockchain={get_settings().circle_blockchain}&custodyType=ENDUSER"
             "&operation=TRANSFER&pageSize=50",
         )["data"].get("transactions", [])
         return [
@@ -1099,6 +1122,23 @@ def build_challenge(
             venue,
             "withdrawCollateral(uint256,uint256)",
             [str(w["series_id"]), str(w["free_units"])],
+        )
+    elif action == "pass":
+        # The feed pass: a plain USDC transfer from the reader's smart account to
+        # the seller. A smart account cannot sign the EIP-3009 authorization x402
+        # needs (ecrecover), so this is how a Desk user pays for the product —
+        # on chain, gas sponsored, one PIN. `POST /desk/pass/claim` turns the
+        # mined transfer into an attestation the gate honours.
+        pay_to = (s.x402_pay_to or "").strip()
+        if not pay_to.startswith("0x"):
+            raise DeskError(503, "no seller wallet configured to receive a pass payment")
+        units = int(round(float(s.pass_price_usdc) * 1_000_000))
+        if units <= 0:
+            raise DeskError(503, "the pass price is not configured")
+        contract, sig, params = (
+            USDC_PREDEPLOY,
+            "transfer(address,uint256)",
+            [_checksum(pay_to), str(units)],
         )
     elif action == "settle":
         # settle() is PERMISSIONLESS on ACRFutures — anyone may ring the bell,

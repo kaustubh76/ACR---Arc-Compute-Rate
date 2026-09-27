@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @notice The subset of ACROracle this contract settles against. `latestValue`
-///         is the WAD-scaled mark; `latestPrintWithAge` carries the staleness
-///         anchor so settlement can refuse a stale feed.
+/// @notice The subset of the oracle this contract settles against. `latestValue`
+///         is the WAD-scaled mark for trading and margin; the two settlement views
+///         fix the price at expiry and carry the `postedAt` freshness anchor.
 interface IACROracle {
-    struct Print {
-        uint256 value;
-        uint256 ciLo;
-        uint256 ciHi;
-        uint256 attackCostPerBp;
-        uint64 timestamp;
-        uint64 postedAt;
-        bool exists;
-    }
-
+    // Primitives, never structs: v1 and v2 carry different `Print` shapes, and this
+    // pointer is immutable. Two views implemented identically on both oracles keep
+    // one venue source settling against either generation.
     function latestValue(bytes32 indexId) external view returns (uint256);
-    function latestPrintWithAge(bytes32 indexId) external view returns (Print memory print, uint256 age);
+    function firstPrintPostedAtOrAfter(bytes32 indexId, uint64 fromPostedAt)
+        external
+        view
+        returns (bool found, uint256 value, uint64 postedAt);
+    function latestPrintPrimitive(bytes32 indexId)
+        external
+        view
+        returns (bool exists, uint256 value, uint64 postedAt);
 }
 
 /// @notice Minimal ERC-20 surface for USDC collateral (6 decimals on Arc).
@@ -64,6 +64,11 @@ contract ACRFutures {
     /// @notice A settlement print may be at most this old (seconds) — the
     ///         freshness guard, mirroring the oracle's own settlement contract.
     uint64 public constant MAX_SETTLE_AGE = 7200; // 2 hours
+    /// @notice After expiry plus this grace, `settleStale` clears the series at the
+    ///         best print that exists, whatever its age. Before this existed a
+    ///         press that died after expiry locked every open position's margin
+    ///         with no path out — and the press has died, twice, on testnet.
+    uint64 public constant SETTLE_GRACE = 7 days;
 
     /// @notice Bounds `settle` gas: a series accepts at most this many distinct
     ///         participants (maker + takers), since clearing iterates them.
@@ -115,6 +120,11 @@ contract ACRFutures {
     event CollateralWithdrawn(uint256 indexed seriesId, address indexed trader, uint256 amount);
     event Traded(uint256 indexed seriesId, address indexed taker, int256 qty, uint256 mark);
     event Settled(uint256 indexed seriesId, uint256 settlementPrice, uint256 participants);
+    /// @notice The escape hatch was used: the feed was not fresh around expiry, the
+    ///         grace elapsed, and the series cleared at the best print available.
+    event SettledStale(
+        uint256 indexed seriesId, uint256 settlementPrice, uint64 printPostedAt, uint256 participants
+    );
     event OwnershipTransferStarted(address indexed from, address indexed to);
     event OwnerTransferred(address indexed from, address indexed to);
     event PausedSet(bool paused);
@@ -143,6 +153,12 @@ contract ACRFutures {
         oracle = IACROracle(oracle_);
         usdc = IERC20(usdc_);
         MARGIN_BPS = marginBps_;
+        // An oracle built before the settlement views existed would let this venue
+        // open, trade, and then revert on every settle. Refuse it at deploy instead.
+        (bool ok,) = oracle_.staticcall(
+            abi.encodeWithSelector(IACROracle.latestPrintPrimitive.selector, bytes32(0))
+        );
+        require(ok, "oracle lacks settlement views");
     }
 
     // --- admin (idioms copied from ACROracle) ---
@@ -258,23 +274,58 @@ contract ACRFutures {
 
     // --- settlement ---
 
-    /// @notice Cash-settle the series against the oracle once past expiry. Reads
-    ///         `latestPrintWithAge` and rejects a print older than
-    ///         `MAX_SETTLE_AGE` (the freshness guard). Runs socialized-loss
-    ///         clearing: every position realizes vs the frozen mark, losers are
-    ///         floored at zero collateral, and the resulting shortfall haircuts
-    ///         winners pro-rata — distributed collateral equals the pot exactly.
+    /// @notice Cash-settle the series once past expiry, at the FIRST print the chain
+    ///         saw at or after `expiryTs`. Keyed on `postedAt` — the block time the
+    ///         chain assigned, which no signer chooses — so the price is fixed by
+    ///         expiry, not by which of several post-expiry prints the caller waits
+    ///         for. Freshness is measured against expiry too: that first print must
+    ///         have landed within `MAX_SETTLE_AGE` of it, i.e. the feed was alive
+    ///         when it mattered. If it was not, `settleStale` after the grace.
+    ///
+    ///         Clearing is socialized-loss: every position realizes against the
+    ///         frozen mark, losers floor at zero collateral, and the shortfall
+    ///         haircuts winners pro-rata — distributed collateral equals the pot.
     function settle(uint256 seriesId) external nonReentrant {
         Series storage s = _series[seriesId];
         require(s.exists, "no series");
         require(!s.settled, "already settled");
         require(block.timestamp >= s.expiryTs, "not expired");
+        (bool found, uint256 value, uint64 postedAt) =
+            oracle.firstPrintPostedAtOrAfter(s.indexId, s.expiryTs);
+        require(found && value > 0, "no print since expiry");
+        require(postedAt - s.expiryTs <= MAX_SETTLE_AGE, "stale print");
+        uint256 n = _clear(seriesId, value);
+        emit Settled(seriesId, value, n);
+    }
 
-        (IACROracle.Print memory p, uint256 age) = oracle.latestPrintWithAge(s.indexId);
-        require(p.exists && p.value > 0, "no print");
-        require(age <= MAX_SETTLE_AGE, "stale print");
+    /// @notice The escape hatch. Once `SETTLE_GRACE` has passed since expiry with
+    ///         the series still open — the feed was not fresh around expiry —
+    ///         anyone may clear it at the best print that exists: the first one
+    ///         posted after expiry if the feed ever resumed, else the last one
+    ///         before. No freshness check; the alternative is collateral locked
+    ///         for as long as the press stays down, which is forever if the
+    ///         operator is gone. Same clearing math, its own event.
+    function settleStale(uint256 seriesId) external nonReentrant {
+        Series storage s = _series[seriesId];
+        require(s.exists, "no series");
+        require(!s.settled, "already settled");
+        require(block.timestamp >= uint256(s.expiryTs) + SETTLE_GRACE, "grace not elapsed");
+        (bool found, uint256 value, uint64 postedAt) =
+            oracle.firstPrintPostedAtOrAfter(s.indexId, s.expiryTs);
+        if (!found) {
+            bool exists;
+            (exists, value, postedAt) = oracle.latestPrintPrimitive(s.indexId);
+            require(exists, "no print"); // unreachable: openSeries required one
+        }
+        require(value > 0, "no mark");
+        uint256 n = _clear(seriesId, value);
+        emit SettledStale(seriesId, value, postedAt, n);
+    }
 
-        uint256 settlePrice = p.value;
+    /// @dev Freeze the settlement price and run socialized-loss clearing.
+    ///      Returns the participant count for the event.
+    function _clear(uint256 seriesId, uint256 settlePrice) internal returns (uint256) {
+        Series storage s = _series[seriesId];
         s.settlementPrice = settlePrice;
         s.settled = true;
 
@@ -316,8 +367,7 @@ contract ACRFutures {
             collateral[seriesId][t] = ent;
             delete _positions[seriesId][t];
         }
-
-        emit Settled(seriesId, settlePrice, n);
+        return n;
     }
 
     // --- position math (ports acr_instrument.future.Position) ---

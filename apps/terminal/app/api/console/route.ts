@@ -106,18 +106,25 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   let path = "";
   let payer = "";
+  let deskSession = "";
   try {
     const body = await req.json();
     path = String(body.path ?? "");
     payer = String(body.payer ?? "");
+    // A Desk session whose wallet holds a feed pass reads without paying: the
+    // gate asks the chain, not a header. Forwarded verbatim; never logged.
+    deskSession = typeof body.desk_session === "string" ? body.desk_session : "";
   } catch {
     /* invalid JSON → validated below */
   }
   if (!ALLOWED.has(path)) {
     return NextResponse.json({ detail: `path not permitted: ${path}` }, { status: 400 });
   }
-  if (!PAYER_RE.test(payer)) {
+  if (!deskSession && !PAYER_RE.test(payer)) {
     return NextResponse.json({ detail: "payer must match 0x[A-Za-z0-9-]{1,64}" }, { status: 400 });
+  }
+  if (deskSession && !/^[A-Za-z0-9._-]{16,4096}$/.test(deskSession)) {
+    return NextResponse.json({ detail: "bad desk_session" }, { status: 400 });
   }
 
   const base = apiBase();
@@ -147,7 +154,7 @@ export async function POST(req: NextRequest) {
     const price = await advertisedPrice(base);
     const r2 = await fetch(`${base}${path}`, {
       cache: "no-store",
-      headers: { "PAYMENT-SIGNATURE": `x402 ${payer}:${price}` },
+      headers: deskSession ? { "DESK-SESSION": deskSession } : { "PAYMENT-SIGNATURE": `x402 ${payer}:${price}` },
       signal: AbortSignal.timeout(5000),
     });
     const act2: ConsoleResult["act2"] = {

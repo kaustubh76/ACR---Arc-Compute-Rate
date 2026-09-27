@@ -8,6 +8,7 @@ import {ACROracleV2} from "../src/ACROracleV2.sol";
 /// one. v1's guarantees are re-asserted here rather than assumed: v2 is a
 /// separate contract, so "it worked in v1" proves nothing about it.
 contract ACROracleV2Test is Test {
+    uint256 internal constant MAX_MOVE_BPS = 2_000; // 20% per print — the deploy default
     ACROracleV2 oracle;
     bytes32 constant INF = bytes32("ACR-INF");
     bytes32 constant GPU = bytes32("ACR-GPU");
@@ -19,7 +20,7 @@ contract ACROracleV2Test is Test {
 
     function setUp() public {
         vm.warp(1_000_000);
-        oracle = new ACROracleV2();
+        oracle = new ACROracleV2(MAX_MOVE_BPS);
         signer = vm.addr(signerPk);
         oracle.setSigner(signer, true);
     }
@@ -311,5 +312,80 @@ contract ACROracleV2Test is Test {
         ACROracleV2.Print memory got = oracle.latestPrint(INF);
         assertTrue(got.ciLo <= got.value && got.value <= got.ciHi);
         assertTrue(got.policyHash != bytes32(0), "every stored print names a policy");
+    }
+
+    // --- the move bound: a stolen key walks the price, it does not jump it ------
+
+    function test_MoveBound_IsReadable() public view {
+        assertEq(oracle.MAX_MOVE_BPS(), MAX_MOVE_BPS);
+    }
+
+    function test_MoveBound_FirstPrintIsUnbounded() public {
+        ACROracleV2.PrintInput memory p = _input(10_000);
+        p.value = 123e18; p.ciLo = 100e18; p.ciHi = 150e18;
+        _post(p); // nothing to move from
+        assertEq(oracle.latestValue(INF), 123e18);
+    }
+
+    function test_MoveBound_ExactlyAtTheBound_Passes() public {
+        _post(_input(10_000)); // 0.50
+        ACROracleV2.PrintInput memory p = _input(10_001);
+        p.value = 0.6e18; p.ciLo = 0.58e18; p.ciHi = 0.62e18; // +20% == 2 000 bp
+        _post(p);
+        assertEq(oracle.latestValue(INF), 0.6e18);
+    }
+
+    function test_MoveBound_OneWeiOver_Reverts() public {
+        _post(_input(10_000)); // 0.50
+        ACROracleV2.PrintInput memory p = _input(10_001);
+        p.value = 0.6e18 + 1; p.ciLo = 0.58e18; p.ciHi = 0.62e18;
+        (uint8 v, bytes32 r, bytes32 s_) = vm.sign(signerPk, oracle.printDigest(p));
+        vm.expectRevert("move exceeds bound");
+        oracle.postPrint(p, v, r, s_);
+    }
+
+    function test_MoveBound_AppliesDownwardToo() public {
+        _post(_input(10_000)); // 0.50
+        ACROracleV2.PrintInput memory p = _input(10_001);
+        p.value = 0.39e18; p.ciLo = 0.37e18; p.ciHi = 0.41e18; // −22%
+        (uint8 v, bytes32 r, bytes32 s_) = vm.sign(signerPk, oracle.printDigest(p));
+        vm.expectRevert("move exceeds bound");
+        oracle.postPrint(p, v, r, s_);
+    }
+
+    function test_MoveBound_AStolenKeyCanOnlyWalk() public {
+        // The attack the bound exists for: a signer wants 0.50 → 5.00 (10×).
+        // One print cannot do it; ten prints of +20% each reach ~3.1×, and every
+        // one is an event on a public chain the keeper watches.
+        _post(_input(10_000));
+        uint256 value = 0.5e18;
+        for (uint64 i = 1; i <= 10; i++) {
+            value = value + (value * MAX_MOVE_BPS) / 10_000;
+            ACROracleV2.PrintInput memory p = _input(10_000 + i);
+            p.value = value; p.ciLo = value * 96 / 100; p.ciHi = value * 104 / 100;
+            _post(p);
+        }
+        assertLt(oracle.latestValue(INF), 3.2e18, "ten max steps is ~3.1x, not 10x");
+        assertGt(oracle.latestValue(INF), 3.0e18);
+    }
+
+    function test_MoveBound_ConstructorRejectsNonsense() public {
+        vm.expectRevert("bad move bound");
+        new ACROracleV2(0);
+        vm.expectRevert("bad move bound");
+        new ACROracleV2(10_001);
+    }
+
+    // --- the settlement views are the same primitives as v1 ---------------------
+
+    function test_SettlementViews_MatchV1Shape() public {
+        (bool f0,,) = oracle.firstPrintPostedAtOrAfter(INF, 0);
+        assertFalse(f0);
+        vm.warp(2_000_000);
+        _post(_input(10_000));
+        (bool f, uint256 v, uint64 at) = oracle.firstPrintPostedAtOrAfter(INF, 1_999_999);
+        assertTrue(f); assertEq(v, 0.5e18); assertEq(at, 2_000_000);
+        (bool ex, uint256 lv, uint64 lat) = oracle.latestPrintPrimitive(INF);
+        assertTrue(ex); assertEq(lv, 0.5e18); assertEq(lat, 2_000_000);
     }
 }

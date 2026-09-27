@@ -25,12 +25,15 @@ _OUT = Path(__file__).resolve().parents[3] / "contracts/out"
 ARTIFACT = _OUT / "ACROracleV2.sol/ACROracleV2.json"
 
 POLICY = "0x" + "ab" * 32
+# The audit's C2 fix: a v2 oracle is built with a per-print move bound (bps),
+# the same 2 000 the mainnet deploy script defaults to.
+MAX_MOVE_BPS = 2_000
 
 
 def _deploy(w3, acct):
     art = json.loads(ARTIFACT.read_text())
     c = w3.eth.contract(abi=art["abi"], bytecode=art["bytecode"]["object"])
-    tx = c.constructor().build_transaction(
+    tx = c.constructor(MAX_MOVE_BPS).build_transaction(
         {"from": acct.address, "nonce": w3.eth.get_transaction_count(acct.address),
          "gas": 4_000_000, "chainId": w3.eth.chain_id}
     )
@@ -53,9 +56,9 @@ def _anvil():
         return None
 
 
-def _print_at(ts: int) -> ACRPrint:
+def _print_at(ts: int, value: float = 0.5) -> ACRPrint:
     return ACRPrint(
-        index_id="ACR-INF", ts=float(ts), value=0.5, ci_lo=0.49, ci_hi=0.51,
+        index_id="ACR-INF", ts=float(ts), value=value, ci_lo=value - 0.01, ci_hi=value + 0.01,
         attack_cost_per_bp=1234.0, n_obs=100,
         policy_hash=POLICY, human_adjusted_bound=None,
         window_start=float(ts - 3600), window_end=float(ts),
@@ -108,6 +111,14 @@ def test_v2_digest_parity_and_round_trip():
     # None was carried to chain as the "not computed" sentinel, not as the
     # wallet bound — publishing that would claim humans cost the same as wallets.
     assert meta[3] == 0
+
+    # C2 on the wire: a signer whose key was stolen can walk the rate, not jump
+    # it. A 25% move against a 20% bound reverts; a 10% move lands.
+    from web3.exceptions import ContractLogicError
+
+    with pytest.raises(ContractLogicError, match="move exceeds bound"):
+        client.post(_print_at(now - 30, value=0.625))
+    assert client.post(_print_at(now - 30, value=0.55)) is not None
 
 
 @pytest.mark.skipif(not ARTIFACT.exists(), reason="contracts not built (run forge build)")

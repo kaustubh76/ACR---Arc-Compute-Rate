@@ -28,7 +28,11 @@ contract DeployOracleV2 is Script {
         address signer = vm.envOr("ACR_ORACLE_V2_SIGNER", address(0));
 
         vm.startBroadcast();
-        oracle = new ACROracleV2();
+        // The per-print move bound (docs/SECURITY-AUDIT.md C2). 2 000 bp = a print may
+        // move at most 20% from the previous one; a compromised signer walks, it
+        // does not jump. Override with ACR_ORACLE_MAX_MOVE_BPS only with a reason.
+        uint256 maxMoveBps = vm.envOr("ACR_ORACLE_MAX_MOVE_BPS", uint256(2_000));
+        oracle = new ACROracleV2(maxMoveBps);
         if (signer != address(0)) {
             oracle.setSigner(signer, true);
         }
@@ -41,6 +45,7 @@ contract DeployOracleV2 is Script {
         console.log("  1. set ACR_ORACLE_V2_ADDRESS to the address above");
         console.log("  2. make backfill-oracle-v2   (BEFORE any live post)");
         console.log("  3. add the v2 data source + this deploy's block to graph/subgraph.yaml");
-        console.log("Leave ACR_ORACLE_ADDRESS pointing at v1 - the venue settles against it.");
+        console.log("The EXISTING venue settles against v1 (immutable); a venue deployed from this");
+        console.log("source can settle against v2 -- DeployFutures.s.sol with ACR_ORACLE_ADDRESS=v2.");
     }
 }

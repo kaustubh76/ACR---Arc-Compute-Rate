@@ -102,8 +102,36 @@ class LocalKeySigner:
         )
         return int(signed.v), int(signed.r).to_bytes(32, "big"), int(signed.s).to_bytes(32, "big")
 
-    def send_transaction(self, w3, tx: dict) -> str:  # pragma: no cover - requires live chain
-        signed = self._acct.sign_transaction(tx)
+    def send_transaction(self, w3, tx: dict) -> str:
+        """Submit ``{to, data}`` — completing it first, which is the contract.
+
+        ``CircleWalletSigner`` takes exactly ``to`` + ``data`` and lets Circle
+        fill nonce and gas server-side, so every caller is written that way:
+        ``feed_access.relay_redeem`` hands over two keys and nothing else. This
+        path passed that straight to ``eth_account``, which requires ``nonce``,
+        ``gas`` and ``gasPrice`` and raises ``TypeError`` without them — so on a
+        raw-key deployment the feed pass could never be relayed, and the only
+        symptom was "the attestation could not be relayed". Every test around it
+        replaced this method or the function calling it, and the one marker of
+        how long that had gone unexercised was this method's own
+        ``pragma: no cover``.
+
+        Only absent fields are filled, so a caller that already built a full
+        transaction (``OracleClient.post`` sets from/nonce/chainId and leaves gas
+        to the node's estimate) keeps its own values.
+        """
+        out = dict(tx)
+        out.setdefault("from", self._acct.address)
+        out.setdefault("chainId", w3.eth.chain_id)
+        if "nonce" not in out:
+            out["nonce"] = w3.eth.get_transaction_count(self._acct.address)
+        if "gas" not in out:
+            # A fifth of headroom: `redeem` writes two slots and the estimate is
+            # exact only for the state it was measured against.
+            out["gas"] = int(w3.eth.estimate_gas(out) * 1.2)
+        if "gasPrice" not in out and "maxFeePerGas" not in out:
+            out["gasPrice"] = w3.eth.gas_price
+        signed = self._acct.sign_transaction(out)
         raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction
         return w3.to_hex(w3.eth.send_raw_transaction(raw))  # 0x-prefixed hash
 

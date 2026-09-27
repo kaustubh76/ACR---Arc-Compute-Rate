@@ -785,6 +785,86 @@ def verify_desk(live_series: dict | None) -> None:
         )
 
 
+def verify_revenue(settings) -> None:
+    """The two ways a HUMAN pays — the surfaces that turn visitors into revenue.
+    Probed the way a visitor's browser would, without a wallet or a session: the
+    shape must be right and the gate must say what it costs."""
+    print("\nrevenue — the two ways a human pays")
+    # 1. The browser payer needs the seller to advertise a Gateway batching
+    #    option on THIS network with a verifying contract, or a wallet has
+    #    nothing it can sign. /x402/info also has to name the SDK chain key.
+    status, info = get(f"{API}/x402/info")
+    ok = status == 200 and isinstance(info, dict)
+    check(ok, f"/x402/info -> {status}")
+    if ok:
+        # Absent key = an API deployed before the browser payer existed: degraded,
+        # not down. Present and empty = broken.
+        check(bool(info.get("gateway_chain")),
+              f"seller names its Gateway SDK chain ({info.get('gateway_chain') or 'not on this deploy yet'})",
+              warn_only="gateway_chain" not in info)
+        check(info.get("network") == settings.caip2(), f"seller's network {info.get('network')} == {settings.caip2()}")
+        gated = (info.get("gated_endpoints") or ["/prints"])[0]
+        import base64
+
+        req = urllib.request.Request(f"{API}{gated}", headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:  # pragma: no cover
+                st, hdr = r.status, r.headers.get("PAYMENT-REQUIRED")
+        except urllib.error.HTTPError as e:
+            st, hdr = e.code, e.headers.get("PAYMENT-REQUIRED")
+        except Exception:  # noqa: BLE001
+            st, hdr = 0, None
+        check(st == 402 and bool(hdr), f"{gated} -> {st} with PAYMENT-REQUIRED (a wallet can start the exchange)")
+        if hdr:
+            try:
+                env = json.loads(base64.b64decode(hdr))
+                batching = [
+                    o for o in env.get("accepts", [])
+                    if o.get("network") == settings.caip2()
+                    and (o.get("extra") or {}).get("name") == "GatewayWalletBatched"
+                    and (o.get("extra") or {}).get("verifyingContract")
+                ]
+                check(bool(batching), "the 402 offers a Gateway batching option a browser wallet can sign")
+            except Exception:  # noqa: BLE001
+                check(False, "the PAYMENT-REQUIRED header decodes")
+    # 2. The Desk pass: the route exists and refuses a stranger cleanly (a real
+    #    session needs Circle's PIN ceremony, which no probe should run).
+    st, body = post(f"{API}/desk/pass/status", {"user_token": "probe-not-a-session-token-0000"})
+    check(st in (400, 401, 403, 404, 422, 502, 503) and st != 500,
+          f"/desk/pass/status refuses a stranger with {st}, not a 500")
+    # 3. The terminal's server-side balance read, with a known address: numbers
+    #    back, and the one-next-step the storefront keys on.
+    st, body = get(f"{TERMINAL}/api/wallet/balances?address=0x95DE70736E21e70DF921Fb3ab91dD56750965b59&price=0.001")
+    good = st == 200 and isinstance(body, dict) and "usdc_wallet" in body and "usdc_gateway" in body
+    check(good,
+          f"terminal /api/wallet/balances -> {st}"
+          + (f", wallet {body.get('usdc_wallet')} · gateway {body.get('usdc_gateway')} USDC"
+             f" · next {body.get('next', '?')}" if good
+             else (" (route not on this deploy yet)" if st == 404 else "")),
+          warn_only=st == 404)  # a terminal deployed before the wallet payer: degraded, not down
+    # 4. Circle's facilitator must know the seller's network, or every signed
+    #    payment is refused with a reason that reads like a bad signature. The
+    #    seller's configured host is not public; the chain decides which one it
+    #    must be (the -testnet host does not know 5042 and vice versa).
+    fac = "https://gateway-api.circle.com" if settings.arc_chain_id == 5042 else "https://gateway-api-testnet.circle.com"
+    st, body = get(f"{fac}/v1/x402/supported")
+    nets = [k.get("network") for k in (body.get("kinds") or [])] if st == 200 and isinstance(body, dict) else []
+    check(settings.caip2() in nets,
+          f"Circle's facilitator {fac.split('//')[1]} advertises {settings.caip2()} for x402"
+          + ("" if settings.caip2() in nets else f" (got {st}: {nets[:3]}…)"))
+    # 5. The chain a visitor's wallet is handed answers, and is the chain the
+    #    seller names: EIP-3085 with a dead or wrong RPC adds a chain nobody can use.
+    st, chain = get(f"{API}/terminal/data")
+    pub = (chain.get("chain") or {}).get("public_rpc_url") if st == 200 and isinstance(chain, dict) else None
+    if pub:
+        st2, cid = post(pub, {"jsonrpc": "2.0", "id": 1, "method": "eth_chainId", "params": []})
+        got = int(str((cid or {}).get("result", "0x0")), 16) if st2 == 200 and isinstance(cid, dict) else 0
+        check(got == settings.arc_chain_id, f"public RPC {pub} answers chain {got} == {settings.arc_chain_id}")
+    else:
+        check(False, "payload names a public_rpc_url a wallet can be handed (not on this deploy yet)",
+              warn_only=True)
+
+
 def verify_hedger(settings) -> None:
     """The autonomous agent — did it actually pay and trade, or is it a panel?
 
@@ -1105,6 +1185,7 @@ def main() -> None:
     section(verify_agent)
     section(verify_humans)
     section(verify_desk, live)
+    section(verify_revenue, s)
     section(verify_hedger, s)
     section(verify_terminal, live)
     section(verify_funding, w3, s)

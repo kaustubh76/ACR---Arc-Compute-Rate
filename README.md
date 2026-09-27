@@ -42,7 +42,7 @@ Arc testnet, chain `5042002`:
 |---|---|
 | **Terminal (dashboard)** | https://arc-compute-rate.vercel.app |
 | **The loop, drivable** | [arc-compute-rate.vercel.app/loop](https://arc-compute-rate.vercel.app/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
-| **Seller API (x402-gated)** | https://acr-api-1fto.onrender.com |
+| **Seller API (x402-gated)** | https://acr-api-mainnet.onrender.com — answers from the mainnet launch; see [`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 for what is still outstanding |
 | **Documentation** | [`docs/README.md`](docs/README.md) — start with [`methodology.md`](docs/methodology.md) |
 
 | Contract | Address |
@@ -55,16 +55,23 @@ Arc testnet, chain `5042002`:
 | `ReceiptMirror` (every x402 settlement, on chain) | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
 | `HumanIdMirror` (which wallets are one person, per week) | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
 
-**Mainnet:** Arc public mainnet (`eip155:5042`) opens 2026-09-16. ACR is **deployment-ready,
-not deployed**: the same five Foundry scripts, in order, with a chain-id preflight —
-`make deploy-mainnet-dry` simulates all of them today ([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md)).
-The first mainnet transaction hash will be added here the day it lands.
+**Mainnet:** Arc public mainnet (`eip155:5042`) is open: `https://rpc.mainnet.arc.io` answers
+without credentials and Circle's Gateway settles x402 on it. ACR is **launch-ready, not yet
+deployed**: one broadcast (`make deploy-mainnet`) deploys all seven contracts and retires the
+deploy key in the same transaction, and every host is a config diff
+([`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 is the launch-day order). A visitor
+with USDC on Base bridges, deposits and buys from the storefront without our help
+([`docs/COMMUNITY-TEST.md`](docs/COMMUNITY-TEST.md)). The first mainnet transaction hash will
+be added here the day it lands.
 
 Check it yourself:
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/health
-curl -s https://acr-api-1fto.onrender.com/onchain/ACR-INF   # the settlement-grade on-chain print
+# Both answer once the mainnet press is live. The service refuses to start until
+# every gate is configured, on purpose (docs/SECURITY-AUDIT.md H1), so a 503 here
+# means "not launched yet", never "running without a paywall".
+curl -s https://acr-api-mainnet.onrender.com/health
+curl -s https://acr-api-mainnet.onrender.com/onchain/ACR-INF   # the settlement-grade on-chain print
 ```
 
 ---
@@ -79,7 +86,7 @@ curl -s https://acr-api-1fto.onrender.com/onchain/ACR-INF   # the settlement-gra
   Circle Gateway nanopayment to the seller it overpaid least:
   ```bash
   cd apps/agent && npm run start -- --live --count 3 --limit 0.02 --discover --reroute \
-    --api https://acr-api-1fto.onrender.com      # AGENT_PRIVATE_KEY = a funded EOA
+    --api https://acr-api-mainnet.onrender.com      # AGENT_PRIVATE_KEY = a funded EOA
   # reroute: 0xa1c8…fca4 → 0xefe0…df19 — past fills say 2893 bp cheaper; next payment goes to /compute/acr-seller-inf-open
   ```
   Every settlement lands in `GET /marketplace/receipts` with the **tier the agent's card
@@ -96,7 +103,7 @@ ratings and the reroute have ([`graph/README.md`](graph/README.md); Studio `etho
 **v0.2.0** on `arc-testnet`, ~3 s behind head). Meaningful work, not raw queries:
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/tca/0x674055533B05Ec3fD135fC21c4d91a4A2D3193d3 | jq .reroute
+curl -s https://acr-api-mainnet.onrender.com/tca/0x674055533B05Ec3fD135fC21c4d91a4A2D3193d3 | jq .reroute
 make recompute                    # re-derive the index from the indexed tape and compare against the chain
 ```
 
@@ -180,7 +187,7 @@ The estimator's headline result, gated in CI so it cannot drift: under the paire
 
 Measured, not aspirational — run `make verify-live` for the current set. At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **696 py** · **156 forge** · **165 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **744 py** · **176 forge** · **179 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -231,7 +238,7 @@ The four futures workflows (`futures-heartbeat`, `futures-lifecycle`, `futures-r
 
 ## Known limitations
 
-Stated here rather than discovered:
+Stated here rather than discovered. The full trust model — who can do what, and what happens when something fails — is [`docs/SECURITY.md`](docs/SECURITY.md); to report a vulnerability, [`SECURITY.md`](SECURITY.md).
 
 - **The published tape on this deployment is `sim`.** About 18,500 real Arc settlements collapse to a single price, so no index is honestly publishable from them yet; the site says so on the page.
 - **The public API runs on a 512 MB free tier** that can restart. A 10-minute keep-alive, a post-on-wake press and a settlement-triggered mirror keep the chain row even when memory does not.

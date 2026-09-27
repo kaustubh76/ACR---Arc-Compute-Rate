@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient } from "@/lib/gatewayBuyer";
 import type { BalancesData, Envelope, WalletBalance, X402Info } from "@/lib/types";
 
@@ -26,15 +27,22 @@ export async function GET() {
 
   // The seller's receiving wallet, from the live gate descriptor.
   let payTo: string | null = null;
+  let gatewayChain: string = CHAIN.gatewayChain;
+  let privateMainnet = false;
   try {
     const res = await fetch(`${apiBase()}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
-    if (res.ok) payTo = ((await res.json()) as X402Info).pay_to ?? null;
+    if (res.ok) {
+      const j = (await res.json()) as X402Info;
+      payTo = j.pay_to ?? null;
+      gatewayChain = j.gateway_chain ?? gatewayChain;
+      privateMainnet = Boolean(j.private_mainnet);
+    }
   } catch {
     /* seller offline — still report the buyer */
   }
 
   try {
-    const client = await getGatewayClient();
+    const client = await getGatewayClient({ gatewayChain, privateMainnet });
     const wallets: WalletBalance[] = [];
 
     const bal = await client.getBalances();

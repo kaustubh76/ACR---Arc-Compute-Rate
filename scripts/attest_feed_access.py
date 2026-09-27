@@ -43,51 +43,24 @@ import urllib.request
 
 from acr_core import get_settings
 
+# The struct, the ABI and the signing live in ONE place, shared with the API's
+# Desk pass — a typehash drift shows up in both at once.
+from acr_oracle_client.feed_access import (
+    ATTESTOR_ABI as _ATTESTOR_ABI,
+)
+from acr_oracle_client.feed_access import (
+    FEED_ACCESS_TYPES,
+)
+from acr_oracle_client.feed_access import (
+    domain as _domain,
+)
+
 API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
 ATTESTOR = os.environ.get("ATTESTOR_ADDRESS", "").strip()
 DRY_RUN = os.environ.get("ATTEST_DRY_RUN", "") not in ("", "0", "false")
 #: How long one attestation grants. Short by design: re-minting is cheap and a
 #: signer compromise should cost days of free access, not a quarter.
 ACCESS_DAYS = float(os.environ.get("ATTEST_ACCESS_DAYS", "7"))
-
-_ATTESTOR_ABI = [
-    {"type": "function", "name": "accessDigest", "stateMutability": "view",
-     "inputs": [{"name": "payer", "type": "address"},
-                {"name": "beneficiary", "type": "address"},
-                {"name": "paidUntilTs", "type": "uint64"},
-                {"name": "amountUsdc", "type": "uint256"},
-                {"name": "nonce", "type": "uint256"}],
-     "outputs": [{"name": "", "type": "bytes32"}]},
-    {"type": "function", "name": "redeem", "stateMutability": "nonpayable",
-     "inputs": [{"name": "payer", "type": "address"},
-                {"name": "beneficiary", "type": "address"},
-                {"name": "paidUntilTs", "type": "uint64"},
-                {"name": "amountUsdc", "type": "uint256"},
-                {"name": "nonce", "type": "uint256"},
-                {"name": "v", "type": "uint8"}, {"name": "r", "type": "bytes32"},
-                {"name": "s", "type": "bytes32"}],
-     "outputs": []},
-    {"type": "function", "name": "hasFeedAccess", "stateMutability": "view",
-     "inputs": [{"name": "who", "type": "address"}],
-     "outputs": [{"name": "", "type": "bool"}]},
-    {"type": "function", "name": "paidUntil", "stateMutability": "view",
-     "inputs": [{"name": "", "type": "address"}],
-     "outputs": [{"name": "", "type": "uint64"}]},
-]
-
-#: The EIP-712 types the contract hashes. Must match FEED_ACCESS_TYPEHASH
-#: exactly — a mismatch produces a signature that recovers to a stranger, and
-#: the only symptom is "bad signer" on a redeem that should have worked.
-FEED_ACCESS_TYPES = {
-    "FeedAccess": [
-        {"name": "payer", "type": "address"},
-        {"name": "beneficiary", "type": "address"},
-        {"name": "paidUntil", "type": "uint64"},
-        {"name": "amountUsdc", "type": "uint256"},
-        {"name": "nonce", "type": "uint256"},
-    ]
-}
-
 
 def settlements_for(payer: str) -> list[dict]:
     """Rows from the seller's own public ledger whose payer is ``payer``."""
@@ -153,12 +126,7 @@ def main() -> None:
         Web3.keccak(text=f"{payer}:{beneficiary}:{paid_until // 3600}")[:16], "big"
     )
 
-    domain = {
-        "name": "ACR Feed Access",
-        "version": "1",
-        "chainId": w3.eth.chain_id,
-        "verifyingContract": to_checksum_address(ATTESTOR),
-    }
+    domain = _domain(w3.eth.chain_id, ATTESTOR)
     message = {
         "payer": payer,
         "beneficiary": beneficiary,

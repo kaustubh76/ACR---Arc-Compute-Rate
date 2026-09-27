@@ -6,8 +6,8 @@ paginate: true
 # ACR — The Arc Compute Rate
 ## OpenAPI 3.1.0 · endpoint reference
 
-Live spec: `https://acr-api-1fto.onrender.com/openapi.json`
-Catalog: `https://acr-api-1fto.onrender.com/marketplace/catalog`
+Live spec: `https://acr-api-mainnet.onrender.com/openapi.json`
+Catalog: `https://acr-api-mainnet.onrender.com/marketplace/catalog`
 
 Index endpoints: **$0.0001 USDC per request**, x402 `exact` scheme,
 Circle Gateway (GatewayWalletBatched), network `eip155:5042002` (Arc).
@@ -29,7 +29,7 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 
 ---
 
-## Free endpoints (no payment required) · 34
+## Free endpoints (no payment required) · 36
 
 `GET /` — Root
 `GET /agent/challenge` — Agent Challenge
@@ -43,6 +43,8 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 `POST /desk/challenge` — Desk Challenge
 `POST /desk/faucet` — Desk Faucet
 `POST /desk/limits` — Desk Limits
+`POST /desk/pass/claim` — Desk Pass Claim
+`POST /desk/pass/status` — Desk Pass Status
 `POST /desk/session` — Desk Session
 `POST /desk/wallet` — Desk Wallet
 `POST /desk/withdrawable` — Desk Withdrawable
@@ -68,5 +70,5 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 
 ---
 
-*Rendered by `scripts/gen_openapi_doc.py` from `app.openapi()` — 40 routes;*
+*Rendered by `scripts/gen_openapi_doc.py` from `app.openapi()` — 42 routes;*
 *2 operator routes omitted on purpose. `make openapi-doc-check` fails when this is stale.*

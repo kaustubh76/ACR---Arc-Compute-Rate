@@ -54,18 +54,39 @@ export function buyerConfigured(): boolean {
   return readKey() !== null;
 }
 
-let cached: GatewayClientLike | null = null;
+const cached = new Map<string, GatewayClientLike>();
 
-/** Build (once) the GatewayClient against Arc testnet. Throws a readable error
- *  if no key is set so the route can 400 honestly. */
-export async function getGatewayClient(): Promise<GatewayClientLike> {
-  if (cached) return cached;
+export interface GatewayTarget {
+  /** The SDK chain key the seller reported (`arcTestnet`, `arc`). */
+  gatewayChain: string;
+  /** Arc mainnet is a permissioned preview: the SDK must send its header. */
+  privateMainnet?: boolean;
+}
+
+/** Build (once per chain) the GatewayClient against the chain the SELLER reports —
+ *  never a literal here. Throws a readable error if no key is set so the route can
+ *  400 honestly. On Arc mainnet the SDK needs a private RPC (the public one does not
+ *  exist during the preview); this server's own ACR_ARC_RPC_URL is that. */
+export async function getGatewayClient(target: GatewayTarget): Promise<GatewayClientLike> {
+  const hit = cached.get(target.gatewayChain);
+  if (hit) return hit;
   const key = readKey();
   if (!key) throw new Error("no buyer key: set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)");
   const { GatewayClient } = (await import("@circle-fin/x402-batching/client")) as {
-    GatewayClient: new (cfg: { chain: string; privateKey: `0x${string}` }) => GatewayClientLike;
+    GatewayClient: new (cfg: {
+      chain: string;
+      privateKey: `0x${string}`;
+      rpcUrl?: string;
+      arcPrivateMainnet?: boolean;
+    }) => GatewayClientLike;
   };
-  const client = new GatewayClient({ chain: "arcTestnet", privateKey: key as `0x${string}` });
+  const rpcUrl = process.env.ACR_ARC_RPC_URL || undefined;
+  const client = new GatewayClient({
+    chain: target.gatewayChain,
+    privateKey: key as `0x${string}`,
+    ...(rpcUrl ? { rpcUrl } : {}),
+    ...(target.privateMainnet ? { arcPrivateMainnet: true } : {}),
+  });
   // Pre-signing guard: refuse any single payment above the per-run cap.
   client.onBeforePaymentCreation(async (ctx) => {
     const usdc = Number(ctx.selectedRequirements.amount) / USDC_DECIMALS;
@@ -73,6 +94,6 @@ export async function getGatewayClient(): Promise<GatewayClientLike> {
       return { abort: true, reason: `payment ${usdc} USDC exceeds the ${SPEND_CAP_USDC} cap` };
     }
   });
-  cached = client;
+  cached.set(target.gatewayChain, client);
   return client;
 }

@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -24,6 +24,7 @@ help:
 	@echo "  make deploy-testnet  deploy ACROracle + AttestationRegistry to Arc testnet"
 	@echo "  make verify-testnet  read-only checks: chain id, code, signer, latest prints"
 	@echo "  make deploy-mainnet-dry  simulate all five deploys on Arc MAINNET (refuses a wrong chain id; docs/MAINNET_RUNBOOK.md)"
+	@echo "  make verify-mainnet      the mainnet preflight with custody ENFORCED: owners, no pending transfer, deploy key retired"
 	@echo "  make deploy-mainnet  broadcast them, in order"
 	@echo "  make post-once       one estimator cycle → signed postPrint txs on Arc"
 	@echo "  make attest-once     write the demo sellers' EIP-712 attestations on-chain"
@@ -211,6 +212,14 @@ deploy-humanid:
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
+# The mainnet preflight: verify_deploy against the mainnet RPC with the custody checks
+# ENFORCED. Off mainnet those checks print ⚠ and pass; on chain 5042 they are ✗ and
+# fail — a deploy key that still owns or signs anything stops the launch here.
+verify-mainnet:
+	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set"; exit 1; }
+	@test -n "$(ACR_EXPECTED_OWNER)" || { echo "ACR_EXPECTED_OWNER not set: the custody checks need to know who should own the contracts (docs/MAINNET_RUNBOOK.md §3 step 5)"; exit 1; }
+	ACR_ARC_RPC_URL=$(ACR_MAINNET_RPC_URL) ACR_ARC_CHAIN_ID=$(ACR_MAINNET_CHAIN_ID) ACR_CUSTODY_STRICT=1 uv run python scripts/verify_deploy.py
+
 # --- Arc MAINNET (eip155:5042; public genesis 2026-09-16) --------------------
 # The same five Foundry scripts the testnet runs on, in the order their own
 # console output demands (v1 bundle -> v2 -> mirrors). Nothing is defaulted here
@@ -222,13 +231,31 @@ verify-testnet:
 #   ACR_MAINNET_RPC_URL=https://rpc.arc.network ACR_MAINNET_USDC=0x... make deploy-mainnet-dry
 #
 ACR_MAINNET_CHAIN_ID ?= 5042
-MAINNET_SCRIPTS = Deploy.s.sol DeployOracleV2.s.sol DeployReceiptMirror.s.sol DeployHumanIdMirror.s.sol
+# One script, one broadcast: the venue on v2, the deploy key retired as a signer on every
+# contract, ownership hand-over started (docs/SECURITY-AUDIT.md C1, C2).
+MAINNET_SCRIPTS = DeployMainnet.s.sol
+
+# How the mainnet deploy authenticates. Prefer a Foundry keystore:
+#
+#   cast wallet import acr-deploy --interactive     # once; prompts for key + password
+#   ACR_DEPLOY_ACCOUNT=acr-deploy make deploy-mainnet
+#
+# The key then lives encrypted in ~/.foundry/keystores, never in .env (which any
+# tool reading this repo can cat) and never in argv (which `ps aux` can read on a
+# shared machine). DEPLOYER_PRIVATE_KEY still works, and is fine for anvil and
+# testnet, where the key guards nothing of value.
+ifdef ACR_DEPLOY_ACCOUNT
+deploy_signer := --account $(ACR_DEPLOY_ACCOUNT)
+else
+deploy_signer := --private-key $(DEPLOYER_PRIVATE_KEY)
+endif
 
 define mainnet_preflight
 	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_MAINNET_USDC)" || { echo "ACR_MAINNET_USDC not set: the USDC address is NOT defaulted on mainnet (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
-	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set"; exit 1; }
+	@test -n "$(ACR_DEPLOY_ACCOUNT)$(DEPLOYER_PRIVATE_KEY)" || { echo "no deploy signer: set ACR_DEPLOY_ACCOUNT=<keystore name> (cast wallet import <name> --interactive) or DEPLOYER_PRIVATE_KEY"; exit 1; }
 	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set: HumanIdMirror is deployed WITH its commitment (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
+	@test -n "$(ACR_PRESS_SIGNER)" || { echo "ACR_PRESS_SIGNER not set: the press custody wallet that will sign prints; the deploy key is retired as a signer in the same broadcast (docs/MAINNET_RUNBOOK.md)"; exit 1; }
 	@got=$$(cast chain-id --rpc-url $(ACR_MAINNET_RPC_URL)); test "$$got" = "$(ACR_MAINNET_CHAIN_ID)" || { echo "RPC answers chain id $$got, expected $(ACR_MAINNET_CHAIN_ID) — wrong network, refusing"; exit 1; }
 	@echo "  chain id $(ACR_MAINNET_CHAIN_ID) confirmed at $(ACR_MAINNET_RPC_URL)"
 endef
@@ -237,7 +264,7 @@ deploy-mainnet-dry:
 	$(mainnet_preflight)
 	@for s in $(MAINNET_SCRIPTS); do \
 	  echo ""; echo "▸ simulate $$s"; \
-	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)) || exit 1; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) $(deploy_signer)) || exit 1; \
 	done
 	@echo ""; echo "  dry run complete: every script simulates on chain $(ACR_MAINNET_CHAIN_ID). Nothing was broadcast."
 
@@ -246,7 +273,7 @@ deploy-mainnet:
 	@echo ""; echo "  BROADCASTING to chain $(ACR_MAINNET_CHAIN_ID). Each script prints the addresses to set before the next."
 	@for s in $(MAINNET_SCRIPTS); do \
 	  echo ""; echo "▸ broadcast $$s"; \
-	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast) || exit 1; \
+	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) $(deploy_signer) --broadcast) || exit 1; \
 	done
 	@echo ""; echo "  now follow docs/MAINNET_RUNBOOK.md from step 3 (addresses -> render.yaml mainnet profile -> subgraph -> resolve-humans)."
 
@@ -277,6 +304,20 @@ verify-claims:
 # neither the repo nor the image.
 x402-capture:
 	uv run python scripts/x402_capture.py
+
+# Prove the HUMAN revenue path with a real payment: a wallet signs, Circle's
+# facilitator settles, the seller serves the data, and the depositor's Gateway
+# balance goes down on chain. Every other walletPayer test is a pure function,
+# so this is the only thing that proves a visitor can actually buy. Spends real
+# USDC and needs a funded Gateway balance, which is why it is not in `make ci`.
+#
+#   PROBE_KEY=0x... SELLER=https://your-seller make wallet-settle-probe
+#
+# The seller must report facilitator=circle; against the dev gate the probe
+# refuses, because a mock header proves nothing.
+wallet-settle-probe:
+	@test -n "$(PROBE_KEY)" || { echo "PROBE_KEY not set: the payer's key (never logged). Needs a funded Gateway balance."; exit 1; }
+	@cd apps/terminal && PROBE_KEY=$(PROBE_KEY) SELLER=$(or $(SELLER),http://127.0.0.1:8000) npm run --silent wallet-settle-probe
 
 # The autonomous hedger: one Circle AGENT wallet buys the index over x402, then
 # trades ACRFutures on what it just read. The only loop here that makes an

@@ -129,7 +129,7 @@ make agent-live   # 60 queries, $0.01 cap, discovery from /marketplace/catalog
 ```
 
 This loop is **proven live**: real x402 paid queries have settled against the
-deployed gate (https://acr-api-1fto.onrender.com) — the durable in-repo proof is
+deployed gate (https://acr-api-mainnet.onrender.com) — the durable in-repo proof is
 `services/index_api/index_api/receipts_live.jsonl` (34 rows, Gateway batch UUIDs,
 scheme `exact`). It lives under `services/` rather than `data/` because `data/` is
 in both `.gitignore` and `.dockerignore`, so a file there reaches neither the repo

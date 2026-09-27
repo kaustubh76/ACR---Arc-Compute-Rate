@@ -12,6 +12,9 @@ import { Term } from "@/components/Term";
 import { HedgerPanel } from "@/components/chain/HedgerPanel";
 import { useEdition } from "@/lib/useEdition";
 import { chainFacts } from "@/lib/chain";
+import { connectWallet, injectedProvider, payWithWallet, type WalletSession } from "@/lib/walletPayer";
+import { WalletFunding, type WalletBalances } from "@/components/WalletFunding";
+import { readableWalletError } from "@/lib/bridge";
 import {
   useBalances,
   useBuyerReady,
@@ -32,9 +35,14 @@ import type {
   TerminalData,
 } from "@/lib/types";
 
-function priceUsdc(item: CatalogItem): string {
+function priceNumber(item: CatalogItem): number {
   const atomic = item.accepts[0]?.amount ?? item.accepts[0]?.maxAmountRequired;
-  return atomic && /^\d+$/.test(atomic) ? `$${(Number(atomic) / 1e6).toFixed(6)}` : "…";
+  return atomic && /^\d+$/.test(atomic) ? Number(atomic) / 1e6 : 0;
+}
+
+function priceUsdc(item: CatalogItem): string {
+  const n = priceNumber(item);
+  return n > 0 ? `$${n.toFixed(6)}` : "…";
 }
 
 function pathOf(resource: string): string {
@@ -219,6 +227,61 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       }
     },
     [mutate, refreshBalances],
+  );
+
+  // --- the visitor's OWN wallet: the storefront on mainnet, where there is no
+  // house buyer. Same pipeline as buyOne from the result onward, so a purchase
+  // signed by the reader prints on the same tape and moves the same counters.
+  const facts = chainFacts(env.data.chain);
+  const sellerBase = process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000";
+  const [wallet, setWallet] = useState<WalletSession | null>(null);
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+  const [hasWallet, setHasWallet] = useState(false);
+  // Funding lives in <WalletFunding> under the listing the visitor opened; the
+  // storefront only needs "does Gateway cover this price" to light the button.
+  const [walletBal, setWalletBal] = useState<WalletBalances | null>(null);
+  const [balanceTick, setBalanceTick] = useState(0);
+  useEffect(() => setHasWallet(injectedProvider() !== null), []);
+  const connect = useCallback(async () => {
+    setWalletErr(null);
+    try {
+      setWallet(await connectWallet(facts));
+    } catch (e) {
+      setWalletErr(readableWalletError(e));
+    }
+  }, [facts]);
+  const buyOneWithWallet = useCallback(
+    async (resource: string) => {
+      if (!wallet) return;
+      const path = pathOf(resource);
+      setBuying(path);
+      setBuyErr((e) => ({ ...e, [path]: "" }));
+      try {
+        const r = await payWithWallet(wallet, facts, `${sellerBase}${path}`);
+        const out: LiveBuyResult = {
+          path,
+          status: r.status,
+          price_usdc: r.amountUsdc,
+          tx_ref: r.receipt?.transaction ?? "",
+          network: r.receipt?.network ?? facts.caip2,
+          ...(r.status !== 200 ? { error: r.error ?? `status ${r.status}` } : {}),
+        };
+        setBuyOut((o) => ({ ...o, [path]: out }));
+        if (r.status === 200 && out.tx_ref) {
+          setToast({ amountUsdc: out.price_usdc, txRef: out.tx_ref, key: ++toastSeq.current });
+          void mutate("/api/marketplace/receipts");
+          void mutate("/api/revenue");
+        } else if (r.status !== 200) {
+          setBuyErr((e) => ({ ...e, [path]: r.error ?? `the seller answered ${r.status}` }));
+        }
+        setBalanceTick((t) => t + 1);
+      } catch (e) {
+        setBuyErr((e2) => ({ ...e2, [path]: readableWalletError(e) }));
+      } finally {
+        setBuying(null);
+      }
+    },
+    [wallet, facts, sellerBase, mutate],
   );
 
   return (
@@ -438,31 +501,76 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                                   the same two spend caps as the button below,
                                   one query instead of three. */}
                               <div className="btn-row" style={{ marginBottom: 10 }}>
-                                <button
-                                  className="btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void buyOne(item.resource);
-                                  }}
-                                  disabled={!buyerReady?.buyer_ready || buying !== null}
-                                >
-                                  {buying === path ? (
-                                    <Ed x="settling…" p="paying…" />
-                                  ) : (
-                                    <>
-                                      <Ed x="buy this one" p="buy this one" /> · {priceUsdc(item)}
-                                    </>
-                                  )}
-                                </button>
-                                {!buyerReady?.buyer_ready ? (
+                                {wallet ? (
+                                  <button
+                                    className="btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void buyOneWithWallet(item.resource);
+                                    }}
+                                    disabled={buying !== null || (walletBal !== null && walletBal.next !== "ready")}
+                                  >
+                                    {buying === path ? (
+                                      <Ed x="your wallet is signing…" p="your wallet is paying…" />
+                                    ) : (
+                                      <>
+                                        <Ed x="buy with your wallet" p="buy with your wallet" /> · {priceUsdc(item)}
+                                      </>
+                                    )}
+                                  </button>
+                                ) : hasWallet ? (
+                                  <button
+                                    className="btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void connect();
+                                    }}
+                                    disabled={buying !== null}
+                                  >
+                                    <Ed x="connect your wallet to buy" p="connect your wallet to buy" />
+                                  </button>
+                                ) : null}
+                                {buyerReady?.buyer_ready ? (
+                                  <button
+                                    className={wallet || hasWallet ? "btn btn-quiet" : "btn"}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      void buyOne(item.resource);
+                                    }}
+                                    disabled={buying !== null}
+                                  >
+                                    {buying === path ? (
+                                      <Ed x="settling…" p="paying…" />
+                                    ) : (
+                                      <>
+                                        <Ed x="buy via the house buyer" p="let the house buyer pay" /> · {priceUsdc(item)}
+                                      </>
+                                    )}
+                                  </button>
+                                ) : null}
+                                {!buyerReady?.buyer_ready && !wallet && !hasWallet ? (
                                   <span className="muted" style={{ fontSize: 12.5 }}>
                                     <Ed
-                                      x="this deployment has no funded buyer key, so nothing here can settle"
-                                      p="this copy of the site has no funded shopper, so it cannot buy"
+                                      x="no wallet in this browser and no house buyer on this deployment, so nothing here can settle"
+                                      p="no wallet here and no house shopper on this copy of the site, so it cannot buy"
                                     />
                                   </span>
                                 ) : null}
+                                {walletErr ? (
+                                  <span className="vermilion" style={{ fontSize: 12.5 }}>{walletErr}</span>
+                                ) : null}
                               </div>
+                              {wallet ? (
+                                <div onClick={(e) => e.stopPropagation()} style={{ marginBottom: 10 }}>
+                                  <WalletFunding
+                                    wallet={wallet}
+                                    facts={facts}
+                                    price={priceNumber(item)}
+                                    onChange={setWalletBal}
+                                    refreshKey={balanceTick}
+                                  />
+                                </div>
+                              ) : null}
 
                               {out && out.status === 200 ? (
                                 <p className="mono green" style={{ fontSize: 12.5, margin: 0 }}>
@@ -704,7 +812,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
                   <Ed
                     x={
                       <>
-                        Arc testnet · real Circle Gateway settlement; needs a funded{" "}
+                        {chainFacts(env.data.chain).name} · real Circle Gateway settlement; needs a funded{" "}
                         <span className="mono">AGENT_PRIVATE_KEY</span> (see{" "}
                         <span className="mono">docs/agent-runbook.md</span>)
                       </>

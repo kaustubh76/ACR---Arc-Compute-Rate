@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ALLOWED, ROTATION, chooseTargets, clampCount, withinCap } from "./buyPlan";
+import { ALLOWED, MAINNET_CAIP2, ROTATION, buyerAllowedOn, chooseTargets, clampCount, withinCap } from "./buyPlan";
 
 test("clampCount bounds to [1,5] and defaults non-finite to 3", () => {
   assert.equal(clampCount(3), 3);
@@ -54,4 +54,13 @@ test("withinCap refuses the payment that would breach the cap", () => {
   assert.equal(withinCap(0.0099, 0.0001, 0.01), true); // lands exactly on cap
   assert.equal(withinCap(0.01, 0.0001, 0.01), false); // already at cap → refuse next
   assert.equal(withinCap(0.008, 0.003, 0.01), false); // 0.011 > 0.01
+});
+
+test("buyerAllowedOn: testnet always, mainnet only when the operator said so", () => {
+  assert.equal(buyerAllowedOn("eip155:5042002", {}), true);
+  assert.equal(buyerAllowedOn(null, {}), true);
+  assert.equal(buyerAllowedOn(MAINNET_CAIP2, {}), false, "mainnet + no variable: cannot spend");
+  assert.equal(buyerAllowedOn(MAINNET_CAIP2, { ACR_TERMINAL_BUYER: "1" }), true);
+  assert.equal(buyerAllowedOn(MAINNET_CAIP2, { ACR_TERMINAL_BUYER: "true" }), false, "exactly '1', not truthy");
+  assert.equal(buyerAllowedOn(" eip155:5042 ", {}), false, "whitespace does not smuggle it past");
 });

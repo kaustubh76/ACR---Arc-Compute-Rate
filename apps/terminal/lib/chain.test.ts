@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_SETTLE_AGE_S, deployedContracts } from "./chain";
+import { MAX_SETTLE_AGE_S, chainFacts, deployedContracts, isMainnet } from "./chain";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, schemaFromBytes32 } from "./registryCodec";
 import { DEMO_LABELS, KEY_PREFIX, deriveDemoSellers } from "./sellerKeys";
 import { ENDPOINTS, RUNNABLE } from "./endpoints";
@@ -196,4 +196,30 @@ test("the freshness window matches the contract it copies", () => {
     pillars,
     "app/ops/view.tsx SECTION_TITLE has drifted from ops.py SECTIONS",
   );
+});
+
+/* The cold-start bundle is chain-specific data (prints, receipts, addresses) served
+   whenever the API is unreachable. A mainnet terminal shipping a testnet bundle
+   would render testnet prices under a mainnet masthead the moment the press naps.
+   `make snapshot` regenerates it per chain; this holds the build to it: when
+   NEXT_PUBLIC_ACR_CHAIN_ID is set (the mainnet build sets it), the bundle must be
+   from that chain. Unset (local, testnet), the bundle's own chain is accepted. */
+test("fallback.json belongs to the chain the build is for", () => {
+  const bundle = JSON.parse(readFileSync(join(__dirname, "fallback.json"), "utf8"));
+  const bundled = Number(bundle.chain?.chain_id);
+  assert.ok(Number.isFinite(bundled) && bundled > 0, "fallback.json carries no chain_id");
+  const wanted = (process.env.NEXT_PUBLIC_ACR_CHAIN_ID ?? "").trim();
+  if (!wanted) return;
+  assert.equal(
+    bundled,
+    Number(wanted),
+    `fallback.json is from chain ${bundled} but this build is for ${wanted} — run make snapshot against the right API`,
+  );
+});
+
+test("isMainnet is the one predicate the UI's mainnet-only branches ask", () => {
+  assert.equal(isMainnet(chainFacts(null)), false, "static defaults are testnet");
+  assert.equal(isMainnet({ chainId: 5042 }), true);
+  assert.equal(isMainnet({ chainId: 5042002 }), false);
+  assert.equal(isMainnet({ chainId: 31337 }), false);
 });

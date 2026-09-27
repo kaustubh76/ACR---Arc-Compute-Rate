@@ -2,14 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBuyerReady, useX402Info } from "@/lib/useLive";
-import { refKind } from "@/lib/chain";
+import { chainFacts, refKind } from "@/lib/chain";
+import {
+  connectWallet,
+  injectedProvider,
+  payWithWallet,
+  type WalletSession,
+} from "@/lib/walletPayer";
 import { INDICES, PRICE_FALLBACK_USDC, isIndexId } from "@/lib/indices";
 import { Ed } from "@/components/Ed";
+import { WalletFunding, type WalletBalances } from "@/components/WalletFunding";
+import { readableWalletError } from "@/lib/bridge";
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { fmt, fmtInt, fmtPrice } from "@/lib/format";
 import type {
   ConsoleResult,
   ExchangeSample,
+  ChainFactsData,
   LiveBuyResponse,
   LiveBuyResult,
   PrintRow,
@@ -153,6 +162,8 @@ export function ApiConsole({
   onRevenue,
   sample,
   prints,
+  chain,
+  sellerBase,
 }: {
   live: boolean;
   externalPath?: string | null;
@@ -162,8 +173,33 @@ export function ApiConsole({
   /** The free terminal feed. Carries `curve` and `vol` verbatim, so the console
    *  can show the shape of what the selected endpoint sells without paying. */
   prints: Record<string, PrintRow>;
+  /** The payload's chain facts — the wallet path pays on the chain the SELLER reports. */
+  chain?: ChainFactsData | null;
+  /** The seller's public base, so the browser pays it directly (CORS exposes the 402 headers). */
+  sellerBase: string;
 }) {
   const info = useX402Info();
+  const facts = chainFacts(chain ?? null);
+  // The visitor's own wallet: the human revenue path. Same x402 protocol, same
+  // receipts tape as the agents; the signer is whoever is holding the mouse.
+  const [wallet, setWallet] = useState<WalletSession | null>(null);
+  // Funding (balances, bridge, deposit) lives in <WalletFunding>; this only
+  // needs to know whether the Gateway balance covers the price right now.
+  const [walletBal, setWalletBal] = useState<WalletBalances | null>(null);
+  const [walletBusy, setWalletBusy] = useState<"connect" | "pay" | null>(null);
+  const [walletErr, setWalletErr] = useState<string | null>(null);
+  const [balanceTick, setBalanceTick] = useState(0);
+  const walletConnect = useCallback(async () => {
+    setWalletBusy("connect");
+    setWalletErr(null);
+    try {
+      setWallet(await connectWallet(facts));
+    } catch (e) {
+      setWalletErr(readableWalletError(e));
+    } finally {
+      setWalletBusy(null);
+    }
+  }, [facts]);
   const mode = info?.data?.facilitator; // "dev" | "circle" | undefined
   const gateLive = info ? info.live : live;
   const buyerReady = useBuyerReady();
@@ -233,6 +269,79 @@ export function ApiConsole({
       setBusy(false);
     }
   }, [path, runQuery, onRevenue, info]);
+
+  // A Desk pass: this browser's Desk wallet may hold one. A session is minted
+  // for the same stored identity the Desk uses, and the read carries it — the
+  // gate then asks the chain whether that wallet paid, not us.
+  const [deskPassBusy, setDeskPassBusy] = useState(false);
+  const [hasDeskIdentity, setHasDeskIdentity] = useState(false);
+  useEffect(() => {
+    try {
+      setHasDeskIdentity(!!localStorage.getItem("acr-desk-user"));
+    } catch {
+      /* storage blocked: no Desk identity to offer */
+    }
+  }, []);
+  const readWithDeskPass = useCallback(async () => {
+    setDeskPassBusy(true);
+    setError(null);
+    try {
+      const uid = localStorage.getItem("acr-desk-user");
+      if (!uid) throw new Error("open the Desk once to create a wallet first");
+      const sess = await fetch("/api/desk/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user_id: uid }),
+      }).then((r) => r.json() as Promise<{ user_token?: string }>);
+      if (!sess.user_token) throw new Error("the Desk session could not be opened");
+      const res = await fetch("/api/console", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path, payer: "0xpass", desk_session: sess.user_token }),
+      });
+      const r = (await res.json()) as ConsoleResult & { detail?: string };
+      if (!res.ok) throw new Error(r.detail ?? `read failed ${res.status}`);
+      setResult(r);
+      setExpanded(false);
+      if (r.paid) onRevenue();
+      else setError("this wallet holds no feed pass — buy one on the Desk, then read here");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "read failed");
+    } finally {
+      setDeskPassBusy(false);
+    }
+  }, [path, onRevenue]);
+
+  // The same exchange, signed by the VISITOR: 402 → their wallet signs the
+  // Gateway authorization → paid retry → the receipt lands on the public tape.
+  const payFromWallet = useCallback(async () => {
+    if (!wallet) return;
+    setWalletBusy("pay");
+    setWalletErr(null);
+    setLiveErr(null);
+    setLiveOut(null);
+    try {
+      const r = await payWithWallet(wallet, facts, `${sellerBase}${path}`);
+      const out: LiveBuyResult = {
+        path,
+        status: r.status,
+        price_usdc: r.amountUsdc,
+        tx_ref: r.receipt?.transaction ?? "",
+        network: r.receipt?.network ?? facts.caip2,
+        ...(r.status !== 200 ? { error: r.error ?? `status ${r.status}` } : {}),
+      };
+      setLiveOut(out);
+      if (r.status === 200) {
+        setTally((t) => ({ n: t.n + 1, usdc: t.usdc + r.amountUsdc }));
+        onRevenue();
+      }
+      setBalanceTick((t) => t + 1);
+    } catch (e) {
+      setWalletErr(readableWalletError(e));
+    } finally {
+      setWalletBusy(null);
+    }
+  }, [wallet, facts, sellerBase, path, onRevenue]);
 
   // Complete the loop for real against Circle: sign + settle a single query
   // through the funded Gateway buyer, and surface the real gateway-ref/tx.
@@ -543,15 +652,43 @@ export function ApiConsole({
                   <span className="label">
                     <Ed x="Act II · real Circle settlement" p="Act II · real money moves (Circle)" />
                   </span>
-                  {buyerReady?.buyer_ready ? (
-                    <button className="btn" onClick={settleReal} disabled={liveBusy}>
-                      {liveBusy ? "signing + settling…" : "Settle for real →"}
-                    </button>
-                  ) : (
-                    <span className="chip chip-gold">funded buyer required</span>
-                  )}
+                  <span className="act-actions">
+                    {wallet ? (
+                      <button className="btn" onClick={payFromWallet} disabled={walletBusy !== null || (walletBal !== null && walletBal.next !== "ready")}>
+                        {walletBusy === "pay" ? "your wallet is signing…" : "Pay from your wallet →"}
+                      </button>
+                    ) : injectedProvider() ? (
+                      <button className="btn" onClick={walletConnect} disabled={walletBusy !== null}>
+                        {walletBusy === "connect" ? "connecting…" : "Connect your wallet"}
+                      </button>
+                    ) : null}
+                    {hasDeskIdentity ? (
+                      <button className="btn btn-quiet" onClick={readWithDeskPass} disabled={deskPassBusy}>
+                        {deskPassBusy ? "asking the chain…" : "Read with your Desk pass →"}
+                      </button>
+                    ) : null}
+                    {buyerReady?.buyer_ready ? (
+                      <button className="btn btn-quiet" onClick={settleReal} disabled={liveBusy}>
+                        {liveBusy ? "signing + settling…" : "Settle via the house buyer →"}
+                      </button>
+                    ) : !injectedProvider() ? (
+                      <span className="chip chip-gold">
+                        <Ed x="a wallet or a funded buyer required" p="you need a wallet, or the house buyer" />
+                      </span>
+                    ) : null}
+                  </span>
                 </div>
-                {buyerReady?.buyer_ready ? (
+                {wallet && (
+                  <WalletFunding
+                    refreshKey={balanceTick}
+                    wallet={wallet}
+                    facts={facts}
+                    price={info?.data?.price_usdc ?? PRICE_FALLBACK_USDC}
+                    onChange={setWalletBal}
+                  />
+                )}
+                {walletErr && <pre className="vermilion">{walletErr}</pre>}
+                {buyerReady?.buyer_ready || wallet ? (
                   liveOut ? (
                     liveOut.status === 200 ? (
                       <pre>

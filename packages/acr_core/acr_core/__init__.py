@@ -11,6 +11,13 @@ from .indices import (
     index_for_service,
     spec_for,
 )
+from .mainnet_guard import (
+    MAINNET_CHAIN_ID,
+    MainnetGuardError,
+    assert_mainnet_ready,
+    is_mainnet,
+    testnet_surfaces_enabled,
+)
 from .mathutils import (
     alpha_trim_mask,
     breakdown_point,
@@ -30,6 +37,11 @@ from .types import (
 )
 
 __all__ = [
+    "MAINNET_CHAIN_ID",
+    "MainnetGuardError",
+    "assert_mainnet_ready",
+    "is_mainnet",
+    "testnet_surfaces_enabled",
     "ACRSettings",
     "get_settings",
     "reset_settings",

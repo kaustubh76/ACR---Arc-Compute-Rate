@@ -45,7 +45,6 @@ USDC_DECIMALS = 6
 #: Dev pay-to address (a valid checksummed dummy — the live seller wallet comes
 #: from ACR_X402_PAY_TO).
 PAY_TO = "0xACacE0000000000000000000000000000000CafE"
-NETWORK = "arc-testnet"
 ASSET = "USDC"
 
 
@@ -442,7 +441,7 @@ class DevFacilitator(Facilitator):
                 "WWW-Authenticate": "x402",
                 "X-402-Price": f"{price}",
                 "X-402-Asset": ASSET,
-                "X-402-Network": NETWORK,
+                "X-402-Network": s.caip2(),
                 "X-402-Pay-To": pay_to,
                 # Same envelope as the JSON body — buyer SDKs (GatewayClient)
                 # parse the header, not the body.
@@ -547,6 +546,11 @@ class CircleFacilitator(Facilitator):
 
         body = {"paymentPayload": payload, "paymentRequirements": reqs}
         base = self.settings.x402_facilitator_url
+        # Gateway's Arc private-preview header. The preview ended (Gateway lists
+        # Arc mainnet without it, probed 2026-09-21); the flag stays as an env
+        # override because sending it is harmless and not sending it once broke
+        # every verify with a reason that read like a bad payment.
+        hdrs = {"X-ARC-PRIVATE-MAINNET-ENABLED": "true"} if self.settings.private_mainnet else {}
         try:
             client, owns = self._http, False
             if client is None:  # pragma: no cover - live path builds its own client
@@ -555,7 +559,7 @@ class CircleFacilitator(Facilitator):
                 client = httpx.AsyncClient(timeout=self.settings.x402_max_timeout_seconds)
                 owns = True
             try:
-                vr = await client.post(facilitator_endpoint(base, "verify"), json=body)
+                vr = await client.post(facilitator_endpoint(base, "verify"), json=body, headers=hdrs)
                 valid, invalid_reason = self._parse_verify(vr.json())
                 if not valid:
                     # Surface Circle's real reason in the server log — a bare 402
@@ -565,7 +569,7 @@ class CircleFacilitator(Facilitator):
                         status_code=402,
                         detail=f"payment invalid: {invalid_reason or 'unspecified'}"[:160],
                     )
-                sr = await client.post(facilitator_endpoint(base, "settle"), json=body)
+                sr = await client.post(facilitator_endpoint(base, "settle"), json=body, headers=hdrs)
                 settle = sr.json()
                 ok, tx, network, error_reason = self._parse_settle(settle)
                 if not ok:
@@ -640,16 +644,53 @@ def reset_facilitator() -> None:
     _facilitator = None
 
 
+def pass_receipt(desk_session: str) -> PaymentReceipt | None:
+    """A receipt-shaped answer for a Desk session holding a pass, or None. Amount
+    zero and a `pass:` reference, so nothing downstream mistakes it for a
+    settlement — it never reaches the receipts tape."""
+    from web3 import Web3
+
+    from . import desk, feedpass
+    from .desk import DeskError
+
+    s = get_settings()
+    try:
+        w = desk.wallet_of(desk_session)
+    except DeskError:
+        return None
+    except Exception:  # noqa: BLE001 — Circle down is "no pass", not a 500
+        return None
+    if not w:
+        return None
+    w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 10}))
+    has, until = feedpass.access(w3, w["address"])
+    if not has:
+        return None
+    return PaymentReceipt(
+        payer=w["address"], amount_usdc=0.0, tx_ref=f"pass:{until}", network=s.caip2(),
+        scheme="feed-pass", settled_at=float(until), resource="", seller=s.x402_pay_to or "",
+    )
+
+
 async def require_payment(
     request: Request,
     response: Response,
     payment_signature: str | None = Header(default=None, alias="PAYMENT-SIGNATURE"),
     x_payment: str | None = Header(default=None, alias="X-Payment"),
+    desk_session: str | None = Header(default=None, alias="DESK-SESSION"),
 ) -> PaymentReceipt:
     """FastAPI dependency: 402 unless a valid x402 payment is present. Accepts the
-    canonical ``PAYMENT-SIGNATURE`` header or the legacy ``X-Payment``."""
+    canonical ``PAYMENT-SIGNATURE`` header or the legacy ``X-Payment`` — or a
+    ``DESK-SESSION`` whose wallet holds a feed pass on chain (index_api.feedpass):
+    the Desk's smart accounts cannot sign x402, so their payment is a USDC transfer
+    the chain saw, and the gate asks the chain rather than a header."""
     fac = get_facilitator()
     header = payment_signature or x_payment
+    if header is None and desk_session:
+        receipt = pass_receipt(desk_session)
+        if receipt is not None:
+            request.state.payment = receipt
+            return receipt
     if header is None:
         raise fac.challenge(request)
     receipt = await fac.process(request, header, response)

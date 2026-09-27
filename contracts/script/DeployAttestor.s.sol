@@ -31,6 +31,6 @@ contract DeployAttestor is Script {
 
         console.log("FeedAccessAttestor:", address(attestor));
         console.log("authorized signer :", signer == address(0) ? msg.sender : signer);
-        console.log("Set ATTESTOR_ADDRESS to the address above.");
+        console.log("Set ACR_ATTESTOR_ADDRESS to the address above.");
     }
 }

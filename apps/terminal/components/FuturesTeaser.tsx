@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FuturesTape } from "./chain/FuturesTape";
 import { Ed } from "./Ed";
 import { Term } from "./Term";
-import { chainFacts } from "@/lib/chain";
+import { chainFacts, isMainnet } from "@/lib/chain";
 import { useFutures } from "@/lib/useLive";
 import { useDeskAddress } from "@/lib/useDeskAddress";
 import { deskIndexPhrase, deskTier, expiryLabel, formatOi } from "@/lib/futuresBook";
@@ -27,7 +27,9 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
   const r = roster?.data ?? null;
   const live = Boolean(roster?.live);
   const trades = r?.trades ?? [];
-  const explorer = chainFacts(data.chain).explorer;
+  const facts = chainFacts(data.chain);
+  const explorer = facts.explorer;
+  const mainnet = isMainnet(facts);
   // Fall back to the SERVER payload, not to nothing. useFutures() is a client
   // hook, so on first paint `r` is null — and the sentence below is derived
   // from these desks, which rendered "A cash-settled future , settling…" with a
@@ -128,14 +130,14 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           style={{ fontSize: 13, marginTop: 6, maxWidth: 68 * 9 }}
           x={
             <>
-              Take a side yourself: a Circle wallet behind your PIN, a $0.50 testnet stake, and
-              your fill lands on-chain. <Link href="/curve#desk">Trade it →</Link>
+              Take a side yourself: a Circle wallet behind your PIN,{" "}
+              {mainnet ? "your own USDC as stake" : "a $0.50 testnet stake"}, and your fill lands on-chain. <Link href="/curve#desk">Trade it →</Link>
             </>
           }
           p={
             <>
-              You can try it yourself: make a wallet with a PIN, get 50 cents of test money,
-              and place a real trade. <Link href="/curve#desk">Try it →</Link>
+              You can try it yourself: make a wallet with a PIN,{" "}
+              {mainnet ? "add some of your own dollars" : "get 50 cents of test money"}, and place a real trade. <Link href="/curve#desk">Try it →</Link>
             </>
           }
         />

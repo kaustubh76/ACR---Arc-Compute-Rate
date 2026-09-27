@@ -2,7 +2,7 @@
   "name": "acr-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "ACR buyer agent \u2014 discovers ACR listings and pays per query via Circle Nanopayments (x402 on Arc)",
+  "description": "ACR buyer agent — discovers ACR listings and pays per query via Circle Nanopayments (x402 on Arc)",
   "type": "module",
   "engines": {
     "node": "20.x",
@@ -12,12 +12,12 @@
     "start": "tsx src/main.ts",
     "deposit": "tsx src/deposit.ts",
     "build": "tsc",
-    "test": "node --import tsx --test src/payer.test.ts src/catalog.test.ts src/card.test.ts src/reroute.test.ts",
+    "test": "node --import tsx --test src/payer.test.ts src/catalog.test.ts src/card.test.ts src/reroute.test.ts src/chain.test.ts",
     "interop": "tsx src/interop.ts"
   },
   "dependencies": {
-    "@circle-fin/adapter-viem-v2": "^1.14.1",
-    "@circle-fin/unified-balance-kit": "^1.3.1",
+    "@circle-fin/adapter-viem-v2": "^1.18.0",
+    "@circle-fin/unified-balance-kit": "^1.7.0",
     "@circle-fin/x402-batching": "^3.2.0",
     "viem": "^2.0.0"
   },

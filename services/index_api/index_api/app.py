@@ -26,7 +26,13 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from acr_core import ALL_INDEX_IDS, get_settings, spec_for
+from acr_core import (
+    ALL_INDEX_IDS,
+    assert_mainnet_ready,
+    get_settings,
+    spec_for,
+    testnet_surfaces_enabled,
+)
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
@@ -282,7 +288,7 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
     # `futures.configured` branch below was not enough: this outer guard would
     # still have returned first on a mirror-only deployment.
-    from acr_core import get_settings as _gs
+    from acr_core import testnet_surfaces_enabled as _gs
 
     mirror_configured = bool(_gs().receipt_mirror_address)
     if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
@@ -497,6 +503,10 @@ async def _background(stop: asyncio.Event) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # On Arc mainnet, refuse to start unless every gate is explicit and configured.
+    # Both gates fail OPEN in `auto` mode; a stack trace at deploy time is the
+    # only signal an operator reliably reads. Off mainnet this is a no-op.
+    assert_mainnet_ready(get_settings())
     stop = asyncio.Event()
     tasks = [
         asyncio.create_task(_background(stop)),
@@ -779,6 +789,10 @@ def x402_info(fac: Facilitator = Depends(get_facilitator)) -> dict:
         # CAIP-2 for BOTH gates — the catalog, receipts, and this descriptor
         # must name the same network or the Terminal surfaces disagree.
         "network": s.caip2(),
+        # The Gateway SDK's chain key and the private-mainnet header flag, so a payer
+        # built in the browser or on the terminal's server needs no chain table.
+        "gateway_chain": s.gateway_chain or None,
+        "private_mainnet": s.private_mainnet,
         "pay_to": (s.x402_pay_to if circle else PAY_TO) or None,
         "payment_header": "PAYMENT-SIGNATURE",
         "gated_endpoints": GATED_ENDPOINTS,
@@ -859,7 +873,10 @@ def provenance() -> dict:
         "tape": tape,
         "simulated_tape": tape == "sim",
         "estimator": "real",
-        "chain": "arc-testnet" if s.oracle_address else None,
+        # The chain the print is on, in the payload's own terms (`eip155:5042`
+        # on mainnet); a literal here would tell every paying agent the wrong
+        # network the day the addresses move.
+        "chain": s.caip2() if s.oracle_address else None,
         "note": (
             "prices are estimated from a calibrated simulated tape; the estimator, "
             "the signature and the on-chain print are real"
@@ -1492,10 +1509,20 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
         # Network identity card — the frontend contract for every chain-aware
         # surface (explorer links, gate badge, poster provenance). Shape is fixed.
         "chain": {
-            "name": "Arc Testnet",
+            "name": settings.chain_name,
             "chain_id": settings.arc_chain_id,
+            # Circle's identifiers for this chain, so a browser payer and the Desk
+            # can be built without a testnet literal anywhere in the frontend.
+            "circle_blockchain": settings.circle_blockchain or None,
+            "gateway_chain": settings.gateway_chain or None,
+            "private_mainnet": settings.private_mainnet,
             "caip2": settings.caip2(),
-            "rpc_url": settings.arc_rpc_url,
+            # The payload is public, and the server's RPC may carry a provider key:
+            # both fields name the chain's PUBLIC endpoint (EIP-3085 for a visitor's
+            # wallet; the terminal's server-side fallback). Local anvil has no
+            # public endpoint, so there the server's own is the only one.
+            "rpc_url": settings.public_rpc_url or settings.arc_rpc_url,
+            "public_rpc_url": settings.public_rpc_url,
             "explorer_base": settings.explorer_base,
             "usdc_address": settings.usdc_address,
             "gateway_wallet": settings.x402_gateway_wallet,
@@ -1575,7 +1602,22 @@ class AttackStartRequest(BaseModel):
 _demo_tasks: set[asyncio.Task] = set()
 
 
-@app.post("/demo/attack/start")
+def _testnet_surface(name: str):
+    """A route-level dependency: the faucet, the demo buyer and the attack lab spend
+    OUR money on a stranger's request, so they exist only off mainnet —
+    `testnet_surfaces_enabled` is False on chain 5042 no matter what the environment
+    says. As a dependency it runs BEFORE body validation, so the answer is 404 for any
+    request shape — and 404 rather than 403, because a route that admits it exists
+    invites the next attempt."""
+
+    def _check() -> None:
+        if not testnet_surfaces_enabled(get_settings()):
+            raise HTTPException(404, f"{name} is not available on this network")
+
+    return _check
+
+
+@app.post("/demo/attack/start", dependencies=[Depends(_testnet_surface('the attack lab'))])
 async def demo_attack_start(req: AttackStartRequest | None = None) -> dict:
     """Kick a live wash-flow attack run for the Terminal's Attack Lab (ungated —
     it drives the human demo). Single-flight: 409 while a run is in progress."""
@@ -1608,7 +1650,7 @@ class BuyerStartRequest(BaseModel):
     delay_ms: int = 400
 
 
-@app.post("/demo/buyer/start")
+@app.post("/demo/buyer/start", dependencies=[Depends(_testnet_surface('the demo buyer'))])
 async def demo_buyer_start(req: BuyerStartRequest | None = None) -> dict:
     """Release the Exchange's floor buyer (ungated — it drives the human demo):
     N real x402 two-act exchanges through this app's own gate, receipts landing
@@ -1647,10 +1689,89 @@ class DeskFaucetRequest(BaseModel):
     user_token: str
 
 
+class DeskPassStatusRequest(BaseModel):
+    user_token: str
+
+
+class DeskPassClaimRequest(BaseModel):
+    user_token: str
+    #: The transfer to claim. Omitted → the newest completed transfer this wallet
+    #: made to the seller, found through Circle's own record and then verified on
+    #: chain like any other — the browser never has to learn a hash.
+    tx_hash: str = ""
+
+
+@app.post("/desk/pass/status")
+def desk_pass_status(req: DeskPassStatusRequest, request: Request) -> dict:
+    """What a pass costs, and whether this session's wallet holds one — read from
+    the chain, never from our own memory. POST so the token stays out of logs."""
+    ratelimit.check(request, "wallet", ratelimit.session_ident(req.user_token))
+    from . import desk, feedpass
+
+    q = feedpass.quote()
+    w = _desk_call(desk.wallet_of, req.user_token)
+    has, until = (False, 0)
+    if w:
+        has, until = feedpass.access(_pass_w3(), w["address"])
+    return {
+        "price_usdc": q.price_usdc,
+        "window_s": q.window_s,
+        "pay_to": q.pay_to or None,
+        "attestor": q.attestor,
+        "available": bool(q.pay_to and q.attestor),
+        "wallet": (w or {}).get("address"),
+        "has_access": has,
+        "paid_until": until or None,
+    }
+
+
+@app.post("/desk/pass/claim")
+def desk_pass_claim(req: DeskPassClaimRequest, request: Request) -> dict:
+    """Turn a mined USDC transfer into a pass: verify it on chain, sign the
+    attestation with the press, relay it, answer with what the chain now says.
+    Every check runs before the signature exists (index_api.feedpass)."""
+    ratelimit.check(request, "challenge", ratelimit.session_ident(req.user_token))
+    from . import desk, feedpass
+
+    w = _desk_call(desk.wallet_of, req.user_token)
+    if not w:
+        raise HTTPException(409, "this session has no wallet yet — finish the PIN ceremony first")
+    signer = _pass_signer()
+    if signer is None:
+        raise HTTPException(503, "no press signer configured: a pass cannot be attested")
+    tx_hash = req.tx_hash.strip()
+    if not tx_hash:
+        q = feedpass.quote()
+        found = _desk_call(desk.recent_transfers_from, w["address"], q.pay_to) if q.pay_to else []
+        if not found:
+            raise HTTPException(404, "no completed payment from this wallet to the seller yet — "
+                                     "give the transfer a moment to confirm, then claim again")
+        tx_hash = found[0]["tx_hash"]
+    try:
+        out = feedpass.mint(_pass_w3(), signer, wallet=w["address"], tx_hash=tx_hash)
+    except feedpass.PassError as e:
+        raise HTTPException(e.status, e.detail) from e
+    feedpass.forget(w["address"])
+    return out
+
+
+def _pass_w3():
+    from web3 import Web3
+
+    s = get_settings()
+    return Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 25}))
+
+
+def _pass_signer():
+    from acr_oracle_client import build_role_signer
+
+    return build_role_signer("poster", get_settings())
+
+
 class DeskChallengeRequest(BaseModel):
     user_token: str
     wallet_id: str
-    action: str  # approve | collateral | trade | withdraw
+    action: str  # approve | collateral | trade | withdraw | settle | pass
     index_id: str = "ACR-GPU"
     qty: float = 0.0
     address: str = ""  # the SCA — lets the server size the action to live margin
@@ -1710,7 +1831,7 @@ def desk_wallet(req: DeskWalletRequest, request: Request) -> dict:
     }
 
 
-@app.post("/desk/faucet")
+@app.post("/desk/faucet", dependencies=[Depends(_testnet_surface('the faucet'))])
 def desk_faucet(req: DeskFaucetRequest, request: Request) -> dict:
     """Claim + start the one-per-wallet 0.5 USDC stake from the custody wallet.
     The destination is THIS SESSION'S wallet — never a caller-supplied address.

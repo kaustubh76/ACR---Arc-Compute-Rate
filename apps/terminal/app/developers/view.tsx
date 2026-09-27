@@ -89,6 +89,8 @@ const DESC: Record<string, React.ReactNode> = {
   "/health": <Ed x="Liveness" p="Is the server awake?" />,
   "/desk/session": <Ed x="Open/resume a Circle user-controlled wallet session" p="Start your own wallet on the trading desk" />,
   "/desk/wallet": <Ed x="That session's SCA + its USDC stake" p="Your desk wallet and what's in it" />,
+  "/desk/pass/status": <Ed x="What a feed pass costs, and whether this wallet holds one (read from the chain)" p="The price of a pass, and whether your wallet already has one" />,
+  "/desk/pass/claim": <Ed x="Turn a mined USDC transfer into a pass: verified on chain, attested by the press" p="After you pay, this turns the payment into your pass" />,
   "/desk/faucet": <Ed x="Drip the one-per-wallet testnet stake" p="Get the 50-cent test stake, once per wallet" />,
   "/desk/limits": <Ed x="Live per-direction size caps (both margin checks)" p="The biggest trade you could place right now" />,
   "/desk/withdrawable": <Ed x="What this wallet can take back out, per series" p="How much of your money you can take back" />,
@@ -264,6 +266,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         onRevenue={refresh}
         sample={env.data.x402_exchange_sample ?? null}
         prints={env.data.prints}
+        chain={env.data.chain}
+        sellerBase={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"}
       />
 
       <Ed

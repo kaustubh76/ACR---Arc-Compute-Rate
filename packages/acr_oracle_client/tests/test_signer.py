@@ -239,3 +239,62 @@ def test_oracle_client_offline_and_backcompat():
     c2 = OracleClient(rpc_url="http://127.0.0.1:1", oracle_address=ORACLE, private_key=KEY)
     assert isinstance(c2.signer, LocalKeySigner)
     assert c2.signer.address == LocalKeySigner(KEY).address
+
+
+class _FakeEth:
+    """Just enough chain to watch what the signer fills in."""
+
+    chain_id = 5042
+    gas_price = 20_161_700_000
+
+    def __init__(self) -> None:
+        self.sent: bytes | None = None
+        self.estimated: dict | None = None
+
+    def get_transaction_count(self, addr):  # noqa: D102
+        return 7
+
+    def estimate_gas(self, tx):  # noqa: D102
+        self.estimated = dict(tx)
+        return 100_000
+
+    def send_raw_transaction(self, raw):  # noqa: D102
+        self.sent = raw
+        return b"\x11" * 32
+
+
+class _FakeW3:
+    def __init__(self) -> None:
+        self.eth = _FakeEth()
+
+    @staticmethod
+    def to_hex(v):  # noqa: D102
+        return "0x" + (v.hex() if isinstance(v, bytes) else str(v))
+
+
+def test_local_signer_completes_a_to_data_transaction():
+    """`CircleWalletSigner` takes `{to, data}` and lets Circle fill the rest, so
+    callers like `feed_access.relay_redeem` send exactly those two keys. The raw-key
+    signer has to honour the same contract — it used to hand the bare dict to
+    eth_account, which raises `TypeError: Transaction must include these fields`,
+    and on a raw-key deployment that made a feed pass impossible to relay."""
+    w3 = _FakeW3()
+    signer = LocalKeySigner(KEY)
+    got = signer.send_transaction(w3, {"to": "0x" + "11" * 20, "data": "0x1234"})
+    assert got.startswith("0x") and w3.eth.sent is not None, "a raw transaction reached the node"
+    filled = w3.eth.estimated
+    assert filled["from"] == signer.address
+    assert filled["nonce"] == 7
+    assert filled["chainId"] == 5042
+
+
+def test_local_signer_never_overwrites_what_the_caller_built():
+    """`OracleClient.post` builds from/nonce/chainId itself; filling must not clobber."""
+    w3 = _FakeW3()
+    signer = LocalKeySigner(KEY)
+    signer.send_transaction(
+        w3,
+        {"to": "0x" + "11" * 20, "data": "0x", "nonce": 99, "chainId": 31337, "gas": 21_000,
+         "gasPrice": 1},
+    )
+    assert w3.eth.estimated is None, "a caller-supplied gas means no estimate call at all"

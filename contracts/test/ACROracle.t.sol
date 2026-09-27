@@ -187,4 +187,48 @@ contract ACROracleTest is Test {
         ACROracle.Print memory p = oracle.latestPrint(INF);
         assertTrue(p.ciLo <= p.value && p.value <= p.ciHi);
     }
+
+    // --- the settlement views the venue decodes (primitives, keyed on postedAt) ---
+
+    function test_SettlementViews_EmptyHistory() public view {
+        (bool found,,) = oracle.firstPrintPostedAtOrAfter(INF, 0);
+        assertFalse(found, "nothing to find");
+        (bool exists,,) = oracle.latestPrintPrimitive(INF);
+        assertFalse(exists);
+    }
+
+    function test_FirstPrintPostedAtOrAfter_FindsByChainTime_NotSignerTime() public {
+        // Three prints at block times 1_000_000 / +100 / +200, with signer
+        // timestamps that are a different clock entirely (the Fixing clock).
+        vm.warp(1_000_000);
+        _post(0.5e18, 0.48e18, 0.52e18, 1000e6, 7_000);
+        vm.warp(1_000_100);
+        _post(0.6e18, 0.58e18, 0.62e18, 1000e6, 7_001);
+        vm.warp(1_000_200);
+        _post(0.7e18, 0.68e18, 0.72e18, 1000e6, 7_002);
+
+        (bool f, uint256 v, uint64 at) = oracle.firstPrintPostedAtOrAfter(INF, 1_000_000);
+        assertTrue(f); assertEq(v, 0.5e18); assertEq(at, 1_000_000); // exact hit
+        (f, v, at) = oracle.firstPrintPostedAtOrAfter(INF, 1_000_001);
+        assertTrue(f); assertEq(v, 0.6e18); assertEq(at, 1_000_100); // strictly between → next
+        (f, v, at) = oracle.firstPrintPostedAtOrAfter(INF, 1_000_200);
+        assertTrue(f); assertEq(v, 0.7e18); // last, exact
+        (f,,) = oracle.firstPrintPostedAtOrAfter(INF, 1_000_201);
+        assertFalse(f, "nothing posted after the last print");
+        (f, v,) = oracle.firstPrintPostedAtOrAfter(INF, 0);
+        assertTrue(f); assertEq(v, 0.5e18, "from zero: the very first");
+
+        (bool ex, uint256 lv, uint64 lat) = oracle.latestPrintPrimitive(INF);
+        assertTrue(ex); assertEq(lv, 0.7e18); assertEq(lat, 1_000_200);
+    }
+
+    function test_FirstPrintPostedAtOrAfter_SameBlockPrintsResolveToTheEarliest() public {
+        // Two prints in one block (postedAt equal): the search returns the first
+        // stored, which is the first the chain saw.
+        vm.warp(1_000_000);
+        _post(0.5e18, 0.48e18, 0.52e18, 1000e6, 7_000);
+        _post(0.9e18, 0.88e18, 0.92e18, 1000e6, 7_001);
+        (bool f, uint256 v,) = oracle.firstPrintPostedAtOrAfter(INF, 1_000_000);
+        assertTrue(f); assertEq(v, 0.5e18);
+    }
 }

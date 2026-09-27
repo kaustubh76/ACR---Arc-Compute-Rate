@@ -9,6 +9,8 @@ import {ACROracleV2} from "../src/ACROracleV2.sol";
 ///      always a real span ending at the print. With `fail_on_revert = true`
 ///      this means the invariants below run against genuinely posted state
 ///      across every reachable sequence.
+uint256 constant MAX_MOVE_BPS = 2_000; // 20% per print — the deploy default
+
 contract OracleV2Handler is Test {
     ACROracleV2 public oracle;
     bytes32 public constant INF = bytes32("ACR-INF");
@@ -30,6 +32,18 @@ contract OracleV2Handler is Test {
         uint256 dt
     ) external {
         value = bound(value, 1, 1e30);
+        // A print may move at most MAX_MOVE_BPS from the previous one, and this
+        // suite runs with fail_on_revert. So the fuzzed value is folded into the
+        // allowed band around the last print — the bound is exercised at both
+        // edges rather than dodged. `invariant_MoveNeverExceedsBound` below is
+        // what makes the folding a test of the contract, not of the handler.
+        (bool has, uint256 prev,) = oracle.latestPrintPrimitive(INF);
+        if (has) {
+            uint256 lo = prev - (prev * MAX_MOVE_BPS) / 10_000;
+            uint256 hi = prev + (prev * MAX_MOVE_BPS) / 10_000;
+            if (lo == 0) lo = 1;
+            value = bound(value, lo, hi);
+        }
         loSpread = bound(loSpread, 0, value);
         hiSpread = bound(hiSpread, 0, 1e29);
         bnd = bound(bnd, 1, 1e12);
@@ -73,7 +87,7 @@ contract ACROracleV2InvariantTest is Test {
         // A real epoch clock: v2's window rules are only meaningfully reachable
         // when a month fits below the timestamp.
         vm.warp(1_785_000_000);
-        oracle = new ACROracleV2();
+        oracle = new ACROracleV2(MAX_MOVE_BPS);
         uint256 signerPk = 0xA11CE;
         handler = new OracleV2Handler(oracle, signerPk);
         oracle.setSigner(vm.addr(signerPk), true);
@@ -97,6 +111,20 @@ contract ACROracleV2InvariantTest is Test {
                 oracle.historyAt(INF, i - 1).timestamp,
                 "timestamps not monotone"
             );
+        }
+    }
+
+    /// Invariant: no consecutive pair of prints moves more than MAX_MOVE_BPS —
+    /// the property that turns a stolen signer key from "set any price" into
+    /// "walk the price one bounded step per print, each an event".
+    function invariant_MoveNeverExceedsBound() public view {
+        uint256 n = oracle.historyLength(INF);
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; i++) {
+            uint256 prev = oracle.historyAt(INF, i - 1).value;
+            uint256 cur = oracle.historyAt(INF, i).value;
+            uint256 move = cur > prev ? cur - prev : prev - cur;
+            assertLe(move * 10_000, prev * oracle.MAX_MOVE_BPS(), "print moved past the bound");
         }
     }
 

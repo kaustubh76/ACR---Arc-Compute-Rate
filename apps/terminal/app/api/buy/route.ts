@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient, SPEND_CAP_USDC } from "@/lib/gatewayBuyer";
-import { chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
+import { buyerAllowedOn, chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { LiveBuyResponse, LiveBuyResult, X402Info } from "@/lib/types";
 
@@ -12,15 +13,22 @@ export const dynamic = "force-dynamic";
 /** GET — is a funded buyer available, and is the seller on the real Circle gate? */
 export async function GET() {
   let gate: "dev" | "circle" | null = null;
+  let network: string | null = null;
   try {
     const res = await fetch(`${apiBase()}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
-    if (res.ok) gate = ((await res.json()) as X402Info).facilitator;
+    if (res.ok) {
+      const j = (await res.json()) as X402Info;
+      gate = j.facilitator;
+      network = j.network ?? null;
+    }
   } catch {
     /* seller offline → gate stays null */
   }
   const env: LiveBuyResponse = {
     live: gate !== null,
-    buyer_ready: buyerConfigured() && gate === "circle",
+    // "ready" means it would actually run: configured, on the real gate, and
+    // allowed on this network — so the UI never offers a button that 404s.
+    buyer_ready: buyerConfigured() && gate === "circle" && buyerAllowedOn(network),
     gate,
     payer: null,
     results: [],
@@ -57,16 +65,27 @@ export async function POST(req: NextRequest) {
   // The real buyer only makes sense against the real Circle gate — the dev
   // mock gate emits a 402 the Gateway SDK won't recognize as a batching option.
   let gate: "dev" | "circle" | null = null;
+  let network: string | null = null;
+  let gatewayChain: string | null = null;
+  let privateMainnet = false;
   let price = PRICE_FALLBACK_USDC;
   try {
     const info = await fetch(`${base}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (info.ok) {
       const j = (await info.json()) as X402Info;
       gate = j.facilitator;
+      network = j.network ?? null;
+      gatewayChain = j.gateway_chain ?? null;
+      privateMainnet = Boolean(j.private_mainnet);
       if (Number.isFinite(j.price_usdc) && j.price_usdc > 0) price = j.price_usdc;
     }
   } catch {
     /* handled below */
+  }
+  // On mainnet this button spends real USDC on a stranger's request. It exists
+  // there only when the operator has said so; otherwise it does not exist at all.
+  if (!buyerAllowedOn(network)) {
+    return NextResponse.json({ detail: "not available on this network" }, { status: 404 });
   }
   if (gate !== "circle") {
     return NextResponse.json(
@@ -81,7 +100,7 @@ export async function POST(req: NextRequest) {
 
   let client;
   try {
-    client = await getGatewayClient();
+    client = await getGatewayClient({ gatewayChain: gatewayChain ?? CHAIN.gatewayChain, privateMainnet });
   } catch (e) {
     return NextResponse.json({ detail: String((e as Error).message) }, { status: 400 });
   }
@@ -104,7 +123,7 @@ export async function POST(req: NextRequest) {
         status: r.status,
         price_usdc: Number.isFinite(paid) ? paid : price,
         tx_ref: r.transaction,
-        network: "eip155:5042002",
+        network: network ?? "",
       });
     } catch (e) {
       // Surface Circle's real verify/settle reason (e.g. insufficient_balance).

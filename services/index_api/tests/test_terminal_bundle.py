@@ -38,12 +38,16 @@ client = TestClient(app)
 
 #: The frontend contract — build_terminal_payload's chain block, exactly.
 CHAIN_KEYS = {
-    "name", "chain_id", "caip2", "rpc_url", "explorer_base", "usdc_address",
+    "name", "chain_id", "caip2", "rpc_url", "public_rpc_url", "explorer_base", "usdc_address",
     "gateway_wallet", "oracle_address", "registry_address", "futures_address",
     # The fourth contract. Deployed and exercised long before anything named
     # it, which is exactly why this set is frozen: a card that quietly grows
     # or shrinks is a frontend contract nobody is holding.
     "attestor_address",
+    # Circle's identifiers for the chain, so the frontend's payer and Desk never
+    # carry a testnet literal — and the private-mainnet header flag the paywall
+    # and the browser payer both key on.
+    "circle_blockchain", "gateway_chain", "private_mainnet",
     # The fifth, and the same story again: HumanIdMirror publishes the rotated
     # cluster ids the human-denominated bound rests on, and was on chain before
     # any surface named it. Widened here deliberately and in the same change as
@@ -78,6 +82,13 @@ def test_terminal_payload_chain_block_exact_keys(small_store):
     assert chain["explorer_base"] == "https://testnet.arcscan.app"
     assert chain["usdc_address"] == "0x3600000000000000000000000000000000000000"
     assert chain["gateway_wallet"] == "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+    assert chain["circle_blockchain"] == "ARC-TESTNET"
+    assert chain["gateway_chain"] == "arcTestnet"
+    assert chain["private_mainnet"] is False
+    # The payload is public: both RPC fields are the chain's PUBLIC endpoint, so a
+    # keyed provider URL in ACR_ARC_RPC_URL never reaches a visitor's wallet.
+    assert chain["public_rpc_url"] == "https://rpc.testnet.arc.io"
+    assert chain["rpc_url"] == "https://rpc.testnet.arc.io"
     assert chain["oracle_address"] is None and chain["registry_address"] is None
     assert chain["futures_address"] is None
     assert chain["gate"] == "dev"
