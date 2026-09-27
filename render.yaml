@@ -284,6 +284,14 @@ services:
         value: "800"
       - key: ACR_REFRESH_SECONDS
         value: "3600"
+      # The host's timer, not the product's. On the free plan this service is
+      # OOM-killed every few minutes (512 MiB; rss climbs past 380 within two),
+      # so the hourly cycle above never fires, and a quick restart leaves the
+      # record younger than an hour so the wake path does not fire either — the
+      # fixing froze at one reading on a press that was technically alive. At 1200
+      # every restart tops the record up. Delete it once this runs on `starter`.
+      - key: ACR_WAKE_POST_AFTER_S
+        value: "1200"
 
       # --- Circle: a MAINNET custody wallet set, not the testnet one --------
       - key: ACR_CIRCLE_API_KEY

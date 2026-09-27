@@ -380,6 +380,20 @@ class ACRSettings(BaseSettings):
     # --- service ---
     #: Seconds between index_api store refreshes / oracle-post cycles.
     refresh_seconds: float = 30.0
+    #: How stale the on-chain record must be before a FRESHLY STARTED process
+    #: posts immediately instead of waiting out a full cycle. None → one full
+    #: `refresh_seconds`, which is the behaviour every deployment had.
+    #:
+    #: It needs its own knob because the two timers answer to different things.
+    #: `refresh_seconds` is the product's cadence: the Fixing is hourly. This one
+    #: is a property of the HOST, and on 2026-09-27 the mainnet service made the
+    #: difference concrete: on a 512 MiB free instance it was OOM-killed every few
+    #: minutes, so the hourly timer never fired, and because a quick restart left
+    #: the record younger than one hour the wake path did not fire either. The
+    #: fixing froze at one reading on a press that was technically alive. Setting
+    #: this below `refresh_seconds` makes every restart top the record up, which
+    #: turns an unstable host from a silent outage into a slightly noisy press.
+    wake_post_after_s: float | None = None
 
     # --- pricing / instrument ---
     #: Avellaneda–Stoikov inventory risk aversion.
@@ -389,6 +403,13 @@ class ACRSettings(BaseSettings):
     #: full-width corridor); κ=400 models the deep simulated book and lands
     #: the base spread at ~50bp, with the inventory term skewing on top.
     as_kappa: float = 400.0
+
+    @property
+    def wake_post_after(self) -> float:
+        """The staleness that justifies posting on wake — never longer than a cycle."""
+        if self.wake_post_after_s is None:
+            return float(self.refresh_seconds)
+        return min(float(self.wake_post_after_s), float(self.refresh_seconds))
 
     @property
     def chain_profile(self) -> ChainProfile:

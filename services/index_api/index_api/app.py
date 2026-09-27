@@ -440,8 +440,12 @@ async def _background(stop: asyncio.Event) -> None:
         # Post-on-wake: if the on-chain record is overdue (the press slept through
         # its slot), post now instead of waiting out a full refresh cycle. Mirrors
         # the timer body (refresh first so the posted ts clears the seeded cursor).
+        # `wake_post_after` (not `refresh_seconds`): on a host that is recycled
+        # more often than the product's cadence, the timer never fires and a
+        # restart alone must be enough to top the record up. Defaults to one full
+        # cycle, so nothing changes unless a deployment sets it.
         if poster.client.can_post() and _overdue_for_startup_post(
-            onchain, settings.refresh_seconds, time.time()
+            onchain, settings.wake_post_after, time.time()
         ):
             try:
                 await asyncio.to_thread(store.refresh)

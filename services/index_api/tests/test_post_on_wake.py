@@ -216,3 +216,31 @@ def test_the_self_ping_never_raises(monkeypatch):
 
     monkeypatch.setattr(app, "SELF_URL", "")  # unset is a clean no-op
     asyncio.run(app._touch_self())
+
+
+def test_wake_threshold_defaults_to_a_full_cycle_and_never_exceeds_one():
+    """`ACR_WAKE_POST_AFTER_S` exists because the two timers answer to different
+    things: `refresh_seconds` is the product's cadence (the Fixing is hourly), this
+    is a property of the HOST. On 2026-09-27 the mainnet free instance was
+    OOM-killed every few minutes, so the hourly timer never fired AND a quick
+    restart left the record younger than an hour, so the wake path did not fire
+    either — the fixing froze at one reading on a press that was technically alive.
+    """
+    from acr_core.config import ACRSettings
+
+    # Unset → one full cycle, which is what every deployment did before.
+    assert ACRSettings(refresh_seconds=3600).wake_post_after == 3600.0
+    # Below the cycle → a restart tops the record up sooner.
+    assert ACRSettings(refresh_seconds=3600, wake_post_after_s=1200).wake_post_after == 1200.0
+    # Above the cycle is meaningless (the timer would have posted first), so it
+    # clamps rather than letting a config mistake widen the gap MAX_SETTLE_AGE cares about.
+    assert ACRSettings(refresh_seconds=3600, wake_post_after_s=99999).wake_post_after == 3600.0
+
+
+def test_a_short_wake_threshold_makes_a_recent_record_overdue():
+    """The behaviour that unfreezes an unstable press: a 25-minute-old record is
+    NOT overdue against an hourly cycle, but IS against a 20-minute wake window."""
+    now = 1_000_000.0
+    onchain = {"ACR-INF": {"posted_at": now - 1500}}  # 25 minutes old
+    assert not _overdue_for_startup_post(onchain, 3600.0, now)
+    assert _overdue_for_startup_post(onchain, 1200.0, now)
