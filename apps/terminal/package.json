@@ -10,6 +10,10 @@
     "test": "node --import tsx --test lib/*.test.ts",
     "wallet-settle-probe": "tsx scripts/wallet-settle-probe.ts"
   },
+  "engines": {
+    "node": ">=20.9",
+    "npm": "^10"
+  },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.18.0",
     "@circle-fin/bridge-kit": "^1.15.1",
