@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "acr-openapi.md"
-API = "https://acr-api-1fto.onrender.com"
+API = "https://acr-api-mainnet.onrender.com"
 
 #: Routes the reference deliberately omits, each with the reason. Mirrors the
 #: exclusion dict in tests/test_endpoint_register_parity.py: an operator surface

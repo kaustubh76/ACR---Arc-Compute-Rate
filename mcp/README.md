@@ -12,7 +12,7 @@ here spends money or signs a transaction.
       "command": "npx",
       "args": ["tsx", "/path/to/ACR/mcp/src/server.ts"],
       "env": {
-        "ACR_API": "https://acr-api-1fto.onrender.com",
+        "ACR_API": "https://acr-api-mainnet.onrender.com",
         "ACR_AGENT_PRIVATE_KEY": "0x<a 32-byte key of your own>"
       }
     }
@@ -40,7 +40,7 @@ Unset, the server is anonymous, which is a working state, not an error.
 
 | env | meaning |
 |---|---|
-| `ACR_API` | the seller to call (default `https://acr-api-1fto.onrender.com`) |
+| `ACR_API` | the seller to call (default `https://acr-api-mainnet.onrender.com`) |
 | `ACR_AGENT_PRIVATE_KEY` | signs the card. Any 32-byte key; nothing is enrolled, nothing is spent |
 | `ACR_AGENT_HUMAN_CLUSTER` | **opt-in** human claim: the cluster `HumanIdMirror.clusterOf` records for this key's wallet in the *current* 7-day window. A claim the chain cannot confirm is a **401**, never a silent downgrade, so leave it unset unless you have resolved that wallet |
 | `ACR_ARC_CHAIN_ID` | the card's domain chain (default `5042002`, Arc testnet) |

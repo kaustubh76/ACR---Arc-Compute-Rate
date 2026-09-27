@@ -14,14 +14,14 @@ Two ways in. Either works; the first needs no key.
 
 ```bash
 # ACR's read proxy — an allowlist of named operations, Studio key server-side
-curl -s https://acr-api-1fto.onrender.com/graph/operations
-curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
+curl -s https://acr-api-mainnet.onrender.com/graph/operations
+curl -s -X POST https://acr-api-mainnet.onrender.com/graph/query \
   -H 'content-type: application/json' -d '{"operation":"meta"}'
 
 # Arguments go in `variables`, NOT at the top level. `prints` and
 # `economicPrints` take `index`; `sellerDays` takes `seller`; `payerDays` takes
 # `payer`; everything else takes only the optional `first` (clamped to 200).
-curl -s -X POST https://acr-api-1fto.onrender.com/graph/query \
+curl -s -X POST https://acr-api-mainnet.onrender.com/graph/query \
   -H 'content-type: application/json' \
   -d '{"operation":"prints","variables":{"index":"ACR-INF","first":5}}'
 ```
@@ -41,10 +41,10 @@ nothing enrolled, nothing spent — moves you to the **carded** tier (a budget k
 your key) and turns the screen on in both directions.
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/agent/challenge      # audience, chain, domain, header name
+curl -s https://acr-api-mainnet.onrender.com/agent/challenge      # audience, chain, domain, header name
 # Mint with apps/agent/src/card.ts, mcp/src/card.ts, or acr_oracle_client.agentcard —
 # /developers on the Terminal writes the Python/TypeScript/curl for you from this answer.
-curl -s https://acr-api-1fto.onrender.com/agent/whoami -H "AGENT-CARD: $CARD"
+curl -s https://acr-api-mainnet.onrender.com/agent/whoami -H "AGENT-CARD: $CARD"
 # {"tier":"carded","ident_kind":"agent-key",...}
 ```
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** ACR Machine TCA, over MCP.
  *
- *   ACR_API=https://acr-api-1fto.onrender.com npx tsx mcp/src/server.ts
+ *   ACR_API=https://acr-api-mainnet.onrender.com npx tsx mcp/src/server.ts
  *
  * Registered in an MCP host's config as a stdio server. Every tool is a read —
  * nothing here spends money or signs a transaction, so a host can grant it

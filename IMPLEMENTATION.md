@@ -6,7 +6,7 @@ four-pillar estimator, on-chain contracts, a cash-settled instrument, an
 x402-gated index API, and a live Terminal with the "Attack the Index" demo.
 
 > **Live deployment:** the Terminal runs at <https://arc-compute-rate.vercel.app>
-> and the seller API at <https://acr-api-1fto.onrender.com>. See
+> and the seller API at <https://acr-api-mainnet.onrender.com>. See
 > `docs/DEPLOY.md` for the cloud state and `docs/README.md` for the
 > judge-facing status.
 

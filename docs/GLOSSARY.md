@@ -428,7 +428,7 @@ and it proves its own tamper-resistance.
   on Arc's test network (chain 5042002). *The shop is open, not just built.*
 - **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
   landlord for the storefront website.*
-- **Render** — the host serving the seller API (`acr-api-1fto.onrender.com`), which
+- **Render** — the host serving the seller API (`acr-api-mainnet.onrender.com`), which
   posts a Circle-signed oracle price every hour. *The landlord for the back office.*
 - **arcscan (`testnet.arcscan.app`)** — Arc's block explorer, where anyone can look
   up a contract or transaction. *The public land registry for the chain.*

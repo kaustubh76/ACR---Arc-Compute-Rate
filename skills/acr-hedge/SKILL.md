@@ -15,7 +15,7 @@ fills every trade at that same print, the position you end up holding is the pri
 bought.** One wallet buys both legs; one URL shows both.
 
 Reference implementation: `scripts/hedger.py` in the ACR repo. That URL is
-`GET https://acr-api-1fto.onrender.com/hedger`, and it is the point of the design: it
+`GET https://acr-api-mainnet.onrender.com/hedger`, and it is the point of the design: it
 returns the Gateway settlements the agent's own wallet paid **and** the position and
 fills those prints bought, so the loop is checkable by a stranger rather than attested
 by the agent.
@@ -32,8 +32,8 @@ native gas, so one balance pays for data, margin, and gas. The Circle skills
 The catalog is free; only the data costs money.
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/marketplace/catalog   # 13 priced resources, x402 accepts[]
-curl -s https://acr-api-1fto.onrender.com/x402/info             # the gate: facilitator, price, payTo
+curl -s https://acr-api-mainnet.onrender.com/marketplace/catalog   # 13 priced resources, x402 accepts[]
+curl -s https://acr-api-mainnet.onrender.com/x402/info             # the gate: facilitator, price, payTo
 ```
 
 Or through the marketplace tooling: `circle services search compute`.
@@ -42,7 +42,7 @@ Or through the marketplace tooling: `circle services search compute`.
 
 ```bash
 export NODE_OPTIONS="--experimental-global-webcrypto"
-circle services pay https://acr-api-1fto.onrender.com/prints/ACR-INF \
+circle services pay https://acr-api-mainnet.onrender.com/prints/ACR-INF \
   --address <AGENT_ADDRESS> --chain ARC-TESTNET --max-amount 0.0002 --estimate
 # then the same command without --estimate to actually pay (~0.0001 USDC)
 ```
@@ -64,10 +64,10 @@ nothing enrolled, nothing spent — moves you to the **carded** tier (a budget k
 your key) and turns the screen on in both directions.
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/agent/challenge      # audience, chain, domain, header name
+curl -s https://acr-api-mainnet.onrender.com/agent/challenge      # audience, chain, domain, header name
 # Mint with apps/agent/src/card.ts, mcp/src/card.ts, or acr_oracle_client.agentcard —
 # /developers on the Terminal writes the Python/TypeScript/curl for you from this answer.
-curl -s https://acr-api-1fto.onrender.com/agent/whoami -H "AGENT-CARD: $CARD"
+curl -s https://acr-api-mainnet.onrender.com/agent/whoami -H "AGENT-CARD: $CARD"
 # {"tier":"carded","ident_kind":"agent-key",...}
 ```
 
@@ -80,7 +80,7 @@ Through the MCP server (`mcp/README.md`) the same happens by setting
 ## Step 3 — Read the venue
 
 ```bash
-curl -s https://acr-api-1fto.onrender.com/futures   # per-index series: id, mark, margin bps, expiry, open interest
+curl -s https://acr-api-mainnet.onrender.com/futures   # per-index series: id, mark, margin bps, expiry, open interest
 ```
 
 ACRFutures: `0x29d97c629a8278f7ec4218ab0bd8baa9182642fe` (testnet.arcscan.app). Every

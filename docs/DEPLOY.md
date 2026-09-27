@@ -20,7 +20,8 @@ reachable, running live Circle Arc-testnet execution.
 
 | Piece | Host | URL |
 |---|---|---|
-| Seller API | **Render** (free plan, region `oregon`), from `render.yaml` | https://acr-api-1fto.onrender.com |
+| Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — suspended until the launch gates are filled |
+| Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended by its owner since 2026-09-15 |
 | Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
 
 The service is declared in [`render.yaml`](../render.yaml) at the repo root: a

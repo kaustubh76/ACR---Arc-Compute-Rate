@@ -6,8 +6,8 @@ paginate: true
 # ACR — The Arc Compute Rate
 ## OpenAPI 3.1.0 · endpoint reference
 
-Live spec: `https://acr-api-1fto.onrender.com/openapi.json`
-Catalog: `https://acr-api-1fto.onrender.com/marketplace/catalog`
+Live spec: `https://acr-api-mainnet.onrender.com/openapi.json`
+Catalog: `https://acr-api-mainnet.onrender.com/marketplace/catalog`
 
 Index endpoints: **$0.0001 USDC per request**, x402 `exact` scheme,
 Circle Gateway (GatewayWalletBatched), network `eip155:5042002` (Arc).

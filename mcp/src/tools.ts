@@ -7,7 +7,7 @@
  * answers to the same question with no way to tell which was the benchmark.
  */
 
-export const DEFAULT_API = "https://acr-api-1fto.onrender.com";
+export const DEFAULT_API = "https://acr-api-mainnet.onrender.com";
 
 export interface Fetchish {
   (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{
