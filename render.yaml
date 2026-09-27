@@ -237,7 +237,7 @@ services:
       # 2026-09-26 that was a 09-13 build predating mainnet_guard itself, i.e.
       # the fail-open code the audit closed. A dated tag makes the running
       # code a fact in this file.
-      url: docker.io/kaushtubh02/acr-api:2026-09-26
+      url: docker.io/kaushtubh02/acr-api:2026-09-27
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
