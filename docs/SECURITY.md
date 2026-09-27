@@ -93,6 +93,14 @@ and open series. They cannot take collateral or alter the oracle history. The re
   the chain's public endpoint from the payload (`public_rpc_url`), never this server's, which
   may carry a provider key. Bridging in is Circle's CCTP from your wallet: the approve is for
   the amount you typed, the burn and mint are Circle's contracts, and this server signs nothing.
+- **The mainnet host holds the press key** (since 2026-09-27). Two facts belong together: the
+  server can sign prints, and that same wallet is `ACR_X402_PAY_TO`, so it also receives every
+  payment. The testnet deployment uses Circle custody and no host here had ever held a raw key; this
+  one does because the live Circle wallet set does not exist yet, and a fixing frozen at one reading
+  is the worse failure for anyone relying on it. What bounds the damage is the audit's own C2 fix:
+  `ACROracleV2.MAX_MOVE_BPS` lets a stolen press key walk the rate 20% per print, not set it, and
+  `settleStale` means a silent press cannot strand collateral. Moving the press to Circle custody
+  (`ACR_CIRCLE_WALLET_ID`, which takes precedence) removes the raw key entirely and is the intent.
 - **On mainnet the service refuses to start** unless every gate is explicit and configured
   (`acr_core.mainnet_guard`); the faucet, the demo buyer and the attack lab do not exist
   there, and no environment variable can bring them back.

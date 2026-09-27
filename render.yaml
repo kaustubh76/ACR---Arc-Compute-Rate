@@ -292,8 +292,16 @@ services:
         sync: false
       - key: ACR_CIRCLE_WEBHOOK_PUBLIC_KEY
         sync: false
+      # The press signer. The testnet service uses Circle custody and no host here
+      # had ever held a raw key; on 2026-09-27 this one does, because the live
+      # Circle wallet set does not exist yet and a frozen fixing is the worse
+      # failure. What bounds it is ACROracleV2.MAX_MOVE_BPS: a stolen press key
+      # walks the rate 20% per print, it cannot set it (docs/SECURITY-AUDIT.md C2).
+      # Setting ACR_CIRCLE_WALLET_ID later takes precedence over this key.
+      - key: ACR_POSTER_PRIVATE_KEY
+        sync: false # the press EOA; also ACR_X402_PAY_TO, so it receives revenue too
       - key: ACR_CIRCLE_WALLET_ID
-        value: "" # the press: signs prints, attestations and feed passes; ACR_PRESS_SIGNER at deploy
+        value: "" # Circle custody for the press; preferred over the raw key when set
       - key: ACR_CIRCLE_WALLET_SET_ID
         value: ""
       - key: ACR_CIRCLE_MAKER_WALLET_ID

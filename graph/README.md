@@ -11,9 +11,26 @@ it; nothing can disagree with it.
 | **Studio** | account `1758707` · slug `ethonline` · **v0.2.0** · `QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6` |
 | **Endpoint (development)** | `https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` — 3,000 queries/day, not counted on any dashboard |
 | **Endpoint (production)** | `https://gateway.thegraph.com/api/subgraphs/id/<deployment id>` with an API key, after publishing — counted on the key's usage page (`docs/GRAPH-RUNBOOK.md` step 6) |
-| **Network** | `arc-testnet` (`eip155:5042002`); `arc` mainnet is a Studio target too (`docs/MAINNET_RUNBOOK.md`) |
+| **Network** | `arc` (`eip155:5042`) since 2026-09-27, and `arc-testnet` (`eip155:5042002`); both live in `networks.json` |
 | **Lag, measured** | ~6 blocks / ~3 s behind Arc's head (2026-09-13), `hasIndexingErrors: false` |
 | **Substreams** | **N/A** — Arc is a Studio-only ("basic" support) network; there is no Substreams endpoint to target, so that challenge is not attempted |
+
+## The manifest is generated — edit `networks.json`, not `subgraph.yaml`
+
+`graph build --network <arc|arc-testnet>` rewrites `subgraph.yaml` in place from
+`networks.json`: it swaps every `network`, `address` and `startBlock`, **and strips every
+comment in the file** (it round-trips the YAML through a serializer). So nothing durable can
+live in that manifest's comments, which is why these two facts live here instead:
+
+- **`specVersion: 1.1.0` is the floor** for `@entity(timeseries: true)` / `@aggregation`.
+  Lowering it breaks the schema, not just a warning.
+- **ABIs under `abis/` are extracted from `contracts/out` by `make graph-abis`** and are never
+  hand-written. The Terminal's hand-inlined ABIs have drifted from the contracts before; a
+  generated copy cannot.
+
+Switch networks with `make graph-build NETWORK=arc-testnet` (it defaults to `arc`). Mainnet
+addresses and start blocks came from the deploy's own broadcast receipts, not from the
+explorer — Arc's mainnet explorer API is credentialed and answers 403.
 
 ## Seven data sources, one tape
 

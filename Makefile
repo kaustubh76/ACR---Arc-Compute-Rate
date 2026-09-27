@@ -528,10 +528,17 @@ graph-install:
 graph-codegen: graph-abis
 	cd graph && npx graph codegen
 
+#: Which Arc the subgraph indexes. `graph/networks.json` carries the address and
+#: startBlock for each, and `graph build --network` REWRITES graph/subgraph.yaml
+#: in place from it — so the committed manifest always reflects the last build,
+#: and `NETWORK=arc-testnet make graph-build` is how you switch back. Defaults to
+#: mainnet because that is what the product runs on since 2026-09-27.
+NETWORK ?= arc
+
 # `graph build` is itself the schema gate: it rejects a malformed @aggregation,
 # an `arg` naming a field that does not exist, or a non-numeric aggregated field.
 graph-build: graph-codegen
-	cd graph && npx graph build
+	cd graph && npx graph build --network $(NETWORK)
 
 graph-test:
 	cd graph && npx graph test

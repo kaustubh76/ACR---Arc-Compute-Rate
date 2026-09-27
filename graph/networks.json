@@ -1,0 +1,62 @@
+{
+  "arc-testnet": {
+    "ACROracle": {
+      "address": "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609",
+      "startBlock": 53066540
+    },
+    "ACROracleV2": {
+      "address": "0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA",
+      "startBlock": 60541786
+    },
+    "AttestationRegistry": {
+      "address": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+      "startBlock": 53066540
+    },
+    "ACRFutures": {
+      "address": "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe",
+      "startBlock": 54474746
+    },
+    "FeedAccessAttestor": {
+      "address": "0xe671a8E73900F1186448cFFeA9e730F5E50DFD47",
+      "startBlock": 55149161
+    },
+    "ReceiptMirror": {
+      "address": "0xA9CD5b9503aeA88EB343333E842D2860b263DB65",
+      "startBlock": 60541749
+    },
+    "HumanIdMirror": {
+      "address": "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5",
+      "startBlock": 61226802
+    }
+  },
+  "arc": {
+    "ACROracle": {
+      "address": "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07",
+      "startBlock": 23013298
+    },
+    "ACROracleV2": {
+      "address": "0xF77E763ef710096c0b9F02Ea16F76e68E0312f81",
+      "startBlock": 23013298
+    },
+    "AttestationRegistry": {
+      "address": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
+      "startBlock": 23013298
+    },
+    "ACRFutures": {
+      "address": "0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b",
+      "startBlock": 23013298
+    },
+    "FeedAccessAttestor": {
+      "address": "0xB9508caD4A5C367C3a62B6767C4837a607EaA490",
+      "startBlock": 23013300
+    },
+    "ReceiptMirror": {
+      "address": "0x1a5390E59d4ce0a386Aa071365A932Dc34d35bE3",
+      "startBlock": 23013300
+    },
+    "HumanIdMirror": {
+      "address": "0x7134622a01Add334eA306dDa5A5877b418a940B5",
+      "startBlock": 23013298
+    }
+  }
+}
