@@ -18,7 +18,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-from gen_snapshot import embed_bundle_sections  # noqa: E402
+from gen_snapshot import carry_venue_forward, embed_bundle_sections  # noqa: E402
 
 FALLBACK = _ROOT / "apps/terminal/lib/fallback.json"
 
@@ -172,3 +172,33 @@ def test_fallback_hedger_section_still_carries_its_agent():
     # rows are capped, the count is not.
     assert h["paid_queries"] >= len(rows) >= 1
     assert h["spent_usdc"] >= round(sum(r["amount_usdc"] for r in rows), 6) - 1e-9
+
+
+def test_a_venue_capture_is_never_carried_across_a_chain_switch():
+    """Carrying the last real tape is right; carrying another CHAIN's is not.
+
+    Measured 2026-09-28: the committed bundle held eleven Arc *testnet* fills
+    (blocks 56.1M) under a header that already said chain 5042, whose head was
+    23.16M — the archived edition showed a mainnet reader a venue that traded
+    somewhere else. The carry existed for a reader that missed a tape it should
+    have seen; a chain switch is the other reason the tape is empty, and there
+    the old capture is not stale, it is foreign.
+    """
+    old = {
+        "chain": {"chain_id": 5042002},
+        "futures": {"ACR-INF": {"series_id": 3, "multiplier": 1}},
+        "futures_trades": [{"block": 56116398, "series_id": 3}],
+    }
+
+    # Same chain, empty tape: carried, exactly as before.
+    same = {"chain": {"chain_id": 5042002}, "futures": {}, "futures_trades": []}
+    assert carry_venue_forward(same, old) is not None
+    assert same["futures_trades"] == old["futures_trades"]
+
+    # Different chain: refused, and the refusal says both chains out loud.
+    other = {"chain": {"chain_id": 5042}, "futures": {}, "futures_trades": []}
+    note = carry_venue_forward(other, old)
+    assert note is not None and "NOT carried" in note
+    assert "5042002" in note and "5042" in note
+    assert not other["futures_trades"], "a foreign tape must not reach the bundle"
+    assert not other["futures"], "desks and tape move together, including when refused"

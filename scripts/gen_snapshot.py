@@ -294,6 +294,15 @@ def previous_bundle(path: Path = BUNDLE_PATH) -> dict:
 def carry_venue_forward(payload: dict, previous: dict) -> str | None:
     """Keep the last real venue capture when this run could not read one.
 
+    ONLY FROM THE SAME CHAIN. The rest of this docstring reasons about a reader
+    that missed a tape it should have seen; a chain switch is the other reason
+    the tape is empty, and there the old capture is not stale, it is foreign.
+    Measured 2026-09-28: the committed bundle carried eleven Arc *testnet* fills
+    (blocks 56.1M, series 3/4/5) into a bundle whose header already said chain
+    5042, whose head was 23.16M — an archived edition showing a mainnet visitor
+    a venue that traded somewhere else. A fresh mainnet venue has no series yet,
+    and `ACR_SNAPSHOT_ALLOW_NO_FUTURES=1` is how a bundle says that honestly.
+
     The guard below exists to stop a bundle claiming a venue that has never
     traded. Preserving the previous capture serves that intent; the env flag
     defeats it, because this script rewrites the file wholesale — so opting out
@@ -314,6 +323,18 @@ def carry_venue_forward(payload: dict, previous: dict) -> str | None:
     old_desks = previous.get("futures") or {}
     if not (old_trades and old_desks):
         return None  # nothing worth keeping — let the guard refuse
+
+    now_chain = (payload.get("chain") or {}).get("chain_id")
+    was_chain = (previous.get("chain") or {}).get("chain_id")
+    if now_chain is not None and was_chain is not None and now_chain != was_chain:
+        return (
+            f"  ! venue NOT carried: the previous bundle is chain {was_chain}, this one is "
+            f"{now_chain}.\n"
+            f"    Those {len(old_trades)} fill(s) happened on another network and would read as "
+            "this one's.\n"
+            "    A venue-less bundle is the truthful answer until this chain's venue trades; pass\n"
+            "    ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 to commit one."
+        )
 
     payload["futures"] = old_desks
     payload["futures_trades"] = old_trades
