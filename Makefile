@@ -569,10 +569,11 @@ graph-deploy: graph-build
 	# `-l` is not optional in practice: without a version label the CLI opens an
 	# interactive prompt, and the runbook's own step then hangs forever in CI or
 	# under any non-tty caller. Override with `make graph-deploy VERSION=v0.2.0`.
-	# No `--network`: that flag rewrites each source's address from networks.json,
-	# which does not exist here and, if it did, would OVERWRITE the addresses the
-	# two guards above just checked. subgraph.yaml declares arc-testnet on every
-	# data source and holds the real deploy blocks — it is the single source.
+	# No `--network` HERE, deliberately, even though graph/networks.json now exists
+	# and `graph-build` takes one: passing it again at deploy time would rewrite
+	# every address AFTER the two guards above have checked them, so the thing
+	# deployed would not be the thing verified. `graph-build` has already written
+	# the manifest for NETWORK; this step only ships it.
 	cd graph && npx graph deploy $(SUBGRAPH) -l $(VERSION)
 
 lint: glossary-check
