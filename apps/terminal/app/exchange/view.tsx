@@ -23,6 +23,7 @@ import {
   useMarketReceipts,
   useTerminal,
 } from "@/lib/useLive";
+import { sellerBase } from "@/lib/apiBase";
 import { fmtInt } from "@/lib/format";
 import { fmtPrice, shortAddr } from "@/lib/format";
 import type {
@@ -232,7 +233,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
   // house buyer. Same pipeline as buyOne from the result onward, so a purchase
   // signed by the reader prints on the same tape and moves the same counters.
   const facts = chainFacts(env.data.chain);
-  const sellerBase = process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000";
+  const seller = sellerBase();
   const [wallet, setWallet] = useState<WalletSession | null>(null);
   const [walletErr, setWalletErr] = useState<string | null>(null);
   const [hasWallet, setHasWallet] = useState(false);
@@ -256,7 +257,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
       setBuying(path);
       setBuyErr((e) => ({ ...e, [path]: "" }));
       try {
-        const r = await payWithWallet(wallet, facts, `${sellerBase}${path}`);
+        const r = await payWithWallet(wallet, facts, `${seller}${path}`);
         const out: LiveBuyResult = {
           path,
           status: r.status,
@@ -280,7 +281,7 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
         setBuying(null);
       }
     },
-    [wallet, facts, sellerBase, mutate],
+    [wallet, facts, seller, mutate],
   );
 
   return (

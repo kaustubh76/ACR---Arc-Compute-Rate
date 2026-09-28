@@ -2,10 +2,11 @@
    the browser only ever talks to the Next proxy routes (FastAPI has no CORS
    middleware, and this keeps the offline "archived edition" logic in one place). */
 
+import { sellerBase } from "./apiBase";
 import type { Envelope, TerminalData } from "./types";
 import fallback from "./fallback.json";
 
-const API = process.env.ACR_API ?? process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000";
+const API = (process.env.ACR_API?.trim() || sellerBase()).replace(/\/$/, "");
 
 export function apiBase(): string {
   return API;

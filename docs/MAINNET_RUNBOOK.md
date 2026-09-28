@@ -79,9 +79,9 @@ for adding one contract to an existing deployment; they are not the mainnet path
 
    | variable | value | why |
    |---|---|---|
-   | `NEXT_PUBLIC_ACR_API` | the mainnet API's public URL | the browser pays the seller directly; this is who it pays |
-   | `NEXT_PUBLIC_ACR_CHAIN_ID` | `5042` | `lib/chain.test.ts` fails the build if the cold-start bundle is from another chain |
-   | `ACR_API` | same as above | server routes |
+   | `NEXT_PUBLIC_ACR_API` | *(optional)* the seller's URL | **a production build already defaults to `https://acr-api-mainnet.onrender.com`** (`lib/apiBase.ts`), because `http://127.0.0.1:8000` is nothing on a server. Set it only to point somewhere else — a fork, a preview, a testnet deploy |
+   | `NEXT_PUBLIC_ACR_CHAIN_ID` | *(optional)* `5042` | a belt-and-braces assertion: `lib/chain.test.ts` fails the build if the cold-start bundle is from another chain. Unset, the bundle's own chain is accepted — and the committed bundle is already 5042 |
+   | `ACR_API` | *(optional)* same as above | server routes; falls back to the same default |
    | `ACR_ARC_RPC_URL` | a keyed provider URL for mainnet | server-side reads (balances, on-chain routes); never reaches the browser — a visitor's wallet is handed the payload's `public_rpc_url` (`https://rpc.mainnet.arc.io`) |
    | `ACR_TERMINAL_BUYER` | **unset** | the house buyer must not spend on a stranger's click; set to `1` only deliberately |
    | `ACR_BUYER_PRIVATE_KEY` | **unset** | same; there is no house buyer on mainnet unless you mean it |
