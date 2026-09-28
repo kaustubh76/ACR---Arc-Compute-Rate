@@ -60,9 +60,11 @@ You do not need to include your address; the receipt is public anyway.
   batches nanopayments; we measured about nine minutes on testnet. The data arrives immediately
   and the receipt is real from the moment it appears, so do not buy twice thinking it failed.
 - The venue on mainnet is new and thin. A quote may be wide; that is the book, not a bug.
-- **Transaction-cost analysis (`/tca/…`) answers, but reports zero purchases** until settlements
-  exist on mainnet. It is computed inside the subgraph at the moment each settlement arrives, so
-  it has nothing to average yet — `purchases: 0` is the truth, not a failure.
+- **Transaction-cost analysis (`/tca/<your address>`) has only just started.** It is computed
+  inside the subgraph at the moment each settlement arrives, so it knows nothing about you until
+  you buy — `purchases: 0` for a new address is the truth, not a failure. Only `/compute/<label>`
+  purchases get a slippage number; index routes are counted but not benchmarked. The first real
+  one (2026-09-28) came back at **-1139.8 bp**, which is what a thin new venue looks like.
 - If the dateline says *archived* rather than *live*, the press is between prints; reads still
   work, and a purchase settles against the archived rate.
 
