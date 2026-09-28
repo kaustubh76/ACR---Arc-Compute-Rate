@@ -30,12 +30,16 @@ The five steps below are the whole revenue path; if any of them stops you, that 
      ready-to-spend*). Two signatures on Arc; the balance appears after finality.
 4. **Buy.** *buy with your wallet · $0.00…*. Your wallet signs one message (no transaction).
    The listing answers, a toast shows the amount, and a row lands on the tape.
-5. **Check the receipt.** `/api/marketplace/receipts` on the terminal lists your purchase;
-   `/api/revenue` moved by the listing's price. The explorer link on the row resolves.
+5. **Check the receipt.** `/api/marketplace/receipts` on the terminal lists your purchase, and
+   `/api/revenue` moves by the listing's price. Read the *movement*, not the total — the running
+   total is wrong on the deployed service (it counts settlements from the old testnet deployment)
+   and the fix is not in the running image yet.
 
-Optional: the **Desk** on `/curve` gives you a Circle wallet (email + PIN, no extension) that
-trades the futures venue and can buy a **feed pass** for a day of reads. Fund it by sending USDC
-on Arc to the address it shows.
+Optional: the **Desk** on `/curve` gives you a Circle wallet (email + PIN, no extension) that can
+buy a **feed pass** for a day of reads. Fund it by sending USDC on Arc to the address it shows.
+It can also trade the futures venue — but **not yet on mainnet**: the contract is deployed and no
+series has been listed on it, so there is nothing to trade against. The desk says so rather than
+showing you an empty book.
 
 ## What to report
 
@@ -59,7 +63,8 @@ You do not need to include your address; the receipt is public anyway.
 - **Your Gateway balance goes down a few minutes after the purchase, not instantly.** Circle
   batches nanopayments; we measured about nine minutes on testnet. The data arrives immediately
   and the receipt is real from the moment it appears, so do not buy twice thinking it failed.
-- The venue on mainnet is new and thin. A quote may be wide; that is the book, not a bug.
+- **The futures venue has no series on mainnet.** It is deployed, nothing is listed on it, and the
+  page says so. Not a bug and not something you can test yet.
 - **Transaction-cost analysis (`/tca/<your address>`) has only just started.** It is computed
   inside the subgraph at the moment each settlement arrives, so it knows nothing about you until
   you buy — `purchases: 0` for a new address is the truth, not a failure. Only `/compute/<label>`
