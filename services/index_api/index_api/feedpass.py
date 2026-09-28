@@ -146,6 +146,21 @@ def mint(w3, signer, *, wallet: str, tx_hash: str) -> dict:
         if "nonce used" in str(exc):
             raise PassError(409, "this payment already bought a pass") from exc
         raise PassError(502, f"the attestation could not be relayed: {exc}"[:160]) from exc
+    # WAIT for it. `relay_redeem` returns as soon as the transaction is accepted,
+    # so reading access straight afterwards races the block that grants it: the
+    # reader has paid, the redeem is fine, and `access_of` still answers "no
+    # pass" because it looked too early. Reproduced on anvil — receipt status 1
+    # with an AccessGranted log, and a mint that reported has_access False.
+    # A reverted redeem is worse and was equally invisible: the money moved, the
+    # attestation did not, and this returned 200 saying so.
+    try:
+        rcpt = w3.eth.wait_for_transaction_receipt(
+            relay_tx if str(relay_tx).startswith("0x") else f"0x{relay_tx}", timeout=60
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise PassError(502, f"the attestation was sent but never mined: {exc}"[:160]) from exc
+    if getattr(rcpt, "status", 1) != 1:
+        raise PassError(502, f"the attestation reverted on chain (tx {relay_tx})")
     has, until = access_of(w3, q.attestor, wallet)
     log.info("feed pass minted for %s until %s (tx %s, relay %s)", wallet, until, tx_hash, relay_tx)
     return {"wallet": wallet, "has_access": bool(has), "paid_until": int(until), "payment_tx": tx_hash, "attest_tx": relay_tx}
