@@ -50,6 +50,12 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
   // used to claim "each index" while one book existed — the same class of
   // mistake as the $1,000 contract size, and disproved by one click.
   const phrase = deskIndexPhrase(desks.map((d) => d.index_id));
+  /* Deployed, but nothing listed on it. A fresh chain has the contract and no
+     series, so every figure above is honestly zero — and a reader looking at
+     "0 contracts open" with no expiry has no way to tell a new venue from a
+     broken one. The closing sentence below claims "the fills above are real",
+     which describes nothing when the tape is empty, so both are branched. */
+  const unseeded = desks.length === 0;
 
   if (!venue) return null; // no venue deployed → keep the landing page uncluttered
 
@@ -106,13 +112,25 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, marginTop: 12, maxWidth: 68 * 9 }}
-        x={`A cash-settled future${phrase ? " " + phrase : ""}, settling against the same on-chain oracle as the spot rate. The fills above are real.`}
+        x={
+          unseeded
+            ? "A cash-settled future settling against the same on-chain oracle as the spot rate. The venue is deployed here; no series has been listed on it yet, so there is nothing to trade against."
+            : `A cash-settled future${phrase ? " " + phrase : ""}, settling against the same on-chain oracle as the spot rate. The fills above are real.`
+        }
         p={
-          <>
-            You can lock in a future price of machine work{phrase ? ` ${phrase}` : ""}. Each contract{" "}
-            <Term k="cash-settled">pays out</Term> against the official on-chain rate, and the
-            trades above are real.
-          </>
+          unseeded ? (
+            <>
+              You could lock in a future price of machine work here. Each contract{" "}
+              <Term k="cash-settled">pays out</Term> against the official on-chain rate — but the
+              desk has not opened yet, so there is nothing to trade.
+            </>
+          ) : (
+            <>
+              You can lock in a future price of machine work{phrase ? ` ${phrase}` : ""}. Each contract{" "}
+              <Term k="cash-settled">pays out</Term> against the official on-chain rate, and the
+              trades above are real.
+            </>
+          )
         }
       />
       {/* The teaser used to describe the desk as something to look at. A reader

@@ -90,6 +90,26 @@ def test_fallback_futures_sections_are_not_silently_empty():
     """
     snapshot = json.loads(FALLBACK.read_text())
     desks = snapshot.get("futures") or {}
+    trades_ = snapshot.get("futures_trades") or []
+
+    # A DECLARED absence is a fact about this chain, not a lost section. On a
+    # fresh chain the venue is deployed with no series, so a truthful bundle has
+    # no desks and no tape — and `declare_absent` stamps which chain that is.
+    # A SILENT absence is still the bug this test was written for, so the stamp
+    # has to name the bundle's own chain and both sections have to be genuinely
+    # empty: half a venue means the run lost something rather than found nothing.
+    declared = (snapshot.get("absent") or {}).get("futures")
+    if declared:
+        assert declared.get("chain_id") == (snapshot.get("chain") or {}).get("chain_id"), (
+            "the absence is stamped for a different chain than the bundle's own"
+        )
+        assert declared.get("reason"), "a declared absence must say why"
+        assert not desks and not trades_, (
+            "futures is declared absent but the bundle still carries some of it — "
+            "that is a half-read, not an empty chain"
+        )
+        return
+
     assert desks, "fallback.json has no futures desks — a snapshot ran without a venue"
     for index_id, row in desks.items():
         assert row.get("multiplier", 0) > 0, f"{index_id}: multiplier must be real"
@@ -133,6 +153,24 @@ def test_fallback_hedger_section_still_carries_its_agent():
     """
     snapshot = json.loads(FALLBACK.read_text())
     h = snapshot.get("hedger") or {}
+
+    # Same distinction as the futures guard: no hedger runs on a chain the agent
+    # was never pointed at, and saying so is honest. Saying nothing is the bug.
+    declared = (snapshot.get("absent") or {}).get("hedger")
+    if declared:
+        assert declared.get("chain_id") == (snapshot.get("chain") or {}).get("chain_id"), (
+            "the absence is stamped for a different chain than the bundle's own"
+        )
+        assert declared.get("reason"), "a declared absence must say why"
+        assert not h.get("configured"), (
+            "the hedger is declared absent but the bundle still reports it configured — "
+            "HedgerPanel would render the standings and print an ellipsis for the nulls"
+        )
+        assert not h.get("receipts") and not h.get("paid_queries"), (
+            "the hedger is declared absent but the bundle still carries its purchases"
+        )
+        return
+
     assert h.get("configured"), "fallback.json archived an unconfigured hedger"
     # Two addresses, one agent (docs/WALLETS.md): the smart account trades, the
     # backing EOA pays. One without the other is half an agent, and they are

@@ -75,10 +75,11 @@ The first print, ACR-INF:
 ACR-GPU and ACR-DATA landed in the same cycle and all three read back through `/onchain/{index}`.
 
 **First revenue, and the first benchmark computed from it (2026-09-28).** Three x402 queries were
-bought from a wallet that is not the treasury — Circle's facilitator refuses `self_transfer`, so the
-press cannot buy from itself and a real counterparty was the only way to produce this number. One of
-the three hit `/compute/…`, which is the benchmarkable route, and the subgraph priced it against the
-print that payer could have seen at the moment of arrival:
+bought from the **deploy key** `0xc2903b52…` — not the treasury and not the press, because Circle's
+facilitator refuses `self_transfer` and the press therefore cannot buy from itself. Said plainly: it
+is still our wallet. What it proves is that the facilitator path works end to end, not that anyone
+else has used it. One of the three hit `/compute/…`, which is the benchmarkable route, and the
+subgraph priced it against the print that payer could have seen at the moment of arrival:
 
 ```console
 $ curl -s https://acr-api-mainnet.onrender.com/tca/0xc2903b52a3Ad365fD237B78389a2FDe99e886999
@@ -90,6 +91,10 @@ $ curl -s https://acr-api-mainnet.onrender.com/tca/0xc2903b52a3Ad365fD237B78389a
 ACR has ever produced about a purchase nobody arranged. It is computed inside the subgraph mapping
 when the settlement arrives (mirror lag 5 s), which is why it survived the API restart that erased
 the in-memory receipt counter underneath it — the chain is the record, `/revenue` is only a counter.
+
+`/revenue` on the deployed service is **not** the number to quote: it rehydrates a committed archive
+of Arc *testnet* settlements, and the fix for that (a chain filter in `_load_receipts`) is committed
+here but not yet in the running image. `/tca` is unaffected — it reads the chain.
 
 Still open, said plainly: ownership of the six owned contracts is **pending** `acceptOwnership()`
 from the custody wallet (the registry is ownerless by design); the press signs and posts from the
