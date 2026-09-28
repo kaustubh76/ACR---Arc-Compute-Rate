@@ -171,7 +171,7 @@ has to be true before the link goes out; each line names who can do it (the code
 | 4 | Gas Station policy for `ARC` in the Circle console | Circle console | Desk gas is sponsored; without it the SCA pays gas from its own USDC (the Desk detects and says so) |
 | 5 | `make backfill-oracle-v2`, first `postPrint` from the press wallet | the press | a mainnet print exists |
 | 6 | `make snapshot` against the mainnet API; Vercel: `NEXT_PUBLIC_ACR_API`, `NEXT_PUBLIC_ACR_CHAIN_ID=5042`, `ACR_API`, `ACR_ARC_RPC_URL` (keyed); **no** `ACR_TERMINAL_BUYER`; deploy | Vercel | the terminal's cold-start bundle is mainnet; the dateline chip says *Arc mainnet* |
-| 7 | subgraph: `network: arc`, start blocks from step 1, `make graph-deploy VERSION=v1.0.0-mainnet` | The Graph Studio | TCA reads answer |
+| 7 | ~~subgraph~~ **DONE 2026-09-28**: `acr` v1.0.0-mainnet on account `1762718`, indexing from 23013298 with `hasIndexingErrors: false`, and `ACR_SUBGRAPH_URL` set — `/tca/{payer}` answers `available: true`. Published to the gateway as `N69YD8crrap…`; switching to it needs `ACR_GRAPH_API_KEY` | The Graph Studio | TCA reads answer |
 | 8 | `make resolve-humans ARGS=--commit` for the current window | the resolver key | `humans.n` is not silently 0 |
 | 9 | `make verify-mainnet` then `make verify-live` (its *revenue* section checks the 402, the facilitator's chain list, the public RPC, the balances route) | anyone | all ✓ |
 | 10 | Buy one thing yourself from a wallet that had **no** USDC on Arc: bridge → deposit → buy (§3 step 7) | operator, a personal wallet, ~$2 on Base | the five community steps, end to end, before anyone else tries |

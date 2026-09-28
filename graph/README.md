@@ -8,9 +8,10 @@ it; nothing can disagree with it.
 
 | | |
 |---|---|
-| **Studio** | account `1758707` · slug `ethonline` · **v0.2.0** · `QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6` |
-| **Endpoint (development)** | `https://api.studio.thegraph.com/query/1758707/ethonline/v0.2.0` — 3,000 queries/day, not counted on any dashboard |
-| **Endpoint (production)** | `https://gateway.thegraph.com/api/subgraphs/id/<deployment id>` with an API key, after publishing — counted on the key's usage page (`docs/GRAPH-RUNBOOK.md` step 6) |
+| **Studio (mainnet)** | account `1762718` · slug `acr` · **v1.0.0-mainnet** · `QmZ5tUKEv9SY5CiUUDPyHyWFpm9LfZJefRbMy9JUPbPJzs` |
+| **Studio (testnet)** | account `1758707` · slug `ethonline` · **v0.2.0** · `QmdsGieTC7B4KTyd2pEhV1wmFLCeF1yCYwLLgBXL2a9Ci6` |
+| **Endpoint (development)** | `https://api.studio.thegraph.com/query/1762718/acr/v1.0.0-mainnet` — 3,000 queries/day, no key, and what `ACR_SUBGRAPH_URL` points at today |
+| **Endpoint (production)** | `https://gateway.thegraph.com/api/subgraphs/id/N69YD8crrapYQ8ap71bVmQPKY6g4SjzwYJCEAVTmnJw` — **published**. Use THIS URL shape, not the `…/api/[api-key]/subgraphs/…` one Studio shows: `graph_query` sends the key as an `Authorization: Bearer` header (`ACR_GRAPH_API_KEY`), and the path-less form is the one that accepts it. Unauthenticated it answers `auth error: missing authorization header` |
 | **Network** | `arc` (`eip155:5042`) since 2026-09-27, and `arc-testnet` (`eip155:5042002`); both live in `networks.json` |
 | **Lag, measured** | ~6 blocks / ~3 s behind Arc's head (2026-09-13), `hasIndexingErrors: false` |
 | **Substreams** | **N/A** — Arc is a Studio-only ("basic" support) network; there is no Substreams endpoint to target, so that challenge is not attempted |

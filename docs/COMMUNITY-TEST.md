@@ -60,10 +60,9 @@ You do not need to include your address; the receipt is public anyway.
   batches nanopayments; we measured about nine minutes on testnet. The data arrives immediately
   and the receipt is real from the moment it appears, so do not buy twice thinking it failed.
 - The venue on mainnet is new and thin. A quote may be wide; that is the book, not a bug.
-- **Transaction-cost analysis (`/tca/…`) is not answering yet on mainnet.** It is computed inside
-  the subgraph, and the mainnet subgraph is not deployed, so the endpoint says
-  `{"available": false, "reason": "ACR_SUBGRAPH_URL is unset"}` rather than inventing a number.
-  Everything else on this page works without it.
+- **Transaction-cost analysis (`/tca/…`) answers, but reports zero purchases** until settlements
+  exist on mainnet. It is computed inside the subgraph at the moment each settlement arrives, so
+  it has nothing to average yet — `purchases: 0` is the truth, not a failure.
 - If the dateline says *archived* rather than *live*, the press is between prints; reads still
   work, and a purchase settles against the archived rate.
 
