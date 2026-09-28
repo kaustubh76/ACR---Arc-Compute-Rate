@@ -1,3 +1,4 @@
+import { isRangeError } from "./rpcErrors";
 import "server-only";
 
 /* Direct viem reads against the deployed ACRFutures — the connection-ladder
@@ -116,10 +117,19 @@ const RPC_GAP_MS = 350;
 const MAX_SERIES = 24;
 /** Per-page log windows, widest first — mirror of python `recent_trades`.
  *
- *  Arc hard-caps an `eth_getLogs` range at ~15000 blocks: measured by binary
- *  search, 14843 answers and 15000 returns 413, no matter how few logs match.
- *  So the tape's reach cannot be bought by asking for a wider window — a
- *  bigger number just fails every time. It has to be PAGED. */
+ *  The tape's reach cannot be bought by asking for a wider window; it has to be
+ *  PAGED, and the cap differs per network:
+ *
+ *    testnet  ~15000 blocks — binary-searched: 14843 answers, 15000 returns 413.
+ *    mainnet  much tighter (measured 2026-09-28): address-filtered, 5000 answer
+ *             and 10000 return -32012; an unfiltered query is capped by RESULTS
+ *             (2000) and refuses at ~1000 blocks with -32602.
+ *
+ *  So the first rung is a testnet-only optimisation: on mainnet it always fails
+ *  and costs one wasted call per page before 2500n succeeds. That is the right
+ *  trade rather than a per-chain table — the ladder is self-correcting, and
+ *  `isRangeError` now recognises BOTH refusals so it narrows instead of
+ *  mistaking an over-wide window for a throttle. */
 const LOG_SPANS = [14000n, 2500n, 1000n];
 /** How many pages back to walk when the tape hasn't filled up.
  *
@@ -182,12 +192,6 @@ const seenAt = new Map<string, number>();
  *  is the cure. 429 means there were too many requests, and narrowing cures
  *  nothing — it just walks the cursor forward a few hundred blocks per attempt
  *  and destroys the tape's reach. Mirrors python `_is_range_error`. */
-function isRangeError(e: unknown): boolean {
-  const msg = String((e as Error)?.message ?? e);
-  if (/429|Too Many Requests/i.test(msg)) return false;
-  return /413|Payload Too Large|-32602|exceeds max results|limit exceeded/i.test(msg);
-}
-
 /** One page of `Traded` logs. Explicit numeric toBlock: the Arc RPC 413s wide
  *  ranges that end at the string "latest" but accepts the same range with a
  *  number. */
