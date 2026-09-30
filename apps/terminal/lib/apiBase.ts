@@ -33,6 +33,20 @@ export function sellerBase(): string {
   return process.env.NODE_ENV === "production" ? MAINNET_SELLER : LOCAL_SELLER;
 }
 
+/** The seller THIS BUILD knows is right, consulting no environment variable.
+ *
+ *  Deliberately not `sellerBase()`. The cushion below exists for the case where
+ *  a configured host is dead — and `ACR_API` and `NEXT_PUBLIC_ACR_API` were both
+ *  set to the SAME suspended service, so deriving the cushion from either one
+ *  collapsed the candidate list to a single dead host and the fallback could
+ *  never fire. Measured on the live deployment: `fellBack: false` with `active`
+ *  still naming the dead host. A cushion has to come from somewhere the broken
+ *  configuration cannot reach.
+ */
+export function publishedSeller(): string {
+  return process.env.NODE_ENV === "production" ? MAINNET_SELLER : LOCAL_SELLER;
+}
+
 /** Which seller bases to try, in order.
  *
  *  The configured override comes first and a working one is never overridden.

@@ -2,12 +2,12 @@
    the browser only ever talks to the Next proxy routes (FastAPI has no CORS
    middleware, and this keeps the offline "archived edition" logic in one place). */
 
-import { isHostFailure, sellerBase, sellerCandidates } from "./apiBase";
+import { isHostFailure, publishedSeller, sellerCandidates } from "./apiBase";
 import type { Envelope, TerminalData } from "./types";
 import fallback from "./fallback.json";
 
 const CONFIGURED = (process.env.ACR_API?.trim() || "").replace(/\/$/, "");
-const PUBLISHED = sellerBase().replace(/\/$/, "");
+const PUBLISHED = publishedSeller().replace(/\/$/, "");
 
 /* ONE MORE RUNG ON THE LADDER, and the reason it exists.
  *

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LOCAL_SELLER, MAINNET_SELLER, isHostFailure, sellerBase, sellerCandidates } from "./apiBase";
+import { publishedSeller, LOCAL_SELLER, MAINNET_SELLER, isHostFailure, sellerBase, sellerCandidates } from "./apiBase";
 
 /* The default that matters is the one nobody sets. Eight places spelled
    `?? "http://127.0.0.1:8000"`, which is wrong in the only place it is ever
@@ -93,4 +93,17 @@ test("an answer is not a failure — 402 and 404 must never move us off the host
   assert.equal(isHostFailure(200), false);
   assert.equal(isHostFailure(401), false);
   assert.equal(isHostFailure(499), false);
+});
+
+test("the cushion ignores BOTH env overrides — the bug that made the rung inert", () => {
+  // Measured on the live deployment: ACR_API and NEXT_PUBLIC_ACR_API were set to
+  // the SAME suspended host, so a cushion derived from sellerBase() equalled the
+  // configured host, collapsed to one candidate, and never fired.
+  withEnv({ NEXT_PUBLIC_ACR_API: "https://dead.example", NODE_ENV: "production" }, () => {
+    assert.equal(publishedSeller(), MAINNET_SELLER);
+    assert.deepEqual(sellerCandidates("https://dead.example", publishedSeller()), [
+      "https://dead.example",
+      MAINNET_SELLER,
+    ]);
+  });
 });
