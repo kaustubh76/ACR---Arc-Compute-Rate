@@ -287,7 +287,7 @@ resolution and is handled there too.
 ## 8 · What stays unfinished, deliberately
 
 - **Deployed, and Model Armor is live in production** (2026-09-12, `main` = `797e498`, Render
-  image `2026-09-12-1617`). `/armor/info` on `acr-api-1fto.onrender.com` reports `backend: gcp`,
+  image `2026-09-12-1617`). `/armor/info` on `acr-api-1fto.onrender.com` (the testnet host, since suspended) reported `backend: gcp`,
   `live: true`, `asia-south1/EthOnline_Project`; the service-account key rides as a Render secret
   file, since `data/` is in `.dockerignore`. `ACR_ARMOR_MODE` is `auto`, not `gcp`: with all four
   variables set it picks Model Armor, and a misconfiguration shows as a *stated* floor on
@@ -296,7 +296,7 @@ resolution and is handled there too.
   internet. `ACR_ARMOR_MODE=local` plus a redeploy is the rollback.
 
   ```bash
-  curl -s https://acr-api-1fto.onrender.com/armor/info | jq '.backend, .live, .screened'
+  curl -s https://acr-api-mainnet.onrender.com/armor/info | jq '.backend, .live, .screened'
   ```
 - **Human-attributed volume is real, and four settlements are permanently missing.** The four demo
   wallets were funded and settled 48 purchases across all six sellers on 2026-09-12; **44** are on

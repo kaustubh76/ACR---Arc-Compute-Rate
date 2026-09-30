@@ -72,7 +72,7 @@ def render() -> str:
         f"Catalog: `{API}/marketplace/catalog`",
         "",
         f"Index endpoints: **${price} USDC per request**, x402 `exact` scheme,",
-        "Circle Gateway (GatewayWalletBatched), network `eip155:5042002` (Arc).",
+        "Circle Gateway (GatewayWalletBatched), network `eip155:5042` (Arc mainnet).",
         "Fleet sellers (`/compute/{label}`) price per unit; the catalog carries each one's terms.",
         "",
         "Agent-to-agent calls may present an `AGENT-CARD` (see `GET /agent/challenge`);",

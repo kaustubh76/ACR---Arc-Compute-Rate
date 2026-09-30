@@ -25,7 +25,7 @@ import time
 from acr_oracle_client import FuturesClient
 from acr_oracle_client.futures import _rpc_retry
 
-RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.testnet.arc.network")
+RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.mainnet.arc.io")
 FUTURES = os.environ.get("ACR_FUTURES_ADDRESS", "")
 USDC = os.environ.get("ACR_USDC_ADDRESS", "0x3600000000000000000000000000000000000000")
 INDEX = os.environ.get("SEED_INDEX", "ACR-INF")

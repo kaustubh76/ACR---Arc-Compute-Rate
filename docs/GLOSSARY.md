@@ -137,9 +137,10 @@ and it proves its own tamper-resistance.
 - **Arc** — Circle's blockchain built for payments, where **USDC itself is the
   gas** (fee) token. *A toll road where you pay tolls in the same dollars you're
   already carrying.*
-- **chain id 5042002 / CAIP-2 (`eip155:5042002`)** — the network's numeric
-  address; CAIP-2 is a standard way to name a chain. *A phone country code, but
-  for blockchains.*
+- **chain id 5042 / CAIP-2 (`eip155:5042`)** — the network's numeric address;
+  CAIP-2 is a standard way to name a chain. ACR runs on Arc **mainnet**, 5042;
+  Arc **testnet** is 5042002, where this was proven first. *A phone country code,
+  but for blockchains.*
 - **testnet** — a practice copy of a blockchain using fake-value tokens, for
   building safely before going live. *A flight simulator before the real plane.*
 - **USDC** — Circle's regulated dollar stablecoin (1 USDC ≈ $1). On Arc it's a
@@ -302,9 +303,10 @@ and it proves its own tamper-resistance.
   pooled USDC and that x402 payments are signed *against* (EIP-712 domain name
   `GatewayWalletBatched`; testnet address `0x0077777d7EBA4688BDeF3E311b846F25870A19B9`).
   *The shared prepaid account the turnstile debits.*
-- **facilitator endpoint** — the real Circle host `gateway-api-testnet.circle.com`
-  with `POST /v1/x402/verify` and `/v1/x402/settle`; scheme `exact`. *The card
-  network's authorize-then-charge API.*
+- **facilitator endpoint** — the real Circle host `gateway-api.circle.com` on
+  mainnet (`gateway-api-testnet.circle.com` on testnet) with `POST /v1/x402/verify`
+  and `/v1/x402/settle`; scheme `exact`. *The card network's authorize-then-charge
+  API.*
 - **scheme `exact`** — the x402 payment scheme that pays an exact amount via
   EIP-3009. *Paying the precise sticker price, no haggling.*
 - **Agent Marketplace endpoints** — `/marketplace/catalog` (the **catalog** of
@@ -424,8 +426,9 @@ and it proves its own tamper-resistance.
 - **`make deck` / marp** — the command that rendered the hackathon slides with the marp tool.
   The target is gone; its output is archived under `hackathon/`. *The old "export to
   slides" button, kept in the manual so the word still means something.*
-- **LIVE on Arc testnet** — ACR is not just buildable, it's **running in production**
-  on Arc's test network (chain 5042002). *The shop is open, not just built.*
+- **LIVE on Arc mainnet** — ACR is not just buildable, it's **running in production**
+  on Arc's public network (chain 5042), since 2026-09-27. *The shop is open, not just
+  built — and the money is real.*
 - **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
   landlord for the storefront website.*
 - **Render** — the host serving the seller API (`acr-api-mainnet.onrender.com`), which

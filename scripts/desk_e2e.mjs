@@ -266,7 +266,7 @@ async function milestone(page, re, timeoutMs, what) {
 /** The wallet's collateral ON THE VENUE, straight from the desk's own quote —
  *  the number the contract will margin against, not a word on the page. Returns
  *  0 when the desk cannot answer, so callers can treat "unknown" as "not yet". */
-const ARC_RPC = process.env.ARC_RPC ?? "https://rpc.testnet.arc.network";
+const ARC_RPC = process.env.ARC_RPC ?? "https://rpc.mainnet.arc.io";
 let _collatCache = { at: 0, value: 0 };
 
 /** The trader's posted collateral, read from the CHAIN — `collateral(uint256,

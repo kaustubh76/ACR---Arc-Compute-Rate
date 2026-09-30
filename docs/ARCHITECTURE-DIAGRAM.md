@@ -9,7 +9,7 @@
 >
 > **The pitch line:** *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
-**Live right now (Arc testnet, chain 5042002):**
+**Live right now (Arc **mainnet**, chain 5042, since 2026-09-27):**
 - **Terminal (dashboard):** https://arc-compute-rate.vercel.app
 - **Seller API (x402-gated):** https://acr-api-mainnet.onrender.com
 - **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) · **ACRFutures:** [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) (self-rolling) · **FeedAccessAttestor:** [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47)
@@ -117,7 +117,7 @@ credential-free offline mode and a live Arc-testnet path:
 
 | Circle pillar | Where in ACR |
 |---|---|
-| **Agent Nanopayments** (Gateway x402) | Seller gate: `services/index_api/index_api/x402.py` → `POST /v1/x402/verify` + `/settle` on `gateway-api-testnet.circle.com`; scheme `exact`/GatewayWalletBatched on `eip155:5042002`. |
+| **Agent Nanopayments** (Gateway x402) | Seller gate: `services/index_api/index_api/x402.py` → `POST /v1/x402/verify` + `/settle` on `gateway-api.circle.com`; scheme `exact`/GatewayWalletBatched on `eip155:5042`. |
 | **Agent Wallets** | Buyer: `apps/agent/` pays via the official `@circle-fin/x402-batching` `GatewayClient` (wallet created/funded through the Circle CLI). Seller/oracle: Circle Developer-Controlled Wallets sign prints + attestations (`packages/acr_oracle_client/signer.py`) and deploy contracts (`scripts/deploy_circle.py`). |
 | **Agent Marketplace** | `GET /marketplace/catalog` — Bazaar-shaped machine-readable listings with prices, input/output schemas, and on-chain attestation provenance (`AttestationRegistry` as the ERC-8004-style reputation anchor); `GET /marketplace/receipts` — the public settlement tape; Terminal `/exchange` page. |
 | **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` + `circle services search/inspect/pay` cross-checks — `docs/agent-runbook.md`. |

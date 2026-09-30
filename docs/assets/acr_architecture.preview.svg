@@ -117,7 +117,7 @@
 <polyline points="2880,2902.5 2895.0,2902.5 2910,2902.5" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
 <text x="60" y="68.8" font-size="32" fill="#1e1e1e">ACR — THE ARC COMPUTE RATE</text>
 <text x="60" y="105.5" font-size="15" fill="#495057">A manipulation-resistant benchmark family for machine commerce · one estimand · four pillars · settlement-grade on-chain rate</text>
-<text x="60" y="127.7" font-size="13" fill="#2f9e44">◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · Seller API on Render · hourly Circle-signed posts · agents read AND trade the rate (autonomous hedger)</text>
+<text x="60" y="127.7" font-size="13" fill="#2f9e44">◆ LIVE on Arc MAINNET (chain 5042) · Terminal on Vercel · Seller API on Render · hourly Circle-signed posts · agents read AND trade the rate (autonomous hedger)</text>
 <text x="2858" y="65.5" font-size="15" fill="#495057">LEGEND</text>
 <text x="2892" y="94.7" font-size="13" fill="#1e1e1e">market exhaust / inputs</text>
 <text x="2892" y="118.7" font-size="13" fill="#1e1e1e">estimator core (the product)</text>
@@ -146,7 +146,7 @@
 <text x="73" y="798.2" font-size="13" fill="#1e1e1e">a first-class contaminated input</text>
 <text x="73" y="879.5" font-size="15" fill="#0c8599">TapeSource (ABC)</text>
 <text x="73" y="901.3" font-size="12" fill="#1e1e1e">SimSource — calibrated simulator</text>
-<text x="73" y="913.3" font-size="12" fill="#1e1e1e">ArcSource — Arc 5042002 live decode</text>
+<text x="73" y="913.3" font-size="12" fill="#1e1e1e">ArcSource — Arc 5042 live decode</text>
 <text x="73" y="925.3" font-size="12" fill="#1e1e1e">attested-market: amount = price · non-attested dropped</text>
 <text x="718" y="325.5" font-size="15" fill="#1971c2">B · ESTIMATOR CORE — one estimand: the latent price of machine services</text>
 <text x="738" y="375.5" font-size="15" fill="#1971c2">TAPE INDEXER</text>
@@ -240,7 +240,7 @@
 <text x="738" y="1383.3" font-size="12" fill="#1e1e1e">/onchain + futures readers (90s TTL)</text>
 <text x="1188" y="1325.5" font-size="15" fill="#9c36b5">x402 FACILITATOR</text>
 <text x="1188" y="1346.4" font-size="11" fill="#1e1e1e">Dev (mock) | Circle (Nanopayments)</text>
-<text x="1188" y="1357.4" font-size="11" fill="#1e1e1e">gateway-api-testnet.circle.com /v1/x402</text>
+<text x="1188" y="1357.4" font-size="11" fill="#1e1e1e">gateway-api.circle.com /v1/x402</text>
 <text x="1188" y="1368.4" font-size="11" fill="#1e1e1e">verify+settle · exact · x402Version 2 · fail-closed</text>
 <text x="1188" y="1379.4" font-size="11" fill="#1e1e1e">durable receipts_live.jsonl (in image) · /revenue rounded 6dp</text>
 <text x="1653" y="1325.5" font-size="15" fill="#9c36b5">ACR TERMINAL (Next.js · 'Arc Dawn')</text>
@@ -292,7 +292,7 @@
 <text x="2853" y="405.2" font-size="13" fill="#1e1e1e">the rate's administrator ≠ the rail's operator</text>
 <text x="2853" y="418.2" font-size="13" fill="#1e1e1e">(the LIBOR neutrality lesson = the moat)</text>
 <text x="2853" y="613.5" font-size="15" fill="#1e1e1e">LIVE ON ARC · MEASURED</text>
-<text x="2853" y="635.3" font-size="12" fill="#1e1e1e">Terminal (Vercel) · Seller API (Render) · chain 5042002</text>
+<text x="2853" y="635.3" font-size="12" fill="#1e1e1e">Terminal (Vercel) · Seller API (Render) · chain 5042</text>
 <text x="2853" y="647.3" font-size="12" fill="#1e1e1e">ACROracle            0x4f00…2609</text>
 <text x="2853" y="659.3" font-size="12" fill="#1e1e1e">AttestationRegistry  0x23ae…dFb7</text>
 <text x="2853" y="671.3" font-size="12" fill="#1e1e1e">ACRFutures           0x29d9…42fe · self-rolling (series 3)</text>
@@ -359,10 +359,10 @@
 <text x="2864" y="1702.9" font-size="11" fill="#1e1e1e">FeedAccessAttestor — on-chain proof a wallet paid for the feed (hasFeedAccess)</text>
 <text x="2864" y="1713.9" font-size="11" fill="#1e1e1e">durable receipts — the settlement ledger ships in the image; survives restarts</text>
 <text x="2864" y="1871.5" font-size="10.5" fill="#495057">full glossary (every term) → docs/GLOSSARY.md</text>
-<text x="58" y="2085.5" font-size="15" fill="#0c8599">F · WHY ARC — load-bearing for the MATH, not the deployment    ·    chain 5042002 · USDC = native gas token</text>
+<text x="58" y="2085.5" font-size="15" fill="#0c8599">F · WHY ARC — load-bearing for the MATH, not the deployment    ·    chain 5042 · USDC = native gas token</text>
 <text x="73" y="2158.5" font-size="15" fill="#0c8599">ARC L1 (Malachite)</text>
 <text x="73" y="2181.2" font-size="13" fill="#1e1e1e">deterministic sub-second finality · no reorgs</text>
-<text x="73" y="2194.2" font-size="13" fill="#1e1e1e">chain 5042002 · rpc.testnet.arc.network</text>
+<text x="73" y="2194.2" font-size="13" fill="#1e1e1e">chain 5042 · rpc.mainnet.arc.io</text>
 <text x="639" y="2158.5" font-size="15" fill="#0c8599">CIRCLE GATEWAY</text>
 <text x="639" y="2181.2" font-size="13" fill="#1e1e1e">single canonical rail</text>
 <text x="639" y="2194.2" font-size="13" fill="#1e1e1e">= complete observation, no selection bias</text>
@@ -386,7 +386,7 @@
 <text x="73" y="2876.3" font-size="12" fill="#1e1e1e">0xFCa0…FFEA  v2 print: policyHash + humanAdjustedBound</text>
 <text x="73" y="2888.3" font-size="12" fill="#1e1e1e">monotone per-payer guard · salt committed on chain</text>
 <text x="643" y="2818.5" font-size="15" fill="#0c8599">acr-tape SUBGRAPH (The Graph · Studio ethonline v0.2.0)</text>
-<text x="643" y="2840.3" font-size="12" fill="#1e1e1e">7 data sources on arc-testnet · ~3 s behind head</text>
+<text x="643" y="2840.3" font-size="12" fill="#1e1e1e">7 data sources on arc (mainnet) · ~3 s behind head</text>
 <text x="643" y="2852.3" font-size="12" fill="#1e1e1e">Settlement.slippageBp benchmarked IN THE MAPPING</text>
 <text x="643" y="2864.3" font-size="12" fill="#1e1e1e">  vs the arrival print, at the settling block</text>
 <text x="643" y="2876.3" font-size="12" fill="#1e1e1e">Settlement.human · SellerDay / PayerDay · SellerWindow</text>
@@ -417,7 +417,7 @@
 <text x="2923" y="2888.3" font-size="12" fill="#1e1e1e">skills/acr-analyst: Ask the Tape, in English</text>
 <text x="58" y="3105.5" font-size="15" fill="#495057">7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper</text>
 <text x="73" y="3173.5" font-size="15" fill="#495057">W1 — TAPE</text>
-<text x="73" y="3196.2" font-size="13" fill="#1e1e1e">indexer live on Arc testnet</text>
+<text x="73" y="3196.2" font-size="13" fill="#1e1e1e">indexer live on Arc mainnet</text>
 <text x="73" y="3209.2" font-size="13" fill="#1e1e1e">empirical batching study</text>
 <text x="73" y="3222.2" font-size="13" fill="#1e1e1e">OSS: microstructure paper</text>
 <text x="559" y="3173.5" font-size="15" fill="#495057">W2 — ESTIMATOR v1</text>

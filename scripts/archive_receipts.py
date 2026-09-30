@@ -22,13 +22,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE = ROOT / "services" / "index_api" / "index_api" / "receipts_live.jsonl"
-API = "https://acr-api-1fto.onrender.com"
+# Arc MAINNET, and OVERRIDABLE. This was hardcoded to the Arc testnet seller
+# (`acr-api-1fto`, now suspended and answering 503), so the script could not be
+# pointed anywhere else without editing it.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 #: What `_rehydrate` will accept back. Dev and sim rows never reach the archive.
 REAL_SCHEMES = {"exact", "circle", "gateway"}
 #: The dataclass's fields, in its order — the archive is `asdict(PaymentReceipt)`.

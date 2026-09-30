@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml/badge.svg)](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![chain: Arc testnet 5042002](https://img.shields.io/badge/chain-Arc%20testnet%205042002-0c8599)](https://testnet.arcscan.app)
+[![chain: Arc mainnet 5042](https://img.shields.io/badge/chain-Arc%20mainnet%205042-0c8599)](https://explorer.arc.io)
 [![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arc-compute-rate.vercel.app)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab)](pyproject.toml)
 [![Solidity 0.8.24](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/foundry.toml)
@@ -36,7 +36,7 @@ Those prints are EIP-712-signed by a Circle custody wallet, posted on-chain to `
 
 ## Live right now
 
-Arc testnet, chain `5042002`:
+Arc **mainnet**, chain `5042`, since 2026-09-27:
 
 | | |
 |---|---|
@@ -45,21 +45,10 @@ Arc testnet, chain `5042002`:
 | **Seller API (x402-gated)** | https://acr-api-mainnet.onrender.com — answers from the mainnet launch; see [`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 for what is still outstanding |
 | **Documentation** | [`docs/README.md`](docs/README.md) — start with [`methodology.md`](docs/methodology.md) |
 
-| Contract | Address |
-|---|---|
-| `ACROracle` | [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) |
-| `AttestationRegistry` | [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) |
-| `ACRFutures` (self-rolling) | [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) |
-| `FeedAccessAttestor` | [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47) |
-| `ACROracleV2` (policy hash + human-denominated bound) | [`0xFCa0…FFEA`](https://testnet.arcscan.app/address/0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA) |
-| `ReceiptMirror` (every x402 settlement, on chain) | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
-| `HumanIdMirror` (which wallets are one person, per week) | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
+Seven contracts in one broadcast, with the deploy key's signer bit revoked on every one of them in
+the same transaction (0.157348 USDC of gas), and the first three prints on chain:
 
-**Mainnet: LIVE on Arc (`eip155:5042`), 2026-09-27.** Seven contracts in one broadcast, with the
-deploy key's signer bit revoked on every one of them in the same transaction (0.157 USDC of gas),
-and the first three prints on chain:
-
-| | Arc mainnet (5042) |
+| Contract | Arc mainnet (`5042`) |
 |---|---|
 | `ACROracle` | [`0xAfe8…6D07`](https://explorer.arc.io/address/0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07) |
 | `ACROracleV2` (`MAX_MOVE_BPS` 2000) | [`0xF77E…2f81`](https://explorer.arc.io/address/0xF77E763ef710096c0b9F02Ea16F76e68E0312f81) |
@@ -73,6 +62,24 @@ and the first three prints on chain:
 The first print, ACR-INF:
 [`0xef9812…65835`](https://explorer.arc.io/tx/0xef9812037003c9dd40d5d9fbbfae03549a67b03045b696fd8aada385e8c65835).
 ACR-GPU and ACR-DATA landed in the same cycle and all three read back through `/onchain/{index}`.
+
+<details>
+<summary><b>Arc testnet (<code>5042002</code>) — the earlier deployment, kept for reference</b></summary>
+
+Where this was proven from July onwards. **These are not the live contracts**; the mainnet set above
+is. `docs/TESTNET_RUNBOOK.md` describes this deployment.
+
+| Contract | Arc testnet (`5042002`) |
+|---|---|
+| `ACROracle` | [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) |
+| `ACROracleV2` | [`0xFCa0…FFEA`](https://testnet.arcscan.app/address/0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA) |
+| `ACRFutures` (self-rolling) | [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) |
+| `AttestationRegistry` | [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) |
+| `ReceiptMirror` | [`0xA9CD…DB65`](https://testnet.arcscan.app/address/0xA9CD5b9503aeA88EB343333E842D2860b263DB65) |
+| `HumanIdMirror` | [`0x7f41…d8e5`](https://testnet.arcscan.app/address/0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5) |
+| `FeedAccessAttestor` | [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47) |
+
+</details>
 
 **First revenue, and the first benchmark computed from it (2026-09-28).** Three x402 queries were
 bought from the **deploy key** `0xc2903b52…` — not the treasury and not the press, because Circle's
@@ -120,7 +127,9 @@ curl -s https://acr-api-mainnet.onrender.com/onchain/ACR-INF   # the settlement-
 
 ### Arc — the chain, and the money
 
-- **Live on Arc testnet since July; mainnet-ready** (table above; `make deploy-mainnet-dry`).
+- **Live on Arc MAINNET since 2026-09-27** (chain `5042`, seven contracts in one broadcast for
+  0.157348 USDC of gas — table above). Arc testnet, from July, is where it was proven first;
+  `docs/TESTNET_RUNBOOK.md` still describes that deployment.
 - **An agent with decision logic tied to a real signal, spending USDC autonomously.** The buyer
   agent reads *its own* transaction costs from the tape The Graph indexes and moves its next
   Circle Gateway nanopayment to the seller it overpaid least:
@@ -132,7 +141,7 @@ curl -s https://acr-api-mainnet.onrender.com/onchain/ACR-INF   # the settlement-
   Every settlement lands in `GET /marketplace/receipts` with the **tier the agent's card
   earned** (`anonymous` / `carded` / `human`) and is mirrored on chain to `ReceiptMirror`.
 - Circle developer tools in the path: **Gateway x402** nanopayments (`exact` scheme,
-  `eip155:5042002`), **developer-controlled wallets** signing every print, the **Agent
+  `eip155:5042`), **developer-controlled wallets** signing every print, the **Agent
   Stack** buyer SDK (`@circle-fin/x402-batching`).
 
 ### The Graph — the public tape
@@ -229,7 +238,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **751 py** · **176 forge** · **196 terminal** · **58 matchstick** · glossary **559/559** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **751 py** · **176 forge** · **196 terminal** · **58 matchstick** · glossary **560/560** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -238,7 +247,7 @@ Suites, all green and re-measured on every push: **751 py** · **176 forge** · 
 | Path | What it is |
 |---|---|
 | [`packages/`](packages) | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
-| [`contracts/`](contracts) | `ACROracle` · `AttestationRegistry` · `ACRFutures` · `FeedAccessAttestor` (Foundry, unit + invariant suites) — all deployed on Arc testnet |
+| [`contracts/`](contracts) | `ACROracle` · `AttestationRegistry` · `ACRFutures` · `FeedAccessAttestor` (Foundry, unit + invariant suites) — all deployed on Arc **mainnet** |
 | [`services/index_api/`](services/index_api) | The x402-gated seller API (FastAPI) + the oracle poster + the venue keeper |
 | [`apps/terminal/`](apps/terminal) | The ACR Terminal (Next.js) — prints, curve, tape, attack demo, ops console |
 | [`apps/agent/`](apps/agent) | The machine buyer (TypeScript, Circle Gateway `x402-batching` client) |
@@ -258,7 +267,7 @@ All five pillars of Circle's Agent Stack are implemented, each with a credential
 
 | Circle pillar | Where in ACR |
 |---|---|
-| **Agent Nanopayments** (Gateway x402) | Seller gate: `services/index_api/index_api/x402.py` → `/verify` + `/settle` on `gateway-api-testnet.circle.com`; scheme `exact` / GatewayWalletBatched on `eip155:5042002` |
+| **Agent Nanopayments** (Gateway x402) | Seller gate: `services/index_api/index_api/x402.py` → `/verify` + `/settle` on `gateway-api.circle.com`; scheme `exact` / GatewayWalletBatched on `eip155:5042` |
 | **Agent Wallets** | Buyer pays via `@circle-fin/x402-batching`; Developer-Controlled Wallets sign prints and attestations; user-controlled wallets trade the venue from the Terminal's Public Desk |
 | **Agent Marketplace** | `GET /marketplace/catalog` (machine-readable listings with on-chain attestation provenance) and `GET /marketplace/receipts` (the public settlement tape) |
 | **Circle CLI** | `make circle-login / circle-wallet / circle-fund / circle-deposit / circle-balance` — see [`docs/agent-runbook.md`](docs/agent-runbook.md) |
