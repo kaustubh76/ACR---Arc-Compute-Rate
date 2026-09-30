@@ -55,6 +55,7 @@ jobs:
           # audited a chain the product had already left — nine consecutive red
           # runs while the mainnet press slept and its prints went 48h stale.
           ACR_API_URL: https://acr-api-mainnet.onrender.com
+          ACR_ARC_CHAIN_ID: "5042"
           ACR_ARC_RPC_URL: https://rpc.mainnet.arc.io
           ACR_ORACLE_ADDRESS: "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07"
           ACR_FUTURES_ADDRESS: "0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b"
