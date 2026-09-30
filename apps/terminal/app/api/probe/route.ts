@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
-import { apiBase, postLiveMeta } from "@/lib/api";
+import { apiBase, baseState, postLiveMeta } from "@/lib/api";
 import { chainFacts } from "@/lib/chain";
 import { RUNNABLE } from "@/lib/endpoints";
 
@@ -95,6 +95,9 @@ export async function POST(req: NextRequest) {
         path,
         status: res.status,
         ms: Date.now() - started,
+        // Which host served this probe, so "503" is attributable to a wrong
+        // ACR_API rather than to the press being down.
+        seller: baseState(),
         // The tier, parsed here, so the page does not have to read it back out of a
         // truncated preview string. Only /agent/whoami answers with one; elsewhere
         // it is simply absent. `carded` is whether a card was SENT, so a 401 on a

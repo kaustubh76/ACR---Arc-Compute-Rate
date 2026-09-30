@@ -32,3 +32,29 @@ export function sellerBase(): string {
   if (explicit) return explicit.replace(/\/$/, "");
   return process.env.NODE_ENV === "production" ? MAINNET_SELLER : LOCAL_SELLER;
 }
+
+/** Which seller bases to try, in order.
+ *
+ *  The configured override comes first and a working one is never overridden.
+ *  The build's published seller follows it as a cushion, because an `ACR_API`
+ *  naming a decommissioned host once demoted every route on the live terminal
+ *  to the archived bundle for two days. Deduped: with no override, or an
+ *  override that already equals the published base, there is one candidate and
+ *  no fallback behaviour at all.
+ */
+export function sellerCandidates(configured: string, published: string): string[] {
+  const c = configured.trim().replace(/\/$/, "");
+  const p = published.trim().replace(/\/$/, "");
+  if (!c) return [p];
+  return c === p ? [c] : [c, p];
+}
+
+/** Whether a response means "this host is not serving" rather than "no".
+ *
+ *  5xx only. A 402 is the paywall working, a 404 is "no open series for this
+ *  index" — both are the seller answering correctly, and trying a different
+ *  host because of one would be a bug, not a cushion.
+ */
+export function isHostFailure(status: number): boolean {
+  return status >= 500;
+}
