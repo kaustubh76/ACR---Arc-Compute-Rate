@@ -32,7 +32,10 @@ import urllib.request
 
 from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
-API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
+# Arc MAINNET. The old default (`acr-api-1fto`, Arc testnet) outlived the chain
+# switch: that service is suspended and answers 503, so every check below
+# failed while the keepalive reported it as a red run nobody read.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 TERMINAL = os.environ.get(
     "ACR_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
 ).rstrip("/")
@@ -77,6 +80,13 @@ _BOOK_DEPTH_TRADES = float(os.environ.get("VERIFY_BOOK_DEPTH", "4"))
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
 STRICT = os.environ.get("VERIFY_STRICT", "") not in ("", "0", "false")
+# This deployment has a venue contract and no series listed on it. On Arc
+# mainnet that is the truth, and a hard failure for it makes the keepalive
+# permanently red — which costs more than it catches, because red stops
+# meaning anything. DECLARED, not inferred: without this flag an empty
+# venue still fails, so a chain that really does have a book is still
+# guarded. Mirrors ACR_SNAPSHOT_ALLOW_NO_FUTURES in gen_snapshot.py.
+NO_VENUE = os.environ.get("ACR_VERIFY_NO_VENUE", "") not in ("", "0", "false")
 #: A Circle Gateway settlement reference is a batch UUID. Anything else reaching
 #: this surface is a placeholder that got published: `dev-…`/`sim-…` are what the
 #: mock gate writes, and an empty string is a row that lost its reference on the
@@ -912,7 +922,12 @@ def verify_terminal(live_series: dict | None) -> None:
     status, body = get(f"{TERMINAL}/api/futures")
     payload = (body or {}).get("data") or body or {}
     desks = payload.get("desks") or {}
-    check(status == 200 and bool(desks), f"/api/futures -> {status}, {len(desks)} desk(s)")
+    check(
+        status == 200 and (bool(desks) or NO_VENUE),
+        f"/api/futures -> {status}, {len(desks)} desk(s)"
+        + (" — no series listed on this chain, declared" if NO_VENUE and not desks else ""),
+        warn_only=NO_VENUE,
+    )
     if desks and live_series is not None:
         # The check that would have caught a throttled crawl publishing a
         # settled series as the live desk.
@@ -921,7 +936,13 @@ def verify_terminal(live_series: dict | None) -> None:
             live_series["series_id"] in shown and not any(d.get("settled") for d in desks.values()),
             f"terminal shows the live series {sorted(shown)}, none settled",
         )
-    check(len(payload.get("trades") or []) > 0, f"{len(payload.get('trades') or [])} fill(s) on the public tape")
+    n_fills = len(payload.get("trades") or [])
+    check(
+        n_fills > 0 or NO_VENUE,
+        f"{n_fills} fill(s) on the public tape"
+        + (" — nothing to fill against yet, declared" if NO_VENUE and not n_fills else ""),
+        warn_only=NO_VENUE,
+    )
 
 
 def verify_funding(w3, settings) -> None:
@@ -959,7 +980,7 @@ def verify_funding(w3, settings) -> None:
                 warn_only=True,
             )
     if custody:
-        wallets.append(("custody (press + faucet)", custody, PRESS_BURN_USDC_PER_DAY))
+        wallets.append(("press wallet (funds every on-chain write)", custody, PRESS_BURN_USDC_PER_DAY))
 
     for label, addr, burn in wallets:
         bal = _rpc_retry(w3.eth.get_balance, w3.to_checksum_address(addr)) / 1e18
