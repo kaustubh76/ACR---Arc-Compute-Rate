@@ -237,7 +237,14 @@ services:
       # 2026-09-26 that was a 09-13 build predating mainnet_guard itself, i.e.
       # the fail-open code the audit closed. A dated tag makes the running
       # code a fact in this file.
-      url: docker.io/kaushtubh02/acr-api:2026-09-27
+      # 2026-09-30: carries the /revenue chain filter (d34c37a). The running
+      # 09-27 image counts the 112 ARCHIVED TESTNET settlements as mainnet
+      # revenue — 112 queries / $0.333477 for a service that has earned
+      # $0.0046. Verified in THIS image before pinning it: a 2-row archive
+      # (one eip155:5042, one eip155:5042002) run as chain 5042 counts
+      # exactly the mainnet row, so the filter is selective rather than
+      # simply dropping everything. digest sha256:606fbfef5548…
+      url: docker.io/kaushtubh02/acr-api:2026-09-30
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
