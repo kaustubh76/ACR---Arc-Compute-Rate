@@ -323,7 +323,12 @@ def verify_venue(w3, settings) -> dict | None:
     fc = FuturesClient(rpc_url=settings.arc_rpc_url, futures_address=settings.futures_address)
     now = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
     live = [s for s in fc.read_all_series() if not s["settled"] and s["expiry_ts"] > now]
-    if not check(bool(live), "a live, unexpired series exists"):
+    if not check(
+        bool(live) or NO_VENUE,
+        "a live, unexpired series exists"
+        + (" — none listed on this chain, declared" if NO_VENUE and not live else ""),
+        warn_only=NO_VENUE,
+    ) or not live:
         return None
     # ONE live series per index, newest wins — not one series for the whole
     # venue. Collapsing the venue to `max(series_id)` verified whichever book
@@ -773,10 +778,17 @@ def verify_desk(live_series: dict | None) -> None:
     for iid in ("ACR-GPU", "ACR-INF"):
         st, bd = post(f"{API}/desk/limits", {"address": addr, "index_id": iid})
         good = st == 200 and isinstance(bd, dict) and bd.get("mark", 0) > 0
+        # A 404 here is "no open series for <index>" — the unseeded venue again,
+        # reached through the desk rather than the chain. One fact, so one
+        # declaration governs all three places it surfaces; the check still
+        # fails hard on any OTHER status, and on a 404 when a venue is expected.
+        no_series = NO_VENUE and st == 404
         check(
-            good,
+            good or no_series,
             f"/desk/limits {iid} -> {st}"
-            + (f", mark {bd.get('mark'):.5f}, max_buy {bd.get('max_buy')}" if good else ""),
+            + (f", mark {bd.get('mark'):.5f}, max_buy {bd.get('max_buy')}" if good else "")
+            + (" — no open series, declared" if no_series else ""),
+            warn_only=no_series,
         )
         if iid == "ACR-INF":
             status, body = st, bd
@@ -1115,7 +1127,11 @@ def main() -> None:
         print("\nliveness: FAILED — no chain, nothing else is meaningful")
         sys.exit(1)
     cid = int(_rpc_retry(lambda: w3.eth.chain_id))
-    check(cid == s.arc_chain_id, f"chain id {cid}")
+    check(
+        cid == s.arc_chain_id,
+        f"chain id {cid}" if cid == s.arc_chain_id
+        else f"chain id {cid} from the RPC, but ACR_ARC_CHAIN_ID says {s.arc_chain_id}",
+    )
 
     section(verify_oracle, w3, s)
     section(verify_oracle_v2, w3, s)
