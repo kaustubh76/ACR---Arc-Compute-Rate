@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
@@ -34,7 +35,9 @@ from pathlib import Path
 from acr_core import get_settings
 from acr_oracle_client import MirrorClient
 
-API = "https://acr-api-1fto.onrender.com"
+# Arc MAINNET, and OVERRIDABLE — this was hardcoded to the Arc testnet host,
+# suspended since 2026-09-15, so the script could not be pointed elsewhere.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 
 
 def _from_api(base: str) -> list[dict]:

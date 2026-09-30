@@ -28,13 +28,16 @@ import argparse
 import base64
 import datetime as dt
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
 
 from acr_oracle_client.demo_humans import DemoBuyer
 
-API = "https://acr-api-1fto.onrender.com"
+# Arc MAINNET, and OVERRIDABLE — this was hardcoded to the Arc testnet host,
+# suspended since 2026-09-15, so the script could not be pointed elsewhere.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 RESOURCE = "/tca/human"
 
 

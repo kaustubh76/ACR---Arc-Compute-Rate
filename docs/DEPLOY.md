@@ -55,7 +55,8 @@ docker build -t kaushtubh02/acr-api:latest .
 docker push kaushtubh02/acr-api:latest
 
 # 2. Confirm the new build is actually being served before moving on.
-curl -s https://acr-api-1fto.onrender.com/health
+#    (Free plan: the first call takes ~20 s while the instance wakes.)
+curl -s https://acr-api-mainnet.onrender.com/health
 
 # 3. Terminal: Vercel deploys are MANUAL for this project — trigger from the
 #    Vercel dashboard (or `vercel --prod` from apps/terminal).
@@ -72,7 +73,7 @@ last change removed.
 
 > The runbook below was written when Cloud Run was the intended host. It is kept
 > because it still works and is a reasonable path if you want scale-to-zero with a
-> warm-instance option. **It is not what serves `acr-api-1fto.onrender.com`** — the
+> warm-instance option. **It is not what serves `acr-api-mainnet.onrender.com`** — the
 > `acr-api-XXXX.run.app` URLs in this section are placeholders, not live endpoints.
 
 ### Cost
@@ -108,7 +109,7 @@ registry addresses, `TAPE_SOURCE=arc`, `CORS=*`). It prints the public URL:
 > **The live deployment is not this one.** Production runs on Render
 > (`deploy/deploy-render.sh`, image `docker.io/kaushtubh02/acr-api`) with
 > `ACR_TAPE_SOURCE=sim` — the Cloud Run script's `TAPE_SOURCE=arc` above is not
-> what serves `https://acr-api-1fto.onrender.com`. Check `/health` for the truth.
+> what serves `https://acr-api-mainnet.onrender.com`. Check `/health` for the truth.
 
 **Options:**
 - `ALWAYS_ON=1 ./deploy/deploy-cloudrun.sh` — one warm instance so the background

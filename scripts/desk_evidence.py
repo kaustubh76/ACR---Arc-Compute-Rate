@@ -29,7 +29,7 @@ from pathlib import Path
 from acr_core import get_settings
 from acr_oracle_client.futures import _rpc_retry
 
-EXPLORER = "https://testnet.arcscan.app"
+EXPLORER = "https://explorer.arc.io"  # Arc mainnet
 #: keccak("UserOperationEvent(bytes32,address,address,uint256,bool,uint256,uint256)")
 #: — the ERC-4337 EntryPoint's receipt. Its `paymaster` topic is the only
 #: trustworthy answer to "was this gas sponsored?".

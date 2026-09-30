@@ -180,7 +180,7 @@ maker seeds the first term structure. See `contracts/` and `acr_instrument/`.
 *Live wiring (Circle/Arc):* prints are signed by a raw key **or** a Circle
 Developer-Controlled wallet (custody), and the x402 gate settles through Circle's
 Nanopayments facilitator (the `exact`/GatewayWalletBatched scheme over EIP-3009).
-On Arc (chain id `5042002`) USDC is a native system contract *and* the gas token,
+On Arc (chain id `5042`) USDC is a native system contract *and* the gas token,
 so payments and posts are gasless without an ERC-4337 paymaster — the manipulation
 bound's deterministic-fee assumption (§6) is exactly this native-USDC property.
 Everything degrades to the offline simulator when no credentials are set; see

@@ -24,7 +24,7 @@ import time
 from acr_core import get_settings
 from acr_oracle_client.demo_sellers import DEMO_SELLERS
 
-FALLBACK_EXPLORER = "https://testnet.arcscan.app"
+FALLBACK_EXPLORER = "https://explorer.arc.io"  # Arc mainnet; the chain profile overrides it
 USDC_DECIMALS = 6
 SEED_USDC = 0.01  # tiny — just enough to create a real Transfer log per seller
 PACE_S = 3.0

@@ -12,7 +12,7 @@
 **Live right now (Arc **mainnet**, chain 5042, since 2026-09-27):**
 - **Terminal (dashboard):** https://arc-compute-rate.vercel.app
 - **Seller API (x402-gated):** https://acr-api-mainnet.onrender.com
-- **ACROracle:** [`0x4f00…2609`](https://testnet.arcscan.app/address/0x4f00e3BDd224F4c4b4958D54cD774E84B9092609) · **AttestationRegistry:** [`0x23ae…dFb7`](https://testnet.arcscan.app/address/0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7) · **ACRFutures:** [`0x29d9…42fe`](https://testnet.arcscan.app/address/0x29d97c629a8278f7ec4218ab0bd8baa9182642fe) (self-rolling) · **FeedAccessAttestor:** [`0xe671…FD47`](https://testnet.arcscan.app/address/0xe671a8E73900F1186448cFFeA9e730F5E50DFD47)
+- **ACROracle:** [`0xAfe8…6D07`](https://explorer.arc.io/address/0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07) · **ACROracleV2:** [`0xF77E…2f81`](https://explorer.arc.io/address/0xF77E763ef710096c0b9F02Ea16F76e68E0312f81) · **ACRFutures:** [`0xdb5D…6d3b`](https://explorer.arc.io/address/0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b) · **AttestationRegistry:** [`0x13CF…5096`](https://explorer.arc.io/address/0x13CF727d1D25283d58Efe7647dCf30e9cE255096) · **ReceiptMirror:** [`0x1a53…5bE3`](https://explorer.arc.io/address/0x1a5390E59d4ce0a386Aa071365A932Dc34d35bE3) · **HumanIdMirror:** [`0x7134…40B5`](https://explorer.arc.io/address/0x7134622a01Add334eA306dDa5A5877b418a940B5) · **FeedAccessAttestor:** [`0xB950…A490`](https://explorer.arc.io/address/0xB9508caD4A5C367C3a62B6767C4837a607EaA490) — the full mainnet set is in [`README.md`](../README.md#live-right-now)
 - **CI:** 4 jobs (python · contracts · agent · terminal) on every push — `.github/workflows/ci.yml`
 
 ---

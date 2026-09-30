@@ -55,7 +55,10 @@ from acr_oracle_client.feed_access import (
     domain as _domain,
 )
 
-API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
+# Arc MAINNET. The Arc testnet host this defaulted to (`acr-api-1fto`) has been
+# suspended since 2026-09-15 and answers 503 — a default nothing in the repo
+# shows you using is exactly how the press lost 48.9 hours of prints.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 ATTESTOR = os.environ.get("ATTESTOR_ADDRESS", "").strip()
 DRY_RUN = os.environ.get("ATTEST_DRY_RUN", "") not in ("", "0", "false")
 #: How long one attestation grants. Short by design: re-minting is cheap and a

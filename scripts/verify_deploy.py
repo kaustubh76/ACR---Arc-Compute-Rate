@@ -27,7 +27,7 @@ import sys
 from acr_core import ALL_INDEX_IDS, get_settings
 from acr_oracle_client.client import ORACLE_ABI, WAD, index_id_to_bytes32
 
-FALLBACK_EXPLORER = "https://testnet.arcscan.app"
+FALLBACK_EXPLORER = "https://explorer.arc.io"  # Arc mainnet; the chain profile overrides it
 
 # `isSigner(address)` isn't part of the client's post/read ABI — add it here.
 IS_SIGNER_ABI = {
