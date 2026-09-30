@@ -75,6 +75,45 @@ async function withFallback<T>(
 
 export type UpstreamStatus = "ok" | "error" | "timeout";
 
+/** A raw fetch that climbs the same ladder, for callers that need the Response
+ *  itself rather than parsed JSON — /api/probe reports a status and a body, so
+ *  it cannot go through fetchLiveMeta. Without this it would call the configured
+ *  host directly and report 503 while every data route on the same page worked,
+ *  which is a worse kind of confusing than the bug it is diagnosing. Returns the
+ *  base that actually answered, so the caller can say so. */
+export async function sellerFetch(
+  path: string,
+  init: RequestInit,
+): Promise<{ res: Response; base: string }> {
+  const attempt = async (base: string) => ({ res: await fetch(`${base}${path}`, init), base });
+  let first: { res: Response; base: string };
+  try {
+    first = await attempt(active);
+    if (!isHostFailure(first.res.status)) return first;
+  } catch (e) {
+    const next0 = CANDIDATES.find((c) => c !== active);
+    if (!next0) throw e;
+    const retried = await attempt(next0);
+    active = next0;
+    fellBack = true;
+    return retried;
+  }
+  const next = CANDIDATES.find((c) => c !== active);
+  if (!next) return first;
+  try {
+    const second = await attempt(next);
+    if (!isHostFailure(second.res.status)) {
+      console.warn(`[terminal] seller ${active} is not serving; falling back to ${next}`);
+      active = next;
+      fellBack = true;
+      return second;
+    }
+  } catch {
+    /* the cushion is also down — report the first answer, which is the truth */
+  }
+  return first;
+}
+
 /** Like fetchLive, but reports WHY the upstream failed so proxies can stamp
  *  `upstream` on their envelope — the UI renders "press unreachable"
  *  differently from a genuine empty feed. Failures are logged (once per call)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
-import { apiBase, baseState, postLiveMeta } from "@/lib/api";
+import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
 import { chainFacts } from "@/lib/chain";
 import { RUNNABLE } from "@/lib/endpoints";
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   const started = Date.now();
   try {
-    const res = await fetch(`${apiBase()}${path}`, {
+    const { res } = await sellerFetch(path, {
       cache: "no-store",
       headers: { accept: "application/json", ...(agentCard ? { [CARD_HEADER]: agentCard } : {}) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -168,9 +168,9 @@ async function demoHumanCard(): Promise<string | null> {
   // on the page makes the same argument, and a demo that hardcoded what the gate
   // accepts would keep working after the gate changed.
   type Challenge = { audience?: string; chain_id?: number };
-  const challenge: Challenge = await fetch(`${apiBase()}/agent/challenge`, {
+  const challenge: Challenge = await sellerFetch("/agent/challenge", {
     cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS),
-  }).then((r) => r.json() as Promise<Challenge>).catch((): Challenge => ({}));
+  }).then(({ res }) => res.json() as Promise<Challenge>).catch((): Challenge => ({}));
 
   const minted = await mintCard({
     privateKey: key,
