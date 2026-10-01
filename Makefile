@@ -185,6 +185,25 @@ deploy-mirror:
 	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
 	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
 
+# One business's spending authority. ONE WALLET PER BUSINESS: a shared wallet with
+# per-business categories would put one business's budget one wrong `isAgent` entry
+# away from another's agent. A deploy costs about a cent on Arc.
+# The deploy authorizes no agent and sets no budget, so a fresh wallet can hold
+# money and spend none of it — that is the safe resting state. ACR_POLICY_AGENT
+# authorizes the operator at deploy time; a budget is always a separate call.
+deploy-policy-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-policy:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  PolicyWallet live — it owns nothing until you fund it, and permits"
+	@echo "  nothing until setAgent + setBudget run. Set ACR_POLICY_WALLET_ADDRESS."
+
 # The human-grouping mirror. Records WINDOW-ROTATED CLUSTER IDS, never a World ID
 # nullifier — see contracts/src/HumanIdMirror.sol for why rotation prevents
 # cross-service correlation but not within-tape fleet linkage.
