@@ -75,6 +75,59 @@ def via_of(url: str) -> str:
     return "custom" if host else "unset"
 
 
+#: How far AHEAD of the chain's head a subgraph may legitimately report. Only a
+#: race between two reads: we ask the subgraph and the node at slightly different
+#: moments, and at ~0.510 s a block a few hundred is minutes, not a mistake.
+AHEAD_MARGIN_BLOCKS = 500
+
+
+#: What the last identity check saw, for transport_info. Written by whoever ran
+#: the check (the API knows the chain head; this layer does not).
+_chain_seen: dict[str, object] = {}
+
+
+def record_chain_check(subgraph_head: int | None, chain_head: int | None, verdict: str | None) -> None:
+    """Keep the last identity verdict where /ops can show it."""
+    _chain_seen.update(
+        subgraph_head=subgraph_head, chain_head=chain_head, verdict=verdict, at=time.time()
+    )
+
+
+def wrong_chain_reason(subgraph_head: int | None, chain_head: int | None) -> str | None:
+    """Why this subgraph cannot be indexing this chain, or None.
+
+    `via_of` above answers "what KIND of path is this". This answers the harder
+    question nothing was asking: "is it even our chain?" `graph_proxy` checked
+    only that ACR_SUBGRAPH_URL was SET, and `tca.py` does not go through that
+    gate at all — so /tca would answer from whatever subgraph it was pointed at,
+    including another network's, and report the result as this deployment's TCA.
+    Measured 2026-10-01: the URL in `.env` reports head 64,922,872 while Arc
+    mainnet is at 23,685,519.
+
+    ONE DIRECTION ONLY, on purpose. A subgraph cannot have indexed blocks the
+    chain has not produced, so "ahead" is a certainty and needs no tuning — and
+    it is the drift that actually happens here, a mainnet deployment still
+    reading the testnet subgraph. "Behind" is reported elsewhere and never
+    refused: a subgraph re-indexing from its startBlock is legitimately far
+    behind and catching up, and a tunable threshold guessing between that and a
+    foreign chain would be worse than the hole it closed.
+
+    Absence of evidence is not evidence — an unknown head on either side allows
+    the subgraph, the same way an unreadable balance never stops a print.
+    """
+    if subgraph_head is None or chain_head is None:
+        return None
+    if subgraph_head <= 0 or chain_head <= 0:
+        return None
+    ahead = subgraph_head - chain_head
+    if ahead <= AHEAD_MARGIN_BLOCKS:
+        return None
+    return (
+        f"the subgraph is at block {subgraph_head:,} but this chain's head is "
+        f"{chain_head:,} ({ahead:,} ahead) — it is indexing a different network"
+    )
+
+
 def transport_info(url: str = "") -> dict:
     """The ledger plus the path's identity, for /graph/operations and /ops."""
     with _lock:
@@ -100,10 +153,15 @@ def transport_info(url: str = "") -> dict:
         "cache_ttl_s": CACHE_TTL_S,
         "cache_bytes": cache_bytes(),
         "cache_entries": len(_cache),
+        # Whose chain, when something has asked. `wrong_chain_reason` is the
+        # judgement; this is how /ops and /graph/operations learn it was made, so
+        # a refused /tca is diagnosable instead of a mysteriously empty answer.
+        "chain_check": dict(_chain_seen) or None,
     }
 
 
 def _reset_for_tests() -> None:
+    _chain_seen.clear()
     with _lock:
         _cache.clear()
         _recent.clear()

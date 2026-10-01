@@ -13,7 +13,13 @@ import json
 
 import pytest
 from acr_tape import graph_client
-from acr_tape.graph_client import graph_query, transport_info, via_of
+from acr_tape.graph_client import (
+    AHEAD_MARGIN_BLOCKS,
+    graph_query,
+    transport_info,
+    via_of,
+    wrong_chain_reason,
+)
 
 
 class _Resp(io.BytesIO):
@@ -117,3 +123,53 @@ def test_the_cache_forgets_expired_pages_on_insert_and_holds_a_byte_budget(monke
         graph_query(url, "{ a }", {"i": i})
     assert graph_client.cache_bytes() <= 600_000
     assert transport_info(url)["cache_entries"] <= 3
+
+
+# --- whose chain is this subgraph on? ---------------------------------------
+#
+# `via_of` answers what KIND of path a subgraph URL is. Nothing answered the
+# harder question: is it even our chain? `graph_proxy` checked only that the URL
+# was SET, and tca.py does not go through that gate at all — so /tca answered
+# from whatever subgraph it was pointed at and called the result this
+# deployment's TCA. Measured 2026-10-01: the URL in `.env` reports head
+# 64,922,872 while Arc mainnet is at 23,685,519.
+
+
+def test_a_subgraph_ahead_of_the_chain_is_on_another_network():
+    # The live misconfiguration, with the real numbers.
+    why = wrong_chain_reason(64_922_872, 23_685_519)
+    assert why, "41 million blocks ahead cannot be the same chain"
+    # The reason has to carry both figures: a bare "wrong subgraph" sends the
+    # reader to guess which one is wrong.
+    assert "64,922,872" in why and "23,685,519" in why, why
+    assert "41,237,353" in why, f"the gap itself is the evidence: {why}"
+
+
+def test_a_subgraph_at_the_head_is_ours():
+    # Measured on the mainnet subgraph: fourteen blocks behind head.
+    assert wrong_chain_reason(23_685_505, 23_685_519) is None
+
+
+def test_being_BEHIND_is_never_a_refusal():
+    """A subgraph re-indexing from its startBlock is legitimately far behind and
+    catching up. Guessing between that and a foreign chain would need a tunable
+    threshold, and the other direction is already a certainty — so this direction
+    is reported elsewhere and never refused."""
+    assert wrong_chain_reason(23_013_298, 23_685_519) is None, "a fresh re-index"
+    assert wrong_chain_reason(1, 23_685_519) is None, "even absurdly behind"
+
+
+def test_the_margin_covers_the_race_between_two_reads():
+    """We ask the subgraph and the node at slightly different moments. At ~0.510s
+    a block, a few hundred is minutes rather than a mistake."""
+    head = 23_685_519
+    assert wrong_chain_reason(head + AHEAD_MARGIN_BLOCKS, head) is None
+    assert wrong_chain_reason(head + AHEAD_MARGIN_BLOCKS + 1, head) is not None
+
+
+def test_absence_of_evidence_is_not_evidence():
+    """An unknown head on either side allows the subgraph — the same rule as an
+    unreadable press balance never stopping a print. A transient must not become
+    an outage."""
+    for sub, chain in ((None, 23_685_519), (23_685_505, None), (None, None), (0, 23_685_519), (23_685_505, 0)):
+        assert wrong_chain_reason(sub, chain) is None, f"({sub}, {chain}) must not refuse"
