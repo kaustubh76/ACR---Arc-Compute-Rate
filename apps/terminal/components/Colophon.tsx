@@ -125,9 +125,11 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             }
           />{" "}
           · AN ARC / CIRCLE BUILD
-          {/* Posture, stated where the chain is named: testnet today, and the
-              mainnet runbook rehearsed. A judge reading "Arc Testnet" cannot
-              otherwise tell whether mainnet is a plan or a paragraph. */}
+          {/* Posture, stated where the chain is named. This read "testnet today,
+              and the mainnet runbook rehearsed" until 2026-10-01 — nine days after
+              the deploy it was describing as a plan. The line itself was already
+              correct, because it asks `onMainnet` rather than a literal; the
+              comment explaining it was the stale part. */}
           {" · "}
           {onMainnet ? (
             <span title="eip155:5042 — the network this page reads from">
