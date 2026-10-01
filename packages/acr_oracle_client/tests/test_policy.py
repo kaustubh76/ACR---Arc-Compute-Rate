@@ -159,3 +159,19 @@ def test_with_no_owner_key_a_large_payment_goes_to_a_human():
     assert c.can_escalate() is False
     with pytest.raises(RuntimeError, match="must go to a human"):
         c.spend_approved("infra", OTHER, 500, {"rule": "pay"}, deadline=1)
+
+
+def test_the_wallet_address_actually_arrives_from_the_environment(monkeypatch):
+    """A settings field read through a getattr default swallows its own env var:
+    the client reports unconfigured while the operator looks wired. conftest
+    strips every ACR_* var, so set it and rebuild the settings."""
+    from acr_core import reset_settings
+
+    addr = "0x" + "11" * 20
+    monkeypatch.setenv("ACR_POLICY_WALLET_ADDRESS", addr)
+    reset_settings()
+    try:
+        c = PolicyClient(agent_signer=None, owner_signer=None)
+        assert c.wallet_address == addr
+    finally:
+        reset_settings()

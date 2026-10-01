@@ -189,9 +189,7 @@ class PolicyClient:
     ) -> None:
         s = settings or get_settings()
         self.rpc_url = rpc_url or s.arc_rpc_url
-        self.wallet_address = wallet_address or (
-            getattr(s, "policy_wallet_address", "") or None
-        )
+        self.wallet_address = wallet_address or (s.policy_wallet_address or None)
         # The operator acts as the taker: it is the role that spends on the
         # product's own account, and it already has its own Circle wallet.
         self.agent_signer = agent_signer or build_role_signer("taker", s)

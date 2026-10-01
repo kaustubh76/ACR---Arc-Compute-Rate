@@ -145,6 +145,13 @@ class ACRSettings(BaseSettings):
     #: this there is no settlement event on Arc at all and TCA has no basis.
     #: Empty → the mirror keeper stands down rather than writing nowhere.
     receipt_mirror_address: str = ""
+    #: Deployed ``PolicyWallet`` for THIS business — the contract that holds its
+    #: USDC and decides what its agent may move. One wallet per business, so this
+    #: is the operator's own; another business's wallet is passed to
+    #: ``PolicyClient`` explicitly rather than read from here.
+    #: Empty → the operator spends nothing and escalates everything, which is a
+    #: working state and the correct one for an unconfigured host.
+    policy_wallet_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
