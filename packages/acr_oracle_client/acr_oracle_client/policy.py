@@ -1,0 +1,444 @@
+"""``PolicyClient`` — spend a business's money through its on-chain budget.
+
+``contracts/src/PolicyWallet.sol`` is the authority; this is its client. Two
+callers, two keys, and they are not the same party:
+
+* the **agent** submits every transaction, and is the only address the contract
+  will move money for;
+* the **owner** signs nothing but approvals, and only for payments at or above
+  the per-transaction limit. Their signature is what makes the escalation
+  threshold real rather than a flag in a database somebody can flip.
+
+So this client holds two signers and keeps them apart. An operator that could
+sign its own approvals would have no threshold at all, which is the failure this
+whole contract exists to prevent — ``spend_approved`` therefore refuses when the
+two signers are the same address, rather than discovering it on chain.
+
+Mirrors ``MirrorClient``'s shape (same offline tolerance, same pre-broadcast
+signature check, same ``_send``) so one reader's understanding covers both.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from decimal import Decimal, InvalidOperation
+
+from acr_core import get_settings
+
+from .mirror import to_bytes32
+from .signer import Signer, build_role_signer
+
+log = logging.getLogger("acr_oracle_client.policy")
+
+USDC = 10**6
+
+APPROVAL_TYPES = {
+    "SpendApproval": [
+        {"name": "category", "type": "bytes32"},
+        {"name": "to", "type": "address"},
+        {"name": "amount", "type": "uint256"},
+        {"name": "decisionHash", "type": "bytes32"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "deadline", "type": "uint64"},
+    ]
+}
+
+POLICY_ABI = [
+    {
+        "name": "spend",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "category", "type": "bytes32"},
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+            {"name": "decisionHash", "type": "bytes32"},
+        ],
+        "outputs": [],
+    },
+    {
+        "name": "spendApproved",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "category", "type": "bytes32"},
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+            {"name": "decisionHash", "type": "bytes32"},
+            {"name": "deadline", "type": "uint64"},
+            {"name": "v", "type": "uint8"},
+            {"name": "r", "type": "bytes32"},
+            {"name": "s", "type": "bytes32"},
+        ],
+        "outputs": [],
+    },
+    {
+        "name": "budgetOf",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [{"name": "category", "type": "bytes32"}],
+        "outputs": [
+            {"name": "exists", "type": "bool"},
+            {"name": "cap", "type": "uint256"},
+            {"name": "spent", "type": "uint256"},
+            {"name": "perTxLimit", "type": "uint256"},
+            {"name": "periodStart", "type": "uint64"},
+            {"name": "periodLength", "type": "uint64"},
+        ],
+    },
+    {
+        "name": "remaining",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [{"name": "category", "type": "bytes32"}],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "name": "approvalNonce",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "name": "owner",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address"}],
+    },
+    {
+        "name": "paused",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "bool"}],
+    },
+]
+
+
+def usdc_units(amount: str | int | float | Decimal) -> int:
+    """USDC to its 6-decimal integer, or raise.
+
+    Refuses rather than rounds. A payment of ``0.0000001`` is not 0 and it is not
+    1 unit either — it is an amount this rail cannot express, and quietly picking
+    one of those two is how an agent pays the wrong number. ``apps/terminal`` does
+    the same thing with ``parseUnits(..., 6)``.
+
+    ``float`` is accepted but converted through ``str`` first, because
+    ``Decimal(0.1)`` is 0.1000000000000000055511151231257827021181583404541015625
+    and would fail the exactness check for a number the caller typed as 0.1.
+    """
+    try:
+        d = Decimal(str(amount))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"not an amount: {amount!r}") from exc
+    if d < 0:
+        raise ValueError(f"negative amount: {amount!r}")
+    scaled = d * USDC
+    if scaled != scaled.to_integral_value():
+        raise ValueError(
+            f"{amount} is finer than USDC's 6 decimals; round it before paying, "
+            "so the rounding is a decision someone made"
+        )
+    return int(scaled)
+
+
+def decision_hash(record: dict) -> bytes:
+    """The on-chain commitment to one decision record.
+
+    ``PolicyWallet`` stores this and rejects zero, so the chain holds a promise
+    about the reasoning *before* the money moves. For that to mean anything the
+    hash must be reproducible from the stored record forever, so the encoding is
+    pinned here and nowhere else:
+
+        keccak256(b"acr.decision::" + canonical_json)
+
+    Canonical means sorted keys and no insignificant whitespace. Anything else —
+    dict ordering, a prettier indent, a changed float repr — silently produces a
+    different hash, and a record that no longer matches its own hash is
+    indistinguishable from one that was edited after the fact.
+    """
+    canonical = json.dumps(
+        record, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+    )
+    return to_bytes32(f"acr.decision::{canonical}")
+
+
+def category_id(name: str) -> bytes:
+    """A budget category's bytes32 id, from its human name.
+
+    Hashed, not padded: a category is written by a person ("infra", "contractors",
+    "model inference") and a name longer than 31 bytes would truncate into a
+    different category that still looks right in a log.
+    """
+    return to_bytes32(f"acr.category::{name}")
+
+
+class PolicyClient:
+    """Spends through one business's ``PolicyWallet``. Offline-tolerant."""
+
+    def __init__(
+        self,
+        rpc_url: str | None = None,
+        wallet_address: str | None = None,
+        agent_signer: Signer | None = None,
+        owner_signer: Signer | None = None,
+        settings=None,
+    ) -> None:
+        s = settings or get_settings()
+        self.rpc_url = rpc_url or s.arc_rpc_url
+        self.wallet_address = wallet_address or (
+            getattr(s, "policy_wallet_address", "") or None
+        )
+        # The operator acts as the taker: it is the role that spends on the
+        # product's own account, and it already has its own Circle wallet.
+        self.agent_signer = agent_signer or build_role_signer("taker", s)
+        self.owner_signer = owner_signer or build_role_signer("owner", s)
+        self._w3 = None
+
+    # --- plumbing -----------------------------------------------------------
+
+    def configured(self) -> bool:
+        return bool(self.wallet_address and self.agent_signer)
+
+    def can_escalate(self) -> bool:
+        """Is there an owner key able to clear a payment above the threshold?
+
+        Separate from :meth:`configured` on purpose. An operator with no owner
+        signer still runs — it just cannot clear the large payments, and the
+        honest thing is to escalate them to a human rather than to report the
+        wallet as unconfigured.
+        """
+        return bool(self.owner_signer)
+
+    def _connect(self):
+        if self._w3 is not None:
+            return self._w3
+        try:
+            from web3 import Web3
+
+            w3 = Web3(Web3.HTTPProvider(self.rpc_url, request_kwargs={"timeout": 20}))
+            self._w3 = w3 if w3.is_connected() else None
+        except Exception as exc:  # pragma: no cover - env dependent
+            log.warning("PolicyClient: web3 unavailable (%s)", exc)
+            self._w3 = None
+        return self._w3
+
+    def _contract(self):
+        from web3 import Web3
+
+        return self._connect().eth.contract(
+            address=Web3.to_checksum_address(self.wallet_address), abi=POLICY_ABI
+        )
+
+    def _domain(self, chain_id: int) -> dict:
+        from web3 import Web3
+
+        return {
+            "name": "ACR Policy Wallet",
+            "version": "1",
+            "chainId": int(chain_id),
+            "verifyingContract": Web3.to_checksum_address(self.wallet_address),
+        }
+
+    def _send(self, fn, wait: bool = True) -> str:
+        w3 = self._connect()
+        tx = fn.build_transaction(
+            {
+                "from": self.agent_signer.address,
+                "nonce": w3.eth.get_transaction_count(self.agent_signer.address),
+                "chainId": w3.eth.chain_id,
+            }
+        )
+        tx_hash = self.agent_signer.send_transaction(w3, tx)
+        if wait:
+            rcpt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=45)
+            if rcpt.status != 1:
+                raise RuntimeError(f"policy tx reverted ({tx_hash})")
+        return str(tx_hash)
+
+    # --- reads --------------------------------------------------------------
+
+    def budget(self, category: str) -> dict | None:
+        """One category's live budget, with the period already rolled by the
+        contract's own view — so what this reports is what it will enforce."""
+        if not self.configured() or self._connect() is None:
+            return None
+        try:
+            row = self._contract().functions.budgetOf(category_id(category)).call()
+        except Exception:  # pragma: no cover - live chain
+            return None
+        exists, cap, spent, per_tx, period_start, period_length = row
+        if not exists:
+            return None
+        return {
+            "category": category,
+            "cap_usdc": cap / USDC,
+            "spent_usdc": spent / USDC,
+            "remaining_usdc": max(cap - spent, 0) / USDC,
+            "per_tx_limit_usdc": per_tx / USDC,
+            "period_start": int(period_start),
+            "period_length": int(period_length),
+        }
+
+    def approval_nonce(self) -> int | None:
+        if not self.configured() or self._connect() is None:
+            return None
+        try:
+            return int(self._contract().functions.approvalNonce().call())
+        except Exception:  # pragma: no cover - live chain
+            return None
+
+    def chain_now(self) -> int | None:
+        """The chain's own clock, as the latest block reports it.
+
+        ``PolicyWallet`` compares a deadline against ``block.timestamp``, so a
+        deadline computed from the host's clock is denominated in the wrong
+        clock. Measured on a local anvil the two were 3,815 seconds apart, which
+        expired an approval signed one second earlier; on Arc the drift is
+        smaller but it is not zero, and ``ACROracle`` already carries a
+        timestamp-skew bound for the same reason.
+        """
+        if not self.configured() or self._connect() is None:
+            return None
+        try:
+            return int(self._connect().eth.get_block("latest")["timestamp"])
+        except Exception:  # pragma: no cover - live chain
+            return None
+
+    def deadline_in(self, seconds: int = 600) -> int:
+        """A deadline ``seconds`` from now, on the clock the contract reads.
+
+        Refuses rather than falling back to ``time.time()``: an approval signed
+        against a clock the contract does not use is either rejected outright or,
+        worse, valid for far longer than intended.
+        """
+        now = self.chain_now()
+        if now is None:
+            raise RuntimeError(
+                "cannot read the chain clock; refusing to date an approval from the host's"
+            )
+        return now + int(seconds)
+
+    def paused(self) -> bool | None:
+        if not self.configured() or self._connect() is None:
+            return None
+        try:
+            return bool(self._contract().functions.paused().call())
+        except Exception:  # pragma: no cover - live chain
+            return None
+
+    # --- the two spending paths ---------------------------------------------
+
+    def spend(self, category: str, to: str, amount_usdc, record: dict) -> str:
+        """The agent's own authority: strictly below the per-transaction limit.
+
+        ``record`` is the decision itself, not a hash — hashing here is what keeps
+        the stored record and the on-chain commitment from drifting apart.
+        """
+        from web3 import Web3
+
+        if not self.configured():
+            raise RuntimeError("PolicyClient not configured (wallet address or agent signer)")
+        fn = self._contract().functions.spend(
+            category_id(category),
+            Web3.to_checksum_address(to),
+            usdc_units(amount_usdc),
+            decision_hash(record),
+        )
+        return self._send(fn)
+
+    def sign_approval(
+        self, category: str, to: str, amount_usdc, record: dict, deadline: int
+    ) -> tuple[int, bytes, bytes]:
+        """The owner's signature over one specific payment.
+
+        Signed against the live nonce, so an approval is good exactly once and
+        cannot be banked for later. Verified against ``eth_account`` before it is
+        ever broadcast: an EIP-712 type mismatch recovers to a stranger, and the
+        only symptom on chain would be "not owner signature" on a call that should
+        have worked, after the gas was spent.
+        """
+        from eth_account import Account
+        from eth_account.messages import encode_typed_data
+        from web3 import Web3
+
+        if not self.can_escalate():
+            raise RuntimeError("no owner signer: this payment must go to a human")
+
+        nonce = self.approval_nonce()
+        if nonce is None:
+            raise RuntimeError("cannot read the approval nonce; refusing to sign blind")
+
+        message = {
+            "category": category_id(category),
+            "to": Web3.to_checksum_address(to),
+            "amount": usdc_units(amount_usdc),
+            "decisionHash": decision_hash(record),
+            "nonce": int(nonce),
+            "deadline": int(deadline),
+        }
+        domain = self._domain(self._connect().eth.chain_id)
+        v, r, s_ = self.owner_signer.sign_typed_data(
+            domain, APPROVAL_TYPES, message, "SpendApproval"
+        )
+
+        recovered = Account.recover_message(
+            encode_typed_data(
+                domain_data=domain, message_types=APPROVAL_TYPES, message_data=message
+            ),
+            vrs=(v, int.from_bytes(r, "big"), int.from_bytes(s_, "big")),
+        )
+        if recovered.lower() != self.owner_signer.address.lower():
+            raise RuntimeError(
+                f"approval recovers to {recovered}, not the owner "
+                f"{self.owner_signer.address} — refusing to broadcast"
+            )
+        return v, r, s_
+
+    def spend_approved(
+        self,
+        category: str,
+        to: str,
+        amount_usdc,
+        record: dict,
+        deadline: int,
+        vrs: tuple[int, bytes, bytes] | None = None,
+    ) -> str:
+        """A payment at or above the threshold, carrying the owner's signature.
+
+        ``vrs`` is accepted so the signature can come from a human's own wallet
+        out of band — which is the point of the threshold. When it is omitted the
+        owner signer here produces it, which is only honest while that key belongs
+        to a different party than the agent's; hence the refusal below.
+        """
+        from web3 import Web3
+
+        if not self.configured():
+            raise RuntimeError("PolicyClient not configured (wallet address or agent signer)")
+
+        if vrs is None:
+            if not self.can_escalate():
+                raise RuntimeError("no owner signer: this payment must go to a human")
+            if self.owner_signer.address.lower() == self.agent_signer.address.lower():
+                raise RuntimeError(
+                    "the agent and the owner are the same key, so the approval "
+                    "threshold would authorize itself; give the owner its own key "
+                    "or pass a signature from one"
+                )
+            vrs = self.sign_approval(category, to, amount_usdc, record, deadline)
+
+        v, r, s_ = vrs
+        fn = self._contract().functions.spendApproved(
+            category_id(category),
+            Web3.to_checksum_address(to),
+            usdc_units(amount_usdc),
+            decision_hash(record),
+            int(deadline),
+            int(v),
+            r,
+            s_,
+        )
+        return self._send(fn)
