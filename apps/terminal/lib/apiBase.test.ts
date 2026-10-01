@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishedSeller, LOCAL_SELLER, MAINNET_SELLER, isHostFailure, sellerBase, sellerCandidates } from "./apiBase";
+import { LOCAL_SELLER, MAINNET_SELLER, chainMismatch, isHostFailure, publishedSeller, sellerBase, sellerCandidates } from "./apiBase";
 
 /* The default that matters is the one nobody sets. Eight places spelled
    `?? "http://127.0.0.1:8000"`, which is wrong in the only place it is ever
@@ -106,4 +106,37 @@ test("the cushion ignores BOTH env overrides — the bug that made the rung iner
       MAINNET_SELLER,
     ]);
   });
+});
+
+/* Chain identity. The rung honoured a WORKING configured host — correct for a
+   staging seller, wrong for one on another chain. `acr-api-1fto` was resumed,
+   started answering 200, and the terminal went straight back to it and served
+   live chain-5042002 data under a mainnet UI. Health is not the only test. */
+
+test("a seller on the build's own chain is accepted", () => {
+  assert.equal(chainMismatch(5042, 5042), null);
+  assert.equal(chainMismatch(5042, "5042"), null, "a string id from JSON still matches");
+});
+
+test("a healthy seller on ANOTHER chain is refused, and the reason names both", () => {
+  const why = chainMismatch(5042, 5042002);
+  assert.ok(why, "5042002 is not 5042");
+  assert.ok(why!.includes("5042002") && why!.includes("5042"), why!);
+  // The distinction that matters: it is not broken, it is not ours.
+  assert.ok(/not serving this product/.test(why!), why!);
+});
+
+test("absence of evidence is not evidence — an unknown chain id is allowed", () => {
+  // Same principle as an unreadable press balance never stopping a print:
+  // refusing a good seller because a probe came back empty is the worse bug.
+  for (const unknown of [undefined, null, "", "not-a-number", 0, -1, NaN]) {
+    assert.equal(chainMismatch(5042, unknown), null, `${String(unknown)} must not disqualify`);
+  }
+});
+
+test("a build with no known chain polices nothing", () => {
+  // A bundle without a chain_id cannot judge anyone.
+  for (const build of [0, -1, NaN]) {
+    assert.equal(chainMismatch(build, 5042002), null);
+  }
 });

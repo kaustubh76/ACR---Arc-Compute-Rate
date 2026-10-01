@@ -72,3 +72,33 @@ export function sellerCandidates(configured: string, published: string): string[
 export function isHostFailure(status: number): boolean {
   return status >= 500;
 }
+
+/** Whether a seller answering with `hostChainId` may serve a build made for
+ *  `buildChainId` — and if not, why.
+ *
+ *  THE CASE THIS EXISTS FOR. `ACR_API` named the Arc testnet seller. While that
+ *  host was suspended the fallback rung covered for it, and the terminal reached
+ *  mainnet. Then the host was RESUMED, started answering 200 again, and because a
+ *  working override is honoured the terminal went straight back to it — now
+ *  serving live chain-5042002 data under a mainnet UI. That is worse than the
+ *  archive, which at least labels itself ARCHIVED.
+ *
+ *  "A working override wins" was the right rule for a staging seller and the
+ *  wrong one for a seller on another chain: a host can be perfectly healthy and
+ *  still not be serving THIS product. So health is not the only test — identity
+ *  is the other one.
+ *
+ *  Absence of evidence is not evidence: an unparseable or missing chain id
+ *  returns null (allowed), exactly as an unreadable balance never stops a print.
+ *  Only a chain id that is present, valid and DIFFERENT disqualifies a host.
+ */
+export function chainMismatch(buildChainId: number, hostChainId: unknown): string | null {
+  if (!Number.isFinite(buildChainId) || buildChainId <= 0) return null;
+  const got = Number(hostChainId);
+  if (!Number.isFinite(got) || got <= 0) return null;
+  if (got === buildChainId) return null;
+  return (
+    `seller is on chain ${got} but this build is for ${buildChainId} — ` +
+    "healthy, but not serving this product"
+  );
+}

@@ -2,7 +2,7 @@
    the browser only ever talks to the Next proxy routes (FastAPI has no CORS
    middleware, and this keeps the offline "archived edition" logic in one place). */
 
-import { isHostFailure, publishedSeller, sellerCandidates } from "./apiBase";
+import { chainMismatch, isHostFailure, publishedSeller, sellerCandidates } from "./apiBase";
 import { makeLadder } from "./sellerLadder";
 import type { Envelope, TerminalData } from "./types";
 import fallback from "./fallback.json";
@@ -41,6 +41,40 @@ const ladder = makeLadder(CANDIDATES, (from, to) =>
   ),
 );
 
+/* The chain this build is FOR, taken from the bundle it ships with — the same
+   notion lib/chain.test.ts already cross-checks ("fallback.json belongs to the
+   chain the build is for"). A seller that answers for another chain is healthy
+   and still not ours. */
+const BUILD_CHAIN_ID = Number((fallback as { chain?: { chain_id?: number } }).chain?.chain_id) || 0;
+
+/** Hosts already judged on identity. A probe costs one /health per host, once. */
+const identity = new Map<string, string | null>();
+
+/** Null when this host may serve us; otherwise why it may not.
+ *  A failed or unparseable probe allows the host: a blink is not evidence that
+ *  it is on the wrong chain, and refusing a good seller would be the worse bug. */
+async function identityProblem(base: string): Promise<string | null> {
+  if (!BUILD_CHAIN_ID) return null;
+  const known = identity.get(base);
+  if (known !== undefined) return known;
+  let verdict: string | null = null;
+  try {
+    const res = await fetch(`${base}/health`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const body = (await res.json()) as { chain_id?: unknown };
+      verdict = chainMismatch(BUILD_CHAIN_ID, body?.chain_id);
+    }
+  } catch {
+    verdict = null;
+  }
+  identity.set(base, verdict);
+  if (verdict) console.warn(`[terminal] refusing ${base}: ${verdict}`);
+  return verdict;
+}
+
 export function apiBase(): string {
   return ladder.state().active;
 }
@@ -53,9 +87,20 @@ export function baseState(): {
   configured: string | null;
   published: string;
   fellBack: boolean;
+  buildChainId: number;
+  refused: Record<string, string>;
 } {
   const { active, fellBack } = ladder.state();
-  return { active, configured: CONFIGURED || null, published: PUBLISHED, fellBack };
+  const refused: Record<string, string> = {};
+  for (const [base, why] of identity) if (why) refused[base] = why;
+  return {
+    active,
+    configured: CONFIGURED || null,
+    published: PUBLISHED,
+    fellBack,
+    buildChainId: BUILD_CHAIN_ID,
+    refused,
+  };
 }
 
 export type UpstreamStatus = "ok" | "error" | "timeout";
@@ -79,7 +124,7 @@ export async function sellerFetch(
   const out = await ladder.run<RawTry>(async (base) => {
     try {
       const res = await fetch(`${base}${path}`, init);
-      const bad = isHostFailure(res.status);
+      const bad = isHostFailure(res.status) || (res.ok && Boolean(await identityProblem(base)));
       return { ok: !bad, hostFailed: bad, value: { res, base } };
     } catch (error) {
       return { ok: false, hostFailed: true, value: { res: null, base, error } };
@@ -105,6 +150,14 @@ export async function fetchLiveMeta<T>(
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.ok) {
+        const wrongChain = await identityProblem(base);
+        if (wrongChain) {
+          return {
+            ok: false,
+            hostFailed: true,
+            value: { data: null, upstream: "error" as UpstreamStatus },
+          };
+        }
         return { ok: true, hostFailed: false, value: { data: (await res.json()) as T, upstream: "ok" as UpstreamStatus } };
       }
       console.warn(`[terminal] upstream ${res.status} on ${path}`);
@@ -149,6 +202,14 @@ export async function postLiveMeta<T>(
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.ok) {
+        const wrongChain = await identityProblem(base);
+        if (wrongChain) {
+          return {
+            ok: false,
+            hostFailed: true,
+            value: { data: null, upstream: "error" as UpstreamStatus },
+          };
+        }
         return { ok: true, hostFailed: false, value: { data: (await res.json()) as T, upstream: "ok" as UpstreamStatus } };
       }
       console.warn(`[terminal] upstream ${res.status} on POST ${path}`);
