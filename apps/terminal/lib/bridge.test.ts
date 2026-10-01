@@ -4,10 +4,12 @@ import { bridgePlan, describeStep, readableWalletError, MAINNET_SOURCES, TESTNET
 import { chainFacts } from "./chain";
 
 test("bridgePlan: mainnet offers the mainnet sources into `Arc`, testnet the Sepolias into `Arc_Testnet`, anvil nothing", () => {
-  const main = bridgePlan(chainFacts({ ...chainFacts(null), chain_id: 5042 } as never));
-  assert.equal(main?.arc, "Arc");
+  // The static default is mainnet now, so BOTH networks are named explicitly —
+  // leaning on the default was what let it drift unnoticed in the first place.
+  const main = bridgePlan(chainFacts(null));
+  assert.equal(main?.arc, "Arc", "the default facts bridge into mainnet Arc");
   assert.deepEqual(main?.sources, MAINNET_SOURCES);
-  const test_ = bridgePlan(chainFacts(null));
+  const test_ = bridgePlan(chainFacts({ ...chainFacts(null), chain_id: 5042002 } as never));
   assert.equal(test_?.arc, "Arc_Testnet");
   assert.deepEqual(test_?.sources, TESTNET_SOURCES);
   assert.equal(bridgePlan(chainFacts({ ...chainFacts(null), chain_id: 31337 } as never)), null);

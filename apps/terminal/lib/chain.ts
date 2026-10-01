@@ -14,12 +14,37 @@ import type { ChainFactsData } from "./types";
  */
 export const MAX_SETTLE_AGE_S = 7200;
 
+/* Arc MAINNET, mirroring `acr_core.CHAIN_PROFILES[5042]` field for field rather
+   than values typed again here.
+
+   `chainFacts()` below uses this as a PER-FIELD fallback, so with no payload
+   every field came from Arc testnet: the name, the explorer every address link
+   is built from, and the Gateway wallet. The payload (live or bundled) carries
+   5042 and wins, so this showed only where there was none — which is exactly
+   the render nobody checks. A default is the half nothing in the repo shows you
+   using; `CHAIN_TESTNET` below keeps the other network addressable. */
 export const CHAIN = {
+  name: "Arc",
+  chainId: 5042,
+  caip2: "eip155:5042",
+  explorer: "https://explorer.arc.io",
+  rpc: "https://rpc.mainnet.arc.io",
+  usdc: "0x3600000000000000000000000000000000000000",
+  gatewayWallet: "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE",
+  circleBlockchain: "ARC",
+  gatewayChain: "arc",
+  privateMainnet: false,
+} as const;
+
+/** Arc testnet, where this was proven from July. Kept addressable so moving the
+ *  default does not delete the network — same reason the agent's profile table
+ *  keeps both. */
+export const CHAIN_TESTNET = {
   name: "Arc Testnet",
   chainId: 5042002,
   caip2: "eip155:5042002",
   explorer: "https://testnet.arcscan.app",
-  rpc: "https://rpc.testnet.arc.network",
+  rpc: "https://rpc.testnet.arc.io",
   usdc: "0x3600000000000000000000000000000000000000",
   gatewayWallet: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
   circleBlockchain: "ARC-TESTNET",

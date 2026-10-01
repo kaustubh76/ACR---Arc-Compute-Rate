@@ -3,6 +3,7 @@
    middleware, and this keeps the offline "archived edition" logic in one place). */
 
 import { isHostFailure, publishedSeller, sellerCandidates } from "./apiBase";
+import { makeLadder } from "./sellerLadder";
 import type { Envelope, TerminalData } from "./types";
 import fallback from "./fallback.json";
 
@@ -30,11 +31,18 @@ const PUBLISHED = publishedSeller().replace(/\/$/, "");
  * /api/probe surface it. Silence is what made the original fault survive. */
 const CANDIDATES: string[] = sellerCandidates(CONFIGURED, PUBLISHED);
 
-let active = CANDIDATES[0];
-let fellBack = false;
+/* The decisions live in lib/sellerLadder.ts, unit-tested there; this module
+   keeps only the wiring — which hosts, and the one instance they share. Same
+   split lib/connection.ts documents for the UI's tier ladder. */
+const ladder = makeLadder(CANDIDATES, (from, to) =>
+  console.warn(
+    `[terminal] seller ${from} is not serving; falling back to ${to}. ` +
+      "ACR_API points somewhere dead — fix the variable; this rung is a cushion, not a cure.",
+  ),
+);
 
 export function apiBase(): string {
-  return active;
+  return ladder.state().active;
 }
 
 /** Which seller is actually serving, and whether that is the configured one.
@@ -46,31 +54,8 @@ export function baseState(): {
   published: string;
   fellBack: boolean;
 } {
+  const { active, fellBack } = ladder.state();
   return { active, configured: CONFIGURED || null, published: PUBLISHED, fellBack };
-}
-
-/** Run `attempt` against the active base; on a host-level failure, and only if
- *  another candidate exists, try that one and keep it if it works. */
-async function withFallback<T>(
-  attempt: (base: string) => Promise<{ ok: boolean; hostFailed: boolean; value: T }>,
-): Promise<T> {
-  const first = await attempt(active);
-  if (first.ok || !first.hostFailed) return first.value;
-
-  const next = CANDIDATES.find((c) => c !== active);
-  if (!next) return first.value;
-
-  const second = await attempt(next);
-  if (second.ok) {
-    console.warn(
-      `[terminal] seller ${active} is not serving; falling back to ${next}. ` +
-        "ACR_API points somewhere dead — fix the variable; this rung is a cushion, not a cure.",
-    );
-    active = next;
-    fellBack = true;
-    return second.value;
-  }
-  return first.value;
 }
 
 export type UpstreamStatus = "ok" | "error" | "timeout";
@@ -85,33 +70,24 @@ export async function sellerFetch(
   path: string,
   init: RequestInit,
 ): Promise<{ res: Response; base: string }> {
-  const attempt = async (base: string) => ({ res: await fetch(`${base}${path}`, init), base });
-  let first: { res: Response; base: string };
-  try {
-    first = await attempt(active);
-    if (!isHostFailure(first.res.status)) return first;
-  } catch (e) {
-    const next0 = CANDIDATES.find((c) => c !== active);
-    if (!next0) throw e;
-    const retried = await attempt(next0);
-    active = next0;
-    fellBack = true;
-    return retried;
-  }
-  const next = CANDIDATES.find((c) => c !== active);
-  if (!next) return first;
-  try {
-    const second = await attempt(next);
-    if (!isHostFailure(second.res.status)) {
-      console.warn(`[terminal] seller ${active} is not serving; falling back to ${next}`);
-      active = next;
-      fellBack = true;
-      return second;
+  /* A Response or the reason there isn't one. The ladder decides between hosts;
+     an unreachable host has no Response, so the error travels with the attempt
+     and is re-thrown below if every candidate failed — a fabricated Response
+     would be worse than the exception the caller already handles. */
+  type RawTry = { res: Response | null; base: string; error?: unknown };
+
+  const out = await ladder.run<RawTry>(async (base) => {
+    try {
+      const res = await fetch(`${base}${path}`, init);
+      const bad = isHostFailure(res.status);
+      return { ok: !bad, hostFailed: bad, value: { res, base } };
+    } catch (error) {
+      return { ok: false, hostFailed: true, value: { res: null, base, error } };
     }
-  } catch {
-    /* the cushion is also down — report the first answer, which is the truth */
-  }
-  return first;
+  });
+
+  if (!out.res) throw out.error ?? new Error(`seller ${out.base} is unreachable`);
+  return { res: out.res, base: out.base };
 }
 
 /** Like fetchLive, but reports WHY the upstream failed so proxies can stamp
@@ -122,7 +98,7 @@ export async function fetchLiveMeta<T>(
   path: string,
   timeoutMs = 5000,
 ): Promise<{ data: T | null; upstream: UpstreamStatus }> {
-  return withFallback<{ data: T | null; upstream: UpstreamStatus }>(async (base) => {
+  return ladder.run<{ data: T | null; upstream: UpstreamStatus }>(async (base) => {
     try {
       const res = await fetch(`${base}${path}`, {
         cache: "no-store",
@@ -163,7 +139,7 @@ export async function postLiveMeta<T>(
   body: unknown,
   timeoutMs = 8000,
 ): Promise<{ data: T | null; upstream: UpstreamStatus }> {
-  return withFallback<{ data: T | null; upstream: UpstreamStatus }>(async (base) => {
+  return ladder.run<{ data: T | null; upstream: UpstreamStatus }>(async (base) => {
     try {
       const res = await fetch(`${base}${path}`, {
         method: "POST",

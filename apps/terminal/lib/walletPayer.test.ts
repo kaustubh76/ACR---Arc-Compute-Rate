@@ -37,10 +37,15 @@ test("decodePaymentRequired round-trips, and is null on garbage", () => {
 
 test("addChainParams: hex chain id, USDC as the 18-decimal native asset, from the facts", () => {
   const p = addChainParams(chainFacts(null));
-  assert.equal(p.chainId, "0x4cef52");
-  assert.equal(p.chainName, "Arc Testnet");
+  assert.equal(p.chainId, "0x13b2", "5042 — the static default is the deployment");
+  assert.equal(p.chainName, "Arc");
   assert.deepEqual(p.nativeCurrency, { name: "USDC", symbol: "USDC", decimals: 18 });
-  assert.deepEqual(p.rpcUrls, ["https://rpc.testnet.arc.io"], "the public endpoint, not the bundle's server RPC");
+  assert.deepEqual(p.rpcUrls, ["https://rpc.mainnet.arc.io"], "the public endpoint, not the bundle's server RPC");
+  // The payload must beat the default in BOTH directions, so this override is
+  // testnet now that the default is mainnet — otherwise it would assert nothing.
+  const t = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042002, name: "Arc Testnet", public_rpc_url: "https://rpc.testnet.arc.io" } as never));
+  assert.equal(t.chainId, "0x4cef52");
+  assert.equal(t.chainName, "Arc Testnet");
   const m = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042, name: "Arc", rpc_url: "https://arc.g.alchemy.com/v2/SECRET", explorer_base: "" } as never));
   assert.equal(m.chainId, "0x13b2");
   assert.deepEqual(m.rpcUrls, ["https://rpc.mainnet.arc.io"], "a keyed server RPC never reaches a wallet");

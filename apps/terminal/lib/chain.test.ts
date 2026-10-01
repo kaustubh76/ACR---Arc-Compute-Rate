@@ -246,7 +246,10 @@ test("fallback.json belongs to the chain the build is for", () => {
 });
 
 test("isMainnet is the one predicate the UI's mainnet-only branches ask", () => {
-  assert.equal(isMainnet(chainFacts(null)), false, "static defaults are testnet");
+  // Was `false, "static defaults are testnet"`. The static defaults ARE the
+  // deployment now; a payload-less render used to claim Arc testnet, with the
+  // testnet explorer behind every address link.
+  assert.equal(isMainnet(chainFacts(null)), true, "static defaults are mainnet");
   assert.equal(isMainnet({ chainId: 5042 }), true);
   assert.equal(isMainnet({ chainId: 5042002 }), false);
   assert.equal(isMainnet({ chainId: 31337 }), false);
