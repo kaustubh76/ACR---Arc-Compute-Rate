@@ -31,9 +31,12 @@ The five steps below are the whole revenue path; if any of them stops you, that 
 4. **Buy.** *buy with your wallet · $0.00…*. Your wallet signs one message (no transaction).
    The listing answers, a toast shows the amount, and a row lands on the tape.
 5. **Check the receipt.** `/api/marketplace/receipts` on the terminal lists your purchase, and
-   `/api/revenue` moves by the listing's price. Read the *movement*, not the total — the running
-   total is wrong on the deployed service (it counts settlements from the old testnet deployment)
-   and the fix is not in the running image yet.
+   `/api/revenue` moves by the listing's price. **Read the *movement*, not the totals — and that
+   applies to BOTH.** The tape you are looking at in this step and the revenue counter beside it are
+   the same rehydrated ring, and on the deployed service it still carries 112 settlements from the
+   old testnet deployment (`$0.333477`) against a true 3 (`$0.00461`). Your own row is real and will
+   appear; the running total it lands on is not. The fix is in the image tagged `2026-09-30`, which
+   has not been deployed.
 
 Optional: the **Desk** on `/curve` gives you a Circle wallet (email + PIN, no extension) that can
 buy a **feed pass** for a day of reads. Fund it by sending USDC on Arc to the address it shows.

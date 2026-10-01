@@ -99,9 +99,14 @@ ACR has ever produced about a purchase nobody arranged. It is computed inside th
 when the settlement arrives (mirror lag 5 s), which is why it survived the API restart that erased
 the in-memory receipt counter underneath it — the chain is the record, `/revenue` is only a counter.
 
-`/revenue` on the deployed service is **not** the number to quote: it rehydrates a committed archive
-of Arc *testnet* settlements, and the fix for that (a chain filter in `_load_receipts`) is committed
-here but not yet in the running image. `/tca` is unaffected — it reads the chain.
+**Two numbers on the deployed service are not the ones to quote**, and they are the same number
+twice: `/revenue` **and** `/marketplace/receipts` — the settlement tape `/exchange` renders — both
+report `112 paid queries / $0.333477`, because both read a facilitator ring rehydrated from a
+committed archive of Arc *testnet* settlements. The truth is 3 settlements and $0.00461. The chain
+filter is committed here and in the image pushed as `2026-09-30`, which is not the one running;
+verified in that image against a two-row archive (one `eip155:5042`, one `eip155:5042002`), where
+**both** endpoints keep exactly the mainnet row. `/tca` is unaffected either way — it reads the
+chain, not the ring.
 
 Still open, said plainly: ownership of the six owned contracts is **pending** `acceptOwnership()`
 from the custody wallet (the registry is ownerless by design); the press signs and posts from the
