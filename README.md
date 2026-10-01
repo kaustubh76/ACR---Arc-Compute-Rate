@@ -302,7 +302,7 @@ Stated here rather than discovered. The full trust model — who can do what, an
 - **The carded tier is evadable by design.** Anyone can mint an agent card — that is what permissionless means — so a per-card limit is a per-key limit. Only the *human* tier is scarce.
 - **`scopeHash` is signed but not enforced.** It is in the card and in the signature; the gate checks it against nothing yet.
 - **Human resolutions expire weekly.** Each 7-day window starts with every wallet unresolved until `make resolve-humans` runs; the ops console fails loudly when it is missed.
-- **Single-chain by construction.** The benchmark's dependents live where it prints; there is no bridge, and CCTP is unused on purpose.
+- **Single-chain by construction, with one inbound exception.** The benchmark's dependents live where it prints, so the index itself never crosses a chain. The exception is funding: `apps/terminal/lib/bridge.ts` brings USDC *onto* Arc from seven chains (six Sepolia twins on testnet) using Circle's Bridge Kit over CCTP — approve, burn, wait for the attestation, mint on Arc — because Arc ships no hosted bridge and Circle's onramp needs KYB. It is inbound only; there is no path out.
 - **The original deploy EOA is still an authorized `ACROracle` signer** beside the Circle custody wallet.
 
 ---

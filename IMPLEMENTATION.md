@@ -93,11 +93,17 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥20 + npm (the Circl
   (x402 v2: `PAYMENT-REQUIRED` → Circle Gateway `/verify` + `/settle`, `exact`
   scheme over EIP-3009) when `ACR_X402_FACILITATOR_URL` + `ACR_X402_PAY_TO` are
   set. `scripts/deploy_circle.py` deploys the contracts via Circle's Smart
-  Contract Platform. Arc chain id is `5042002` and USDC is the native gas token,
-  so gasless is intrinsic — no ERC-4337 paymaster needed. Everything stays
+  Contract Platform. Arc mainnet is chain `5042` (testnet `5042002`) and USDC is
+  the native gas token, so the sender never needs a second asset for gas and no
+  ERC-4337 paymaster is required for the signing paths above. Sponsorship is a
+  separate matter and it *is* in use: the user-controlled SCAs in
+  `services/index_api/index_api/desk.py` have their gas paid by Circle Gas
+  Station, which is readable only from the ERC-4337 `UserOperationEvent`'s
+  `paymaster` topic and never from `networkFee` — `scripts/desk_evidence.py`
+  decodes it and prints the verdict (`docs/WALLETS.md`). Everything stays
   offline-tolerant: with no creds, `make test` runs credential-free.
-- The Terminal pins Next `14.2.x` and is deployed with the Dec-2025 advisory
-  accepted as a known limitation; a Next 15 upgrade would clear it.
+- The Terminal pins Next `16.3.x` (upgraded from `14.2.x` on 2026-09-27, which
+  cleared the Dec-2025 advisory and ran this project's first lint).
 - Terminal env vars: `ACR_API` / `NEXT_PUBLIC_ACR_API` point the Terminal at a
   seller API (server-side / browser-side respectively), and the server-only
   `ACR_BUYER_PRIVATE_KEY` (a funded EOA with an open Gateway deposit) enables
