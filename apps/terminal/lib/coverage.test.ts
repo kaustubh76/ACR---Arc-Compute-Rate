@@ -41,7 +41,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 63, // incl. the human gate section and its two endpoint rows
+  "app/developers/view.tsx": 73, // incl. the human gate section and the statement row
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,

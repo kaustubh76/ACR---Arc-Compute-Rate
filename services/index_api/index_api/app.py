@@ -57,6 +57,7 @@ from .humanid import (
 )
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
+from .statement import build_statement
 from .store import PrintStore
 from .tca import RATING_WINDOW_DAYS, human_tca, payer_tca, seller_rating
 from .x402 import (
@@ -1301,6 +1302,57 @@ def tca(
     """
     _meter_agent(request, agent)
     return payer_tca(_require_address(payer, "payer"), days=days)
+
+
+def _policy_for(business):
+    """A ``PolicyClient`` pointed at ONE business's wallet.
+
+    Built per request rather than cached: the wallet address comes from the
+    registry, and a cached client would keep serving a business whose wallet was
+    rotated. Returns None when the client cannot be built at all, so the
+    statement reports "measured, not spent for" instead of failing the page.
+    """
+    if not business.policy_wallet:
+        return None
+    try:
+        from acr_oracle_client.policy import PolicyClient
+
+        return PolicyClient(wallet_address=business.policy_wallet)
+    except Exception as exc:  # pragma: no cover - env dependent
+        log.warning("statement: no policy client for %s (%s)", business.slug, exc)
+        return None
+
+
+@app.get("/operator/statement/{business}")
+def operator_statement(
+    business: str,
+    request: Request,
+    days: int = 7,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """What the owner reads: what the agent decided, and what is waiting on them.
+
+    Ungated like the other per-payer surfaces — a business should not have to
+    pay to read its own statement, and a reviewer should not have to pay to
+    check ours.
+
+    ``business`` is a registry slug or a treasury address; a URL will carry
+    either. 404 rather than an empty statement for an unknown one: an empty
+    statement reads as "this business has spent nothing", which is a different
+    and much more flattering claim than "we have never heard of them".
+
+    USDC savings here come from observed quotes. The index appears only as
+    `market_context`, in basis points — see `statement.py` for why that
+    separation is load-bearing.
+    """
+    _meter_agent(request, agent)
+    st = build_statement(business, days=days, tca_fn=payer_tca, policy_for=_policy_for)
+    if st is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no business registered as {business!r}",
+        )
+    return st
 
 
 @app.get("/rating/{seller}")

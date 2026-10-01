@@ -69,6 +69,7 @@ const DESC: Record<string, React.ReactNode> = {
   "/terminal/data": <Ed x="The human terminal feed (this site)" p="Everything this website shows, as data" />,
   "/tca/{payer}": <Ed x="What one wallet paid, against the rate it could have seen" p="What one wallet paid, next to the fair rate at the time" />,
   "/rating/{seller}": <Ed x="A seller's grade, its parts, and how much of the scoring it covers" p="A seller's score, what went into it, and how complete it is" />,
+  "/operator/statement/{business}": <Ed x="One business's spend · what the agent decided, and what awaits the owner" p="What the money agent did for one business, and what needs your approval" />,
   "/tca/human": <Ed x="One bill across every wallet a verified human owns" p="One bill covering all the accounts that belong to the same person" />,
   "/humanid/info": <Ed x="The human-proof gate, described by the service itself" p="How we check someone is a real person, in the service's own words" />,
   "/agent/info": <Ed x="The agent-card gate, described by the service itself" p="How we check which robot is calling, in the service's own words" />,

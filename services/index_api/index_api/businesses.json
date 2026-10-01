@@ -1,0 +1,13 @@
+{
+  "_comment": [
+    "The business registry. Onboarding is a commit: see businesses.py for why.",
+    "A business IS its treasury address. `consented` gates the NAME only; an",
+    "unconsented business still counts and still gets a published ledger, under",
+    "the pseudonym `business <slug>`.",
+    "`policy_wallet` empty means the operator can price and meter for them but",
+    "cannot spend — which is what an evaluation looks like, and a real state.",
+    "`chain` is per business because mainnet and testnet totals are reported",
+    "separately and must never be added together."
+  ],
+  "businesses": []
+}

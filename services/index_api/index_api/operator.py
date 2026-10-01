@@ -83,6 +83,11 @@ class Obligation:
     obligation_id: str
     vendor: str
     billed_usdc: float
+    #: The business whose money this is, by registry slug. Part of the decision
+    #: and therefore part of the hash: a record that does not say whose treasury
+    #: paid is not a record anybody can audit, and with one wallet per business
+    #: it is the only field that distinguishes two otherwise identical invoices.
+    business: str = ""
     category: str = "general"
     #: ``x402`` a machine service we called · ``invoice`` a vendor bill ·
     #: ``milestone`` contractor work · ``subscription`` a renewal.
@@ -109,6 +114,8 @@ class ObligationDecision:
     intent: str
     #: One line naming the check that fired. The thing a reviewer reads first.
     rule: str
+    #: The business whose money this is, by registry slug.
+    business: str = ""
     resource: str = ""
     metered_quantity: float | None = None
     vendor_quantity: float | None = None
@@ -243,6 +250,7 @@ def decide(
         vendor=ob.vendor,
         category=ob.category,
         billed_usdc=ob.billed_usdc,
+        business=ob.business,
         resource=ob.resource,
         intent=REFUSE,
         rule="",
@@ -421,6 +429,7 @@ def run_obligation(
                 vendor=ob.vendor,
                 category=ob.category,
                 billed_usdc=ob.billed_usdc,
+                business=ob.business,
                 resource=ob.resource,
                 intent=ESCALATE,
                 rule=f"no budget on chain for {ob.category}, so the agent has no authority here",
