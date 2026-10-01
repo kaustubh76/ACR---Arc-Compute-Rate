@@ -52,6 +52,11 @@ def check(ok: bool, label: str) -> bool:
     return ok
 
 
+#: Why the last measurement could not be made, per label. A measurement that
+#: fails has to be able to say HOW, or every failure reads as the same shrug.
+LAST_FAILURE: dict[str, str] = {}
+
+
 def run(cmd: list[str], cwd: Path | None = None, timeout: int = 900) -> str:
     """Capture a command's output; '' when it cannot run (never raises, so one
     missing toolchain reports itself instead of hiding every other claim)."""
@@ -60,6 +65,8 @@ def run(cmd: list[str], cwd: Path | None = None, timeout: int = 900) -> str:
             cmd, cwd=cwd or ROOT, capture_output=True, text=True, timeout=timeout
         )
         return (p.stdout or "") + (p.stderr or "")
+    except subprocess.TimeoutExpired:
+        return f"__ERROR__ timed out after {timeout}s running {' '.join(cmd[:3])}…"
     except Exception as exc:  # noqa: BLE001 — a verdict beats a traceback
         return f"__ERROR__ {exc}"
 
@@ -168,9 +175,17 @@ def pytest_verdict() -> tuple[int, int] | None:
     # parses — the run goes green, the parse finds nothing, and the check
     # reports "could not run it", which is indistinguishable from a missing
     # toolchain. Measured: that is exactly what happened on the first attempt.
+    # ITS OWN BUDGET. `run`'s 900 s default was sized when this suite took ~336 s
+    # (2026-09-28). It is now 565–805 s under `.venv/bin/python -m pytest` plus
+    # ~60 s of `uv run` startup, so the measurement became MARGINAL: on
+    # 2026-10-01 the same tree passed this gate twice and reported "could not
+    # measure" three times, which sent me chasing a venv lock that did not
+    # exist. A budget that trips on a healthy suite makes "could not measure"
+    # meaningless, and the gate's whole value is that it means something.
     out = run(["uv", "run", "pytest", "packages", "services", "tests",
-               "-p", "no:cacheprovider", "--tb=no"])
+               "-p", "no:cacheprovider", "--tb=no"], timeout=2400)
     if out.startswith("__ERROR__"):
+        LAST_FAILURE["python suite"] = out.removeprefix("__ERROR__ ").strip()
         return None
     failed = int(m.group(1)) if (m := re.search(r"(\d+) failed", out)) else 0
     passed = int(m.group(1)) if (m := re.search(r"(\d+) passed", out)) else 0
@@ -266,7 +281,12 @@ def main() -> None:
             continue
         actual = measure()
         if actual is None:
-            check(False, f"{label}: could not measure (toolchain missing?)")
+            # Name WHICH failure. A timeout on a healthy suite and an absent
+            # toolchain are different problems, and printing one sentence for
+            # both is how a real stall gets read as a missing binary — the same
+            # trap `git_lines` above was written to avoid.
+            why = LAST_FAILURE.get(label) or "toolchain missing, or the output did not parse"
+            check(False, f"{label}: could not measure — {why}")
             continue
         check(actual == stated, f"{label}: README says {stated}, measured {actual}")
 
