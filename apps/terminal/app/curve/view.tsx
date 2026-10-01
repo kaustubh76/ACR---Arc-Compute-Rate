@@ -14,7 +14,7 @@ import { useFutures } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useDeskAddress } from "@/lib/useDeskAddress";
 import { contractNotional } from "@/lib/futuresBook";
-import { fmt, fmtPrice, heroFigure, money, serviceName } from "@/lib/format";
+import { fmtPrice, heroFigure, money, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
 
 /* Curve data is maker quotes the oracle does NOT publish — there is no

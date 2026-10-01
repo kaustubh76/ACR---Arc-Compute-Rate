@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
-import { apiBase, postLiveMeta } from "@/lib/api";
+import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
 import { chainFacts } from "@/lib/chain";
 import { RUNNABLE } from "@/lib/endpoints";
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   const started = Date.now();
   try {
-    const res = await fetch(`${apiBase()}${path}`, {
+    const { res } = await sellerFetch(path, {
       cache: "no-store",
       headers: { accept: "application/json", ...(agentCard ? { [CARD_HEADER]: agentCard } : {}) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -95,6 +95,9 @@ export async function POST(req: NextRequest) {
         path,
         status: res.status,
         ms: Date.now() - started,
+        // Which host served this probe, so "503" is attributable to a wrong
+        // ACR_API rather than to the press being down.
+        seller: baseState(),
         // The tier, parsed here, so the page does not have to read it back out of a
         // truncated preview string. Only /agent/whoami answers with one; elsewhere
         // it is simply absent. `carded` is whether a card was SENT, so a 401 on a
@@ -165,9 +168,9 @@ async function demoHumanCard(): Promise<string | null> {
   // on the page makes the same argument, and a demo that hardcoded what the gate
   // accepts would keep working after the gate changed.
   type Challenge = { audience?: string; chain_id?: number };
-  const challenge: Challenge = await fetch(`${apiBase()}/agent/challenge`, {
+  const challenge: Challenge = await sellerFetch("/agent/challenge", {
     cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS),
-  }).then((r) => r.json() as Promise<Challenge>).catch((): Challenge => ({}));
+  }).then(({ res }) => res.json() as Promise<Challenge>).catch((): Challenge => ({}));
 
   const minted = await mintCard({
     privateKey: key,

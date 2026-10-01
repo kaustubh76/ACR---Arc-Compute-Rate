@@ -242,6 +242,25 @@ async def _touch_self() -> None:
         log.debug("self-ping failed", exc_info=True)
 
 
+def _record_print_skip(poster) -> bool:
+    """Put a gas refusal on the keeper's chore log. True when one happened.
+
+    `OracleClient.post` declines quietly when the press is below its print floor
+    — what is left is kept for receipt mirroring, which cannot be redone. Quietly
+    is not good enough: an unexplained gap in the fixing is exactly the shape of
+    the 48.9-hour outage this project has already paid for once, so the reason
+    goes where /ops and the keeper's chore log will show it.
+    """
+    from . import keeper
+
+    reason = getattr(getattr(poster, "client", None), "last_skip_reason", None)
+    if not reason:
+        return False
+    keeper.record("print", reason)
+    log.warning("press declined to print: %s", reason)
+    return True
+
+
 async def _post_if_overdue(store, poster, reader, settings) -> None:
     """Post when the ON-CHAIN record is stale, wherever the refresh timer sits.
 
@@ -269,6 +288,7 @@ async def _post_if_overdue(store, poster, reader, settings) -> None:
     log.info("on-chain print is overdue for %s — posting off-cycle", stale or "every index")
     await asyncio.to_thread(store.refresh)
     await asyncio.to_thread(poster.post_latest, set(stale) if stale else None)
+    _record_print_skip(poster)
     await asyncio.to_thread(reader.read_all, use_cache=False)
 
 
@@ -440,14 +460,19 @@ async def _background(stop: asyncio.Event) -> None:
         # Post-on-wake: if the on-chain record is overdue (the press slept through
         # its slot), post now instead of waiting out a full refresh cycle. Mirrors
         # the timer body (refresh first so the posted ts clears the seeded cursor).
+        # `wake_post_after` (not `refresh_seconds`): on a host that is recycled
+        # more often than the product's cadence, the timer never fires and a
+        # restart alone must be enough to top the record up. Defaults to one full
+        # cycle, so nothing changes unless a deployment sets it.
         if poster.client.can_post() and _overdue_for_startup_post(
-            onchain, settings.refresh_seconds, time.time()
+            onchain, settings.wake_post_after, time.time()
         ):
             try:
                 await asyncio.to_thread(store.refresh)
                 await asyncio.to_thread(poster.post_latest)
                 await asyncio.to_thread(reader.read_all, use_cache=False)
-                log.info("posted overdue print on wake")
+                if not _record_print_skip(poster):
+                    log.info("posted overdue print on wake")
             except Exception:  # pragma: no cover - defensive
                 log.exception("post-on-wake failed (timer loop continues)")
     if reader.configured:
@@ -483,6 +508,7 @@ async def _background(stop: asyncio.Event) -> None:
             await asyncio.to_thread(store.refresh)
             if poster.client.can_post():
                 await asyncio.to_thread(poster.post_latest)
+                _record_print_skip(poster)
             if reader.configured:  # refresh the on-chain caches after any new post
                 await asyncio.to_thread(reader.read_all, use_cache=False)
                 from .marketplace import warm_attestation_summary

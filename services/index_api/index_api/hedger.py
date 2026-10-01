@@ -168,9 +168,17 @@ def build_hedger_state(futures, receipts: dict | None = None) -> dict:
 
     if receipts and payer:
         low_payer = payer.lower()
+        # Payer AND chain. The committed archive holds real settlements from Arc
+        # testnet, and filtering on payer alone put seven `eip155:5042002` rows
+        # into a mainnet bundle — the panel then argued that the print this agent
+        # bought led to the position it holds, using purchases made on another
+        # network. Same rule as `x402._load_receipts`: a row with no `network`
+        # recorded is kept, because pre-dating the field is not evidence.
+        here = s.caip2()
         rows = [
             r for r in (receipts.get("receipts") or [])
             if str(r.get("payer", "")).lower() == low_payer
+            and str(r.get("network") or "") in ("", here)
         ]
         # Sorted here rather than trusted. The live ring is already newest-first,
         # but the committed archive is append-ordered by CAPTURE, and capture

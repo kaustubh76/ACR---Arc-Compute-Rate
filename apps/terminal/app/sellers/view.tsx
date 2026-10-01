@@ -6,7 +6,6 @@ import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useCatalog, useTerminal } from "@/lib/useLive";
-import { useEdition } from "@/lib/useEdition";
 import { fmtInt, money } from "@/lib/format";
 import { INDICES } from "@/lib/indices";
 import type {
@@ -216,7 +215,6 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
   // calibrated market) — only the registry card above counts real on-chain
   // records. Label the table honestly so the two numbers can't be confused.
   const simTape = facts.tapeSource === "sim";
-  const plain = useEdition() === "plain";
 
   // null (not empty) when the rows are unknown — an archived bundle predating
   // the field. The control hides rather than filtering on a set it cannot see.

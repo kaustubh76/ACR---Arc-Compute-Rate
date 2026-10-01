@@ -218,12 +218,25 @@ export interface WalletPayResult {
   error?: string;
 }
 
-/** Why a signed payment was refused, in the visitor's words. The facilitator's
- *  reason rides in the second 402's PAYMENT-REQUIRED (`error`) and reads like
- *  a protocol log; the two a visitor can act on get a sentence, the rest pass
- *  through so a real bug stays visible. */
-export function explainRefusal(required: PaymentRequired | null, status: number): string {
-  const raw = String((required?.error as string | undefined) ?? "").trim();
+/** Why a signed payment was refused, in the visitor's words.
+ *
+ *  The reason can arrive two ways and the useful one is easy to miss: the
+ *  facilitator's `invalidReason` reaches us inside the 402's JSON **body** as
+ *  `detail: "payment invalid: <reason>"`, not in the PAYMENT-REQUIRED header.
+ *  Reading only the header is how a mainnet refusal showed a visitor "gave no
+ *  reason" while the server log said `self_transfer`. Both are read now, and
+ *  the reasons a visitor can act on get a sentence; the rest pass through so a
+ *  real bug stays visible. */
+export function explainRefusal(
+  required: PaymentRequired | null,
+  status: number,
+  body?: unknown,
+): string {
+  const detail = String((body as { detail?: unknown } | null)?.detail ?? "").trim();
+  const raw = String((required?.error as string | undefined) ?? "").trim() || detail;
+  if (/self_transfer/i.test(raw)) {
+    return "this wallet is the seller's own payout address, and Circle refuses a payment to yourself: pay from a different wallet";
+  }
   if (/insufficient|balance|exceeds/i.test(raw)) {
     return "your Gateway balance is short for this price: deposit USDC into Gateway first";
   }
@@ -274,7 +287,11 @@ export async function payWithWallet(s: WalletSession, f: Facts, url: string): Pr
     amountUsdc: Number(option.amount) / 1e6,
   };
   if (paid.status !== 200) {
-    out.error = explainRefusal(decodePaymentRequired(paid.headers.get("PAYMENT-REQUIRED")), paid.status);
+    out.error = explainRefusal(
+      decodePaymentRequired(paid.headers.get("PAYMENT-REQUIRED")),
+      paid.status,
+      out.body,
+    );
   }
   return out;
 }

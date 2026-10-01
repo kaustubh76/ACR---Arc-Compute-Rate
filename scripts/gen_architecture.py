@@ -212,7 +212,7 @@ def build() -> None:
     text(80, 40, "ACR — THE ARC COMPUTE RATE", 32, INK, w=1100, bold=True)
     text(80, 92, "A manipulation-resistant benchmark family for machine commerce · "
                  "one estimand · four pillars · settlement-grade on-chain rate", 15, GRAY, w=1600)
-    text(80, 116, "◆ LIVE on Arc testnet (chain 5042002) · Terminal on Vercel · Seller API on Render · "
+    text(80, 116, "◆ LIVE on Arc MAINNET (chain 5042) · Terminal on Vercel · Seller API on Render · "
                   "hourly Circle-signed posts · agents read AND trade the rate (autonomous hedger)", 13, GREEN, w=1700, bold=True)
 
     zone(2860, 40, 620, 250, "LEGEND", GRAY)
@@ -242,7 +242,7 @@ def build() -> None:
          ["self-deals · reciprocal funding ring", "pure-sybil cluster (all 3 shapes)",
           "a first-class contaminated input"], RED)
     card("a_tape", 80, 856, 560, 120, "TapeSource (ABC)",
-         ["SimSource — calibrated simulator", "ArcSource — Arc 5042002 live decode",
+         ["SimSource — calibrated simulator", "ArcSource — Arc 5042 live decode",
           "attested-market: amount = price · non-attested dropped"], TEAL, body_size=12)
 
     # ---------- B · ESTIMATOR CORE ----------
@@ -322,7 +322,7 @@ def build() -> None:
          ["x402-gated: /prints /curve /vol /futures", "/desk/* /marketplace /webhooks /hedger /revenue",
           "lifespan: refresh + poster + keeper + book warm", "/onchain + futures readers (90s TTL)"], PURPLE, body_size=12)
     card("e_facil", 1195, 1302, 430, 190, "x402 FACILITATOR",
-         ["Dev (mock) | Circle (Nanopayments)", "gateway-api-testnet.circle.com /v1/x402",
+         ["Dev (mock) | Circle (Nanopayments)", "gateway-api.circle.com /v1/x402",
           "verify+settle · exact · x402Version 2 · fail-closed",
           "durable receipts_live.jsonl (in image) · /revenue rounded 6dp"], PURPLE, body_size=11)
     card("e_term", 1660, 1302, 510, 190, "ACR TERMINAL (Next.js · 'Arc Dawn')",
@@ -357,7 +357,7 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1590, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1642, 510, 180, "TESTS · 744 py + 176 forge + 179 terminal + 34 agent",
+    card("h_tests", 2260, 1642, 510, 180, "TESTS · 761 py + 176 forge + 210 terminal + 35 agent",
          ["6 CI jobs: python · contracts · agent · terminal · subgraph · mcp", "anvil-gated on-chain integration · eval gate",
           "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
           "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
@@ -368,7 +368,7 @@ def build() -> None:
           "SOFR was methodology-first, liquidity-second", "the rate's administrator ≠ the rail's operator",
           "(the LIBOR neutrality lesson = the moat)"], GOLD)
     card("j_metrics", 2860, 590, 620, 470, "LIVE ON ARC · MEASURED",
-         ["Terminal (Vercel) · Seller API (Render) · chain 5042002",
+         ["Terminal (Vercel) · Seller API (Render) · chain 5042",
           "ACROracle            0x4f00…2609",
           "AttestationRegistry  0x23ae…dFb7",
           "ACRFutures           0x29d9…42fe · self-rolling (series 3)",
@@ -379,7 +379,7 @@ def build() -> None:
           "real x402 settled via Circle Gateway · durable receipts",
           "attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP",
           "100% Foundry invariants passing",
-          "744 py · 176 forge · 179 terminal · 34 agent — green"], INK, body_size=12)
+          "761 py · 176 forge · 210 terminal · 35 agent — green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
@@ -443,10 +443,10 @@ def build() -> None:
 
     # ---------- F · WHY ARC ----------
     zone(60, 2060, 3420, 250,
-         "F · WHY ARC — load-bearing for the MATH, not the deployment    ·    chain 5042002 · USDC = native gas token", TEAL)
+         "F · WHY ARC — load-bearing for the MATH, not the deployment    ·    chain 5042 · USDC = native gas token", TEAL)
     why = [
         ("ARC L1 (Malachite)", ["deterministic sub-second finality · no reorgs",
-                                 "chain 5042002 · rpc.testnet.arc.network"]),
+                                 "chain 5042 · rpc.mainnet.arc.io"]),
         ("CIRCLE GATEWAY", ["single canonical rail", "= complete observation, no selection bias"]),
         ("NANOPAYMENTS (x402)", ["sub-cent index monetization", "agents are the paying customers"]),
         ("USDC NUMERAIRE", ["native system contract 0x3600… = gas token",
@@ -472,7 +472,7 @@ def build() -> None:
           "0xFCa0…FFEA  v2 print: policyHash + humanAdjustedBound",
           "monotone per-payer guard · salt committed on chain"], ORANGE, body_size=12)
     card("t_graph", 650, 2795, 540, 215, "acr-tape SUBGRAPH (The Graph · Studio ethonline v0.2.0)",
-         ["7 data sources on arc-testnet · ~3 s behind head",
+         ["7 data sources on arc (mainnet) · ~3 s behind head",
           "Settlement.slippageBp benchmarked IN THE MAPPING",
           "  vs the arrival print, at the settling block",
           "Settlement.human · SellerDay / PayerDay · SellerWindow",
@@ -506,7 +506,7 @@ def build() -> None:
     zone(60, 3080, 3420, 340,
          "7-WEEK EXECUTION — cut lines: hedonic → class-buckets · future → paper-traded · NEVER cut W4 adoption or the paper", GRAY)
     weeks = [
-        ("W1 — TAPE", ["indexer live on Arc testnet", "empirical batching study", "OSS: microstructure paper"]),
+        ("W1 — TAPE", ["indexer live on Arc mainnet", "empirical batching study", "OSS: microstructure paper"]),
         ("W2 — ESTIMATOR v1", ["state-space filter", "trimmed VWM + first prints", "METHODOLOGY PAPER out"]),
         ("W3 — ON-CHAIN", ["AttestationRegistry +", "ACROracle contracts", "full invariant suite"]),
         ("W4 — ADOPTION ★", ["sellers attest metadata", "x402 index API live", "oracle consumed by partners"]),

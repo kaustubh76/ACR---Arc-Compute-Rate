@@ -37,10 +37,15 @@ test("decodePaymentRequired round-trips, and is null on garbage", () => {
 
 test("addChainParams: hex chain id, USDC as the 18-decimal native asset, from the facts", () => {
   const p = addChainParams(chainFacts(null));
-  assert.equal(p.chainId, "0x4cef52");
-  assert.equal(p.chainName, "Arc Testnet");
+  assert.equal(p.chainId, "0x13b2", "5042 — the static default is the deployment");
+  assert.equal(p.chainName, "Arc");
   assert.deepEqual(p.nativeCurrency, { name: "USDC", symbol: "USDC", decimals: 18 });
-  assert.deepEqual(p.rpcUrls, ["https://rpc.testnet.arc.io"], "the public endpoint, not the bundle's server RPC");
+  assert.deepEqual(p.rpcUrls, ["https://rpc.mainnet.arc.io"], "the public endpoint, not the bundle's server RPC");
+  // The payload must beat the default in BOTH directions, so this override is
+  // testnet now that the default is mainnet — otherwise it would assert nothing.
+  const t = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042002, name: "Arc Testnet", public_rpc_url: "https://rpc.testnet.arc.io" } as never));
+  assert.equal(t.chainId, "0x4cef52");
+  assert.equal(t.chainName, "Arc Testnet");
   const m = addChainParams(chainFacts({ ...chainFacts(null), chain_id: 5042, name: "Arc", rpc_url: "https://arc.g.alchemy.com/v2/SECRET", explorer_base: "" } as never));
   assert.equal(m.chainId, "0x13b2");
   assert.deepEqual(m.rpcUrls, ["https://rpc.mainnet.arc.io"], "a keyed server RPC never reaches a wallet");
@@ -68,4 +73,22 @@ test("fundingStep: no USDC anywhere → bridge; USDC but a short Gateway → dep
   assert.equal(fundingStep(0, 0.001, 0.001), "ready");
   assert.equal(fundingStep(0, 0.5, 0), "ready", "no price: any Gateway balance is ready");
   assert.equal(fundingStep(0, 0, 0), "bridge");
+});
+
+test("explainRefusal: the facilitator's reason arrives in the BODY, not the header", () => {
+  // Measured against mainnet 2026-09-27: the seller answers 402 with
+  // {detail: "payment invalid: self_transfer"} and an unhelpful header, and the
+  // visitor was shown "gave no reason" while the server log had the cause.
+  assert.match(
+    explainRefusal(null, 402, { detail: "payment invalid: self_transfer" }),
+    /seller's own payout address/,
+  );
+  assert.equal(
+    explainRefusal(null, 402, { detail: "payment invalid: something new" }),
+    "the seller refused the payment: payment invalid: something new",
+  );
+  // The header still wins when it carries something, and a body without a
+  // detail must not invent one.
+  assert.match(explainRefusal({ error: "insufficient_balance" }, 402, { detail: "ignored" }), /deposit USDC/);
+  assert.equal(explainRefusal(null, 402, {}), "the seller refused the payment and gave no reason");
 });

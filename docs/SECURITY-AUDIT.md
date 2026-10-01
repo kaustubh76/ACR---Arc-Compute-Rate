@@ -44,7 +44,7 @@ not us?** Findings are ranked by that answer, not by how clever the bug is.
 | M3 | Medium | Owner powers are single-key, untimelocked, and unpublished | **DISCLOSED** — the owner-powers table in `docs/SECURITY.md`. Timelock / multisig: open until one exists on Arc. |
 | M4 | Medium | `scopeHash` is signed but unenforced | **DISCLOSED** — `docs/SECURITY.md`; enforcement is open. |
 | L1 | Low | CORS default `*` on the read API | **FIXED for mainnet** — the guard requires an explicit origin on chain 5042. |
-| L2 | Low | Next.js 14.2.33 — critical advisory, fix is 16.3.5 | OPEN — a two-major upgrade; its own PR. `nanoid` fixed in place; `postcss`/`undici` ride on Next. |
+| L2 | Low | Next.js 14.2.33 — critical advisory, fix is 16.3.5 | **FIXED** — on **16.3.6** with React 19 (branch `chore/next-16`). `npm audit` 32→30 findings, **1 critical → 0**; `postcss` cleared with it. The 5 remaining highs are Bridge Kit's Solana tree, measured as a 0.2 MB lazy chunk in code paths this app never executes. The upgrade also turned on ESLint for the first time (`next lint` had never had a config, so it checked nothing) and that found two real bugs: a hook called after an early return in `app/index/[id]/view.tsx`, and `Date.now()` during render in `FuturesDesk`. `make test-terminal` now lints. |
 | L3 | Low | `cryptography` 49.0.0 and `aiohttp` 3.14.1 advisories | **FIXED** — `cryptography` 50.0.1, `aiohttp` 3.14.3. |
 
 ### C1 · One hot EOA owns five contracts and signs both oracles

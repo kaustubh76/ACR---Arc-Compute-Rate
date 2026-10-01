@@ -12,7 +12,7 @@ reachable, running live Circle Arc-testnet execution.
                              │ /terminal/data etc.           │ Arc testnet RPC
                  ┌───────────┴────────────┐        ┌─────────┴────────────┐
   browsers  →    │  Vercel: terminal      │        │  ACROracle / Registry │
-                 │  Next.js (server proxy)│        │  (chain 5042002)      │
+                 │  Next.js (server proxy)│        │  (chain 5042)         │
                  └────────────────────────┘        └──────────────────────┘
 ```
 
@@ -20,7 +20,7 @@ reachable, running live Circle Arc-testnet execution.
 
 | Piece | Host | URL |
 |---|---|---|
-| Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — suspended until the launch gates are filled |
+| Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — **LIVE** since 2026-09-27 (`gate: circle`, `signer: local`). On the **free** plan, so it sleeps: the first call takes ~20 s |
 | Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended by its owner since 2026-09-15 |
 | Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
 
@@ -55,7 +55,8 @@ docker build -t kaushtubh02/acr-api:latest .
 docker push kaushtubh02/acr-api:latest
 
 # 2. Confirm the new build is actually being served before moving on.
-curl -s https://acr-api-1fto.onrender.com/health
+#    (Free plan: the first call takes ~20 s while the instance wakes.)
+curl -s https://acr-api-mainnet.onrender.com/health
 
 # 3. Terminal: Vercel deploys are MANUAL for this project — trigger from the
 #    Vercel dashboard (or `vercel --prod` from apps/terminal).
@@ -72,7 +73,7 @@ last change removed.
 
 > The runbook below was written when Cloud Run was the intended host. It is kept
 > because it still works and is a reasonable path if you want scale-to-zero with a
-> warm-instance option. **It is not what serves `acr-api-1fto.onrender.com`** — the
+> warm-instance option. **It is not what serves `acr-api-mainnet.onrender.com`** — the
 > `acr-api-XXXX.run.app` URLs in this section are placeholders, not live endpoints.
 
 ### Cost
@@ -108,7 +109,7 @@ registry addresses, `TAPE_SOURCE=arc`, `CORS=*`). It prints the public URL:
 > **The live deployment is not this one.** Production runs on Render
 > (`deploy/deploy-render.sh`, image `docker.io/kaushtubh02/acr-api`) with
 > `ACR_TAPE_SOURCE=sim` — the Cloud Run script's `TAPE_SOURCE=arc` above is not
-> what serves `https://acr-api-1fto.onrender.com`. Check `/health` for the truth.
+> what serves `https://acr-api-mainnet.onrender.com`. Check `/health` for the truth.
 
 **Options:**
 - `ALWAYS_ON=1 ./deploy/deploy-cloudrun.sh` — one warm instance so the background
@@ -135,7 +136,7 @@ gcloud run services update acr-api --region <r> \
 **Verify:**
 ```bash
 API=https://acr-api-XXXX.run.app
-curl -s $API/health | python3 -m json.tool      # gate:circle, chain 5042002, oracle_configured
+curl -s $API/health | python3 -m json.tool      # gate:circle, chain 5042, oracle_configured
 curl -s $API/x402/info
 curl -s $API/terminal/data | python3 -c "import sys,json;print('oracle',json.load(sys.stdin)['oracle'])"
 ```

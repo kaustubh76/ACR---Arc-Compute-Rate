@@ -98,7 +98,14 @@ does automatically, on the next cycle, once `ACR_ORACLE_V2_ADDRESS` is set.
 # unknown slug answers with a bare "Subgraph not found" that is identical to
 # what a bad deploy key returns. Create it at https://thegraph.com/studio.
 npx graph auth <deploy-key>
-make graph-deploy SUBGRAPH=<slug>        # default slug: ethonline
+make graph-deploy SUBGRAPH=<slug> NETWORK=arc VERSION=v1.0.0-mainnet   # default slug: ethonline
+
+# The deploy key is ACCOUNT-scoped, and "Subgraph not found" is what Studio says
+# when the key's account does not hold that slug -- it reads exactly like a typo
+# in the name. Tell them apart by deploying to a slug you KNOW exists: if
+# `ethonline` is also "not found", the key is from the wrong account, not the
+# slug from the wrong string. (Measured 2026-09-28: a key that could see neither
+# cost an hour of hunting for a misspelling that did not exist.)
 ```
 
 Do **not** run `graph init` from Studio's onboarding panel: it scaffolds a fresh

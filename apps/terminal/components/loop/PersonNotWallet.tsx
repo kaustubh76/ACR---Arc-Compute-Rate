@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { AddressChip } from "@/components/chain/AddressChip";
 import { Ed } from "@/components/Ed";
 import { money } from "@/lib/format";
 import { boundMultiple, logFrac, windowEndsInS } from "@/lib/loop";

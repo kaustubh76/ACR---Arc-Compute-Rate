@@ -34,9 +34,9 @@ from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 # against BOTH the taker's and the auto-mirrored maker's margin checks.
 from index_api.desk import feasible_qty
 
-RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.testnet.arc.network")
+RPC = os.environ.get("ACR_ARC_RPC_URL", "https://rpc.mainnet.arc.io")
 FUTURES = os.environ.get("ACR_FUTURES_ADDRESS", "")
-ORACLE = os.environ.get("ACR_ORACLE_ADDRESS", "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609")
+ORACLE = os.environ.get("ACR_ORACLE_ADDRESS", "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07")
 INDEX = os.environ.get("SEED_INDEX", "ACR-INF")
 INTERVAL = float(os.environ.get("LOOP_INTERVAL", "120"))
 MAX_TRADES = int(os.environ.get("LOOP_MAX_TRADES", "100"))

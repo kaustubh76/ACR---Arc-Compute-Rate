@@ -35,6 +35,10 @@ WARMUP_REFRESHES = 48
 HOUR = 3600.0
 #: The persistent Arc testnet — the only chain whose oracle data may be committed.
 ARC_TESTNET_CHAIN_ID = 5042002
+ARC_MAINNET_CHAIN_ID = 5042
+#: The chains whose addresses are safe to commit — they outlive the process that
+#: wrote the bundle. Anything else (anvil, an unreachable RPC) is refused below.
+PERSISTENT_CHAIN_IDS = frozenset({ARC_MAINNET_CHAIN_ID, ARC_TESTNET_CHAIN_ID})
 #: Ephemeral local chains (anvil/hardhat) — never committable.
 LOCAL_CHAIN_IDS = {31337, 1337}
 
@@ -117,6 +121,13 @@ def _merge_live_receipts(ledger: dict) -> dict:
     """
     if not LIVE_RECEIPTS.exists():
         return ledger
+    # THIS CHAIN's settlements only. The capture file accumulates across
+    # deployments, and merging it unfiltered put seven `eip155:5042002` rows
+    # into a bundle headed chain 5042 — real payments, presented on a network
+    # they did not happen on, which is the same fault as counting them as
+    # revenue. A row with no `network` is kept: pre-dating the field is not
+    # evidence of the wrong chain.
+    here = get_settings().caip2()
     real: list[dict] = []
     for line in LIVE_RECEIPTS.read_text().splitlines():
         try:
@@ -124,6 +135,8 @@ def _merge_live_receipts(ledger: dict) -> dict:
         except Exception:
             continue
         if not r.get("tx_ref"):
+            continue
+        if str(r.get("network") or "") not in ("", here):
             continue
         real.append({
             "payer": r["payer"],
@@ -251,15 +264,21 @@ def _connected_chain_id(reader) -> int | None:
 
 
 def check_oracle_commit_guard(chain_id: int | None) -> None:
-    """Refuse to embed oracle data unless the connected chain is the persistent
-    Arc testnet. Local chains (anvil/hardhat) are ephemeral — a stale address
-    makes the offline Terminal show a false "on-chain ✓" badge — and an
-    unreachable RPC (None) cannot prove persistence either."""
-    if chain_id != ARC_TESTNET_CHAIN_ID:
+    """Refuse to embed oracle data unless the connected chain is PERSISTENT.
+
+    The property that matters is persistence, not which Arc it is: a local chain
+    (anvil/hardhat) is ephemeral, so a committed address from one makes the
+    offline Terminal show a false "on-chain ✓" badge, and an unreachable RPC
+    (None) cannot prove persistence either. This read `!= ARC_TESTNET_CHAIN_ID`
+    while testnet was the only persistent chain ACR had; since 2026-09-27 mainnet
+    is the one the product runs on, and it refused the very bundle a mainnet
+    build requires (`lib/chain.test.ts` fails the build on a chain mismatch).
+    Both Arc networks are allowed now; anything else still is not."""
+    if chain_id not in PERSISTENT_CHAIN_IDS:
         kind = "an ephemeral local chain" if chain_id in LOCAL_CHAIN_IDS else f"chain {chain_id}"
         raise SystemExit(
-            f"refusing to embed oracle data from {kind} — only the persistent "
-            f"Arc testnet ({ARC_TESTNET_CHAIN_ID}) may be committed"
+            f"refusing to embed oracle data from {kind} — only a persistent "
+            f"Arc network ({', '.join(str(c) for c in sorted(PERSISTENT_CHAIN_IDS))}) may be committed"
         )
 
 
@@ -281,8 +300,17 @@ def previous_bundle(path: Path = BUNDLE_PATH) -> dict:
         return {}  # absent on a first run, unparseable if hand-edited — same answer
 
 
-def carry_venue_forward(payload: dict, previous: dict) -> str | None:
+def carry_venue_forward(payload: dict, previous: dict, head_block: int | None = None) -> str | None:
     """Keep the last real venue capture when this run could not read one.
+
+    ONLY FROM THE SAME CHAIN. The rest of this docstring reasons about a reader
+    that missed a tape it should have seen; a chain switch is the other reason
+    the tape is empty, and there the old capture is not stale, it is foreign.
+    Measured 2026-09-28: the committed bundle carried eleven Arc *testnet* fills
+    (blocks 56.1M, series 3/4/5) into a bundle whose header already said chain
+    5042, whose head was 23.16M — an archived edition showing a mainnet visitor
+    a venue that traded somewhere else. A fresh mainnet venue has no series yet,
+    and `ACR_SNAPSHOT_ALLOW_NO_FUTURES=1` is how a bundle says that honestly.
 
     The guard below exists to stop a bundle claiming a venue that has never
     traded. Preserving the previous capture serves that intent; the env flag
@@ -305,6 +333,33 @@ def carry_venue_forward(payload: dict, previous: dict) -> str | None:
     if not (old_trades and old_desks):
         return None  # nothing worth keeping — let the guard refuse
 
+    # A fill cannot have happened at a block this chain has not reached. That
+    # catches what the chain-id check below cannot: the committed bundle was
+    # ALREADY stamped 5042 while holding testnet fills, so both ids matched and
+    # the carry sailed through. Block height is the fact the label got wrong —
+    # eleven fills at 56.1M on a chain whose head is 23.17M are from somewhere
+    # else, whatever the header says.
+    blocks_now = [int(t["block"]) for t in old_trades if t.get("block") is not None]
+    if head_block and blocks_now and max(blocks_now) > head_block:
+        return (
+            f"  ! venue NOT carried: {len(old_trades)} fill(s) sit at blocks up to "
+            f"{max(blocks_now):,}, past this chain's head of {head_block:,}.\n"
+            "    They cannot have happened here, whatever the previous bundle's header said.\n"
+            "    Pass ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 to commit a venue-less bundle."
+        )
+
+    now_chain = (payload.get("chain") or {}).get("chain_id")
+    was_chain = (previous.get("chain") or {}).get("chain_id")
+    if now_chain is not None and was_chain is not None and now_chain != was_chain:
+        return (
+            f"  ! venue NOT carried: the previous bundle is chain {was_chain}, this one is "
+            f"{now_chain}.\n"
+            f"    Those {len(old_trades)} fill(s) happened on another network and would read as "
+            "this one's.\n"
+            "    A venue-less bundle is the truthful answer until this chain's venue trades; pass\n"
+            "    ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 to commit one."
+        )
+
     payload["futures"] = old_desks
     payload["futures_trades"] = old_trades
 
@@ -320,6 +375,31 @@ def carry_venue_forward(payload: dict, previous: dict) -> str | None:
         "current one, and\n"
         "    will keep showing it until the venue trades again."
     )
+
+
+def declare_absent(payload: dict, section: str, reason: str) -> str | None:
+    """Record that a section is missing ON PURPOSE, naming the chain.
+
+    The two commit guards below exist to catch a snapshot run that lost a
+    section *silently* — an unset address, a throttled RPC — because an empty
+    section and a thing that does not exist are indistinguishable downstream.
+    Their opt-outs used to just return, which left exactly the hole the guard
+    was watching for, and the bundle could not tell a reader which it was.
+
+    A fresh chain makes the honest case real: on Arc mainnet the venue has no
+    series and no hedger runs, so a truthful bundle HAS no venue and no agent.
+    Stamping the absence keeps the distinction the guards were built on — a
+    declared absence is a fact about this chain, a silent one is still a bug —
+    and lets the terminal say "deployed, nothing trading yet" instead of
+    rendering a blank where a pillar should be.
+
+    Returns a line to print, or None when the section is actually present (the
+    flag was set but not needed, which is worth neither a stamp nor a warning).
+    """
+    absent = payload.setdefault("absent", {})
+    chain_id = (payload.get("chain") or {}).get("chain_id")
+    absent[section] = {"chain_id": chain_id, "reason": reason}
+    return f"  · {section}: declared absent on chain {chain_id} — {reason}"
 
 
 def check_futures_commit_guard(payload: dict) -> None:
@@ -340,10 +420,14 @@ def check_futures_commit_guard(payload: dict) -> None:
     Opt out with ACR_SNAPSHOT_ALLOW_NO_FUTURES=1 for a deliberately venue-less
     bundle, so the guard is a refusal rather than an obstacle.
     """
-    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_FUTURES", "") not in ("", "0", "false"):
-        return
     desks = payload.get("futures") or {}
     trades = payload.get("futures_trades") or []
+    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_FUTURES", "") not in ("", "0", "false"):
+        if not (desks and trades):
+            line = declare_absent(payload, "futures", "no series seeded on this chain yet")
+            if line:
+                print(line)
+        return
     if not desks:
         raise SystemExit(
             "refusing to commit a bundle with no futures desks — set "
@@ -378,9 +462,22 @@ def check_hedger_commit_guard(payload: dict) -> None:
     Opt out with ACR_SNAPSHOT_ALLOW_NO_HEDGER=1 for a deliberately agent-less
     bundle, so the guard is a refusal rather than an obstacle.
     """
-    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_HEDGER", "") not in ("", "0", "false"):
-        return
     h = payload.get("hedger") or {}
+    if os.environ.get("ACR_SNAPSHOT_ALLOW_NO_HEDGER", "") not in ("", "0", "false"):
+        if not (h.get("configured") and h.get("payer") and h.get("receipts")):
+            line = declare_absent(payload, "hedger", "no hedger agent runs on this chain")
+            # And take the panel's OWN not-configured branch rather than leaving
+            # `configured: true` over a null position. HedgerPanel renders the
+            # standings for a configured agent, so a null there prints an
+            # ellipsis where the headline figure goes — the exact failure the
+            # guard below was written to prevent, reached from the other side.
+            # The addresses in the environment belong to the deployment the
+            # agent actually runs on; on this chain it does not run.
+            if h:
+                h["configured"] = False
+            if line:
+                print(line)
+        return
     if not h.get("configured"):
         raise SystemExit(
             "refusing to commit a bundle with an unconfigured hedger — the "
@@ -451,7 +548,16 @@ def main() -> None:
     # Before the guards, so a venue the reader could not see this run is kept
     # rather than refused. Loud, because a carried section is frozen until the
     # venue trades again and that must not become invisible through repetition.
-    carried = carry_venue_forward(payload, previous_bundle())
+    # One RPC read, so the carry can tell a fill from this chain from a fill
+    # that predates it. Best-effort: an unreachable node falls back to the
+    # chain-id comparison alone rather than failing the snapshot.
+    head_block = None
+    try:
+        w3 = reader._client._connect()
+        head_block = int(w3.eth.block_number) if w3 is not None else None
+    except Exception:  # pragma: no cover - live chain
+        pass
+    carried = carry_venue_forward(payload, previous_bundle(), head_block)
     if carried:
         print(carried)
     # Both content guards answer the same question — is this archive worth

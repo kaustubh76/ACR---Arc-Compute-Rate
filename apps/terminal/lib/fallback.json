@@ -9,13 +9,14 @@
       "attack_cost_per_bp": 0.004275830181908355,
       "n_obs": 982,
       "trim_alpha": 0.1,
-      "policy_hash": "0xb105701fdbbdff44a6f88f6380a0035225743507a7b99d63f4d6cd257790af80",
-      "human_adjusted_bound": null,
+      "policy_hash": "0xa828392b6f2dd69503ff8b31a0ab70a8a580286457b3cfddeea4d77fe5ecf1b2",
+      "human_adjusted_bound": 10.00027583018191,
+      "humans_required": 1,
       "window_start": 169200.0,
       "window_end": 172800.0,
       "unit": "$/1k tokens",
       "naive_vwap": 1.0289976639027392,
-      "cost_to_move_1pct": 1.0296006292788733,
+      "cost_to_move_1pct": 1.029653150052868,
       "cleaned_pct": 95.0,
       "vol": 1.3618872034587826,
       "curve": [
@@ -61,12 +62,12 @@
       },
       "onchain": {
         "index_id": "ACR-INF",
-        "value": 0.49112046961935424,
-        "ci_lo": 0.4884496644258893,
-        "ci_hi": 0.49475541139948975,
-        "attack_cost_per_bp": 0.005494,
-        "timestamp": 9561600,
-        "posted_at": 1788605733
+        "value": 0.4953335241916736,
+        "ci_lo": 0.49425837042109294,
+        "ci_hi": 0.4987369827231464,
+        "attack_cost_per_bp": 0.010151,
+        "timestamp": 46800,
+        "posted_at": 1790586065
       }
     },
     "ACR-GPU": {
@@ -78,15 +79,16 @@
       "attack_cost_per_bp": 0.01420153319297591,
       "n_obs": 966,
       "trim_alpha": 0.1,
-      "policy_hash": "0xb105701fdbbdff44a6f88f6380a0035225743507a7b99d63f4d6cd257790af80",
-      "human_adjusted_bound": null,
+      "policy_hash": "0xa828392b6f2dd69503ff8b31a0ab70a8a580286457b3cfddeea4d77fe5ecf1b2",
+      "human_adjusted_bound": 10.010201533192976,
+      "humans_required": 1,
       "window_start": 169200.0,
       "window_end": 172800.0,
       "unit": "$/GPU-sec",
       "naive_vwap": 0.023307792792483514,
       "cost_to_move_1pct": 0.9416899407292512,
       "cleaned_pct": 95.0,
-      "vol": 0.8452916869888981,
+      "vol": 0.8452921065648676,
       "curve": [
         {
           "tenor_weeks": 1,
@@ -130,12 +132,12 @@
       },
       "onchain": {
         "index_id": "ACR-GPU",
-        "value": 0.010831107596982992,
-        "ci_lo": 0.010774606173239344,
-        "ci_hi": 0.010912241681289176,
-        "attack_cost_per_bp": 0.006295,
-        "timestamp": 9561600,
-        "posted_at": 1788605737
+        "value": 0.011027025952822034,
+        "ci_lo": 0.010980833012639255,
+        "ci_hi": 0.01105385865406088,
+        "attack_cost_per_bp": 0.016105,
+        "timestamp": 46800,
+        "posted_at": 1790586067
       }
     },
     "ACR-DATA": {
@@ -144,16 +146,17 @@
       "value": 0.0020995458859619474,
       "ci_lo": 0.0020938095104434274,
       "ci_hi": 0.0021104091438324934,
-      "attack_cost_per_bp": 0.022335358110376062,
+      "attack_cost_per_bp": 0.022378233751644175,
       "n_obs": 964,
       "trim_alpha": 0.1,
-      "policy_hash": "0xb105701fdbbdff44a6f88f6380a0035225743507a7b99d63f4d6cd257790af80",
-      "human_adjusted_bound": null,
+      "policy_hash": "0xa828392b6f2dd69503ff8b31a0ab70a8a580286457b3cfddeea4d77fe5ecf1b2",
+      "human_adjusted_bound": 10.018378233751644,
+      "humans_required": 1,
       "window_start": 169200.0,
       "window_end": 172800.0,
       "unit": "$/MB",
       "naive_vwap": 0.004330617657190072,
-      "cost_to_move_1pct": 0.9962590166552646,
+      "cost_to_move_1pct": 0.9963096617631775,
       "cleaned_pct": 95.0,
       "vol": 1.5585674895448172,
       "curve": [
@@ -199,12 +202,12 @@
       },
       "onchain": {
         "index_id": "ACR-DATA",
-        "value": 0.002028640876594722,
-        "ci_lo": 0.002008334168303839,
-        "ci_hi": 0.00204239180371302,
-        "attack_cost_per_bp": 0.008887,
-        "timestamp": 9561600,
-        "posted_at": 1788605742
+        "value": 0.00204800261417756,
+        "ci_lo": 0.002040073394193858,
+        "ci_hi": 0.002066234496557916,
+        "attack_cost_per_bp": 0.004353,
+        "timestamp": 46800,
+        "posted_at": 1790586068
       }
     }
   },
@@ -304,7 +307,7 @@
         "ts": 57600.0,
         "value": 0.4985787965071558,
         "ci_lo": 0.4973467239941327,
-        "ci_hi": 0.5005872307461122
+        "ci_hi": 0.5005900561765603
       },
       {
         "ts": 61200.0,
@@ -448,7 +451,7 @@
         "ts": 144000.0,
         "value": 0.4985787965071558,
         "ci_lo": 0.4973467239941327,
-        "ci_hi": 0.5005872307461122
+        "ci_hi": 0.5005900561765603
       },
       {
         "ts": 147600.0,
@@ -622,9 +625,9 @@
       },
       {
         "ts": 75600.0,
-        "value": 0.011226367855920422,
-        "ci_lo": 0.011126683137777522,
-        "ci_hi": 0.01127242517551446
+        "value": 0.011226368262354711,
+        "ci_lo": 0.011126678090057376,
+        "ci_hi": 0.011272431105557954
       },
       {
         "ts": 79200.0,
@@ -766,9 +769,9 @@
       },
       {
         "ts": 162000.0,
-        "value": 0.011226367855920422,
-        "ci_lo": 0.011126683137777522,
-        "ci_hi": 0.01127242517551446
+        "value": 0.011226368262354711,
+        "ci_lo": 0.011126678090057376,
+        "ci_hi": 0.011272431105557954
       },
       {
         "ts": 165600.0,
@@ -1508,56 +1511,7 @@
       }
     ]
   },
-  "futures": {
-    "ACR-INF": {
-      "series_id": 3,
-      "index_id": "ACR-INF",
-      "expiry_ts": 1786972818,
-      "multiplier": 10,
-      "maker": "0x9D44A7Dd4e7bF173B3F13ee41E1B60C8e92388d2",
-      "exists": true,
-      "settled": false,
-      "settlement_price": 0.0,
-      "maker_inventory": -3.72,
-      "maker_avg_price": 0.49360824461581293,
-      "maker_realized_usdc": 0.08046192240799935,
-      "maker_unrealized_usdc": -0.073008,
-      "open_interest": 3.72,
-      "trader_count": 5
-    },
-    "ACR-GPU": {
-      "series_id": 4,
-      "index_id": "ACR-GPU",
-      "expiry_ts": 1787055682,
-      "multiplier": 10,
-      "maker": "0x9D44A7Dd4e7bF173B3F13ee41E1B60C8e92388d2",
-      "exists": true,
-      "settled": false,
-      "settlement_price": 0.0,
-      "maker_inventory": -2.0,
-      "maker_avg_price": 0.011005952921430216,
-      "maker_realized_usdc": -0.0030979889833989502,
-      "maker_unrealized_usdc": -0.004212,
-      "open_interest": 2.0,
-      "trader_count": 4
-    },
-    "ACR-DATA": {
-      "series_id": 5,
-      "index_id": "ACR-DATA",
-      "expiry_ts": 1787055736,
-      "multiplier": 10,
-      "maker": "0x9D44A7Dd4e7bF173B3F13ee41E1B60C8e92388d2",
-      "exists": true,
-      "settled": false,
-      "settlement_price": 0.0,
-      "maker_inventory": -0.25,
-      "maker_avg_price": 0.002062461256157907,
-      "maker_realized_usdc": -0.00066830500884242,
-      "maker_unrealized_usdc": -0.000668,
-      "open_interest": 0.25,
-      "trader_count": 2
-    }
-  },
+  "futures": {},
   "attack": {
     "per_index": [
       {
@@ -1762,7 +1716,7 @@
         "attack": false,
         "acr_ci_lo": 0.4991338913675676,
         "acr_ci_hi": 0.5014796850008805,
-        "attack_cost_per_bp": 0.02382647379716396,
+        "attack_cost_per_bp": 0.02388553920973374,
         "n_raw": 1994,
         "n_obs": 1994,
         "cleaned_pct": 61.61004671371724,
@@ -1778,7 +1732,7 @@
         "attack": false,
         "acr_ci_lo": 0.493415893842776,
         "acr_ci_hi": 0.49713041242731537,
-        "attack_cost_per_bp": 0.004434315996037534,
+        "attack_cost_per_bp": 0.0043816641274188745,
         "n_raw": 1921,
         "n_obs": 1921,
         "cleaned_pct": 64.30149241301973,
@@ -1788,39 +1742,44 @@
     "usdc_burned": 147.60000000002378,
     "n_adversarial": 36000
   },
-  "oracle": "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609",
+  "oracle": "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07",
   "chain": {
-    "name": "Arc Testnet",
-    "chain_id": 5042002,
-    "caip2": "eip155:5042002",
-    "rpc_url": "https://rpc.testnet.arc.network",
-    "explorer_base": "https://testnet.arcscan.app",
+    "name": "Arc",
+    "chain_id": 5042,
+    "circle_blockchain": "ARC",
+    "gateway_chain": "arc",
+    "private_mainnet": false,
+    "caip2": "eip155:5042",
+    "rpc_url": "https://rpc.mainnet.arc.io",
+    "public_rpc_url": "https://rpc.mainnet.arc.io",
+    "explorer_base": "https://explorer.arc.io",
     "usdc_address": "0x3600000000000000000000000000000000000000",
-    "gateway_wallet": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
-    "oracle_address": "0x4f00e3BDd224F4c4b4958D54cD774E84B9092609",
-    "registry_address": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
-    "futures_address": "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe",
-    "attestor_address": "0xe671a8E73900F1186448cFFeA9e730F5E50DFD47",
+    "gateway_wallet": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE",
+    "oracle_address": "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07",
+    "registry_address": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
+    "futures_address": "0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b",
+    "attestor_address": "0xB9508caD4A5C367C3a62B6767C4837a607EaA490",
+    "humanid_address": "0x7134622a01Add334eA306dDa5A5877b418a940B5",
     "gate": "dev",
     "tape_source": "sim",
-    "signer": "0x8366968f84a343CF70941EBe858428643d825cb0",
+    "signer": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
     "poster": {
-      "posts": 17,
+      "posts": 9,
       "last": {
         "ACR-INF": {
-          "tx": "0x4dcc1c0a84b2b9287e35b9f8ef3eebdb80d0dd438842c5433279caaf68c23df1",
-          "block": 60567261,
-          "at_wall": 1788605733.0
+          "tx": "0xc12c3e2f67b12acfd7efbb7c069516557cffc65eeb40b89f39616b304552cc62",
+          "block": 23173916,
+          "at_wall": 1790586065.0
         },
         "ACR-GPU": {
-          "tx": "0x8df315645e80907db40dae4695da2457a682f673f30558a7266f8814bfbc72b8",
-          "block": 60567268,
-          "at_wall": 1788605737.0
+          "tx": "0x2d25021ea2c70a1725b9b04356550eafe64a6fa8302816ab2ce2a4ea2737f133",
+          "block": 23173919,
+          "at_wall": 1790586067.0
         },
         "ACR-DATA": {
-          "tx": "0xb86290049bdc5d09991bb075248a11117c1acfd7e0f4dd6403b9fcc649b5e6c9",
-          "block": 60567278,
-          "at_wall": 1788605742.0
+          "tx": "0x88b997ba19ca97817699031fc417565efb0ae828820b0cf84d0111f3b9389a53",
+          "block": 23173922,
+          "at_wall": 1790586068.0
         }
       }
     }
@@ -1845,61 +1804,14 @@
           "futures"
         ],
         "attestation": {
-          "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+          "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
           "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-          "sellers_attested": 6,
-          "sellers": [
-            {
-              "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-              "service": "inference",
-              "model_class": "frontier",
-              "latency_slo_ms": 800.0,
-              "schema_id": "openai/chat@1"
-            },
-            {
-              "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-              "service": "gpu",
-              "model_class": "mid",
-              "latency_slo_ms": 2500.0,
-              "schema_id": "gpu/h100@1"
-            },
-            {
-              "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-              "service": "inference",
-              "model_class": "open",
-              "latency_slo_ms": 1200.0,
-              "schema_id": "llama/chat@1"
-            },
-            {
-              "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-              "service": "data",
-              "model_class": "small",
-              "latency_slo_ms": 400.0,
-              "schema_id": "data/feed@1"
-            },
-            {
-              "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-              "service": "inference",
-              "model_class": "mid",
-              "latency_slo_ms": 950.0,
-              "schema_id": "mistral/chat@1"
-            },
-            {
-              "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-              "service": "inference",
-              "model_class": "mid",
-              "latency_slo_ms": 1000.0,
-              "schema_id": "qwen/chat@1"
-            }
-          ],
-          "services": [
-            "data",
-            "gpu",
-            "inference"
-          ],
+          "sellers_attested": 0,
+          "sellers": [],
+          "services": [],
           "latency_slo_ms": {
-            "min": 400.0,
-            "max": 2500.0
+            "min": null,
+            "max": null
           }
         }
       },
@@ -1908,13 +1820,13 @@
           "resource": "/prints",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/prints",
@@ -1924,7 +1836,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -1993,61 +1905,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2062,13 +1927,13 @@
           "resource": "/prints/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/prints/ACR-INF",
@@ -2078,7 +1943,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2152,61 +2017,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2221,13 +2039,13 @@
           "resource": "/prints/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/prints/ACR-GPU",
@@ -2237,7 +2055,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2311,61 +2129,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2380,13 +2151,13 @@
           "resource": "/prints/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/prints/ACR-DATA",
@@ -2396,7 +2167,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2470,61 +2241,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2539,13 +2263,13 @@
           "resource": "/curve/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/curve/ACR-INF",
@@ -2555,7 +2279,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2630,61 +2354,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2699,13 +2376,13 @@
           "resource": "/curve/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/curve/ACR-GPU",
@@ -2715,7 +2392,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2790,61 +2467,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -2859,13 +2489,13 @@
           "resource": "/curve/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/curve/ACR-DATA",
@@ -2875,7 +2505,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -2950,61 +2580,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3019,13 +2602,13 @@
           "resource": "/vol/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/vol/ACR-INF",
@@ -3035,7 +2618,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3087,61 +2670,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3156,13 +2692,13 @@
           "resource": "/vol/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/vol/ACR-GPU",
@@ -3172,7 +2708,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3224,61 +2760,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3293,13 +2782,13 @@
           "resource": "/vol/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/vol/ACR-DATA",
@@ -3309,7 +2798,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3361,61 +2850,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3430,13 +2872,13 @@
           "resource": "/seller-scores/ACR-INF",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/seller-scores/ACR-INF",
@@ -3446,7 +2888,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3518,61 +2960,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3587,13 +2982,13 @@
           "resource": "/seller-scores/ACR-GPU",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/seller-scores/ACR-GPU",
@@ -3603,7 +2998,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3675,61 +3070,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3744,13 +3092,13 @@
           "resource": "/seller-scores/ACR-DATA",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
-              "payTo": "0xACacE0000000000000000000000000000000CafE",
+              "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
               "maxAmountRequired": "100",
               "amount": "100",
               "resource": "/seller-scores/ACR-DATA",
@@ -3760,7 +3108,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3832,61 +3180,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -3901,11 +3202,11 @@
           "resource": "/compute/acr-seller-inf-frontier",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
               "maxAmountRequired": "5843",
@@ -3917,7 +3218,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -3985,61 +3286,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4058,11 +3312,11 @@
           "resource": "/compute/acr-seller-inf-open",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
               "maxAmountRequired": "4410",
@@ -4074,7 +3328,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -4142,61 +3396,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4215,11 +3422,11 @@
           "resource": "/compute/acr-seller-inf-mid-a",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
               "maxAmountRequired": "5229",
@@ -4231,7 +3438,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -4299,61 +3506,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4372,11 +3532,11 @@
           "resource": "/compute/acr-seller-inf-mid-b",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
               "maxAmountRequired": "5101",
@@ -4388,7 +3548,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -4456,61 +3616,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4529,11 +3642,11 @@
           "resource": "/compute/acr-seller-gpu-mid",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
               "maxAmountRequired": "5789",
@@ -4545,7 +3658,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -4613,61 +3726,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4686,11 +3752,11 @@
           "resource": "/compute/acr-seller-data-small",
           "type": "http",
           "x402Version": 2,
-          "lastUpdated": "2026-09-05T11:52:42.334Z",
+          "lastUpdated": "2026-09-28T10:02:14.380Z",
           "accepts": [
             {
               "scheme": "exact",
-              "network": "eip155:5042002",
+              "network": "eip155:5042",
               "asset": "0x3600000000000000000000000000000000000000",
               "payTo": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
               "maxAmountRequired": "3718",
@@ -4702,7 +3768,7 @@
               "extra": {
                 "name": "GatewayWalletBatched",
                 "version": "1",
-                "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+                "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
               }
             }
           ],
@@ -4770,61 +3836,14 @@
                 "futures"
               ],
               "attestation": {
-                "registry": "0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7",
+                "registry": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
                 "standard": "EIP-712 seller attestations (ERC-8004-style reputation anchor)",
-                "sellers_attested": 6,
-                "sellers": [
-                  {
-                    "seller": "0xa1c8fD16389A46b0F10e5Ee591dc882375BdFca4",
-                    "service": "inference",
-                    "model_class": "frontier",
-                    "latency_slo_ms": 800.0,
-                    "schema_id": "openai/chat@1"
-                  },
-                  {
-                    "seller": "0xEC95f447F2B2da08Aa4f2722bfc6FD01f389cF9D",
-                    "service": "gpu",
-                    "model_class": "mid",
-                    "latency_slo_ms": 2500.0,
-                    "schema_id": "gpu/h100@1"
-                  },
-                  {
-                    "seller": "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19",
-                    "service": "inference",
-                    "model_class": "open",
-                    "latency_slo_ms": 1200.0,
-                    "schema_id": "llama/chat@1"
-                  },
-                  {
-                    "seller": "0x0721821F888c96121e6EFbF7046aBa93d16e9b23",
-                    "service": "data",
-                    "model_class": "small",
-                    "latency_slo_ms": 400.0,
-                    "schema_id": "data/feed@1"
-                  },
-                  {
-                    "seller": "0x3d5364f585C6fE069d3f482A9fc8d4B8661423F2",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 950.0,
-                    "schema_id": "mistral/chat@1"
-                  },
-                  {
-                    "seller": "0x500C3A34b342e98a36E40D60fbeDF9d238DE2406",
-                    "service": "inference",
-                    "model_class": "mid",
-                    "latency_slo_ms": 1000.0,
-                    "schema_id": "qwen/chat@1"
-                  }
-                ],
-                "services": [
-                  "data",
-                  "gpu",
-                  "inference"
-                ],
+                "sellers_attested": 0,
+                "sellers": [],
+                "services": [],
                 "latency_slo_ms": {
-                  "min": 400.0,
-                  "max": 2500.0
+                  "min": null,
+                  "max": null
                 }
               }
             },
@@ -4843,72 +3862,16 @@
     },
     "receipts": {
       "gate": "dev",
-      "paid_queries": 31,
-      "revenue_usdc": 0.0031,
+      "paid_queries": 24,
+      "revenue_usdc": 0.0024,
       "price_usdc": 0.0001,
       "receipts": [
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "09afdf2b-f9fe-48a8-9a3f-bff8c1332c2f",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 31
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "f1f50c2f-46f4-4e40-b54b-0ef0526aa602",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 30
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "9aa7a2cc-34fa-42f6-9849-bee41aab43db",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 29
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "5f3d1ceb-8605-4b9b-9a5e-3d2373d31058",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 28
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "5020afca-28ec-4c25-9874-a11ee520cb4f",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 27
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "5c02b811-5ef9-4338-bd0e-e30fbfd26a19",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 26
-        },
-        {
-          "payer": "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d",
-          "amount_usdc": 0.0001,
-          "tx_ref": "02c28e72-ee0e-477d-9fd6-55f91b3953a0",
-          "network": "eip155:5042002",
-          "scheme": "exact",
-          "seq": 25
-        },
         {
           "seq": 24,
           "payer": "0x186ff10c3fc4e04bbdcf3a0242290d7a630506ac",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-24",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4916,7 +3879,7 @@
           "payer": "0x622442110f89cb3cf8dab0438ea0932c33aa431d",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-23",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4924,7 +3887,7 @@
           "payer": "0xfd37c35bbd085fce1ad6d23b5403d2e0102d84aa",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-22",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4932,7 +3895,7 @@
           "payer": "0xfc5168141c4991df1e2c3af2654ca4373ab41590",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-21",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4940,7 +3903,7 @@
           "payer": "0xc3526e9e147121c26b14b8f3ba09fc277b2ac30b",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-20",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4948,7 +3911,7 @@
           "payer": "0x8ae9ced1b03981a06ea535c49568e1d7319f50a1",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-19",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4956,7 +3919,7 @@
           "payer": "0x5bb8600a7d96ff47e5d2b3ad6efe3598b8bc02a5",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-18",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4964,7 +3927,7 @@
           "payer": "0xac860ebad1af9c7b2934754c57647c7b861db1e9",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-17",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4972,7 +3935,7 @@
           "payer": "0x37687ddb7f6750a2f33b9c4f3ec8d53f13645508",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-16",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4980,7 +3943,7 @@
           "payer": "0xad31e2e75e4b45c8ca57fb442587d5d3f6e29af7",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-15",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4988,7 +3951,7 @@
           "payer": "0x172c2847ccd7e7f19adb6185cb71bdf625f14280",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-14",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -4996,7 +3959,7 @@
           "payer": "0x0189728e4bedb848549e9da160d63782a6f22850",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-13",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5004,7 +3967,7 @@
           "payer": "0x294a5b3c8c0bbed1a5842457f2ec8c831d0abbc3",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-12",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5012,7 +3975,7 @@
           "payer": "0xe56db6caa209ffe006521fb63d89cacaaf8e7e2d",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-11",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5020,7 +3983,7 @@
           "payer": "0x92ec06df7dcd1768af48f1e963a5d099dc4a87ff",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-10",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5028,7 +3991,7 @@
           "payer": "0xb3e57970e7cb42ca9765495fef5a6df85209418e",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-9",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5036,7 +3999,7 @@
           "payer": "0xb24375744761862b9fd9c14160b437b1cdcc7e56",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-8",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5044,7 +4007,7 @@
           "payer": "0xea29af3524853adf333059c04eb1a719ebceb316",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-7",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5052,7 +4015,7 @@
           "payer": "0x29fc8dc1eec986592b92996e55427f6bdaaac316",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-6",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5060,7 +4023,7 @@
           "payer": "0x952354b74f033aeabfa1f8155c62fe4ebb1cd4a4",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-5",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5068,7 +4031,7 @@
           "payer": "0x22511cee73790652fb368fea65e6dc4d325ce494",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-4",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5076,7 +4039,7 @@
           "payer": "0x0e5f1c10c2004f9090807b84deebacea944a0512",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-3",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5084,7 +4047,7 @@
           "payer": "0x33d5c8e8952d35e1eef143c8adc1da178e87dfe4",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-2",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         },
         {
@@ -5092,16 +4055,15 @@
           "payer": "0xebafa2ed42f8852040be9b66d725e6c0f73a1124",
           "amount_usdc": 0.0001,
           "tx_ref": "sim-1",
-          "network": "eip155:5042002",
+          "network": "eip155:5042",
           "scheme": "sim"
         }
-      ],
-      "real_settlements": 7
+      ]
     }
   },
   "revenue": {
-    "paid_queries": 31,
-    "revenue_usdc": 0.0031,
+    "paid_queries": 24,
+    "revenue_usdc": 0.0024,
     "price_usdc": 0.0001,
     "recent": [
       {
@@ -5136,7 +4098,9 @@
     "facilitator": "dev",
     "price_usdc": 0.0001,
     "scheme": "x402",
-    "network": "eip155:5042002",
+    "network": "eip155:5042",
+    "gateway_chain": "arc",
+    "private_mainnet": false,
     "pay_to": "0xACacE0000000000000000000000000000000CafE",
     "payment_header": "PAYMENT-SIGNATURE",
     "gated_endpoints": [
@@ -5144,7 +4108,8 @@
       "/prints/{index_id}",
       "/curve/{index_id}",
       "/vol/{index_id}",
-      "/seller-scores/{index_id}"
+      "/seller-scores/{index_id}",
+      "/compute/{label}"
     ]
   },
   "x402_exchange_sample": {
@@ -5154,9 +4119,9 @@
         "WWW-Authenticate": "x402",
         "X-402-Price": "0.0001",
         "X-402-Asset": "USDC",
-        "X-402-Network": "arc-testnet",
-        "X-402-Pay-To": "0xACacE0000000000000000000000000000000CafE",
-        "PAYMENT-REQUIRED": "eyJ4NDAyVmVyc2lvbiI6IDIsICJlcnJvciI6ICJwYXltZW50IHJlcXVpcmVkIiwgInJlc291cmNlIjogeyJ1cmwiOiAiL3ByaW50cyIsICJkZXNjcmlwdGlvbiI6ICJBQ1IgbWFjaGluZS1jb21tZXJjZSBpbmRleCBxdWVyeSIsICJtaW1lVHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIn0sICJhY2NlcHRzIjogW3sic2NoZW1lIjogImV4YWN0IiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAiYXNzZXQiOiAiMHgzNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInBheVRvIjogIjB4QUNhY0UwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwQ2FmRSIsICJtYXhBbW91bnRSZXF1aXJlZCI6ICIxMDAiLCAiYW1vdW50IjogIjEwMCIsICJyZXNvdXJjZSI6ICIvcHJpbnRzIiwgImRlc2NyaXB0aW9uIjogIkFDUiBtYWNoaW5lLWNvbW1lcmNlIGluZGV4IHF1ZXJ5IiwgIm1pbWVUeXBlIjogImFwcGxpY2F0aW9uL2pzb24iLCAibWF4VGltZW91dFNlY29uZHMiOiA2MCwgImV4dHJhIjogeyJuYW1lIjogIkdhdGV3YXlXYWxsZXRCYXRjaGVkIiwgInZlcnNpb24iOiAiMSIsICJ2ZXJpZnlpbmdDb250cmFjdCI6ICIweDAwNzc3NzdkN0VCQTQ2ODhCRGVGM0UzMTFiODQ2RjI1ODcwQTE5QjkifX1dfQ=="
+        "X-402-Network": "eip155:5042",
+        "X-402-Pay-To": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
+        "PAYMENT-REQUIRED": "eyJ4NDAyVmVyc2lvbiI6IDIsICJlcnJvciI6ICJwYXltZW50IHJlcXVpcmVkIiwgInJlc291cmNlIjogeyJ1cmwiOiAiL3ByaW50cyIsICJkZXNjcmlwdGlvbiI6ICJBQ1IgbWFjaGluZS1jb21tZXJjZSBpbmRleCBxdWVyeSIsICJtaW1lVHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIn0sICJhY2NlcHRzIjogW3sic2NoZW1lIjogImV4YWN0IiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIiLCAiYXNzZXQiOiAiMHgzNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwgInBheVRvIjogIjB4MTU0N0IwZDNDMzM0RjI2NEQyOEIwODc1NjZCNTEyQUI1Q0Q4NTM3OSIsICJtYXhBbW91bnRSZXF1aXJlZCI6ICIxMDAiLCAiYW1vdW50IjogIjEwMCIsICJyZXNvdXJjZSI6ICIvcHJpbnRzIiwgImRlc2NyaXB0aW9uIjogIkFDUiBtYWNoaW5lLWNvbW1lcmNlIGluZGV4IHF1ZXJ5IiwgIm1pbWVUeXBlIjogImFwcGxpY2F0aW9uL2pzb24iLCAibWF4VGltZW91dFNlY29uZHMiOiA2MCwgImV4dHJhIjogeyJuYW1lIjogIkdhdGV3YXlXYWxsZXRCYXRjaGVkIiwgInZlcnNpb24iOiAiMSIsICJ2ZXJpZnlpbmdDb250cmFjdCI6ICIweDc3Nzc3Nzc3RGNjNGQ1QThCNkU0MThGZDA0RDg5OTdlZjExMDAwZUUifX1dfQ=="
       },
       "body": {
         "x402Version": 2,
@@ -5169,9 +4134,9 @@
         "accepts": [
           {
             "scheme": "exact",
-            "network": "eip155:5042002",
+            "network": "eip155:5042",
             "asset": "0x3600000000000000000000000000000000000000",
-            "payTo": "0xACacE0000000000000000000000000000000CafE",
+            "payTo": "0x1547B0d3C334F264D28B087566B512AB5CD85379",
             "maxAmountRequired": "100",
             "amount": "100",
             "resource": "/prints",
@@ -5181,7 +4146,7 @@
             "extra": {
               "name": "GatewayWalletBatched",
               "version": "1",
-              "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9"
+              "verifyingContract": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE"
             }
           }
         ]
@@ -5191,185 +4156,41 @@
       "status": 200,
       "payer": "0xebafa2ed42f8852040be9b66d725e6c0f73a1124",
       "headers": {
-        "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0=",
-        "X-PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIwMDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0="
+        "PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0=",
+        "X-PAYMENT-RESPONSE": "eyJzdWNjZXNzIjogdHJ1ZSwgInRyYW5zYWN0aW9uIjogImRldi0xIiwgIm5ldHdvcmsiOiAiZWlwMTU1OjUwNDIiLCAicGF5ZXIiOiAiMHhlYmFmYTJlZDQyZjg4NTIwNDBiZTliNjZkNzI1ZTZjMGY3M2ExMTI0In0="
       },
       "body_note": "prints payload served"
     }
   },
-  "futures_trades": [
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.002062461256157907,
-      "block": 56161183,
-      "tx": "0x556bf10c8c9efd8375eac6b9c9cc0028e399877afe6ae3b3899df77264cb8e40",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.002062461256157907,
-      "block": 56160382,
-      "tx": "0x11a84ed5843899cfcf560a7abf60a822f65d02ab6f135ab6ffd631dd5aca8d99",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.002062461256157907,
-      "block": 56159737,
-      "tx": "0x00f172298c765b522dfa12834a3608855e54c58258c8ce87c32780e80333c634",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.002062461256157907,
-      "block": 56159122,
-      "tx": "0xda2c95c3066680e129e230817c8636203f180a9df0ce438ab3e93bafb92e5ba5",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.002062461256157907,
-      "block": 56158577,
-      "tx": "0xef9330f3866bc31abd73a8220a3b5a1c0426fd180a4fbb504a64b525a95dcf72",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.00204800261417756,
-      "block": 56151567,
-      "tx": "0xfc6196059a6eb679b142c40f34c5cda7142b431b2a0c97e9a8d2e8c7e82f5326",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 3,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.49112046961935424,
-      "block": 56144551,
-      "tx": "0x73d5efff67f1b19d214a642bd0fc6218693781cf77d5823f1f3e5ce7ccd20371",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.011061675358186168,
-      "block": 56137480,
-      "tx": "0x755fbd333c6b29c75c0f7884edf08083fea273c371846bcefa1914a980a68348",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 5,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.00204800261417756,
-      "block": 56130466,
-      "tx": "0x899eaab2dddb70cd772d4911162e33f7abe498438fa73b93f6ec8658eefee69c",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 3,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": -0.25,
-      "side": "sell",
-      "mark": 0.49112046961935424,
-      "block": 56123413,
-      "tx": "0x4481becfc80abd876602542f647d0db0668260f6d6cd46aeba3094642a865bac",
-      "seen_at": 1786307436.4623559
-    },
-    {
-      "series_id": 4,
-      "taker": "0xc972642F1489E7345729e33d0606AF8dC401C8ec",
-      "qty": 0.25,
-      "side": "buy",
-      "mark": 0.011061675358186168,
-      "block": 56116398,
-      "tx": "0xcbf865e5490e3350f06d6482f2ed5d7d5bdd5f2809c376b53f7c50e472d146bb",
-      "seen_at": 1786307436.4623559
-    }
-  ],
+  "futures_trades": [],
   "hedger": {
-    "configured": true,
+    "configured": false,
     "agent": "0x1dc707e330d7b1cd9b2d0a0c0346ce2d19d35bc9",
     "payer": "0x71e140d9540d3163ead1591f81b454c6d5bd26c0",
     "index_id": "ACR-INF",
     "target_contracts": 2.5,
-    "venue": "0x29d97c629a8278f7ec4218ab0bd8baa9182642fe",
+    "venue": "0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b",
     "wallet_kind": "circle-agent-wallet",
-    "series_id": 6,
-    "multiplier": 10,
+    "series_id": null,
+    "multiplier": null,
     "mark": null,
     "mark_block": null,
-    "position_contracts": 0.0,
-    "gap_contracts": 2.5,
-    "collateral_usdc": 0.0,
+    "position_contracts": null,
+    "gap_contracts": null,
+    "collateral_usdc": null,
     "fills": [],
-    "receipts": [
-      {
-        "tx_ref": "b0c1be36-6283-4660-af3e-2ad0a8bdfe33",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1786179102.2749844
-      },
-      {
-        "tx_ref": "aae1ab44-8cfe-4ed9-b02c-7d0874238ea2",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1786178994.1993856
-      },
-      {
-        "tx_ref": "95b7b42c-2d10-47d7-9ff4-2f2053f7b959",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1786178909.9387798
-      },
-      {
-        "tx_ref": "b2dd87be-d626-41f5-80e4-87b34fb1da54",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1785821355.4004095
-      },
-      {
-        "tx_ref": "19b484f1-bfa5-4d2e-9536-ec98de0b739f",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1785770397.3998427
-      },
-      {
-        "tx_ref": "8c36c4df-4001-4649-a758-87e67eceff70",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1785770342.001875
-      },
-      {
-        "tx_ref": "4e35aab3-e0fc-463f-b671-20a03102b85a",
-        "amount_usdc": 0.0001,
-        "network": "eip155:5042002",
-        "settled_at": 1785770322.018062
-      }
-    ],
-    "paid_queries": 7,
-    "spent_usdc": 0.0007
+    "receipts": [],
+    "paid_queries": 0,
+    "spent_usdc": 0
+  },
+  "absent": {
+    "futures": {
+      "chain_id": 5042,
+      "reason": "no series seeded on this chain yet"
+    },
+    "hedger": {
+      "chain_id": 5042,
+      "reason": "no hedger agent runs on this chain"
+    }
   }
 }

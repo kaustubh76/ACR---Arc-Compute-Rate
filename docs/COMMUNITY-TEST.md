@@ -30,12 +30,19 @@ The five steps below are the whole revenue path; if any of them stops you, that 
      ready-to-spend*). Two signatures on Arc; the balance appears after finality.
 4. **Buy.** *buy with your wallet · $0.00…*. Your wallet signs one message (no transaction).
    The listing answers, a toast shows the amount, and a row lands on the tape.
-5. **Check the receipt.** `/api/marketplace/receipts` on the terminal lists your purchase;
-   `/api/revenue` moved by the listing's price. The explorer link on the row resolves.
+5. **Check the receipt.** `/api/marketplace/receipts` on the terminal lists your purchase, and
+   `/api/revenue` moves by the listing's price. **Read the *movement*, not the totals — and that
+   applies to BOTH.** The tape you are looking at in this step and the revenue counter beside it are
+   the same rehydrated ring, and on the deployed service it still carries 112 settlements from the
+   old testnet deployment (`$0.333477`) against a true 3 (`$0.00461`). Your own row is real and will
+   appear; the running total it lands on is not. The fix is in the image tagged `2026-09-30`, which
+   has not been deployed.
 
-Optional: the **Desk** on `/curve` gives you a Circle wallet (email + PIN, no extension) that
-trades the futures venue and can buy a **feed pass** for a day of reads. Fund it by sending USDC
-on Arc to the address it shows.
+Optional: the **Desk** on `/curve` gives you a Circle wallet (email + PIN, no extension) that can
+buy a **feed pass** for a day of reads. Fund it by sending USDC on Arc to the address it shows.
+It can also trade the futures venue — but **not yet on mainnet**: the contract is deployed and no
+series has been listed on it, so there is nothing to trade against. The desk says so rather than
+showing you an empty book.
 
 ## What to report
 
@@ -59,7 +66,13 @@ You do not need to include your address; the receipt is public anyway.
 - **Your Gateway balance goes down a few minutes after the purchase, not instantly.** Circle
   batches nanopayments; we measured about nine minutes on testnet. The data arrives immediately
   and the receipt is real from the moment it appears, so do not buy twice thinking it failed.
-- The venue on mainnet is new and thin. A quote may be wide; that is the book, not a bug.
+- **The futures venue has no series on mainnet.** It is deployed, nothing is listed on it, and the
+  page says so. Not a bug and not something you can test yet.
+- **Transaction-cost analysis (`/tca/<your address>`) has only just started.** It is computed
+  inside the subgraph at the moment each settlement arrives, so it knows nothing about you until
+  you buy — `purchases: 0` for a new address is the truth, not a failure. Only `/compute/<label>`
+  purchases get a slippage number; index routes are counted but not benchmarked. The first real
+  one (2026-09-28) came back at **-1139.8 bp**, which is what a thin new venue looks like.
 - If the dateline says *archived* rather than *live*, the press is between prints; reads still
   work, and a purchase settles against the archived rate.
 

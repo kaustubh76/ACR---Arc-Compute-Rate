@@ -27,7 +27,7 @@ from acr_core import SellerAttestation, get_settings
 from acr_oracle_client import RegistryClient
 from acr_oracle_client.demo_sellers import DEMO_SELLERS
 
-FALLBACK_EXPLORER = "https://testnet.arcscan.app"
+FALLBACK_EXPLORER = "https://explorer.arc.io"  # Arc mainnet; the chain profile overrides it
 
 #: Pace between attestations + retry transient RPC errors — the public Arc RPC
 #: rate-limits (HTTP 429) back-to-back calls.

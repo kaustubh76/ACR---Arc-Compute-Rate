@@ -32,6 +32,8 @@ READER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
 _OUT = Path(__file__).resolve().parents[3] / "contracts/out"
 ATTESTOR_ART = _OUT / "FeedAccessAttestor.sol/FeedAccessAttestor.json"
 USDC_ART = _OUT / "MockUSDC.sol/MockUSDC.json"
+#: The pass window both tests configure, and the bound the clock guard reads.
+_PASS_WINDOW_S = 86_400
 
 pytestmark = pytest.mark.skipif(
     not (ATTESTOR_ART.exists() and USDC_ART.exists()),
@@ -39,15 +41,40 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+class _StaleClock(Exception):
+    """The node is up but its clock has run away from wall time."""
+
+
 def _anvil():
     try:
+        import time
+
         from eth_account import Account
         from web3 import Web3
 
         w3 = Web3(Web3.HTTPProvider(RPC, request_kwargs={"timeout": 2}))
         if not w3.is_connected():
             return None
+        # A REUSED anvil drifts, and this test is the one that notices. The
+        # suite warps the chain forward to cross settlement windows, and anvil
+        # keeps the warp: measured 2026-09-28, each full run leaves the node
+        # ~1h ahead, and a node with 25.9h of uptime was 25.5h ahead. Once the
+        # drift passes `ACR_PASS_WINDOW_S` (86400), a pass minted for a day from
+        # *now* is already behind `block.timestamp` and the contract reverts
+        # "already expired" — which reads as a broken feed pass and is not one.
+        #
+        # Half the window, not an hour: a single run of this suite legitimately
+        # leaves an hour of drift behind it, so a tighter bound would skip a
+        # node that works perfectly.
+        drift = w3.eth.get_block("latest")["timestamp"] - time.time()
+        if abs(drift) > _PASS_WINDOW_S / 2:
+            raise _StaleClock(
+                f"anvil's clock is {drift / 3600:+.1f}h from wall time, so a freshly "
+                "minted pass expires on arrival — restart the node (`make anvil`)"
+            )
         return w3, Account.from_key(ANVIL_KEY), Account.from_key(READER_KEY)
+    except _StaleClock as exc:
+        pytest.skip(str(exc))
     except Exception:  # noqa: BLE001 - no node, no web3, same outcome
         return None
 

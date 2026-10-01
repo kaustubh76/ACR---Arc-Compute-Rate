@@ -37,7 +37,13 @@ const PROFILES: Record<number, AgentChain> = {
 
 /** Resolve from the environment. Unknown ids are refused loudly rather than paid on. */
 export function agentChain(env: NodeJS.ProcessEnv = process.env): AgentChain {
-  const raw = (env.ACR_ARC_CHAIN_ID ?? "5042002").trim();
+  // Arc MAINNET. The default was 5042002, and NOTHING set this variable —
+  // not the README, not the docs — so the one command the README gives for
+  // this agent (`--api https://acr-api-mainnet.onrender.com`) built x402
+  // payments for eip155:5042002 and offered them to a mainnet seller. The
+  // header above says "from one variable — never a literal in a payer"; the
+  // literal was here, and it was the chain this project had left.
+  const raw = (env.ACR_ARC_CHAIN_ID ?? "5042").trim();
   const id = Number(raw);
   const prof = PROFILES[id];
   if (!prof) throw new Error(`ACR_ARC_CHAIN_ID=${raw}: not an Arc network this agent knows how to pay on`);

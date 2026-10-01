@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from acr_core import ACRPrint
 from acr_oracle_client import OracleClient, PostPayload, index_id_to_bytes32, to_wad
 from acr_oracle_client.client import PRINT_TYPES, print_domain, sign_print
@@ -132,3 +133,111 @@ def test_registry_code_maps_match_contract():
     assert SERVICE_TO_CODE[Service.DATA] == 2
     assert CLASS_TO_CODE[ModelClass.FRONTIER] == 0
     assert CLASS_TO_CODE[ModelClass.OPEN] == 3
+
+
+# --- the press's gas policy -------------------------------------------------
+#
+# The press has two jobs out of one wallet, and they are not equally
+# recoverable: a missed print is a gap the next print fills, a missed receipt
+# mirror is evidence that never reaches the subgraph. Before this, nothing in
+# the spending path read a balance at all — `PRESS_CRITICAL_FLOOR_USDC` existed
+# but only verify_live and /ops consulted it, and both only report. So the press
+# would spend to zero and lose the irreplaceable job with the recoverable one.
+#
+# This cannot be proved against the live press without draining it, so these are
+# the evidence.
+
+@pytest.fixture(autouse=True)
+def _settings_do_not_leak():
+    """`reset_settings()` rebuilds the singleton from whatever env the test set,
+    and monkeypatch reverts the env WITHOUT rebuilding it again — so a floor set
+    here would follow the process into the other 750 tests. Reset on the way out
+    too; cross-test pollution from a process-wide singleton is the kind of bug
+    that gets blamed on the wrong change."""
+    yield
+    from acr_core import reset_settings
+
+    reset_settings()
+
+
+class _BalanceW3:
+    """Just enough web3 for `print_gas_shortfall`: a balance, in wei."""
+
+    def __init__(self, usdc: float) -> None:
+        self._wei = int(usdc * 1e18)
+        outer = self
+
+        class _Eth:
+            @property
+            def _b(self):
+                return outer._wei
+
+            def get_balance(self, _addr):
+                return outer._wei
+
+        self.eth = _Eth()
+
+    @staticmethod
+    def to_checksum_address(a):
+        return a
+
+
+class _RaisingW3(_BalanceW3):
+    def __init__(self) -> None:
+        super().__init__(0.0)
+
+        class _Eth:
+            def get_balance(self, _addr):
+                raise RuntimeError("rpc blinked")
+
+        self.eth = _Eth()
+
+
+def _client_with(monkeypatch, balance_usdc, floor="0.25"):
+    """An OracleClient whose chain is a stub and whose floor is explicit."""
+    monkeypatch.setenv("ACR_PRESS_PRINT_FLOOR_USDC", str(floor))
+    from acr_core import reset_settings
+
+    # The settings singleton is process-wide; its own docstring says tests that
+    # tweak env must reset it.
+    reset_settings()
+    from acr_oracle_client.client import OracleClient
+
+    c = OracleClient(rpc_url="http://stub", oracle_address="0x" + "11" * 20, private_key="0x" + "22" * 32)
+    w3 = _RaisingW3() if balance_usdc is None else _BalanceW3(balance_usdc)
+    monkeypatch.setattr(c, "_connect", lambda: w3)
+    return c
+
+
+def test_a_press_above_the_floor_prints(monkeypatch):
+    c = _client_with(monkeypatch, 0.49)
+    assert c.print_gas_shortfall() is None, "0.49 is above the 0.25 floor — printing must continue"
+
+
+def test_a_press_below_the_floor_refuses_and_says_why(monkeypatch):
+    c = _client_with(monkeypatch, 0.19)
+    why = c.print_gas_shortfall()
+    assert why is not None, "0.19 is below the 0.25 floor"
+    # A press that stops silently cost this project a 48.9-hour outage. The
+    # refusal has to carry the number, the floor and the reason.
+    assert "0.19" in why and "0.25" in why, f"the refusal must name both figures: {why}"
+    assert "mirroring" in why, f"the refusal must say what the gas is being kept for: {why}"
+
+
+def test_the_floor_is_exclusive_at_the_boundary(monkeypatch):
+    assert _client_with(monkeypatch, 0.25).print_gas_shortfall() is None, "at the floor, still prints"
+    assert _client_with(monkeypatch, 0.2499).print_gas_shortfall() is not None, "a hair under does not"
+
+
+def test_zero_floor_restores_spending_to_empty(monkeypatch):
+    """The escape hatch has to actually work — an operator who wants the old
+    behaviour sets it to 0 and the balance is never read."""
+    c = _client_with(monkeypatch, 0.0001, floor="0")
+    assert c.print_gas_shortfall() is None
+
+
+def test_an_unreadable_balance_never_stops_a_print(monkeypatch):
+    """A balance we cannot read is not evidence of an empty wallet. Refusing to
+    print because the RPC blinked would be a worse bug than the one this fixes."""
+    c = _client_with(monkeypatch, None)
+    assert c.print_gas_shortfall() is None

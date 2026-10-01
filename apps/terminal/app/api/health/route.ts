@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchLive } from "@/lib/api";
+import { baseState, fetchLive } from "@/lib/api";
 import type { HealthData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,10 @@ export async function GET() {
       live: Boolean(data),
       data: data ?? null,
       fetchedAt: Date.now(),
+      /* WHICH seller answered. A stale ACR_API once pointed at a suspended
+         service for two days and every route quietly served the archive; the
+         only reason it survived that long is that nothing reported it. */
+      seller: baseState(),
     },
     { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=60" } },
   );

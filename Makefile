@@ -88,7 +88,7 @@ test-agent:
 	cd apps/agent && npm run build && npm test
 
 test-terminal:
-	cd apps/terminal && npm test && npm run build
+	cd apps/terminal && npm test && npm run lint && npm run build
 
 # All THREE indices. It ran ACR-INF only for months, so ACR-GPU and ACR-DATA
 # were gated by nothing but the paired-swing tests — which measure a swing
@@ -528,10 +528,17 @@ graph-install:
 graph-codegen: graph-abis
 	cd graph && npx graph codegen
 
+#: Which Arc the subgraph indexes. `graph/networks.json` carries the address and
+#: startBlock for each, and `graph build --network` REWRITES graph/subgraph.yaml
+#: in place from it — so the committed manifest always reflects the last build,
+#: and `NETWORK=arc-testnet make graph-build` is how you switch back. Defaults to
+#: mainnet because that is what the product runs on since 2026-09-27.
+NETWORK ?= arc
+
 # `graph build` is itself the schema gate: it rejects a malformed @aggregation,
 # an `arg` naming a field that does not exist, or a non-numeric aggregated field.
 graph-build: graph-codegen
-	cd graph && npx graph build
+	cd graph && npx graph build --network $(NETWORK)
 
 graph-test:
 	cd graph && npx graph test
@@ -562,10 +569,11 @@ graph-deploy: graph-build
 	# `-l` is not optional in practice: without a version label the CLI opens an
 	# interactive prompt, and the runbook's own step then hangs forever in CI or
 	# under any non-tty caller. Override with `make graph-deploy VERSION=v0.2.0`.
-	# No `--network`: that flag rewrites each source's address from networks.json,
-	# which does not exist here and, if it did, would OVERWRITE the addresses the
-	# two guards above just checked. subgraph.yaml declares arc-testnet on every
-	# data source and holds the real deploy blocks — it is the single source.
+	# No `--network` HERE, deliberately, even though graph/networks.json now exists
+	# and `graph-build` takes one: passing it again at deploy time would rewrite
+	# every address AFTER the two guards above have checked them, so the thing
+	# deployed would not be the thing verified. `graph-build` has already written
+	# the manifest for NETWORK; this step only ships it.
 	cd graph && npx graph deploy $(SUBGRAPH) -l $(VERSION)
 
 lint: glossary-check

@@ -73,3 +73,29 @@ def test_client_offline_reads_are_safe():
     assert fc.collateral_of(0, "0xabc") is None
     assert fc.recent_trades() == []
     assert fc.can_write() is False
+
+
+def test_range_errors_are_told_apart_from_throttling():
+    """Narrowing cures a too-wide range and does nothing for a throttle, so the
+    two must not be confused: measured once, treating a 429 as "too wide" turned
+    a four-page 7.9h walk into 1264 blocks.
+
+    Arc MAINNET refuses in TWO ways (measured 2026-09-28) and only the first was
+    recognised, which made an over-wide window look transient — the same width
+    was re-asked twice before the ladder narrowed.
+    """
+    from acr_oracle_client.futures import _is_range_error
+
+    # -32602: a RESULT cap, and it names the range to retry with.
+    assert _is_range_error(Exception(
+        "request exceeded max allowed range: query exceeds max results 2000, "
+        "retry with the range 23142054-23142123"
+    ))
+    # -32012: a BLOCK cap. Address-filtered, 5000 answers and 10000 does not.
+    assert _is_range_error(Exception("{'code': -32012, 'message': 'requested range too large'}"))
+    assert _is_range_error(Exception("requested range too large"))
+    # Arc testnet's older shapes still count.
+    assert _is_range_error(Exception("413 Payload Too Large"))
+    # Throttling is NOT a range problem: same range, after a backoff.
+    assert not _is_range_error(Exception("429 Too Many Requests"))
+    assert not _is_range_error(Exception("HTTP 429"))

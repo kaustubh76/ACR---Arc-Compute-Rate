@@ -25,7 +25,7 @@ import time
 
 from acr_core import get_settings
 from acr_oracle_client.humanid import RATING_WINDOW_S, current_window
-from acr_tape import graph_query
+from acr_tape import graph_query, record_chain_check, wrong_chain_reason
 
 log = logging.getLogger("index_api.tca")
 
@@ -138,6 +138,69 @@ def _unavailable(reason: str) -> dict:
     return {"available": False, "reason": reason, "source": "subgraph"}
 
 
+#: One `_meta` + one `eth_blockNumber` per subgraph URL. "Is this our chain" does
+#: not change while a process runs, so it is asked once rather than per request.
+_chain_verdict: dict[str, str | None] = {}
+
+#: Just the head; the smallest query that identifies which chain a subgraph is on.
+_META_HEAD = "{ _meta { block { number } } }"
+
+
+def _chain_problem(url: str, key: str) -> str | None:
+    """Why this subgraph is not ours, or None.
+
+    `graph_proxy` checks only that the URL is SET, and /tca does not go through
+    that gate at all — so /tca answered from whatever subgraph it was pointed at
+    and reported the result as this deployment's TCA. Measured 2026-10-01: the URL
+    in `.env` is at block 64,922,872 while Arc mainnet is at 23,685,519, so a
+    local run audits TESTNET settlements and says nothing about it.
+
+    Either read failing allows the subgraph. A subgraph that cannot be reached is
+    a different complaint, already made by the caller when the query returns
+    nothing, and refusing on a blink would turn a transient into an outage.
+    """
+    if url in _chain_verdict:
+        return _chain_verdict[url]
+
+    meta = graph_query(url, _META_HEAD, {}, key) or {}
+    block = ((meta.get("_meta") or {}).get("block") or {}).get("number")
+    try:
+        subgraph_head = int(block) if block is not None else None
+    except (TypeError, ValueError):
+        subgraph_head = None
+
+    chain_head: int | None = None
+    try:
+        from web3 import Web3  # local: tca is imported on paths with no chain
+
+        rpc = get_settings().arc_rpc_url
+        if rpc:
+            chain_head = int(
+                Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 10})).eth.block_number
+            )
+    except Exception:  # noqa: BLE001 - a verdict beats a traceback
+        chain_head = None
+
+    verdict = wrong_chain_reason(subgraph_head, chain_head)
+    record_chain_check(subgraph_head, chain_head, verdict)
+    _chain_verdict[url] = verdict
+    if verdict:
+        log.warning("refusing the subgraph: %s", verdict)
+    return verdict
+
+
+def _blocked(url: str, key: str) -> str | None:
+    """Why /tca cannot answer from this subgraph, or None. One guard, both
+    reasons: not configured, and configured for somewhere else."""
+    if not url:
+        return "ACR_SUBGRAPH_URL is unset"
+    return _chain_problem(url, key)
+
+
+def _reset_chain_verdict_for_tests() -> None:
+    _chain_verdict.clear()
+
+
 def _window_now() -> int:
     """The rotation window in progress — the bucket distinct-human counts live in."""
     return current_window()
@@ -198,8 +261,8 @@ def _p50_bp(buckets: list[int]) -> float | None:
 def seller_rating(seller: str, days: int = 7) -> dict:
     """Grade a seller from the tape. Always carries `n` and the synthetic share."""
     url, key = _cfg()
-    if not url:
-        return _unavailable("ACR_SUBGRAPH_URL is unset")
+    if (why := _blocked(url, key)):
+        return _unavailable(why)
     data = graph_query(
         url,
         _SELLER_DAYS,
@@ -363,8 +426,8 @@ def _grade(score: float | None) -> str:
 def payer_tca(payer: str, days: int = 7) -> dict:
     """What this payer's purchases cost against the benchmark."""
     url, key = _cfg()
-    if not url:
-        return _unavailable("ACR_SUBGRAPH_URL is unset")
+    if (why := _blocked(url, key)):
+        return _unavailable(why)
     data = graph_query(
         url, _PAYER_DAYS, {"payer": payer.lower(), **_window_vars(days)}, key
     )
@@ -448,8 +511,8 @@ def human_tca(cluster: str, window: int, days: int = 7) -> dict:
     who later saw it.
     """
     url, key = _cfg()
-    if not url:
-        return _unavailable("ACR_SUBGRAPH_URL is unset")
+    if (why := _blocked(url, key)):
+        return _unavailable(why)
     if days > RATING_WINDOW_DAYS:
         # A cluster is minted per rotation window, so the wallet set behind it
         # describes THIS window. Reaching further back would union today's fleet

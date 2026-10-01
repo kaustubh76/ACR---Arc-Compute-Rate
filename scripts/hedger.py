@@ -95,7 +95,10 @@ from index_api.desk import feasible_qty
 
 AGENT_ADDRESS = os.environ.get("ACR_HEDGER_ADDRESS", "").strip()
 CHAIN = os.environ.get("ACR_HEDGER_CHAIN", "ARC-TESTNET")
-API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
+# Arc MAINNET. The Arc testnet host this defaulted to (`acr-api-1fto`) has been
+# suspended since 2026-09-15 and answers 503 — a default nothing in the repo
+# shows you using is exactly how the press lost 48.9 hours of prints.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 INDEX = os.environ.get("HEDGER_INDEX", "ACR-INF")
 
 #: The mandate: the position, in contracts, this agent is trying to hold. A

@@ -10,7 +10,7 @@ Live spec: `https://acr-api-mainnet.onrender.com/openapi.json`
 Catalog: `https://acr-api-mainnet.onrender.com/marketplace/catalog`
 
 Index endpoints: **$0.0001 USDC per request**, x402 `exact` scheme,
-Circle Gateway (GatewayWalletBatched), network `eip155:5042002` (Arc).
+Circle Gateway (GatewayWalletBatched), network `eip155:5042` (Arc mainnet).
 Fleet sellers (`/compute/{label}`) price per unit; the catalog carries each one's terms.
 
 Agent-to-agent calls may present an `AGENT-CARD` (see `GET /agent/challenge`);

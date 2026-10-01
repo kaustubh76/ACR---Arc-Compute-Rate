@@ -32,7 +32,10 @@ import urllib.request
 
 from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 
-API = os.environ.get("ACR_API_URL", "https://acr-api-1fto.onrender.com").rstrip("/")
+# Arc MAINNET. The old default (`acr-api-1fto`, Arc testnet) outlived the chain
+# switch: that service is suspended and answers 503, so every check below
+# failed while the keepalive reported it as a red run nobody read.
+API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
 TERMINAL = os.environ.get(
     "ACR_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
 ).rstrip("/")
@@ -77,6 +80,13 @@ _BOOK_DEPTH_TRADES = float(os.environ.get("VERIFY_BOOK_DEPTH", "4"))
 #: generous or this check cries wolf — which is worse than not checking.
 CRON_MAX_AGE_S = float(os.environ.get("VERIFY_CRON_MAX_AGE_S", "21600"))
 STRICT = os.environ.get("VERIFY_STRICT", "") not in ("", "0", "false")
+# This deployment has a venue contract and no series listed on it. On Arc
+# mainnet that is the truth, and a hard failure for it makes the keepalive
+# permanently red — which costs more than it catches, because red stops
+# meaning anything. DECLARED, not inferred: without this flag an empty
+# venue still fails, so a chain that really does have a book is still
+# guarded. Mirrors ACR_SNAPSHOT_ALLOW_NO_FUTURES in gen_snapshot.py.
+NO_VENUE = os.environ.get("ACR_VERIFY_NO_VENUE", "") not in ("", "0", "false")
 #: A Circle Gateway settlement reference is a batch UUID. Anything else reaching
 #: this surface is a placeholder that got published: `dev-…`/`sim-…` are what the
 #: mock gate writes, and an empty string is a row that lost its reference on the
@@ -313,7 +323,12 @@ def verify_venue(w3, settings) -> dict | None:
     fc = FuturesClient(rpc_url=settings.arc_rpc_url, futures_address=settings.futures_address)
     now = int(_rpc_retry(lambda: w3.eth.get_block("latest"))["timestamp"])
     live = [s for s in fc.read_all_series() if not s["settled"] and s["expiry_ts"] > now]
-    if not check(bool(live), "a live, unexpired series exists"):
+    if not check(
+        bool(live) or NO_VENUE,
+        "a live, unexpired series exists"
+        + (" — none listed on this chain, declared" if NO_VENUE and not live else ""),
+        warn_only=NO_VENUE,
+    ) or not live:
         return None
     # ONE live series per index, newest wins — not one series for the whole
     # venue. Collapsing the venue to `max(series_id)` verified whichever book
@@ -763,10 +778,17 @@ def verify_desk(live_series: dict | None) -> None:
     for iid in ("ACR-GPU", "ACR-INF"):
         st, bd = post(f"{API}/desk/limits", {"address": addr, "index_id": iid})
         good = st == 200 and isinstance(bd, dict) and bd.get("mark", 0) > 0
+        # A 404 here is "no open series for <index>" — the unseeded venue again,
+        # reached through the desk rather than the chain. One fact, so one
+        # declaration governs all three places it surfaces; the check still
+        # fails hard on any OTHER status, and on a 404 when a venue is expected.
+        no_series = NO_VENUE and st == 404
         check(
-            good,
+            good or no_series,
             f"/desk/limits {iid} -> {st}"
-            + (f", mark {bd.get('mark'):.5f}, max_buy {bd.get('max_buy')}" if good else ""),
+            + (f", mark {bd.get('mark'):.5f}, max_buy {bd.get('max_buy')}" if good else "")
+            + (" — no open series, declared" if no_series else ""),
+            warn_only=no_series,
         )
         if iid == "ACR-INF":
             status, body = st, bd
@@ -992,7 +1014,12 @@ def verify_terminal(live_series: dict | None) -> None:
     status, body = get(f"{TERMINAL}/api/futures")
     payload = (body or {}).get("data") or body or {}
     desks = payload.get("desks") or {}
-    check(status == 200 and bool(desks), f"/api/futures -> {status}, {len(desks)} desk(s)")
+    check(
+        status == 200 and (bool(desks) or NO_VENUE),
+        f"/api/futures -> {status}, {len(desks)} desk(s)"
+        + (" — no series listed on this chain, declared" if NO_VENUE and not desks else ""),
+        warn_only=NO_VENUE,
+    )
     if desks and live_series is not None:
         # The check that would have caught a throttled crawl publishing a
         # settled series as the live desk.
@@ -1001,7 +1028,13 @@ def verify_terminal(live_series: dict | None) -> None:
             live_series["series_id"] in shown and not any(d.get("settled") for d in desks.values()),
             f"terminal shows the live series {sorted(shown)}, none settled",
         )
-    check(len(payload.get("trades") or []) > 0, f"{len(payload.get('trades') or [])} fill(s) on the public tape")
+    n_fills = len(payload.get("trades") or [])
+    check(
+        n_fills > 0 or NO_VENUE,
+        f"{n_fills} fill(s) on the public tape"
+        + (" — nothing to fill against yet, declared" if NO_VENUE and not n_fills else ""),
+        warn_only=NO_VENUE,
+    )
 
 
 def verify_funding(w3, settings) -> None:
@@ -1039,7 +1072,7 @@ def verify_funding(w3, settings) -> None:
                 warn_only=True,
             )
     if custody:
-        wallets.append(("custody (press + faucet)", custody, PRESS_BURN_USDC_PER_DAY))
+        wallets.append(("press wallet (funds every on-chain write)", custody, PRESS_BURN_USDC_PER_DAY))
 
     for label, addr, burn in wallets:
         bal = _rpc_retry(w3.eth.get_balance, w3.to_checksum_address(addr)) / 1e18
@@ -1174,7 +1207,11 @@ def main() -> None:
         print("\nliveness: FAILED — no chain, nothing else is meaningful")
         sys.exit(1)
     cid = int(_rpc_retry(lambda: w3.eth.chain_id))
-    check(cid == s.arc_chain_id, f"chain id {cid}")
+    check(
+        cid == s.arc_chain_id,
+        f"chain id {cid}" if cid == s.arc_chain_id
+        else f"chain id {cid} from the RPC, but ACR_ARC_CHAIN_ID says {s.arc_chain_id}",
+    )
 
     section(verify_oracle, w3, s)
     section(verify_oracle_v2, w3, s)

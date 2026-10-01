@@ -28,7 +28,7 @@ on:
       api:
         description: "Seller to buy from"
         type: string
-        default: "https://acr-api-1fto.onrender.com"
+        default: "https://acr-api-mainnet.onrender.com"
       limit:
         description: "Hard spend cap in USDC — the loop stops before crossing it"
         type: string
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Install the buyer agent
         run: cd apps/agent && npm install --no-audit --no-fund
 

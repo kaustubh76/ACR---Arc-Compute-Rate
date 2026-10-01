@@ -143,16 +143,32 @@ def _is_range_error(exc: Exception) -> bool:
     rung fails for a reason narrowing cannot fix, the cursor crawls, and the
     caller pays a full retry backoff per rung to go nowhere. Measured, that
     turned a four-page 7.9h walk into 1264 blocks in 16.6s.
+
+    Arc MAINNET (measured 2026-09-28) refuses in two ways, not one, and only the
+    first was recognised here:
+
+    * ``-32602`` — "request exceeded max allowed range: query exceeds max results
+      2000, retry with the range A-B". A RESULT cap, and it names the range to
+      retry with.
+    * ``-32012`` — "requested range too large". A BLOCK cap, and a different code:
+      address-filtered, 5 000 blocks answer and 10 000 do not.
+
+    Missing ``-32012`` made an over-wide window look transient, so the caller
+    re-asked the SAME width twice before giving up, which is the throttle
+    behaviour applied to a problem narrowing would have fixed.
     """
     msg = str(exc)
     if "429" in msg or "Too Many Requests" in msg:
         return False
+    low = msg.lower()
     return (
         "413" in msg
         or "Payload Too Large" in msg
         or "-32602" in msg
+        or "-32012" in msg
         or "exceeds max results" in msg
-        or "limit exceeded" in msg.lower()
+        or "range too large" in low
+        or "limit exceeded" in low
     )
 
 

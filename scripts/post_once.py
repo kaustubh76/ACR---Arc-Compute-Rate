@@ -27,7 +27,7 @@ from acr_core import ALL_INDEX_IDS, get_settings
 from index_api.poster import OraclePoster
 from index_api.store import PrintStore
 
-FALLBACK_EXPLORER = "https://testnet.arcscan.app"
+FALLBACK_EXPLORER = "https://explorer.arc.io"  # Arc mainnet; the chain profile overrides it
 
 
 def _explorer(settings) -> str:

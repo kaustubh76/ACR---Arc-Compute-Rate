@@ -9,6 +9,7 @@ EIP-712 signing runs for real through a local key.
 from __future__ import annotations
 
 import time
+import types
 from types import SimpleNamespace
 
 import pytest
@@ -141,6 +142,29 @@ def test_nonce_is_the_transaction_hash():
     assert nonce_for(TX) == nonce_for(TX[2:]) and nonce_for(TX) != nonce_for("0x" + "22" * 32)
 
 
+class _w3:
+    """The smallest chain `mint` needs: one that can be asked for a receipt.
+
+    `mint` waits for the redeem's receipt because `relay_redeem` returns as soon
+    as the transaction is ACCEPTED. Reading access straight after raced the block
+    that grants it — reproduced on anvil, where a receipt with status 1 and an
+    AccessGranted log still produced `has_access: False`. A stub that cannot be
+    asked for a receipt is a stub that cannot see that bug.
+    """
+
+    def __init__(self, status: int = 1) -> None:
+        outer = self
+
+        class _Eth:
+            def wait_for_transaction_receipt(self, tx_hash, timeout=60):  # noqa: ARG002
+                outer.asked = tx_hash
+                return types.SimpleNamespace(status=outer.status)
+
+        self.status = status
+        self.asked = None
+        self.eth = _Eth()
+
+
 def test_mint_signs_for_the_window_with_the_hash_as_nonce_and_reports_the_chain(monkeypatch):
     seen: dict = {}
     monkeypatch.setattr(feedpass, "verify_payment", lambda w3, tx, *, sender, now=None: (1_000_000, 0))
@@ -158,7 +182,7 @@ def test_mint_signs_for_the_window_with_the_hash_as_nonce_and_reports_the_chain(
     monkeypatch.setattr(fa, "relay_redeem", _relay)
     monkeypatch.setattr(fa, "access_of", lambda w3, a, who: (True, 1_700_000_000))
     before = int(time.time())
-    out = feedpass.mint(object(), object(), wallet=WALLET, tx_hash=TX)
+    out = feedpass.mint(_w3(status=1), object(), wallet=WALLET, tx_hash=TX)
     assert seen["sign"]["nonce"] == nonce_for(TX)
     assert seen["sign"]["payer"] == WALLET and seen["sign"]["beneficiary"] == WALLET
     assert before + 86_400 <= seen["sign"]["paid_until"] <= before + 86_400 + 5
@@ -246,3 +270,42 @@ def test_pass_receipt_is_none_without_a_wallet_or_a_pass(monkeypatch):
     monkeypatch.setattr(feedpass, "access", lambda w3, a: (True, 1_800_000_000))
     rc = x402.pass_receipt("t")
     assert rc is not None and rc.amount_usdc == 0.0 and rc.scheme == "feed-pass" and rc.tx_ref == "pass:1800000000"
+
+
+def test_a_reverted_attestation_is_not_reported_as_a_pass(monkeypatch):
+    """The failure this wait exists to catch. `relay_redeem` returns when the
+    transaction is ACCEPTED, so a redeem that reverts once mined used to come back
+    as a 200 with `has_access: False` — the money moved, the attestation did not,
+    and nothing said so. It is a 502 now."""
+    import acr_oracle_client.feed_access as fa
+
+    monkeypatch.setattr(feedpass, "verify_payment", lambda w3, tx, *, sender, now=None: (1_000_000, 0))
+    monkeypatch.setattr(fa, "sign_feed_access", lambda *a, **k: (27, b"r" * 32, b"s" * 32))
+    monkeypatch.setattr(fa, "relay_redeem", lambda *a, **k: "0xrelay")
+    monkeypatch.setattr(fa, "access_of", lambda w3, a, who: (False, 0))
+
+    with pytest.raises(PassError) as e:
+        feedpass.mint(_w3(status=0), object(), wallet=WALLET, tx_hash=TX)
+    assert e.value.status == 502 and "reverted" in e.value.detail
+
+
+def test_a_relay_that_never_mines_is_a_502_not_a_silent_no_pass(monkeypatch):
+    """And a receipt that never arrives must not read as "you have no pass"."""
+    import acr_oracle_client.feed_access as fa
+
+    class _Timeout(_w3):
+        def __init__(self) -> None:
+            super().__init__()
+
+            class _Eth:
+                def wait_for_transaction_receipt(self, tx_hash, timeout=60):  # noqa: ARG002
+                    raise TimeoutError("not mined within 60s")
+
+            self.eth = _Eth()
+
+    monkeypatch.setattr(feedpass, "verify_payment", lambda w3, tx, *, sender, now=None: (1_000_000, 0))
+    monkeypatch.setattr(fa, "sign_feed_access", lambda *a, **k: (27, b"r" * 32, b"s" * 32))
+    monkeypatch.setattr(fa, "relay_redeem", lambda *a, **k: "0xrelay")
+    with pytest.raises(PassError) as e:
+        feedpass.mint(_Timeout(), object(), wallet=WALLET, tx_hash=TX)
+    assert e.value.status == 502 and "never mined" in e.value.detail

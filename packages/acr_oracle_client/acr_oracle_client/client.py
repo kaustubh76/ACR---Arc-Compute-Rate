@@ -522,6 +522,10 @@ class OracleClient:
         #: Receipt of the most recent successful ``post`` ({tx, block, gas_used});
         #: None while offline — the poster reads this for on-chain provenance.
         self.last_receipt: dict | None = None
+        #: Why the last post was skipped, or None. Set by the gas policy in
+        #: `post()` so callers can RECORD the reason instead of reporting a
+        #: silent no-op — /ops and the keeper's chore log both read it.
+        self.last_skip_reason: str | None = None
 
     def _connect(self):
         if self._w3 is not None:
@@ -543,6 +547,44 @@ class OracleClient:
             return bool(w3.is_connected())
         except Exception:  # pragma: no cover - env dependent
             return False
+
+    def print_gas_shortfall(self) -> str | None:
+        """Why this print must NOT be posted, or None when it may be.
+
+        Deliberately separate from :meth:`can_post`, which three callers use to
+        mean "configured and online" (``app.py``, ``scripts/post_once.py``).
+        Folding a balance into that would quietly change what those test.
+
+        The press's two jobs are not equally recoverable. A missed print is a
+        gap the next print fills. A missed receipt mirror is lost EVIDENCE: an
+        unmirrored settlement never reaches the subgraph, so ``/tca`` can never
+        see it. They come out of one wallet on Arc, where USDC is the gas, so
+        without a priority the press spends to zero and loses the irreplaceable
+        one alongside the recoverable one. Prints yield first; mirroring is
+        never gated on this.
+
+        Returns a sentence rather than a bool because the caller records it —
+        a press that stops silently cost this project a 48.9-hour outage, and
+        "stopped" is not a diagnosis.
+        """
+        floor = float(get_settings().press_print_floor_usdc or 0.0)
+        if floor <= 0:
+            return None  # explicitly disabled
+        w3 = self._connect()
+        if w3 is None or self.signer is None:
+            return None  # not our call; can_post() already covers this
+        try:
+            bal = w3.eth.get_balance(w3.to_checksum_address(self.signer.address)) / 1e18
+        except Exception:  # pragma: no cover - env dependent
+            # A balance we cannot read is not evidence of an empty wallet, and
+            # refusing to print because the RPC blinked would be the worse bug.
+            return None
+        if bal >= floor:
+            return None
+        return (
+            f"print skipped: {bal:.4f} USDC is below the {floor:.2f} print floor — "
+            "remaining gas is reserved for receipt mirroring, which cannot be redone"
+        )
 
     def _contract(self):  # pragma: no cover - requires live chain
         w3 = self._connect()
@@ -650,6 +692,14 @@ class OracleClient:
             log.info("OracleClient offline: would post %s -> %s", p.index_id, payload.as_args())
             self.last_receipt = None
             return None
+        # Gas policy, after "are we online" and before we spend anything.
+        shortfall = self.print_gas_shortfall()
+        if shortfall:
+            log.warning("%s (%s)", shortfall, p.index_id)
+            self.last_receipt = None
+            self.last_skip_reason = shortfall
+            return None
+        self.last_skip_reason = None
         w3 = self._connect()  # pragma: no cover - requires live chain
         contract = self._contract()
         # EIP-712-sign the print via the signer (raw key or Circle custody); the

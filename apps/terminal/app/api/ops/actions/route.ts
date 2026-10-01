@@ -1,3 +1,4 @@
+import { sellerBase } from "@/lib/apiBase";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -19,11 +20,7 @@ export const maxDuration = 30;
 
 // Same resolution order as lib/api.ts, so the console can never end up
 // pointing at a different press than the rest of the terminal.
-const API = (
-  process.env.ACR_API ??
-  process.env.NEXT_PUBLIC_ACR_API ??
-  "http://127.0.0.1:8000"
-).replace(/\/$/, "");
+const API = (process.env.ACR_API?.trim() || sellerBase()).replace(/\/$/, "");
 const TOKEN_HEADER = "x-acr-ops-token";
 // Bounded charset and length so a hostile header can never become a smuggled
 // second header line. Shape only — the upstream decides whether it is right.

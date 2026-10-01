@@ -81,27 +81,31 @@ moved 0.5 USDC, block 55751879.
 returns `0.000000` for a balance that exists. Scope every read
 (`sources: { adapter, chains: "Arc_Testnet" }`).
 
-### 2c. `npm install` in `apps/agent` must run on Node 20
+### 2c. Node 24 everywhere, which is what removed the lockfile hazard
 
-`npm ci` is safe on any Node. **`npm install` is not**, and the failure is
-silent locally and loud in CI.
+The repo runs **Node 24 (Krypton, Active LTS)**: `.nvmrc`, all five
+`node-version` pins in `.github/workflows/`, and the `engines` in
+`apps/agent` and `apps/terminal`. Node 20 reached **end of life on
+2026-04-30**, so building on it meant an unpatched runtime.
 
-Circle's `@circle-fin/adapter-viem-v2` depends on `@solana/web3.js`, which pulls
-`jayson`, whose copy of `ws` asks for `utf-8-validate@^5` while the root of the
-tree resolves `^6`. npm 11 hoists that to a single `6.0.6` and drops the nested
-`5.0.10`; npm 10 — which Node 20 ships, and Node 20 is what `.github/workflows/ci.yml`
-pins — requires both. So a lock written by npm 11 installs perfectly here and
-fails `npm ci` in CI with `Missing: utf-8-validate@5.0.10 from lock file`.
-Measured: the rewrite is 15 lines, and nothing local complains.
+That bump also closed a real trap, worth recording because it cost a red CI
+once. Circle's `@circle-fin/adapter-viem-v2` depends on `@solana/web3.js`,
+which pulls `jayson`, whose copy of `ws` asks for `utf-8-validate@^5` while
+the root of the tree resolves `^6`. **npm 11** hoists that to a single
+`6.0.6` and drops the nested `5.0.10`; **npm 10** requires both. Node 20
+shipped npm 10 and Node 24 ships npm 11 — so while CI was pinned to 20, a
+lock written locally by npm 11 installed perfectly here and failed `npm ci`
+in CI with `Missing: utf-8-validate@5.0.10 from lock file`. Both sides now
+run npm 11, so the mismatch cannot recur.
 
-The repo carries `.nvmrc` (20) and `apps/agent/package.json` declares
-`engines`, so npm prints `EBADENGINE` on a newer Node rather than failing —
-a nudge, not a wall. If you add or bump a dependency here:
+`npm ci` is still the safe command and `npm install` still the one that
+rewrites a lock. If you add or bump a dependency here, prove the lock in a
+clean room before pushing:
 
 ```sh
-nvm use            # picks up .nvmrc → Node 20
+nvm use            # picks up .nvmrc → Node 24
 cd apps/agent && rm -rf node_modules && npm install
-rm -rf node_modules && npm ci      # prove the lock in a clean room before pushing
+rm -rf node_modules && npm ci      # the command CI runs, on the lock you just wrote
 ```
 
 ## 3. The seller side (this repo)

@@ -14,6 +14,7 @@ import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { useMarketReceipts, useRevenue, useTerminal, useX402Info } from "@/lib/useLive";
 import { fmtInt, money, shortAddr } from "@/lib/format";
+import { sellerBase } from "@/lib/apiBase";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import { ENDPOINTS, FAMILIES, type EndpointRow, type Family } from "@/lib/endpoints";
 import type { Envelope, MarketReceipt, TerminalData } from "@/lib/types";
@@ -267,7 +268,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         sample={env.data.x402_exchange_sample ?? null}
         prints={env.data.prints}
         chain={env.data.chain}
-        sellerBase={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"}
+        sellerBase={sellerBase()}
       />
 
       <Ed
@@ -300,8 +301,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           the code to satisfy it, in three languages, derived from that answer. The
           snippets name the PUBLIC host because that is the one an agent would call;
           without NEXT_PUBLIC_ACR_API at build time they name the dev loopback. */}
-      <AgentCardSnippet api={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"} />
-      <McpSnippet api={process.env.NEXT_PUBLIC_ACR_API ?? "http://127.0.0.1:8000"} />
+      <AgentCardSnippet api={sellerBase()} />
+      <McpSnippet api={sellerBase()} />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said

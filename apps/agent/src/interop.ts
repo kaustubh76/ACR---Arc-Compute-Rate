@@ -6,7 +6,7 @@
  * `extra.name === "GatewayWalletBatched"`, `extra.version === "1"`,
  * `typeof extra.verifyingContract === "string"`. Run against any gate mode:
  *
- *   npm run interop -- [--api http://127.0.0.1:8000] [--chain-id 5042002]
+ *   npm run interop -- [--api http://127.0.0.1:8000] [--chain-id 5042]
  */
 
 import { agentChain } from "./chain.js";

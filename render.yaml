@@ -237,7 +237,14 @@ services:
       # 2026-09-26 that was a 09-13 build predating mainnet_guard itself, i.e.
       # the fail-open code the audit closed. A dated tag makes the running
       # code a fact in this file.
-      url: docker.io/kaushtubh02/acr-api:2026-09-26
+      # 2026-09-30: carries the /revenue chain filter (d34c37a). The running
+      # 09-27 image counts the 112 ARCHIVED TESTNET settlements as mainnet
+      # revenue — 112 queries / $0.333477 for a service that has earned
+      # $0.0046. Verified in THIS image before pinning it: a 2-row archive
+      # (one eip155:5042, one eip155:5042002) run as chain 5042 counts
+      # exactly the mainnet row, so the filter is selective rather than
+      # simply dropping everything. digest sha256:606fbfef5548…
+      url: docker.io/kaushtubh02/acr-api:2026-09-30
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
@@ -284,6 +291,14 @@ services:
         value: "800"
       - key: ACR_REFRESH_SECONDS
         value: "3600"
+      # The host's timer, not the product's. On the free plan this service is
+      # OOM-killed every few minutes (512 MiB; rss climbs past 380 within two),
+      # so the hourly cycle above never fires, and a quick restart leaves the
+      # record younger than an hour so the wake path does not fire either — the
+      # fixing froze at one reading on a press that was technically alive. At 1200
+      # every restart tops the record up. Delete it once this runs on `starter`.
+      - key: ACR_WAKE_POST_AFTER_S
+        value: "1200"
 
       # --- Circle: a MAINNET custody wallet set, not the testnet one --------
       - key: ACR_CIRCLE_API_KEY
@@ -292,8 +307,16 @@ services:
         sync: false
       - key: ACR_CIRCLE_WEBHOOK_PUBLIC_KEY
         sync: false
+      # The press signer. The testnet service uses Circle custody and no host here
+      # had ever held a raw key; on 2026-09-27 this one does, because the live
+      # Circle wallet set does not exist yet and a frozen fixing is the worse
+      # failure. What bounds it is ACROracleV2.MAX_MOVE_BPS: a stolen press key
+      # walks the rate 20% per print, it cannot set it (docs/SECURITY-AUDIT.md C2).
+      # Setting ACR_CIRCLE_WALLET_ID later takes precedence over this key.
+      - key: ACR_POSTER_PRIVATE_KEY
+        sync: false # the press EOA; also ACR_X402_PAY_TO, so it receives revenue too
       - key: ACR_CIRCLE_WALLET_ID
-        value: "" # the press: signs prints, attestations and feed passes; ACR_PRESS_SIGNER at deploy
+        value: "" # Circle custody for the press; preferred over the raw key when set
       - key: ACR_CIRCLE_WALLET_SET_ID
         value: ""
       - key: ACR_CIRCLE_MAKER_WALLET_ID

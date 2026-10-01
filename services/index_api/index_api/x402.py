@@ -252,6 +252,13 @@ class PaymentReceipt:
 _REAL_SCHEMES = frozenset({"exact"})
 
 
+def _this_network() -> str:
+    """This deployment's CAIP-2, read late so tests can switch chains."""
+    from acr_core import get_settings
+
+    return get_settings().caip2()
+
+
 class Facilitator(ABC):
     """Base gate: bounded counters + the challenge/process seam ``require_payment``
     calls. Counters are a running total + a small ring of recent receipts, so a
@@ -350,6 +357,17 @@ class Facilitator(ABC):
                 # The archive is the record of REAL payments. A dev or sim row
                 # reaching it would put invented revenue on a public counter.
                 if row.get("scheme") not in _REAL_SCHEMES:
+                    continue
+                # And a payment made on ANOTHER CHAIN is invented revenue here
+                # for the same reason. The committed archive holds 112 real
+                # settlements, all `eip155:5042002` — rehydrated unchanged on
+                # mainnet they made `/revenue` report 113 paid queries and
+                # $0.33 on a deployment that had earned $0.0001. A row with no
+                # network recorded is left alone: pre-dating the field is not
+                # evidence of the wrong chain, and every row in the archive has
+                # one anyway.
+                net = str(row.get("network") or "")
+                if net and net != _this_network():
                     continue
                 seen.add(ref)
                 self.recent.append(PaymentReceipt(**row))

@@ -491,3 +491,62 @@ def test_the_mock_gate_never_shows_real_revenue():
     from index_api.x402 import DevFacilitator
 
     assert DevFacilitator().paid_queries == 0
+
+
+def test_the_committed_archive_does_not_rehydrate_onto_another_chain(tmp_path, monkeypatch):
+    """A real payment made on ANOTHER chain is invented revenue here.
+
+    Measured on the live mainnet deployment 2026-09-28: the committed archive
+    holds 112 real settlements, every one `eip155:5042002`, and rehydrating them
+    unchanged made `/revenue` report 113 paid queries and $0.33 on a service that
+    had earned $0.0001. The scheme filter beside this one exists for the same
+    reason — a dev row on a public counter — and the chain is the other half.
+    """
+    from acr_core import reset_settings
+    from index_api.x402 import Facilitator
+
+    # The rehydrate path lives on the BASE class, and the two concrete gates
+    # cannot stand in for it here: DevFacilitator hardcodes empty ledger paths
+    # (a mock gate must never display real revenue) and CircleFacilitator wants
+    # live credentials. So: the smallest possible real subclass, whose
+    # challenge/process are never reached.
+    class Ledger(Facilitator):
+        def challenge(self, request):  # pragma: no cover - never called
+            raise NotImplementedError
+
+        async def process(self, request, header, response):  # pragma: no cover
+            raise NotImplementedError
+
+    rows = [
+        {"tx_ref": "t-testnet", "scheme": "exact", "amount_usdc": 0.25,
+         "payer": "0x" + "11" * 20, "resource": "/prints", "settled_at": 1,
+         "network": "eip155:5042002"},
+        {"tx_ref": "t-mainnet", "scheme": "exact", "amount_usdc": 0.0001,
+         "payer": "0x" + "22" * 20, "resource": "/prints", "settled_at": 2,
+         "network": "eip155:5042"},
+        # No network recorded: pre-dating the field is not evidence of the wrong
+        # chain, so it is kept rather than silently dropped.
+        {"tx_ref": "t-legacy", "scheme": "exact", "amount_usdc": 0.01,
+         "payer": "0x" + "33" * 20, "resource": "/prints", "settled_at": 3},
+    ]
+    archive = tmp_path / "receipts.jsonl"
+    archive.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+    monkeypatch.setenv("ACR_ARC_CHAIN_ID", "5042")
+    reset_settings()
+    fac = Ledger(receipt_log_path=str(tmp_path / "log.jsonl"),
+                 receipt_archive_path=str(archive))
+    refs = {r.tx_ref for r in fac.recent}
+    assert "t-testnet" not in refs, "a testnet settlement must not count as mainnet revenue"
+    assert {"t-mainnet", "t-legacy"} <= refs
+    assert fac.paid_queries == 2
+    assert abs(fac._revenue - 0.0101) < 1e-9
+
+    # And on the chain it came from, the same archive counts in full.
+    monkeypatch.setenv("ACR_ARC_CHAIN_ID", "5042002")
+    reset_settings()
+    fac2 = Ledger(receipt_log_path=str(tmp_path / "log2.jsonl"),
+                  receipt_archive_path=str(archive))
+    assert {"t-testnet", "t-legacy"} <= {r.tx_ref for r in fac2.recent}
+    assert fac2.paid_queries == 2
+    reset_settings()
