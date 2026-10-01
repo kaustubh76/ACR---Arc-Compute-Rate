@@ -62,6 +62,7 @@ jobs:
             packages/acr_oracle_client/tests/test_onchain.py \
             packages/acr_oracle_client/tests/test_mirror_onchain.py \
             packages/acr_oracle_client/tests/test_policy_onchain.py \
+            services/index_api/tests/test_operator_onchain.py \
             -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
           # A skip is the failure mode that matters here: these suites skip
           # silently without a node, which is exactly how a broken one stayed

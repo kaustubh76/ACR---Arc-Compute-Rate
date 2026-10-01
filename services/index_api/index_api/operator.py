@@ -364,3 +364,93 @@ def _pay_rule(d: ObligationDecision, verdict: dict | None) -> str:
         where = "at par" if abs(bp) < MATERIAL_BP else f"{bp:+.0f} bp against par"
         return f"{where} on {verdict['sellers']} observed sellers, inside budget"
     return "unbenchmarked but under the ceiling, inside budget"
+
+
+# --- the driver ------------------------------------------------------------
+# Impure, and kept thin on purpose: everything worth arguing with lives in
+# `decide` above, where a test can reach it. `hedger.py` is the precedent for
+# holding the pure helpers and the loop in one file.
+
+
+def run_obligation(
+    ob: Obligation,
+    *,
+    receipts: list[dict],
+    catalog: dict,
+    policy=None,
+    settled_refs: set[str] | None = None,
+    since: float = 0.0,
+    now: float | None = None,
+    dry_run: bool = True,
+    log_path: str | None = None,
+) -> ObligationDecision:
+    """One obligation, all the way through: meter, price, decide, maybe pay.
+
+    ``dry_run`` defaults to TRUE, matching ``ops_actions``: the operator's
+    default behaviour is to say what it would do. A caller that wants money to
+    move has to say so, and the audit row exists either way.
+
+    ``policy`` is a ``PolicyClient`` or anything with ``budget(category)`` and
+    ``spend(category, to, amount, record)``. Injected rather than constructed so
+    the whole path is testable without a chain — and so a business's own wallet
+    can be passed in, which is the point of one wallet per business.
+
+    The budget is read from the CONTRACT, not from a local tally. A local tally
+    is a second opinion about the only thing that is authoritative, and the two
+    drift the moment anything else spends from the same wallet.
+    """
+    from .par import par_from_quotes, quotes_from_catalog, quotes_from_receipts
+
+    metered = meter_quantity(receipts, ob.vendor, ob.resource, since)
+
+    quotes = quotes_from_catalog(catalog, ob.resource) + quotes_from_receipts(
+        receipts, ob.resource
+    )
+    par = par_from_quotes(ob.resource, quotes, exclude_seller=ob.vendor)
+
+    remaining = per_tx = None
+    if policy is not None:
+        budget = policy.budget(ob.category)
+        if budget is None:
+            # No budget on chain means no authority, and that is not the same as
+            # a budget of zero: zero would read as "this category is exhausted
+            # this period", which a human would wait out rather than fix.
+            d = ObligationDecision(
+                at=now if now is not None else time.time(),
+                obligation_id=ob.obligation_id,
+                vendor=ob.vendor,
+                category=ob.category,
+                billed_usdc=ob.billed_usdc,
+                resource=ob.resource,
+                intent=ESCALATE,
+                rule=f"no budget on chain for {ob.category}, so the agent has no authority here",
+                escalated=True,
+                metered_quantity=metered,
+                vendor_quantity=ob.vendor_quantity,
+            )
+            log_decision(d, log_path)
+            return d
+        remaining = budget["remaining_usdc"]
+        per_tx = budget["per_tx_limit_usdc"]
+
+    d = decide(
+        ob,
+        par=par,
+        metered_quantity=metered,
+        settled_refs=settled_refs,
+        remaining_usdc=remaining,
+        per_tx_limit_usdc=per_tx,
+        now=now,
+    )
+
+    if d.intent == PAY and policy is not None:
+        if dry_run:
+            d.notes.append("dry run: cleared policy, no payment sent")
+        else:
+            # The record is hashed into the payment, so the commitment to the
+            # reasoning is made in the same transaction that moves the money.
+            d.tx = policy.spend(ob.category, ob.vendor, ob.billed_usdc, d.as_record())
+            d.paid_usdc = ob.billed_usdc
+
+    log_decision(d, log_path)
+    return d

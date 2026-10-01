@@ -24,6 +24,7 @@ from index_api.operator import (
     is_duplicate,
     log_decision,
     meter_quantity,
+    run_obligation,
 )
 from index_api.par import Quote, par_from_quotes
 
@@ -410,3 +411,177 @@ def test_a_log_that_cannot_be_written_does_not_stop_a_cleared_payment():
     a payment that cleared policy into a crash."""
     d = decide(_ob(), par=_par(*AT_PAR), remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW)
     log_decision(d, "/proc/definitely/not/writable/decisions.jsonl")
+
+
+# --- the driver ------------------------------------------------------------
+
+class _FakePolicy:
+    """Stands in for PolicyClient: the two methods the driver actually uses."""
+
+    def __init__(self, remaining=100.0, per_tx=50.0, budget=True):
+        self._budget = (
+            {
+                "category": "infra",
+                "cap_usdc": 1_000.0,
+                "spent_usdc": 0.0,
+                "remaining_usdc": remaining,
+                "per_tx_limit_usdc": per_tx,
+                "period_start": 0,
+                "period_length": 0,
+            }
+            if budget
+            else None
+        )
+        self.calls: list[tuple] = []
+
+    def budget(self, category):
+        return self._budget
+
+    def spend(self, category, to, amount, record):
+        self.calls.append((category, to, amount, record))
+        return "0x" + "ab" * 32
+
+
+CATALOG = {
+    "items": [
+        {"resource": RES, "accepts": [{"amount": "1000000", "payTo": VENDOR}]},
+        {"resource": RES, "accepts": [{"amount": "1000000", "payTo": OTHER}]},
+        {"resource": RES, "accepts": [{"amount": "1000000", "payTo": THIRD}]},
+    ]
+}
+RECEIPTS = [
+    {"seller": VENDOR, "resource": RES, "quantity": 1_000.0, "amount_usdc": 1.0,
+     "settled_at": NOW - 100},
+]
+
+
+def test_a_dry_run_clears_policy_and_sends_nothing(tmp_path):
+    pol = _FakePolicy()
+    d = run_obligation(
+        _ob(vendor_quantity=1_000.0),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == PAY
+    assert pol.calls == [], "dry run is the default and it means no payment"
+    assert d.tx is None and d.paid_usdc == 0.0
+    assert any("dry run" in n for n in d.notes)
+
+
+def test_a_live_run_pays_through_the_contract_and_records_the_hash_input(tmp_path):
+    pol = _FakePolicy()
+    d = run_obligation(
+        _ob(vendor_quantity=1_000.0),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        dry_run=False,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == PAY
+    assert len(pol.calls) == 1
+    category, to, amount, record = pol.calls[0]
+    assert (category, to, amount) == ("infra", VENDOR, 1.0)
+    assert record["rule"] and record["intent"] == PAY
+    assert "tx" not in record, "the commitment cannot contain its own transaction"
+    assert d.tx is not None and d.paid_usdc == pytest.approx(1.0)
+
+
+def test_no_budget_on_chain_is_no_authority_not_a_budget_of_zero(tmp_path):
+    """Zero would read as 'this category is exhausted this period', which a human
+    waits out. 'No budget' is something they have to go and fix."""
+    pol = _FakePolicy(budget=False)
+    d = run_obligation(
+        _ob(),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == ESCALATE and d.escalated is True
+    assert "no budget on chain" in d.rule
+    assert pol.calls == []
+
+
+def test_an_escalation_never_reaches_the_wallet(tmp_path):
+    pol = _FakePolicy(per_tx=0.5)  # 1.0 billed is at/above the limit
+    d = run_obligation(
+        _ob(),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        dry_run=False,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == ESCALATE and "the owner signs this one" in d.rule
+    assert pol.calls == [], "nothing is sent for a decision that is not the agent's"
+
+
+def test_the_driver_meters_from_our_own_receipts_and_prices_off_the_catalog(tmp_path):
+    pol = _FakePolicy()
+    d = run_obligation(
+        _ob(vendor_quantity=1_000.0),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.metered_quantity == pytest.approx(1_000.0), "our own count"
+    assert d.par_usdc == pytest.approx(1.0), "from the other two sellers"
+    # The vendor's own listing must not be among the alternatives.
+    assert d.best_usdc == pytest.approx(1.0)
+
+
+def test_the_driver_catches_an_overbilling_vendor_end_to_end(tmp_path):
+    """The whole product in one call: they billed for 5,000 units, our own
+    receipts account for 1,000, and nothing is paid."""
+    pol = _FakePolicy()
+    d = run_obligation(
+        _ob(vendor_quantity=5_000.0),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=pol,
+        now=NOW,
+        dry_run=False,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == ESCALATE
+    assert "metered below billed" in d.rule
+    assert d.discrepancy == pytest.approx(4_000.0)
+    assert pol.calls == []
+
+
+def test_the_driver_runs_without_a_wallet_at_all(tmp_path):
+    """No policy means no budget check — the price and meter decisions still
+    stand, which is what a business evaluating the operator sees first."""
+    d = run_obligation(
+        _ob(vendor_quantity=1_000.0),
+        receipts=RECEIPTS,
+        catalog=CATALOG,
+        policy=None,
+        now=NOW,
+        log_path=str(tmp_path / "d.jsonl"),
+    )
+    assert d.intent == PAY
+    assert d.par_usdc == pytest.approx(1.0)
+
+
+def test_every_driver_outcome_is_written_down(tmp_path):
+    path = tmp_path / "audit.jsonl"
+    run_obligation(_ob(), receipts=RECEIPTS, catalog=CATALOG,
+                   policy=_FakePolicy(), now=NOW, log_path=str(path))
+    run_obligation(_ob(obligation_id="ob-2"), receipts=RECEIPTS, catalog=CATALOG,
+                   policy=_FakePolicy(budget=False), now=NOW, log_path=str(path))
+
+    rows = [json.loads(ln) for ln in path.read_text().splitlines()]
+    assert len(rows) == 2
+    assert rows[0]["intent"] == PAY
+    assert rows[1]["intent"] == ESCALATE
+    assert all(r["rule"] for r in rows), "including the refusals"
