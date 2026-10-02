@@ -5,9 +5,10 @@
     "unconsented business still counts and still gets a published ledger, under",
     "the pseudonym `business <slug>`.",
     "`policy_wallet` empty means the operator can price and meter for them but",
-    "cannot spend — which is what an evaluation looks like, and a real state.",
+    "cannot spend \u2014 which is what an evaluation looks like, and a real state.",
     "`chain` is per business because mainnet and testnet totals are reported",
-    "separately and must never be added together."
+    "separately and must never be added together.",
+    "`sandbox: true` is a DEMONSTRATION, not a customer. It renders wherever a business renders \u2014 the escalation queue and the decision table cannot be shown at all without one \u2014 and `businesses.real()` excludes it from every traction figure. Its decisions live in operator_decisions.sandbox.jsonl so that anyone auditing what the agent really did reads only real rows."
   ],
   "businesses": [
     {
@@ -18,9 +19,27 @@
       "consented": true,
       "tier": "own",
       "chain": "testnet",
-      "categories": ["machine-services"],
+      "categories": [
+        "machine-services"
+      ],
       "onboarded_at": 1790946149,
       "note": "Our own agent fleet's spend on machine services. 75 real exact-scheme Gateway settlements across 7 sellers and 4 units (0.325467 USDC), so the meter has genuine consumption to count and PAR has genuine price dispersion to measure against. Those settlements are dated 2026-09-12/13 and therefore PREDATE the Tameion window; what is in-window is the onboarding and every decision made since. No PolicyWallet yet, so the operator prices and meters here and cannot spend: `spends: false` on every surface."
+    },
+    {
+      "slug": "sandbox",
+      "name": "Sandbox Studio",
+      "treasury": "0x5C7a91Fb3E068d24A1c9B7e05F32d684Ca07B19E",
+      "policy_wallet": "",
+      "consented": true,
+      "tier": "own",
+      "chain": "testnet",
+      "categories": [
+        "infra",
+        "contractors"
+      ],
+      "onboarded_at": 1790866800,
+      "sandbox": true,
+      "note": "A demonstration so the escalation queue, the meter, the counterparty screen and the dry-run labelling can all be seen working. Hand-written decisions, not a real business, excluded from every traction number. No PolicyWallet on purpose: inventing contract state would make the page's own sentence about reading budgets from the contract false, and `spends: false` is both true here and the state the real business is in until a wallet is funded."
     }
   ]
 }

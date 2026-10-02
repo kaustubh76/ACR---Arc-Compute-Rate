@@ -75,8 +75,8 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
   // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
   // how two of these floors were briefly set below actual.
-  "app/spend/view.tsx": 47, // the queue, the summary, the budgets, the context
-  "app/traction/view.tsx": 34, // every figure labelled in both registers
+  "app/spend/view.tsx": 56, // the queue, the summary, the budgets, the context
+  "app/traction/view.tsx": 40, // every figure labelled in both registers
   "components/spend/EscalationActions.tsx": 7, // the key, the three buttons, the note
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy

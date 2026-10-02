@@ -400,3 +400,80 @@ def test_the_shipped_decision_archive_is_valid_and_real():
     for r in rows:
         if (r.get("saving_usdc") or 0) > 0:
             assert r.get("reroute_to"), r
+
+
+# --- the market context cannot fail the statement -------------------------
+
+def test_a_slow_market_context_does_not_delay_the_statement(tmp_path, monkeypatch):
+    """MEASURED: `payer_tca` costs ~7 seconds on a cold cache, and the proxy in
+    front of this endpoint times out at 5. So the first visitor after any press
+    restart saw "this statement could not be read" for a statement whose
+    decisions were in hand after 1.3 ms. The context is basis points beside a
+    figure; something optional must not fail the thing it decorates."""
+    import time as _time
+
+    from index_api import statement as st_mod
+
+    monkeypatch.setattr(st_mod, "TCA_BUDGET_S", 0.2)
+
+    def slow(payer, days=7):
+        _time.sleep(5)
+        return {"available": True, "vw_slippage_bp": 1.0}
+
+    started = _time.perf_counter()
+    st = build_statement(
+        "acme", registry=REG, tca_fn=slow,
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    elapsed = _time.perf_counter() - started
+
+    assert elapsed < 2.0, f"the budget did not return early: {elapsed:.1f}s"
+    assert st["market_context"]["available"] is False
+    assert st["market_context"]["reason"] == "SLOW"
+    # The part that matters is still there.
+    assert st["spend"]["decisions"] == 1
+
+
+def test_the_budget_returns_early_rather_than_merely_reporting_slow(tmp_path, monkeypatch):
+    """The first version used `with ThreadPoolExecutor(...)`, whose __exit__
+    calls shutdown(wait=True) — so it reported SLOW at 2s and still took 6.3s.
+    A timeout that does not return early is a silent non-fix, which is why this
+    asserts the CLOCK and not just the reason."""
+    import time as _time
+
+    from index_api import statement as st_mod
+
+    monkeypatch.setattr(st_mod, "TCA_BUDGET_S", 0.1)
+    started = _time.perf_counter()
+    build_statement(
+        "acme", registry=REG,
+        tca_fn=lambda payer, days=7: (_time.sleep(3), {"available": True})[1],
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    assert _time.perf_counter() - started < 1.5, "it waited for the abandoned worker"
+
+
+def test_a_raising_market_context_does_not_500_the_statement(tmp_path):
+    """A statement whose decisions are all in hand must not fail because an
+    optional decoration threw."""
+    def boom(payer, days=7):
+        raise RuntimeError("the subgraph is on fire")
+
+    st = build_statement(
+        "acme", registry=REG, tca_fn=boom,
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    assert st["market_context"] == {"available": False, "reason": "UNAVAILABLE"}
+    assert st["spend"]["decisions"] == 1
+
+
+def test_a_fast_market_context_is_still_served(tmp_path):
+    st = build_statement(
+        "acme", registry=REG,
+        tca_fn=lambda payer, days=7: {
+            "available": True, "purchases": 3, "vw_slippage_bp": 12.0,
+        },
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    assert st["market_context"]["available"] is True
+    assert st["market_context"]["vw_slippage_bp"] == 12.0

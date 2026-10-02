@@ -6,6 +6,7 @@ import { EscalationActions } from "@/components/spend/EscalationActions";
 import { Term } from "@/components/Term";
 import { useBusinesses, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
+import { CHAIN, CHAIN_TESTNET, txUrl } from "@/lib/chain";
 import { useNow } from "@/lib/useNow";
 import type { SpendBudget, SpendDecision, Statement } from "@/lib/types";
 
@@ -37,6 +38,36 @@ const INTENT: Record<string, { cls: string; x: string; p: string }> = {
   refuse: { cls: "chip-breach", x: "refused", p: "refused" },
 };
 
+/** A `pay` that sent nothing CLEARED POLICY; it did not pay.
+ *
+ *  This page rendered a green "paid" chip on six decisions whose `paid_usdc`
+ *  was 0.0 — they were dry runs. The beancount export already said "cleared
+ *  policy, not sent" about the same records, so two surfaces disagreed about
+ *  one fact and the one a reviewer opens was the wrong one. The wording is
+ *  copied from `ledger_export.py` deliberately, so they cannot drift again. */
+function outcome(d: SpendDecision): { cls: string; x: string; p: string } {
+  if (d.intent === "pay" && !(d.paid_usdc && d.paid_usdc > 0)) {
+    return {
+      cls: "chip-sky",
+      x: "cleared policy, not sent",
+      p: "allowed, but not paid yet",
+    };
+  }
+  return INTENT[d.intent] ?? { cls: "chip-sky", x: d.intent, p: d.intent };
+}
+
+/** The counterparty screen, per decision.
+ *
+ *  `unknown` gets its own tier and never reads as `clear` — the same rule
+ *  `counterparty.py` enforces in the data, because a screening service that
+ *  timed out is not a clean bill of health. Absent means no screen was offered
+ *  for that decision, which is a third thing again. */
+const SCREEN: Record<string, { cls: string; x: string; p: string }> = {
+  clear: { cls: "chip-teal", x: "clear", p: "checked, fine" },
+  flagged: { cls: "chip-breach", x: "flagged", p: "on a watchlist" },
+  unknown: { cls: "chip-gold", x: "not screened", p: "could not check" },
+};
+
 /** Every USDC figure on this page goes through `fmtPrice`, never a fixed number
  *  of decimals. `lib/format.ts` records why: five fixed decimals is five
  *  significant figures for a ~0.49 print and TWO for a ~0.0021 one, which once
@@ -51,16 +82,38 @@ function price(n: number | null | undefined): string {
   return fmtPrice(typeof n === "number" ? n : NaN);
 }
 
+/** A consumed quantity, in the service's own unit.
+ *
+ *  Through `fmtPrice` rather than raw: these span 0.08 to 24 in one table, and
+ *  constant significant figures is the only arithmetic in the house that holds
+ *  across two orders of magnitude. Raw rendered `0.09999999999999999`. It is
+ *  named for prices because that is where the problem was first found, not
+ *  because the maths is only valid for money. */
+function qty(n: number): string {
+  return fmtPrice(n);
+}
+
 /** `shortAddr` throws on undefined and returns "" for "", so the call sites
  *  decide what an absent counterparty looks like rather than the formatter. */
 function who(a: string | null | undefined): string {
   return a ? shortAddr(a) : fmtPrice(NaN);
 }
 
-/** One decision, with the rule that produced it. The rule is the whole point:
- *  it is what a reviewer reads instead of reconstructing the reasoning. */
-function DecisionRow({ d }: { d: SpendDecision }) {
-  const kind = INTENT[d.intent] ?? { cls: "chip-sky", x: d.intent, p: d.intent };
+/** One decision: billed, metered, par, screened, and the rule that produced it.
+ *
+ *  THE COLUMNS ARE THE PRODUCT'S CLAIM. `billed · metered · par · paid · rule`
+ *  is what this agent says it writes down, and the first version of this table
+ *  showed billed, par and the saving while leaving the METER invisible — the
+ *  independent count is Prior Art #06, the thing the whole build is named
+ *  after, and it had already caught a vendor underbilling on real data without
+ *  the page ever saying so. The screen was invisible for the same reason. */
+function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
+  const kind = outcome(d);
+  const screen = d.screen_risk ? SCREEN[d.screen_risk] : null;
+  const over = typeof d.discrepancy === "number" && d.discrepancy > 0;
+  const under = typeof d.discrepancy === "number" && d.discrepancy < 0;
+  const service = d.resource ? d.resource.split("/").pop() : "";
+
   return (
     <tr>
       <td>
@@ -69,10 +122,89 @@ function DecisionRow({ d }: { d: SpendDecision }) {
         </span>
       </td>
       <td className="mono">{price(d.billed_usdc)}</td>
-      <td className="mono">{price(d.par_usdc)}</td>
-      <td className="mono">{price(d.saving_usdc)}</td>
-      <td className="mono">{who(d.reroute_to || d.vendor)}</td>
-      <td>{d.rule}</td>
+
+      {/* The meter: our own count against theirs. A positive difference means
+          they billed for more than we consumed, which is the case this whole
+          product exists to catch, so it gets the alarm colour. */}
+      <td className="mono">
+        {typeof d.metered_quantity === "number" ? (
+          <>
+            {qty(d.metered_quantity)}
+            {typeof d.vendor_quantity === "number" &&
+            d.vendor_quantity !== d.metered_quantity ? (
+              <>
+                {" / "}
+                <span className={`chip ${over ? "chip-breach" : "chip-sky"}`}>
+                  {qty(d.vendor_quantity)}
+                </span>
+              </>
+            ) : null}
+          </>
+        ) : (
+          /* None is not zero. Zero would assert we consumed nothing and make
+             every bill look fraudulent; `operator.py` makes the same refusal. */
+          <span className="chip chip-gold">
+            <Ed x="no record" p="no record" />
+          </span>
+        )}
+      </td>
+
+      <td className="mono">
+        {price(d.par_usdc)}
+        {typeof d.best_usdc === "number" ? (
+          <>
+            {" · "}
+            <Ed x="best" p="cheapest" />
+            {" "}
+            {price(d.best_usdc)}
+          </>
+        ) : null}
+      </td>
+
+      <td>
+        {screen ? (
+          <span className={`chip ${screen.cls}`}>
+            <Ed x={screen.x} p={screen.p} />
+          </span>
+        ) : (
+          <span className="chip chip-gold">
+            <Ed x="no screen" p="not checked" />
+          </span>
+        )}
+        {d.screen_matched && d.screen_matched.length > 0 ? (
+          <div className="mono">{d.screen_matched.join(" · ")}</div>
+        ) : null}
+      </td>
+
+      <td>
+        {d.rule}
+        {/* The notes are where the gaps live: a dry run, an unscreened
+            counterparty, a price nobody could benchmark. Invisible notes are
+            how a gap becomes a silent claim. */}
+        {d.notes && d.notes.length > 0 ? (
+          <div className="label">{d.notes.join(" · ")}</div>
+        ) : null}
+        {under ? (
+          <div className="label">
+            <Ed
+              x="they billed under our count"
+              p="they asked for less than we used"
+            />
+          </div>
+        ) : null}
+        <div className="label mono">
+          {service}
+          {d.reroute_to ? ` → ${shortAddr(d.reroute_to)}` : ""}
+          {d.tx ? (
+            <>
+              {" · "}
+              <a href={txUrl(d.tx, explorer)} target="_blank" rel="noreferrer">
+                <Ed x="on chain" p="on the blockchain" />
+              </a>
+            </>
+          ) : null}
+        </div>
+      </td>
     </tr>
   );
 }
@@ -103,9 +235,30 @@ function BudgetRow({ b }: { b: SpendBudget }) {
 function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void }) {
   const s = st.spend;
   const ctx = st.market_context;
+  // From the BUSINESS's chain: a testnet transaction does not live on the
+  // mainnet explorer, and a link to the wrong one is worse than no link.
+  const explorer =
+    st.business.chain === "mainnet" ? CHAIN.explorer : CHAIN_TESTNET.explorer;
 
   return (
     <>
+      {st.business.sandbox ? (
+        <section className="section">
+          <div className="panel panel-pad">
+            <p className="standfirst">
+              <span className="chip chip-gold">
+                <Ed x="sandbox" p="demo only" />
+              </span>
+              {" "}
+              <Ed
+                x="A demonstration, so the queue, the meter and the counterparty check can be seen working. Hand-written decisions, and excluded from every number on the traction page."
+                p="A demo, so you can see how it works. Made-up decisions, and left out of every real count."
+              />
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       {st.escalations.length > 0 && (
         <section className="section">
           <div className="section-head">
@@ -306,13 +459,13 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                       <Ed x="Billed" p="Asked for" />
                     </th>
                     <th>
+                      <Ed x="Metered / billed" p="We counted / they said" />
+                    </th>
+                    <th>
                       <Ed x="Par" p="Going rate" />
                     </th>
                     <th>
-                      <Ed x="Saved" p="Saved" />
-                    </th>
-                    <th>
-                      <Ed x="Counterparty" p="Who" />
+                      <Ed x="Counterparty" p="Checked?" />
                     </th>
                     <th>
                       <Ed x="Rule" p="Why" />
@@ -321,7 +474,11 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                 </thead>
                 <tbody>
                   {st.recent.map((d) => (
-                    <DecisionRow key={`${d.obligation_id}-${d.at}`} d={d} />
+                    <DecisionRow
+                      key={`${d.obligation_id}-${d.at}`}
+                      d={d}
+                      explorer={explorer}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -494,6 +651,13 @@ export function SpendView() {
                             <Ed x="measured only" p="watching only" />
                           )}
                         </span>
+                        {/* Said wherever the business appears, so nobody can
+                            mistake a demonstration for a customer. */}
+                        {b.sandbox ? (
+                          <span className="chip chip-gold">
+                            <Ed x="sandbox" p="demo only" />
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   ))}

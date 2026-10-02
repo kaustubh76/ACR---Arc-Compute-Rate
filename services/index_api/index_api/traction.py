@@ -36,7 +36,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 
-from .businesses import Business, counts, load
+from .businesses import Business, counts, real
 from .operator import ESCALATE, HOLD, PAY, REFUSE, REROUTE
 from .statement import read_decisions, summarise
 
@@ -71,7 +71,9 @@ def _per_business(b: Business) -> dict:
 
 def build_traction(registry: tuple[Business, ...] | None = None, now: float | None = None) -> dict:
     """Every traction figure, computed from the rows that justify it."""
-    reg = registry if registry is not None else load()
+    # Through `real()`, so a sandbox business cannot move a single figure on
+    # this page. It demonstrates the UI; it is not usage.
+    reg = real(registry)
     rows = [_per_business(b) for b in reg]
 
     by_chain: dict[str, dict[str, float]] = defaultdict(

@@ -173,3 +173,59 @@ def test_the_note_says_what_moved_means():
     note = build_traction()["note"]
     assert "paid out" in note and "assessed" in note
     assert "never summed" in note
+
+
+# --- a sandbox demonstrates the UI and counts as nothing ------------------
+
+SANDBOX = {"slug": "demo", "treasury": "0x" + "ee" * 20, "name": "Demo Studio",
+           "consented": True, "tier": "own", "chain": "testnet", "sandbox": True}
+
+
+def test_a_sandbox_business_moves_no_traction_figure(wired):
+    """The whole point of the flag. Showing the UI and claiming usage are
+    different things, and Canteen's FAQ draws the line exactly there."""
+    decisions = [
+        _row(business="acme", billed_usdc=1.0, paid_usdc=1.0),
+        # The sandbox's own decisions are deliberately large, so a leak would be
+        # obvious rather than marginal.
+        _row(business="demo", obligation_id="d1", billed_usdc=500.0, paid_usdc=500.0),
+        _row(business="demo", obligation_id="d2", intent="reroute", saving_usdc=99.0),
+    ]
+    wired([ACME, SANDBOX], decisions)
+    t = build_traction(now=NOW)
+
+    assert t["businesses"]["businesses"] == 1, "the sandbox is not a business that counts"
+    assert [r["slug"] for r in t["per_business"]] == ["acme"]
+    assert t["by_chain"]["testnet"]["moved_usdc"] == pytest.approx(1.0), "500 leaked in"
+    assert t["by_chain"]["testnet"]["recoverable_usdc"] == pytest.approx(0.0)
+    assert t["work"]["decisions"] == 1
+    blob = json.dumps(t)
+    assert "Demo Studio" not in blob and "demo" not in blob
+
+
+def test_the_same_figures_come_back_with_and_without_the_sandbox(wired):
+    """A stronger form: adding a sandbox to the registry must change nothing."""
+    decisions = [_row(business="acme", billed_usdc=2.0, paid_usdc=2.0)]
+
+    wired([ACME], decisions)
+    without = build_traction(now=NOW)
+    wired([ACME, SANDBOX], decisions + [
+        _row(business="demo", obligation_id="d9", billed_usdc=777.0, paid_usdc=777.0),
+    ])
+    with_it = build_traction(now=NOW)
+
+    assert without["businesses"] == with_it["businesses"]
+    assert without["by_chain"] == with_it["by_chain"]
+    assert without["work"] == with_it["work"]
+    assert without["per_business"] == with_it["per_business"]
+
+
+def test_a_sandbox_is_still_listed_for_the_page_that_shows_the_ui(wired):
+    """It has to render somewhere, or the escalation queue and the decision
+    table cannot be demonstrated at all. `load()` returns it; `real()` does not."""
+    from index_api.businesses import load, real
+
+    wired([ACME, SANDBOX], [])
+    assert [b.slug for b in load()] == ["acme", "demo"]
+    assert [b.slug for b in real()] == ["acme"]
+    assert next(b for b in load() if b.sandbox).as_public_dict()["sandbox"] is True

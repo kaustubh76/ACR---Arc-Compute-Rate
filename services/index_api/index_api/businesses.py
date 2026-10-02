@@ -65,6 +65,14 @@ class Business:
     chain: str = "testnet"
     categories: tuple[str, ...] = field(default_factory=tuple)
     onboarded_at: float = 0.0
+    #: A demonstration, not a customer.
+    #:
+    #: It renders everywhere a business renders, because the escalation queue
+    #: and the budget block cannot be shown at all without one — and it is
+    #: EXCLUDED from every traction figure, because showing the UI and claiming
+    #: usage are different things and Canteen's FAQ draws the line exactly
+    #: there: "what doesn't count is a synthetic dataset".
+    sandbox: bool = False
     note: str = ""
 
     @property
@@ -94,6 +102,7 @@ class Business:
             "categories": list(self.categories),
             "onboarded_at": self.onboarded_at,
             "spends": bool(self.policy_wallet),
+            "sandbox": self.sandbox,
         }
         if self.consented and self.name:
             d["name"] = self.name
@@ -124,6 +133,7 @@ def _one(row: dict) -> Business | None:
         chain=chain,
         categories=tuple(str(c) for c in (row.get("categories") or ())),
         onboarded_at=float(row.get("onboarded_at") or 0.0),
+        sandbox=bool(row.get("sandbox")),
         note=str(row.get("note") or ""),
     )
 
@@ -200,10 +210,24 @@ def resolve(ident: str, registry: tuple[Business, ...] | None = None) -> Busines
     return by_slug(ident, reg) or by_treasury(ident, reg)
 
 
+def real(registry: tuple[Business, ...] | None = None) -> tuple[Business, ...]:
+    """The businesses that count: everything except the sandbox.
+
+    Named and used rather than filtered inline, so there is one definition of
+    "counts as usage" and every traction figure goes through it.
+    """
+    reg = registry if registry is not None else load()
+    return tuple(b for b in reg if not b.sandbox)
+
+
 def counts(registry: tuple[Business, ...] | None = None) -> dict:
     """The traction numbers the submission form asks for, derived rather than
-    maintained. Mainnet and testnet are reported separately and never summed."""
-    reg = registry if registry is not None else load()
+    maintained. Mainnet and testnet are reported separately and never summed.
+
+    Sandbox businesses are excluded here, not at the call sites, so no figure
+    can accidentally include one.
+    """
+    reg = real(registry)
     per_tier = {t: 0 for t in TIERS}
     for b in reg:
         per_tier[b.tier] = per_tier.get(b.tier, 0) + 1

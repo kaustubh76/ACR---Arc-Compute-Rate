@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from pathlib import Path
 
 from .businesses import Business, resolve
@@ -38,6 +41,20 @@ log = logging.getLogger("index_api.statement")
 #: full ledger is the log and the chain.
 RECENT_LIMIT = 50
 
+#: How long the market context may take before the statement goes without it.
+#:
+#: MEASURED: `payer_tca` costs ~7 SECONDS on a cold cache, because it reaches a
+#: live subgraph, and then caches. The proxy in front of this endpoint times out
+#: at 5s — so the first visitor after any press restart saw "this statement
+#: could not be read" for a statement whose decisions were already in hand after
+#: 1.3 ms. On a free tier that restarts, that is the common case, not the edge.
+#:
+#: The context is explicitly optional: it is basis points beside a figure, it
+#: already has an `available: false` path with a reason, and `anchors/GAP.md` is
+#: why it can never be the headline. Something optional must not be able to fail
+#: the thing it decorates.
+TCA_BUDGET_S = float(os.environ.get("ACR_STATEMENT_TCA_BUDGET_S", "2"))
+
 #: The committed decision archive, inside the package.
 #:
 #: Same two-tier shape the receipts use, and for the same reason: `data/` is
@@ -46,6 +63,15 @@ RECENT_LIMIT = 50
 #: decisions locally and nothing at all on the deployed site. The archive ships
 #: in the image; the runtime log accumulates beside it.
 ARCHIVE_PATH = Path(__file__).with_name("operator_decisions.jsonl")
+
+#: The SANDBOX's decisions, in their own file.
+#:
+#: They could live in the archive beside the real ones — every row carries its
+#: `business` and `read_decisions` filters on it — but then somebody opening
+#: `operator_decisions.jsonl` to audit what the agent really did would be
+#: reading a mixture. Two files cost one extra read and remove that question
+#: entirely.
+SANDBOX_ARCHIVE_PATH = Path(__file__).with_name("operator_decisions.sandbox.jsonl")
 
 
 def _read_one(target: Path) -> list[dict]:
@@ -99,7 +125,11 @@ def read_decisions(
     if path is not None:
         rows = _read_one(Path(path))
     else:
-        rows = _read_one(ARCHIVE_PATH) + _read_one(Path(LOG_PATH))
+        rows = (
+            _read_one(ARCHIVE_PATH)
+            + _read_one(SANDBOX_ARCHIVE_PATH)
+            + _read_one(Path(LOG_PATH))
+        )
 
     out: list[dict] = []
     seen: set[str] = set()
@@ -165,6 +195,40 @@ def summarise(decisions: list[dict]) -> dict:
         "consumption_discrepancies": discrepancies,
         "unmetered": unmetered,
     }
+
+
+def _market_card(tca_fn, treasury: str, days: int) -> dict:
+    """The market context, or a stated reason there isn't one, within a budget.
+
+    Run on a worker thread because `payer_tca` is synchronous and talks to a
+    subgraph. A thread that outlives the budget is abandoned rather than waited
+    on: its result would arrive after the response, and the caching inside
+    `tca.py` means the NEXT reader gets it for free. Nothing is cancelled
+    because nothing needs to be — it is a read.
+
+    An exception is `UNAVAILABLE` rather than a raise: a statement whose
+    decisions are all in hand must not 500 because an optional decoration
+    failed.
+    """
+    # NOT a `with` block. `ThreadPoolExecutor.__exit__` calls
+    # `shutdown(wait=True)`, which blocks on the very thread the timeout just
+    # abandoned — measured: the budget fired at 2s and the function still took
+    # 6.3s, so the timeout looked right and fixed nothing.
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="statement-tca")
+    try:
+        fut = pool.submit(tca_fn, treasury, days=days)
+        return fut.result(timeout=TCA_BUDGET_S) or {}
+    except FutureTimeout:
+        log.info("statement: market context exceeded %.1fs, going without", TCA_BUDGET_S)
+        return {"available": False, "reason": "SLOW"}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("statement: market context unavailable (%s)", exc)
+        return {"available": False, "reason": "UNAVAILABLE"}
+    finally:
+        # Let the worker finish on its own time: its answer warms `tca.py`'s
+        # cache, so the next reader gets the context for free. Nothing is
+        # cancelled because nothing needs to be — it is a read.
+        pool.shutdown(wait=False)
 
 
 def pending_escalations(decisions: list[dict]) -> list[dict]:
@@ -250,7 +314,7 @@ def build_statement(
     # figures from this call are not forwarded.
     context: dict = {"available": False, "reason": "not requested"}
     if tca_fn is not None:
-        card = tca_fn(b.treasury, days=days) or {}
+        card = _market_card(tca_fn, b.treasury, days)
         if card.get("available"):
             context = {
                 "available": True,

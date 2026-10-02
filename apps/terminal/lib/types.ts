@@ -747,6 +747,10 @@ export interface BusinessRow {
   onboarded_at: number;
   /** False means the operator can price and meter for them but cannot spend. */
   spends: boolean;
+  /** A demonstration, not a customer. Rendered as a chip wherever the business
+   *  appears, and excluded from every traction figure server-side by
+   *  `businesses.real()`. */
+  sandbox?: boolean;
 }
 
 /** Payload of /api/operator/businesses. Counts are DERIVED from the list, so
@@ -779,6 +783,12 @@ export interface SpendDecision {
   metered_quantity?: number | null;
   vendor_quantity?: number | null;
   discrepancy?: number | null;
+  /** `clear` · `flagged` · `unknown` · absent when no screen was offered.
+   *  `unknown` must never render as `clear`: a screening service that timed out
+   *  is not a clean bill of health, which is the rule `counterparty.py`
+   *  enforces in the data. */
+  screen_risk?: string;
+  screen_matched?: string[];
   par_usdc?: number | null;
   best_usdc?: number | null;
   over_par_bp?: number | null;
