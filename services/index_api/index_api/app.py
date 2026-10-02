@@ -34,6 +34,7 @@ from acr_core import (
     testnet_surfaces_enabled,
 )
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from . import armor, graph_proxy, memory, ratelimit
@@ -1347,6 +1348,40 @@ def operator_businesses(
         "businesses": [b.as_public_dict() for b in registry],
         "counts": counts(registry),
     }
+
+
+@app.get("/operator/ledger/{business}", response_class=PlainTextResponse)
+def operator_ledger(
+    business: str,
+    request: Request,
+    days: int = 90,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> str:
+    """The business's decisions as a beancount file, served as plain text.
+
+    Prior Art #01 names beancount as "a ledger an agent can write to and a human
+    can read", and says it has never been connected to money that actually
+    moves. This is that connection: a real double-entry file whose every
+    transaction sums to zero, annotated with the rule that produced it, what we
+    independently metered, the par it was checked against and the transaction
+    hash — the three things *Agents and Ledgers* says a balanced ledger cannot
+    check on its own.
+
+    `text/plain` rather than JSON because the consumer is beancount, or a person
+    reading it. Ungated, like the statement: an accountant should not need a key
+    to check our arithmetic.
+    """
+    _meter_agent(request, agent)
+    from .businesses import resolve
+    from .ledger_export import to_beancount
+    from .statement import read_decisions
+
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    since = time.time() - max(1, min(365, int(days))) * 86_400
+    rows = read_decisions(business=b.slug, since=since)
+    return to_beancount(rows, b.slug)
 
 
 @app.get("/operator/statement/{business}")

@@ -93,6 +93,7 @@ export const ENDPOINTS: EndpointRow[] = [
      surface is the one thing this product cannot afford to render. */
   { method: "GET", path: "/operator/businesses", gate: "public", family: "market", run: "/operator/businesses" },
   { method: "GET", path: "/operator/statement/{business}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/operator/ledger/{business}", gate: "public", family: "market", run: null, why: "address" },
   { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },
   { method: "POST", path: "/graph/query", gate: "public", family: "market", run: null, why: "post" },
   { method: "GET", path: "/fleet", gate: "public", family: "market", run: "/fleet" },

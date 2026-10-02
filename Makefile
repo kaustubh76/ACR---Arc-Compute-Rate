@@ -185,6 +185,21 @@ deploy-mirror:
 	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
 	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
 
+# One business's decisions as a beancount file. Prior Art #01 names beancount as
+# "a ledger an agent can write to" and says it has never been connected to money
+# that actually moves; this is that connection, and every transaction in it sums
+# to zero. BUSINESS is a registry slug or a treasury address.
+ledger:
+	@test -n "$(BUSINESS)" || { echo "BUSINESS not set — e.g. make ledger BUSINESS=acr-fleet"; exit 1; }
+	uv run python -c "import sys; from index_api.businesses import resolve; from index_api.ledger_export import to_beancount; from index_api.statement import read_decisions; b=resolve('$(BUSINESS)'); sys.exit('no business registered as $(BUSINESS)') if b is None else sys.stdout.write(to_beancount(read_decisions(business=b.slug), b.slug))"
+
+# Run the spend operator for one business. Dry run unless LIVE=1, and --live is
+# refused for a business with no PolicyWallet rather than doing a dry run under
+# the wrong name.
+operator-run:
+	@test -n "$(BUSINESS)" || { echo "BUSINESS not set — e.g. make operator-run BUSINESS=acr-fleet"; exit 1; }
+	uv run python scripts/operator_run.py --business $(BUSINESS) $(if $(LIVE),--live,)
+
 # One business's spending authority. ONE WALLET PER BUSINESS: a shared wallet with
 # per-business categories would put one business's budget one wrong `isAgent` entry
 # away from another's agent. A deploy costs about a cent on Arc.

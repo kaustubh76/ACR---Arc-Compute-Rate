@@ -162,3 +162,34 @@ def test_the_statement_carries_the_queue_before_the_totals(registry):
     for key in ("decisions", "decided", "escalated", "paid_usdc", "saved_usdc",
                 "consumption_discrepancies", "unmetered"):
         assert key in body["spend"], key
+
+
+# --- /operator/ledger/{business} ------------------------------------------
+
+def test_the_ledger_is_served_as_plain_text_and_balances(registry):
+    """The consumer is beancount, or a person reading it, so JSON would be the
+    wrong container. Ungated for the same reason the statement is: an accountant
+    should not need a key to check our arithmetic."""
+    from index_api.ledger_export import balance_problems
+
+    registry([ACME])
+    r = client.get("/operator/ledger/acme")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+    assert balance_problems(r.text) == [], "the served file does not balance"
+    assert 'option "operating_currency" "USDC"' in r.text
+    assert "1970-01-01" not in r.text, "an empty ledger must not open in 1970"
+
+
+def test_an_unknown_business_has_no_ledger(registry):
+    registry([ACME])
+    r = client.get("/operator/ledger/nobody")
+    assert r.status_code == 404
+
+
+def test_the_ledger_window_is_clamped(registry):
+    """A window nobody asked for is a slow read somebody can ask for repeatedly."""
+    registry([ACME])
+    for days in ("1", "9999", "-5", "notanumber"):
+        r = client.get(f"/operator/ledger/acme?days={days}")
+        assert r.status_code in (200, 422), days
