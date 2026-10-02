@@ -603,3 +603,105 @@ def test_a_reroute_rule_never_contradicts_itself(tmp_path):
     assert "-" not in d.rule.split("bp")[0], "no negative basis points in the prose"
     assert "cheapest offer" in d.rule
     assert d.saving_usdc == pytest.approx(1.0)
+
+
+# --- 4 · the counterparty, before the price -------------------------------
+
+def _screen(risk, matched=(), reason="", screened=True):
+    from index_api.counterparty import CounterpartyVerdict
+
+    return CounterpartyVerdict(
+        address=VENDOR, risk=risk, backend="test",
+        matched=tuple(matched), reason=reason, screened=screened,
+    )
+
+
+def test_a_flagged_counterparty_is_not_a_payment_the_agent_makes():
+    """RFB 2 wants screening built into the path, not run once at onboarding."""
+    d = decide(
+        _ob(), par=_par(*AT_PAR), screen=_screen("flagged", ("us_ofac_sdn",)),
+        remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert d.intent == ESCALATE and d.escalated is True
+    assert "counterparty flagged" in d.rule and "us_ofac_sdn" in d.rule
+    assert d.screen_risk == "flagged"
+    assert d.screen_matched == ["us_ofac_sdn"]
+
+
+def test_the_counterparty_outranks_the_price():
+    """Order. A vendor we may not pay is not a pricing question, so a flagged
+    address must not come back as "there is a cheaper seller"."""
+    d = decide(
+        _ob(billed_usdc=9.0), par=_par(*CHEAPER),
+        screen=_screen("flagged", ("eu_fsf",)),
+        remaining_usdc=100.0, now=NOW,
+    )
+    assert d.intent == ESCALATE and "counterparty flagged" in d.rule
+    assert d.reroute_to == ""
+
+
+def test_the_counterparty_outranks_the_budget():
+    """"Over budget" is the wrong headline for a sanctioned address."""
+    d = decide(
+        _ob(billed_usdc=99.0), par=_par((OTHER, 99.0), (THIRD, 99.0)),
+        screen=_screen("flagged", ("us_ofac_sdn",)),
+        remaining_usdc=0.0, per_tx_limit_usdc=1.0, now=NOW,
+    )
+    assert "counterparty flagged" in d.rule
+    assert "budget" not in d.rule and "owner signs" not in d.rule
+
+
+def test_the_meter_still_outranks_the_counterparty():
+    """A bill for work nobody did is refused before we ask who they are: the
+    cheaper, more damning check comes first."""
+    d = decide(
+        _ob(vendor_quantity=1_000.0), metered_quantity=10.0,
+        par=_par(*AT_PAR), screen=_screen("flagged", ("us_ofac_sdn",)),
+        remaining_usdc=100.0, now=NOW,
+    )
+    assert "metered below billed" in d.rule
+
+
+def test_a_clear_counterparty_is_recorded_on_the_decision():
+    """In the hashed record, so the commitment says what was known about the
+    counterparty when the money moved."""
+    d = decide(
+        _ob(), par=_par(*AT_PAR), screen=_screen("clear"),
+        remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert d.intent == PAY
+    assert d.screen_risk == "clear"
+    assert "screen_risk" in d.as_record()
+
+
+def test_an_unscreened_payment_records_the_gap_rather_than_hiding_it():
+    d = decide(
+        _ob(), par=_par(*AT_PAR),
+        screen=_screen("unknown", reason="the screen could not answer", screened=False),
+        remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert d.intent == PAY, "an outage does not stop the business by default"
+    assert d.screen_risk == "unknown"
+    assert any("not screened" in n for n in d.notes)
+
+
+def test_no_screen_at_all_is_also_written_down():
+    d = decide(
+        _ob(), par=_par(*AT_PAR), screen=None,
+        remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert any("no counterparty screen" in n for n in d.notes)
+    assert d.screen_risk == "", "absent, not guessed"
+
+
+def test_screening_required_turns_an_outage_into_an_escalation(monkeypatch):
+    from index_api import counterparty as cp
+
+    monkeypatch.setattr(cp, "REQUIRED", True)
+    d = decide(
+        _ob(), par=_par(*AT_PAR),
+        screen=_screen("unknown", reason="timed out", screened=False),
+        remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert d.intent == ESCALATE
+    assert "counterparty unknown" in d.rule

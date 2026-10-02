@@ -16,10 +16,11 @@ that cannot be evaluated is a refusal rather than a pass. The order here is
     1 duplicate            we already paid this
     2 payable at all       a payee, and an amount
     3 the meter            did we consume what they billed for
-    4 benchmarked          is there a market price to judge against
-    5 the price            at par, over par, cheaper elsewhere
-    6 the timing           due now, or worth holding
-    7 the budget           per-transaction limit, then the period cap
+    4 the counterparty     may we pay this address at all
+    5 benchmarked          is there a market price to judge against
+    6 the price            at par, over par, cheaper elsewhere
+    7 the timing           due now, or worth holding
+    8 the budget           per-transaction limit, then the period cap
 
 and it is not interchangeable. Pricing an invoice we never owed is wasted work;
 rerouting one that is a duplicate pays a stranger twice. The meter comes before
@@ -41,6 +42,7 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 
+from .counterparty import UNKNOWN, CounterpartyVerdict
 from .par import MATERIAL_BP, Par, assess
 
 log = logging.getLogger("index_api.operator")
@@ -137,6 +139,12 @@ class ObligationDecision:
     vendor_quantity: float | None = None
     #: Positive == the vendor billed for more than we counted.
     discrepancy: float | None = None
+    #: ``clear`` · ``flagged`` · ``unknown`` · ``""`` when no screen was offered.
+    #: In the hashed record, so the commitment says what was known about the
+    #: counterparty at the moment the money moved — not what a later re-screen
+    #: concluded.
+    screen_risk: str = ""
+    screen_matched: list[str] = field(default_factory=list)
     par_usdc: float | None = None
     best_usdc: float | None = None
     over_par_bp: float | None = None
@@ -254,6 +262,7 @@ def decide(
     ob: Obligation,
     *,
     par: Par | None = None,
+    screen: CounterpartyVerdict | None = None,
     metered_quantity: float | None = None,
     settled_refs: set[str] | None = None,
     remaining_usdc: float | None = None,
@@ -317,7 +326,28 @@ def decide(
                 f"they billed {ob.vendor_quantity:g} under our count of {metered_quantity:g}"
             )
 
-    # 4 and 5 — the price, against observed quotes for the same service.
+    # 4 — the counterparty. Before the price, because a vendor we may not pay is
+    # not a pricing question, and "over budget" is the wrong headline for a
+    # sanctioned address. RFB 2 wants screening "built into the path"; this is
+    # the path.
+    if screen is not None:
+        d.screen_risk = screen.risk
+        d.screen_matched = list(screen.matched)
+        if not screen.payable:
+            d.intent, d.escalated = ESCALATE, True
+            where = ", ".join(screen.matched) if screen.matched else screen.backend
+            d.rule = (
+                f"counterparty {screen.risk}: {where} — not a payment the agent makes"
+            )
+            return d
+        if screen.risk == UNKNOWN:
+            # Recorded on the decision, not swallowed. An unscreened payment is
+            # a payment somebody should be able to find later.
+            d.notes.append(f"not screened: {screen.reason}")
+    else:
+        d.notes.append("no counterparty screen was offered for this decision")
+
+    # 5 and 6 — the price, against observed quotes for the same service.
     # OUR OWN count is the denominator when we have one: "we paid this much for
     # what we actually took". The meter above has already escalated any material
     # overstatement, so by here the two agree; where they differ within
@@ -374,7 +404,7 @@ def decide(
             )
             return d
 
-    # 6 — the timing. Paying early costs the cash; paying late costs the
+    # 7 — the timing. Paying early costs the cash; paying late costs the
     # discount. Only one of those is recoverable, so the discount wins when it
     # exists and the calendar wins when it does not.
     if ob.due_at is not None and ob.early_pay_discount <= 0:
@@ -388,7 +418,7 @@ def decide(
     elif ob.early_pay_discount > 0:
         d.notes.append(f"paying early for a {ob.early_pay_discount * 100:g}% discount")
 
-    # 7 — the budget. Last, because it is the only check whose answer the
+    # 8 — the budget. Last, because it is the only check whose answer the
     # business can change by deciding to, and because PolicyWallet enforces it
     # again on chain regardless of what this function concluded.
     if per_tx_limit_usdc is not None and ob.billed_usdc >= per_tx_limit_usdc:
@@ -432,6 +462,7 @@ def run_obligation(
     receipts: list[dict],
     catalog: dict,
     policy=None,
+    screen=None,
     settled_refs: set[str] | None = None,
     since: float = 0.0,
     now: float | None = None,
@@ -461,6 +492,15 @@ def run_obligation(
     )
 
     metered = meter_quantity(receipts, ob.vendor, ob.resource, since)
+
+    # Screened on every run, not once at onboarding. Prior Art #07's whole point
+    # is that a static list "was out of date the moment it was carved"; a verdict
+    # fetched per decision is the version that can change its mind.
+    if screen is None:
+        from .counterparty import get_screen
+
+        screen = get_screen()
+    verdict = screen.check(ob.vendor) if screen is not None else None
 
     if ob.unit:
         # The unit is the market. Per-unit prices make two sellers of the same
@@ -507,6 +547,7 @@ def run_obligation(
     d = decide(
         ob,
         par=par,
+        screen=verdict,
         metered_quantity=metered,
         settled_refs=settled_refs,
         remaining_usdc=remaining,
