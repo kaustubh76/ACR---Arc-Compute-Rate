@@ -128,6 +128,39 @@ curl -s https://acr-api-mainnet.onrender.com/onchain/ACR-INF   # the settlement-
 
 ---
 
+## Tameion — the spend operator
+
+*Canteen × Circle × Arc, 27 September – 10 October 2026.*
+Full detail in [`docs/TAMEION.md`](docs/TAMEION.md).
+
+An agent that holds a business's USDC inside an on-chain budget it cannot
+exceed, meters what was actually consumed, checks every price against what other
+sellers are really charging, screens the counterparty, pays what clears policy,
+escalates what is not its call, and writes a double-entry ledger a human can
+open.
+
+| | |
+|---|---|
+| **Who it runs for** | [`/traction`](https://arc-compute-rate.vercel.app/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand |
+| **One business's money** | [`/spend`](https://arc-compute-rate.vercel.app/spend) — the statement, the budgets read from the contract, and the queue waiting on its owner |
+| **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero |
+| **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
+| **Prove it** | `make verify-operator` |
+
+Stated here because a reviewer will check: the loop runs on **Arc testnet**,
+where the fleet's real settlement history gives the meter genuine consumption to
+count, and those settlements predate the window. No budget contract is funded
+yet, so the operator prices and meters and has **moved nothing** — the traction
+page reports that as zero rather than reaching for a larger number. Mainnet and
+testnet totals are never summed.
+
+Four decisions are argued out in [`docs/TAMEION.md`](docs/TAMEION.md): why the
+benchmark is observed quotes rather than this project's own published index, why
+the owner's own wallet is the escalation path, why a screen that cannot answer is
+never "clear", and why a reroute is not a ledger transaction.
+
+---
+
 ## The three integrations, and what to run for each
 
 ### Arc — the chain, and the money
@@ -315,6 +348,7 @@ Stated here rather than discovered. The full trust model — who can do what, an
 | [`docs/ARCHITECTURE-DIAGRAM.md`](docs/ARCHITECTURE-DIAGRAM.md) | The architecture canvas explained zone by zone |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Every technical term in plain English, with analogies |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Implementation notes and the layout → blueprint mapping |
+| [`docs/TAMEION.md`](docs/TAMEION.md) | The Tameion spend operator: the delta, what is live, and the four decisions worth arguing with |
 
 The full index, including the runbooks, is [`docs/README.md`](docs/README.md).
 
