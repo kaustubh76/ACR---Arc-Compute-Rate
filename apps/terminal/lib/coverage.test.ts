@@ -41,7 +41,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 73, // incl. the human gate section and the statement row
+  "app/developers/view.tsx": 78, // incl. the human gate section and the two operator rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
@@ -72,7 +72,11 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
   // The owner's page speaks to an owner, not an operator: every heading, every
   // outcome chip and the savings caveat all carry both registers.
-  "app/spend/view.tsx": 34, // incl. the five outcome chips and the budget states
+  // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
+  // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
+  // how two of these floors were briefly set below actual.
+  "app/spend/view.tsx": 47, // the queue, the summary, the budgets, the context
+  "components/spend/EscalationActions.tsx": 7, // the key, the three buttons, the note
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,

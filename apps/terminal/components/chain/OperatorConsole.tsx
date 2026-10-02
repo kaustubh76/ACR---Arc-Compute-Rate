@@ -63,6 +63,19 @@ const FIELDS: Record<string, Array<{ name: string; label: string; kind: "number"
     { name: "paused", label: "paused (true|false)", kind: "text" },
     { name: "confirm", label: 'type "pause" to confirm', kind: "text" },
   ],
+  // The escalation inbox. /spend has a per-row control for an owner; these rows
+  // exist so the console is not listing two actions whose forms it cannot fill.
+  // Neither takes an amount or a payee: the press reads those from the decision
+  // the agent recorded, so there is no field here that can redirect a payment.
+  "operator/approve": [
+    { name: "business", label: "business (slug)", kind: "text" },
+    { name: "obligation_id", label: "obligation", kind: "text" },
+  ],
+  "operator/reject": [
+    { name: "business", label: "business (slug)", kind: "text" },
+    { name: "obligation_id", label: "obligation", kind: "text" },
+    { name: "note", label: "reason", kind: "text" },
+  ],
 };
 
 /** Which cap in the catalogue governs which action's USDC field. The press

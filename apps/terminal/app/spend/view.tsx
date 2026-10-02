@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Ed } from "@/components/Ed";
+import { EscalationActions } from "@/components/spend/EscalationActions";
 import { Term } from "@/components/Term";
 import { useBusinesses, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
@@ -99,7 +100,7 @@ function BudgetRow({ b }: { b: SpendBudget }) {
   );
 }
 
-function StatementBody({ st }: { st: Statement }) {
+function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void }) {
   const s = st.spend;
   const ctx = st.market_context;
 
@@ -119,34 +120,27 @@ function StatementBody({ st }: { st: Statement }) {
               p="The agent stopped and asked instead of deciding these itself."
             />
           </p>
-          <div className="panel panel-pad">
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>
-                      <Ed x="Vendor" p="Who wants paying" />
-                    </th>
-                    <th>
-                      <Ed x="Billed" p="Amount" />
-                    </th>
-                    <th>
-                      <Ed x="Why it stopped" p="Why it stopped" />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {st.escalations.map((d) => (
-                    <tr key={`${d.obligation_id}-${d.at}`}>
-                      <td className="mono">{who(d.vendor)}</td>
-                      <td className="mono">{price(d.billed_usdc)}</td>
-                      <td>{d.rule}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* One block per escalation rather than table rows, because each
+              carries a form and a form inside a scrolling cell is a control
+              nobody can reach on a phone. */}
+          {st.escalations.map((d) => (
+            <div className="panel panel-pad" key={`${d.obligation_id}-${d.at}`}>
+              <div className="section-head">
+                <h3 className="mono">
+                  {price(d.billed_usdc)} USDC · {who(d.vendor)}
+                </h3>
+                <span className="chip chip-breach">
+                  <Ed x="needs you" p="needs you" />
+                </span>
+              </div>
+              <p className="standfirst">{d.rule}</p>
+              <EscalationActions
+                business={st.business.slug}
+                decision={d}
+                onSettled={onSettled}
+              />
             </div>
-          </div>
+          ))}
         </section>
       )}
 
@@ -395,7 +389,7 @@ export function SpendView() {
   const rows = businesses?.data?.businesses ?? [];
   const [chosen, setChosen] = useState<string | null>(null);
   const slug = chosen ?? rows[0]?.slug ?? null;
-  const { statement, error: stError } = useStatement(slug);
+  const { statement, error: stError, refresh } = useStatement(slug);
   const st = statement?.data ?? null;
 
   return (
@@ -523,7 +517,7 @@ export function SpendView() {
         </section>
       ) : null}
 
-      {st ? <StatementBody st={st} /> : null}
+      {st ? <StatementBody st={st} onSettled={() => void refresh()} /> : null}
     </>
   );
 }
