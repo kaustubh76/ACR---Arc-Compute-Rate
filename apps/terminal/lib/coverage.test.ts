@@ -41,7 +41,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 79, // incl. the human gate section and the two operator rows
+  "app/developers/view.tsx": 80, // incl. the human gate section and the two operator rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
@@ -76,6 +76,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
   // how two of these floors were briefly set below actual.
   "app/spend/view.tsx": 47, // the queue, the summary, the budgets, the context
+  "app/traction/view.tsx": 34, // every figure labelled in both registers
   "components/spend/EscalationActions.tsx": 7, // the key, the three buttons, the note
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
@@ -119,6 +120,7 @@ const EXEMPT: Record<string, string> = {
   "app/developers/loading.tsx": "skeleton",
   "app/ops/loading.tsx": "skeleton",
   "app/spend/loading.tsx": "skeleton",
+  "app/traction/loading.tsx": "skeleton",
   "app/index/[id]/loading.tsx": "skeleton",
   "app/page.tsx": "metadata only — SEO stays expert",
   "app/attack/page.tsx": "metadata only",
@@ -130,6 +132,7 @@ const EXEMPT: Record<string, string> = {
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
+  "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",

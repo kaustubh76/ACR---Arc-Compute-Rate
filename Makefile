@@ -185,6 +185,12 @@ deploy-mirror:
 	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
 	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
 
+# Prove the deployed operator surfaces: the business list, one Spend Statement
+# and its beancount ledger — and the honesty properties, not just the status
+# codes. VERIFY_TERMINAL_URL retargets it at a local next dev.
+verify-operator:
+	uv run python scripts/verify_operator.py
+
 # One business's decisions as a beancount file. Prior Art #01 names beancount as
 # "a ledger an agent can write to" and says it has never been connected to money
 # that actually moves; this is that connection, and every transaction in it sums

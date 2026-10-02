@@ -34,6 +34,10 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   // because a reviewer should be able to find the owner's page without us in
   // the room, and it is the page that shows the agent refusing.
   ["/spend", "Spend", "Money Agent"],
+  // Traction after Spend: a reader sees one business's money, then how many
+  // businesses there are. In the nav because these are the numbers a reviewer
+  // came to check, and they should not have to be told the URL.
+  ["/traction", "Traction", "Who Uses It"],
   ["/developers", "Developers", "For Coders"],
 ];
 

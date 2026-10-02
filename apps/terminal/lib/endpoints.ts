@@ -92,6 +92,7 @@ export const ENDPOINTS: EndpointRow[] = [
      probe with. A slug would make one up, and a made-up business on a traction
      surface is the one thing this product cannot afford to render. */
   { method: "GET", path: "/operator/businesses", gate: "public", family: "market", run: "/operator/businesses" },
+  { method: "GET", path: "/operator/traction", gate: "public", family: "market", run: "/operator/traction" },
   { method: "GET", path: "/operator/statement/{business}", gate: "public", family: "market", run: null, why: "address" },
   { method: "GET", path: "/operator/ledger/{business}", gate: "public", family: "market", run: null, why: "address" },
   { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },

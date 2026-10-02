@@ -1350,6 +1350,30 @@ def operator_businesses(
     }
 
 
+@app.get("/operator/traction")
+def operator_traction(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """The traction numbers, computed from the rows that justify them.
+
+    Canteen's form asks how many businesses are onboarded, how much the agent
+    moved, and what problems it solves; their FAQ adds that a synthetic dataset
+    does not count. So nothing here is maintained by hand — the figures are
+    derived at request time from the registry and the decision log, which is the
+    only arrangement where a number cannot drift from the rows beside it.
+
+    `moved_usdc` is what the operator actually paid out and is kept apart from
+    `priced_usdc`, what it assessed. Mainnet and testnet are never summed. Every
+    business carries links to its own ledger and statement so the arithmetic is
+    checkable rather than asserted.
+    """
+    _meter_agent(request, agent)
+    from .traction import build_traction
+
+    return build_traction()
+
+
 @app.get("/operator/ledger/{business}", response_class=PlainTextResponse)
 def operator_ledger(
     business: str,

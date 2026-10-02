@@ -30,6 +30,7 @@ import type {
   RevenueData,
   Statement,
   TerminalData,
+  TractionPayload,
   WebhookFeed,
   X402Info,
 } from "./types";
@@ -347,4 +348,15 @@ export function useStatement(slug: string | null, days = 7) {
     { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
   );
   return { statement: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** The traction numbers. Slow-moving and cheap to recompute, so this polls
+ *  gently — nobody is watching it tick. */
+export function useTraction() {
+  const { data, error, mutate } = useSWR<Envelope<TractionPayload | null>>(
+    "/api/operator/traction",
+    fetcher,
+    { refreshInterval: 120_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { traction: data, error: error as Error | undefined, refresh: mutate };
 }

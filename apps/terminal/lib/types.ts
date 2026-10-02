@@ -840,3 +840,55 @@ export interface Statement {
     note?: string;
   };
 }
+
+/** One business's row on the traction page. `moved_usdc` is what the operator
+ *  PAID OUT; `priced_usdc` is what it assessed. They are different claims and
+ *  the page keeps them apart. */
+export interface TractionRow {
+  slug: string;
+  label: string;
+  tier: string;
+  chain: string;
+  consented: boolean;
+  spends: boolean;
+  decisions: number;
+  decided: number;
+  escalated: number;
+  moved_usdc: number;
+  priced_usdc: number;
+  recoverable_usdc: number;
+  discrepancies: number;
+  unmetered: number;
+  /** Paths a reader can open to check the arithmetic themselves. */
+  ledger: string;
+  statement: string;
+}
+
+/** Payload of /api/operator/traction. Derived at request time, never
+ *  maintained, so no figure can drift from the rows beside it. There is
+ *  deliberately no field adding mainnet and testnet. */
+export interface TractionPayload {
+  as_of: number;
+  businesses: {
+    businesses: number;
+    consented: number;
+    mainnet: number;
+    testnet: number;
+    spending: number;
+    by_tier: Record<string, number>;
+  };
+  by_chain: Record<
+    string,
+    { moved_usdc: number; priced_usdc: number; recoverable_usdc: number }
+  >;
+  work: {
+    decisions: number;
+    decided: number;
+    escalated: number;
+    by_intent: Record<string, number>;
+    consumption_discrepancies: number;
+    unmetered: number;
+  };
+  per_business: TractionRow[];
+  note: string;
+}
