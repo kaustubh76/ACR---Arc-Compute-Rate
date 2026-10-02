@@ -269,3 +269,50 @@ def test_an_unconsented_business_is_not_named_on_its_own_statement(tmp_path):
     st = build_statement("eval", registry=REG, log_path=_log(tmp_path, [_row()]), now=NOW)
     assert st["business"]["label"] == "business eval"
     assert "name" not in st["business"]
+
+
+# --- the queue clears when a person acts -----------------------------------
+
+def test_an_approved_escalation_leaves_the_queue(tmp_path):
+    """The log is append-only, so approving appends a payment rather than editing
+    the escalation. A queue filtering on intent alone would keep showing an
+    obligation the owner paid an hour ago."""
+    path = _log(tmp_path, [
+        _row(at=NOW - 300, intent="escalate", obligation_id="inv-1", rule="limit hit"),
+        _row(at=NOW - 200, intent="escalate", obligation_id="inv-2", rule="limit hit"),
+        _row(at=NOW - 100, intent="pay", obligation_id="inv-1",
+             rule="owner approved", paid_usdc=5.0),
+    ])
+    st = build_statement("acme", registry=REG, log_path=path, now=NOW)
+    assert [e["obligation_id"] for e in st["escalations"]] == ["inv-2"]
+
+
+def test_a_rejected_escalation_also_leaves_the_queue(tmp_path):
+    """Refusing is a decision. An item a person has dealt with is dealt with,
+    whichever way they went."""
+    path = _log(tmp_path, [
+        _row(at=NOW - 300, intent="escalate", obligation_id="inv-1", rule="limit hit"),
+        _row(at=NOW - 100, intent="refuse", obligation_id="inv-1", rule="owner rejected"),
+    ])
+    st = build_statement("acme", registry=REG, log_path=path, now=NOW)
+    assert st["escalations"] == []
+
+
+def test_re_escalating_the_same_bill_is_one_item_of_work(tmp_path):
+    """A retry that stopped again is the same invoice, not two things to read."""
+    path = _log(tmp_path, [
+        _row(at=NOW - 300, intent="escalate", obligation_id="inv-1", rule="first stop"),
+        _row(at=NOW - 100, intent="escalate", obligation_id="inv-1", rule="stopped again"),
+    ])
+    st = build_statement("acme", registry=REG, log_path=path, now=NOW)
+    assert len(st["escalations"]) == 1
+    assert st["escalations"][0]["rule"] == "stopped again", "the newest reading"
+
+
+def test_an_unresolved_escalation_stays_until_somebody_acts(tmp_path):
+    path = _log(tmp_path, [
+        _row(at=NOW - 300, intent="escalate", obligation_id="inv-1", rule="limit hit"),
+        _row(at=NOW - 100, intent="pay", obligation_id="inv-OTHER", rule="at par"),
+    ])
+    st = build_statement("acme", registry=REG, log_path=path, now=NOW)
+    assert [e["obligation_id"] for e in st["escalations"]] == ["inv-1"]

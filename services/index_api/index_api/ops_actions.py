@@ -46,6 +46,11 @@ TOKEN_ENV = "ACR_OPS_TOKEN"
 MAX_COLLATERALIZE_USDC = float(os.environ.get("COLLATERALIZE_MAX_USDC", "2.0"))
 #: Ceiling on a single treasury→role transfer.
 MAX_FUND_USDC = float(os.environ.get("OPS_MAX_FUND_USDC", "5.0"))
+#: Ceiling on a single owner-approved payment. The PolicyWallet cap is the real
+#: authority and it is enforced on chain; this is a second, smaller fence around
+#: THIS console, because a bearer token is a weaker key than a wallet and should
+#: not be able to spend the whole budget in one call.
+MAX_APPROVE_USDC = float(os.environ.get("OPS_MAX_APPROVE_USDC", "25.0"))
 #: Where the audit trail lives. Ephemeral on a free-tier host, which is why the
 #: log is served back rather than merely written: an operator reading it in the
 #: same session it was written is the case that matters.
@@ -568,6 +573,165 @@ def venue_pause(params: dict, dry_run: bool) -> dict:
     return {"paused": paused, "signed_by": role, "tx": tx}
 
 
+# --- the escalation inbox ---------------------------------------------------
+
+
+def _pending(business: str, obligation_id: str) -> dict:
+    """The escalated decision somebody is being asked to settle.
+
+    Read from the operator's own log rather than passed in by the caller: the
+    amount, the payee and the category must be the ones the agent recorded when
+    it stopped, not whatever a form posts. Otherwise this console would be a way
+    to pay an arbitrary address an arbitrary amount and have it filed as an
+    approval of something else.
+    """
+    from .statement import pending_escalations, read_decisions
+
+    rows = read_decisions(business=business)
+    if not rows:
+        raise ActionError(404, f"no decisions recorded for {business!r}")
+    for d in pending_escalations(rows):
+        if d.get("obligation_id") == obligation_id:
+            return d
+    raise ActionError(
+        404, f"{obligation_id!r} is not waiting on anybody for {business!r}"
+    )
+
+
+def _business_wallet(business: str):
+    """The business and a client for its wallet, or a refusal that says which."""
+    from acr_oracle_client.policy import PolicyClient
+
+    from .businesses import resolve
+
+    b = resolve(business)
+    if b is None:
+        raise ActionError(404, f"no business registered as {business!r}")
+    if not b.policy_wallet:
+        raise ActionError(
+            400,
+            f"{b.slug} has no PolicyWallet, so there is nothing to pay from "
+            "(it is being priced and metered, not spent for)",
+        )
+    return b, PolicyClient(wallet_address=b.policy_wallet)
+
+
+def operator_approve(params: dict, dry_run: bool) -> dict:
+    """Pay an escalated obligation from the OWNER's own wallet.
+
+    The agent cannot do this and that is the point: above the per-transaction
+    limit `PolicyWallet.spend` reverts, and `spendAsOwner` checks `msg.sender`.
+    So this action does not grant the agent authority it lacks — it asks the
+    owner's wallet to act, and the owner's key is what signs the transaction.
+
+    The decision hash is re-derived from the LOGGED record through
+    `hashable_record`, so the commitment the chain stores is the reasoning the
+    agent actually wrote down when it stopped, hours earlier.
+    """
+    from .operator import hashable_record
+
+    business = str(params.get("business") or "").strip()
+    obligation_id = str(params.get("obligation_id") or "").strip()
+    if not business or not obligation_id:
+        raise ActionError(400, "approve needs a business and an obligation_id")
+
+    row = _pending(business, obligation_id)
+    b, client = _business_wallet(business)
+
+    amount = float(row.get("billed_usdc") or 0.0)
+    _cap(amount, MAX_APPROVE_USDC, "an approved payment")
+    vendor = str(row.get("vendor") or "")
+    category = str(row.get("category") or "")
+    if not vendor or not category or amount <= 0:
+        raise ActionError(422, f"the recorded decision for {obligation_id!r} is not payable")
+
+    # Resolve the owner key in BOTH modes. A dry run that skips it shows green and
+    # the operator learns the wallet is owned by someone else from a reverted
+    # transaction — venue_pause takes the same care for the same reason.
+    if not client.can_escalate():
+        raise ActionError(
+            400, "no owner key is configured, so nobody here can approve this"
+        )
+
+    record = hashable_record(row)
+    if dry_run:
+        return {
+            "would": f"pay {amount:.6f} USDC to {vendor} from {b.slug}'s owner wallet",
+            "business": b.slug,
+            "obligation_id": obligation_id,
+            "category": category,
+            "rule_it_stopped_on": row.get("rule"),
+            "owner": getattr(client.owner_signer, "address", "?"),
+            "custody": type(client.owner_signer).__name__,
+            "budget": client.budget(category),
+        }
+
+    tx = client.spend_as_owner(category, vendor, amount, record)
+    _settle(row, business, intent="pay", rule=f"owner approved: {row.get('rule')}",
+            paid_usdc=amount, tx=tx)
+    return {
+        "business": b.slug, "obligation_id": obligation_id,
+        "paid_usdc": amount, "to": vendor, "tx": tx,
+    }
+
+
+def operator_reject(params: dict, dry_run: bool) -> dict:
+    """Decline an escalated obligation. Writes the refusal down and pays nothing.
+
+    A rejection is a decision, so it clears the queue the same way an approval
+    does — and it is recorded, because "the owner said no" is a fact a later
+    reader needs as much as "the owner said yes".
+    """
+    business = str(params.get("business") or "").strip()
+    obligation_id = str(params.get("obligation_id") or "").strip()
+    if not business or not obligation_id:
+        raise ActionError(400, "reject needs a business and an obligation_id")
+
+    row = _pending(business, obligation_id)
+    note = str(params.get("note") or "").strip()[:200]
+
+    if dry_run:
+        return {
+            "would": f"decline {obligation_id} and record the refusal",
+            "business": business,
+            "billed_usdc": row.get("billed_usdc"),
+            "rule_it_stopped_on": row.get("rule"),
+        }
+
+    _settle(row, business, intent="refuse",
+            rule=f"owner rejected: {note or 'no reason given'}")
+    return {"business": business, "obligation_id": obligation_id, "rejected": True}
+
+
+def _settle(row: dict, business: str, *, intent: str, rule: str,
+            paid_usdc: float = 0.0, tx: str | None = None) -> None:
+    """Append the human's decision to the operator's log.
+
+    Appended, never an edit: the escalation stays in the record exactly as the
+    agent wrote it, and the resolution sits after it. `pending_escalations` reads
+    the pair and stops showing the item, which is why approving clears the queue
+    without anything being rewritten.
+    """
+    from .operator import ObligationDecision, log_decision
+
+    log_decision(
+        ObligationDecision(
+            at=time.time(),
+            obligation_id=str(row.get("obligation_id") or ""),
+            vendor=str(row.get("vendor") or ""),
+            category=str(row.get("category") or ""),
+            billed_usdc=float(row.get("billed_usdc") or 0.0),
+            intent=intent,
+            rule=rule,
+            business=business,
+            resource=str(row.get("resource") or ""),
+            escalated=False,
+            paid_usdc=paid_usdc,
+            tx=tx,
+        )
+    )
+
+
 #: name → (handler, one-line description). The registry IS the allowlist: an
 #: action not in here cannot be reached, whatever the proxy forwards.
 ACTIONS = {
@@ -580,6 +744,8 @@ ACTIONS = {
     "venue/withdraw": (venue_withdraw, "reclaim our collateral across every series"),
     "funding/move": (funding_move, "move USDC treasury → role wallet"),
     "venue/pause": (venue_pause, "halt or resume the venue"),
+    "operator/approve": (operator_approve, "pay an escalated bill from the owner's wallet"),
+    "operator/reject": (operator_reject, "decline an escalated bill, and say so"),
 }
 
 

@@ -67,6 +67,16 @@ PAY_WINDOW_S = float(os.environ.get("ACR_OPERATOR_PAY_WINDOW_S", str(3 * 86_400)
 #: the checkable record is the signed receipt and the on-chain decision hash.
 LOG_PATH = os.environ.get("ACR_OPERATOR_LOG_PATH", "data/operator_decisions.jsonl")
 
+#: The fields `as_record` leaves out of the hash: the payment's own results,
+#: which do not exist yet when the commitment is made.
+#:
+#: Named ONCE because three places need to agree — the writer, a reviewer
+#: re-deriving the hash from a log row, and the approve path paying an
+#: obligation somebody escalated hours ago. If any of them strips a different
+#: set, the record stops matching its own commitment and the only reading left
+#: is "this was edited", which would be false.
+UNHASHED = ("tx", "paid_usdc")
+
 #: Intents. ``reroute`` and ``escalate`` are not failures — they are the two
 #: ways this agent is useful without being reckless.
 PAY = "pay"
@@ -135,15 +145,23 @@ class ObligationDecision:
     def as_record(self) -> dict:
         """The dict that gets hashed into ``PolicyWallet``.
 
-        ``tx`` and ``paid_usdc`` are excluded: the commitment is made BEFORE the
-        payment, so a record including its own transaction hash could never be
-        hashed in time. Everything the decision rested on is in here, which is
+        The payment's own results are excluded: the commitment is made BEFORE the
+        money moves, so a record including its own transaction hash could never
+        be hashed in time. Everything the decision rested on is in here, which is
         what a reviewer replays.
         """
-        d = asdict(self)
-        d.pop("tx", None)
-        d.pop("paid_usdc", None)
-        return d
+        return {k: v for k, v in asdict(self).items() if k not in UNHASHED}
+
+
+def hashable_record(row: dict) -> dict:
+    """The decision as it was HASHED, recovered from a log row.
+
+    `log_decision` writes the whole decision including the payment's results;
+    `as_record` hashed it without them. Anything re-deriving that hash later —
+    verifying a receipt, or paying an obligation a human has just approved — has
+    to strip the same fields, so it strips them through here.
+    """
+    return {k: v for k, v in (row or {}).items() if k not in UNHASHED}
 
 
 def log_decision(d: ObligationDecision, path: str | None = None) -> None:

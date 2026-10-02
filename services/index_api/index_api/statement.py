@@ -130,6 +130,39 @@ def summarise(decisions: list[dict]) -> dict:
     }
 
 
+def pending_escalations(decisions: list[dict]) -> list[dict]:
+    """The escalations still waiting on a person, newest first.
+
+    An escalation is NOT resolved by being old; it is resolved by a later
+    decision about the same obligation. The log is append-only, so approving one
+    appends a payment rather than editing the escalation — and a queue that
+    filtered on `intent == "escalate"` alone would keep showing an obligation the
+    owner paid an hour ago, which is the one thing an action queue must never do.
+
+    Resolution is per obligation id. A second escalation of the same obligation
+    (a retry that stopped again) does not resolve the first: both are the same
+    id, and only a non-escalating outcome clears it.
+    """
+    resolved = {
+        d.get("obligation_id")
+        for d in decisions
+        if d.get("intent") != ESCALATE and d.get("obligation_id")
+    }
+    seen: set[str] = set()
+    out: list[dict] = []
+    for d in reversed(decisions):
+        if d.get("intent") != ESCALATE:
+            continue
+        oid = d.get("obligation_id") or ""
+        if oid in resolved or oid in seen:
+            continue
+        # One row per obligation: re-escalating the same bill is the same item
+        # of work, not two.
+        seen.add(oid)
+        out.append(d)
+    return out
+
+
 def _budgets(business: Business, policy_for) -> list[dict]:
     """Each category's live budget, read from the contract.
 
@@ -201,9 +234,7 @@ def build_statement(
                 "reason": card.get("reason") or "no tape for this payer",
             }
 
-    escalations = [
-        d for d in reversed(decisions) if d.get("intent") == ESCALATE
-    ][:RECENT_LIMIT]
+    escalations = pending_escalations(decisions)[:RECENT_LIMIT]
 
     return {
         "business": b.as_public_dict(),
