@@ -9,5 +9,18 @@
     "`chain` is per business because mainnet and testnet totals are reported",
     "separately and must never be added together."
   ],
-  "businesses": []
+  "businesses": [
+    {
+      "slug": "acr-fleet",
+      "name": "ACR buyer-agent fleet",
+      "treasury": "0x674055533b05ec3fd135fc21c4d91a4a2d3193d3",
+      "policy_wallet": "",
+      "consented": true,
+      "tier": "own",
+      "chain": "testnet",
+      "categories": ["machine-services"],
+      "onboarded_at": 1790946149,
+      "note": "Our own agent fleet's spend on machine services. 75 real exact-scheme Gateway settlements across 7 sellers and 4 units (0.325467 USDC), so the meter has genuine consumption to count and PAR has genuine price dispersion to measure against. Those settlements are dated 2026-09-12/13 and therefore PREDATE the Tameion window; what is in-window is the onboarding and every decision made since. No PolicyWallet yet, so the operator prices and meters here and cannot spend: `spends: false` on every surface."
+    }
+  ]
 }

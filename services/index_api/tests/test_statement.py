@@ -316,3 +316,87 @@ def test_an_unresolved_escalation_stays_until_somebody_acts(tmp_path):
     ])
     st = build_statement("acme", registry=REG, log_path=path, now=NOW)
     assert [e["obligation_id"] for e in st["escalations"]] == ["inv-1"]
+
+
+# --- the two tiers ---------------------------------------------------------
+
+def test_the_committed_archive_and_the_live_log_are_read_together(tmp_path, monkeypatch):
+    """`data/` is untracked and dockerignored, so a log written only there is
+    present in development and absent in production. The archive ships in the
+    image; the live log accumulates beside it. Same two-tier shape the receipts
+    use, for the same reason."""
+    from index_api import statement as st_mod
+
+    archive = tmp_path / "archive.jsonl"
+    archive.write_text(json.dumps(_row(obligation_id="old", intent="pay")) + "\n")
+    live = tmp_path / "live.jsonl"
+    live.write_text(json.dumps(_row(obligation_id="new", intent="reroute")) + "\n")
+
+    monkeypatch.setattr(st_mod, "ARCHIVE_PATH", archive)
+    monkeypatch.setattr(st_mod, "LOG_PATH", str(live))
+
+    rows = read_decisions(business="acme")
+    assert [r["obligation_id"] for r in rows] == ["old", "new"]
+
+
+def test_a_row_in_both_tiers_is_one_decision(tmp_path, monkeypatch):
+    """What rotation produces. Deduped on the row's whole content, because a
+    guessed composite key merged two genuinely different decisions once."""
+    from index_api import statement as st_mod
+
+    row = _row(obligation_id="same")
+    archive = tmp_path / "archive.jsonl"
+    archive.write_text(json.dumps(row) + "\n")
+    live = tmp_path / "live.jsonl"
+    live.write_text(json.dumps(row) + "\n")
+
+    monkeypatch.setattr(st_mod, "ARCHIVE_PATH", archive)
+    monkeypatch.setattr(st_mod, "LOG_PATH", str(live))
+    assert len(read_decisions(business="acme")) == 1
+
+
+def test_two_decisions_that_differ_only_in_amount_are_both_kept(tmp_path, monkeypatch):
+    """The failure the content key exists to avoid: same obligation, same
+    instant, same intent, different money. Collapsing those loses a decision,
+    which is worse than showing a duplicate."""
+    from index_api import statement as st_mod
+
+    a = _row(obligation_id="x", billed_usdc=1.0)
+    b = _row(obligation_id="x", billed_usdc=2.0)
+    live = tmp_path / "live.jsonl"
+    live.write_text(json.dumps(a) + "\n" + json.dumps(b) + "\n")
+
+    monkeypatch.setattr(st_mod, "ARCHIVE_PATH", tmp_path / "absent.jsonl")
+    monkeypatch.setattr(st_mod, "LOG_PATH", str(live))
+    assert len(read_decisions(business="acme")) == 2
+
+
+def test_an_explicit_path_reads_only_that_file(tmp_path, monkeypatch):
+    """Tests and one-off inspections want exactly what they name."""
+    from index_api import statement as st_mod
+
+    monkeypatch.setattr(
+        st_mod, "ARCHIVE_PATH", tmp_path / "should-not-be-read.jsonl"
+    )
+    (tmp_path / "should-not-be-read.jsonl").write_text(
+        json.dumps(_row(obligation_id="archive")) + "\n"
+    )
+    only = _log(tmp_path, [_row(obligation_id="named")])
+    rows = read_decisions(only, business="acme")
+    assert [r["obligation_id"] for r in rows] == ["named"]
+
+
+def test_the_shipped_decision_archive_is_valid_and_real():
+    """The committed archive must parse, and every row must carry the rule that
+    produced it. A decision archive that fails to load in production looks
+    exactly like an agent that has never decided anything."""
+    rows = read_decisions(str(__import__("index_api.statement", fromlist=["x"]).ARCHIVE_PATH))
+    for r in rows:
+        assert r.get("rule"), r
+        assert r.get("business"), r
+        assert r.get("intent") in {"pay", "hold", "reroute", "escalate", "refuse"}, r
+    # Every saving must name the seller it was measured against, or it is a
+    # number nobody can check.
+    for r in rows:
+        if (r.get("saving_usdc") or 0) > 0:
+            assert r.get("reroute_to"), r

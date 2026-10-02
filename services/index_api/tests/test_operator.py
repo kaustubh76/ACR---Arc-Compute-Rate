@@ -240,7 +240,7 @@ def test_an_overpriced_bill_with_a_cheaper_seller_is_rerouted():
     assert d.intent == REROUTE
     assert d.reroute_to == OTHER
     assert d.saving_usdc == pytest.approx(0.5)
-    assert "on offer" in d.rule
+    assert "cheapest offer" in d.rule and "saving" in d.rule
 
 
 def test_an_overpriced_bill_with_nowhere_else_to_go_is_escalated():
@@ -585,3 +585,21 @@ def test_every_driver_outcome_is_written_down(tmp_path):
     assert rows[0]["intent"] == PAY
     assert rows[1]["intent"] == ESCALATE
     assert all(r["rule"] for r in rows), "including the refusals"
+
+
+def test_a_reroute_rule_never_contradicts_itself(tmp_path):
+    """Measured on real fills: a bill can sit BELOW the median and still have a
+    cheaper offer under it, so a rule phrased as "over par by N bp" printed
+    "over par by -246 bp". The sentence now quotes the gap to the cheapest
+    offer, which is the comparison the decision was actually made on."""
+    # 2.00 is under the median of [1.00, 3.00, 3.00] = 3.00, yet 1.00 is on offer.
+    par = _par((OTHER, 1.0), (THIRD, 3.0), ("0x" + "dd" * 20, 3.0))
+    d = decide(
+        _ob(billed_usdc=2.0), par=par, remaining_usdc=100.0,
+        per_tx_limit_usdc=50.0, now=NOW,
+    )
+    assert d.intent == REROUTE
+    assert d.over_par_bp is not None and d.over_par_bp < 0, "genuinely below the median"
+    assert "-" not in d.rule.split("bp")[0], "no negative basis points in the prose"
+    assert "cheapest offer" in d.rule
+    assert d.saving_usdc == pytest.approx(1.0)

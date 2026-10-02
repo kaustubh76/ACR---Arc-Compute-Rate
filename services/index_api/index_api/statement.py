@@ -38,30 +38,31 @@ log = logging.getLogger("index_api.statement")
 #: full ledger is the log and the chain.
 RECENT_LIMIT = 50
 
+#: The committed decision archive, inside the package.
+#:
+#: Same two-tier shape the receipts use, and for the same reason: `data/` is
+#: untracked AND in `.dockerignore`, so a log written only there is present in
+#: development and absent in production — a statement that shows a business's
+#: decisions locally and nothing at all on the deployed site. The archive ships
+#: in the image; the runtime log accumulates beside it.
+ARCHIVE_PATH = Path(__file__).with_name("operator_decisions.jsonl")
 
-def read_decisions(
-    path: str | Path | None = None,
-    business: str = "",
-    since: float = 0.0,
-    limit: int = 1_000,
-) -> list[dict]:
-    """The operator's own decision log, newest last.
 
-    A missing log is an empty list, not an error: a business onboarded ten
-    minutes ago has made no decisions, and that is the correct reading. A
-    malformed line is skipped rather than taken as the end of the file — an
-    interrupted write must not truncate the history behind it.
+def _read_one(target: Path) -> list[dict]:
+    """One JSONL file's rows, tolerantly.
+
+    A missing file is an empty list, not an error. A malformed line is skipped
+    rather than taken as the end of the file: an interrupted write leaves half a
+    line, and treating that as EOF would silently drop every decision behind it.
     """
-    target = Path(path) if path else Path(LOG_PATH)
     try:
         raw = target.read_text(encoding="utf-8")
     except FileNotFoundError:
         return []
     except Exception as exc:
-        log.warning("statement: decision log unreadable (%s)", exc)
+        log.warning("statement: %s unreadable (%s)", target.name, exc)
         return []
-
-    out: list[dict] = []
+    rows: list[dict] = []
     for line in raw.splitlines():
         line = line.strip()
         if not line:
@@ -70,13 +71,49 @@ def read_decisions(
             row = json.loads(line)
         except Exception:
             continue
-        if not isinstance(row, dict):
-            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def read_decisions(
+    path: str | Path | None = None,
+    business: str = "",
+    since: float = 0.0,
+    limit: int = 1_000,
+) -> list[dict]:
+    """The operator's decisions, newest last: the archive, then the live log.
+
+    An explicit ``path`` reads only that file — tests and one-off inspections
+    want exactly what they name. Otherwise both tiers are read and deduped, so a
+    decision that has been archived does not appear twice once the live log is
+    rotated into it.
+
+    Deduped on the ROW'S WHOLE CONTENT, not on a composite of a few fields. A
+    guessed key collapses rows it should not: an (obligation_id, at, intent) key
+    merged two genuinely different decisions in the first version of this, which
+    is a worse failure than showing a duplicate. Identical content is the only
+    thing that can safely be treated as one decision, and it is exactly what the
+    archive-plus-live overlap produces.
+    """
+    if path is not None:
+        rows = _read_one(Path(path))
+    else:
+        rows = _read_one(ARCHIVE_PATH) + _read_one(Path(LOG_PATH))
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
         if business and (row.get("business") or "") != business:
             continue
         if float(row.get("at") or 0.0) < since:
             continue
+        key = json.dumps(row, sort_keys=True, separators=(",", ":"), default=str)
+        if key in seen:
+            continue
+        seen.add(key)
         out.append(row)
+    out.sort(key=lambda r: float(r.get("at") or 0.0))
     return out[-limit:] if limit else out
 
 

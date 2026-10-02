@@ -105,6 +105,12 @@ class Obligation:
     resource: str = ""
     #: What the vendor says we consumed, in the service's own unit.
     vendor_quantity: float | None = None
+    #: The service's unit ("$/1k tokens", "$/GPU-sec", …). THE UNIT IS THE
+    #: MARKET: measured on this repo's own tape, no resource has more than one
+    #: seller, so a resource-keyed benchmark can never fire. Grouping by unit
+    #: gives `$/1k tokens` four sellers spanning 1.3x. Empty falls back to
+    #: comparing whole-bill prices for the same resource.
+    unit: str = ""
     due_at: float | None = None
     #: The vendor's own reference, for duplicate detection.
     invoice_ref: str = ""
@@ -312,7 +318,20 @@ def decide(
             )
 
     # 4 and 5 — the price, against observed quotes for the same service.
-    verdict = assess(ob.billed_usdc, par, material_bp) if par is not None else None
+    # OUR OWN count is the denominator when we have one: "we paid this much for
+    # what we actually took". The meter above has already escalated any material
+    # overstatement, so by here the two agree; where they differ within
+    # tolerance, our count is the one we can defend.
+    priced_quantity = (
+        metered_quantity
+        if metered_quantity is not None and metered_quantity > 0
+        else ob.vendor_quantity
+    )
+    verdict = (
+        assess(ob.billed_usdc, par, material_bp, quantity=priced_quantity)
+        if par is not None
+        else None
+    )
     if verdict is None or not verdict["benchmarked"]:
         reason = (verdict or {}).get("reason") or "NO_PAR"
         if ob.billed_usdc > unbenchmarked_max_usdc:
@@ -336,14 +355,23 @@ def decide(
             # party is offering it for less.
             if cheaper and cheaper.lower() != ob.vendor.lower():
                 d.intent, d.reroute_to = REROUTE, cheaper
+                # Measured against the CHEAPEST offer, not the median, because
+                # that is the comparison the decision was made on. Saying "over
+                # par by N bp" here printed "over par by -246 bp" on real data:
+                # a price can sit below the median and still have money
+                # available below it, and a rule that contradicts itself is
+                # worse than one that is merely terse.
                 d.rule = (
-                    f"over par by {verdict['over_par_bp']:.0f} bp: "
-                    f"{verdict['best_usdc']:g} is on offer, saving "
+                    f"{verdict['saving_bp']:.0f} bp above the cheapest offer: "
+                    f"{verdict['best_usdc']:g} is available, saving "
                     f"{verdict['saving_usdc']:g} USDC"
                 )
                 return d
             d.intent, d.escalated = ESCALATE, True
-            d.rule = f"over par by {verdict['over_par_bp']:.0f} bp with no alternative seller"
+            d.rule = (
+                f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
+                "and that seller is the one billing us"
+            )
             return d
 
     # 6 — the timing. Paying early costs the cash; paying late costs the
@@ -425,14 +453,30 @@ def run_obligation(
     is a second opinion about the only thing that is authoritative, and the two
     drift the moment anything else spends from the same wallet.
     """
-    from .par import par_from_quotes, quotes_from_catalog, quotes_from_receipts
+    from .par import (
+        par_from_quotes,
+        quotes_by_unit,
+        quotes_from_catalog,
+        quotes_from_receipts,
+    )
 
     metered = meter_quantity(receipts, ob.vendor, ob.resource, since)
 
-    quotes = quotes_from_catalog(catalog, ob.resource) + quotes_from_receipts(
-        receipts, ob.resource
-    )
-    par = par_from_quotes(ob.resource, quotes, exclude_seller=ob.vendor)
+    if ob.unit:
+        # The unit is the market. Per-unit prices make two sellers of the same
+        # kind of service comparable at last, which per-call prices never were:
+        # a 500-token call and a 2,000-token one are not the same purchase.
+        par = par_from_quotes(
+            ob.unit,
+            quotes_by_unit(receipts, ob.unit),
+            exclude_seller=ob.vendor,
+            denomination="unit",
+        )
+    else:
+        quotes = quotes_from_catalog(catalog, ob.resource) + quotes_from_receipts(
+            receipts, ob.resource
+        )
+        par = par_from_quotes(ob.resource, quotes, exclude_seller=ob.vendor)
 
     remaining = per_tx = None
     if policy is not None:

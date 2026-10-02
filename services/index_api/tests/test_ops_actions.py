@@ -143,6 +143,8 @@ class TestRegistry:
             "venue/withdraw",
             "funding/move",
             "venue/pause",
+            "operator/approve",
+            "operator/reject",
         }
 
     def test_every_action_has_a_handler_and_a_description(self):

@@ -91,10 +91,22 @@ class Quote:
 
 @dataclass(frozen=True)
 class Par:
-    """The benchmark for one resource, and what it is allowed to claim."""
+    """The benchmark for one resource, and what it is allowed to claim.
+
+    ``denomination`` is on the object rather than left to the caller because the
+    two kinds of price are not interchangeable and mixing them is silent. A
+    per-call benchmark compares a whole bill; a per-unit one compares $/1k-tokens
+    and has to be multiplied back by the quantity before it is money. ``assess``
+    reads this field, so a caller cannot hand a per-call price to a per-unit
+    benchmark and get a number that merely looks wrong by a factor of a thousand.
+    """
 
     resource: str
     available: bool
+    #: ``call`` a whole request's price · ``unit`` the price of one unit of the
+    #: service, which is the only basis on which different sellers of the same
+    #: kind of service are comparable at all.
+    denomination: str = "call"
     #: Why not, when unavailable. Mirrors the subgraph's
     #: ``unbenchmarkedReason``: an absent benchmark says which absence it is.
     reason: str = ""
@@ -109,6 +121,7 @@ class Par:
         return {
             "resource": self.resource,
             "available": self.available,
+            "denomination": self.denomination,
             "reason": self.reason,
             "par_usdc": self.par_usdc,
             "best_usdc": self.best_usdc,
@@ -146,6 +159,7 @@ def par_from_quotes(
     quotes: list[Quote],
     exclude_seller: str = "",
     min_sellers: int = MIN_SELLERS,
+    denomination: str = "call",
 ) -> Par:
     """The benchmark, or a stated reason there isn't one.
 
@@ -156,14 +170,16 @@ def par_from_quotes(
     """
     priced = [q for q in quotes if q.price_usdc > 0]
     if not priced:
-        return Par(resource=resource, available=False, reason="NO_QUOTES")
+        return Par(resource=resource, available=False, reason="NO_QUOTES",
+                   denomination=denomination)
 
     if exclude_seller:
         skip = exclude_seller.lower()
         priced = [q for q in priced if (q.seller or "").lower() != skip]
         if not priced:
             return Par(
-                resource=resource, available=False, reason="NO_INDEPENDENT_SELLER"
+                resource=resource, available=False, reason="NO_INDEPENDENT_SELLER",
+                denomination=denomination,
             )
 
     uniq = _dedupe_by_seller(priced)
@@ -174,6 +190,7 @@ def par_from_quotes(
             reason="ONE_SELLER" if len(uniq) == 1 else "NO_QUOTES",
             sellers=len(uniq),
             quotes=tuple(uniq),
+            denomination=denomination,
         )
 
     prices = [q.price_usdc for q in uniq]
@@ -196,6 +213,7 @@ def par_from_quotes(
     return Par(
         resource=resource,
         available=True,
+        denomination=denomination,
         par_usdc=par,
         best_usdc=cheapest.price_usdc,
         best_seller=cheapest.seller,
@@ -205,13 +223,24 @@ def par_from_quotes(
     )
 
 
-def assess(billed_usdc: float, par: Par, material_bp: float = MATERIAL_BP) -> dict:
+def assess(
+    billed_usdc: float,
+    par: Par,
+    material_bp: float = MATERIAL_BP,
+    quantity: float | None = None,
+) -> dict:
     """What the billed price looks like against the benchmark.
 
     ``saving_usdc`` is measured against ``best``, never against ``par``: it is
     the money that was actually available somewhere else. A price above the
     median with nothing cheaper on offer is dear, not recoverable, and calling
     that a saving would be inventing one.
+
+    A PER-UNIT benchmark needs ``quantity``. ``billed_usdc`` is a whole bill and
+    the benchmark is the price of one unit, so the comparison happens in unit
+    terms and the saving is multiplied back out. Without a quantity there is no
+    way to do either, so the answer is "unbenchmarked" with a reason rather than
+    a figure that is wrong by however many units the bill covered.
     """
     if not par.available:
         return {
@@ -221,13 +250,26 @@ def assess(billed_usdc: float, par: Par, material_bp: float = MATERIAL_BP) -> di
             "verdict": "unbenchmarked",
         }
 
+    per_unit = par.denomination == "unit"
+    if per_unit and not (quantity and quantity > 0):
+        return {
+            "benchmarked": False,
+            "reason": "NO_QUANTITY",
+            "billed_usdc": billed_usdc,
+            "verdict": "unbenchmarked",
+        }
+    # Everything below compares like with like: a unit price against a unit
+    # benchmark, or a whole bill against a whole-bill benchmark.
+    scale = float(quantity) if per_unit else 1.0
+    comparable = billed_usdc / scale
+
     assert par.par_usdc is not None and par.best_usdc is not None
-    over_par_usdc = billed_usdc - par.par_usdc
-    over_par_bp = (over_par_usdc / par.par_usdc) * 10_000 if par.par_usdc > 0 else None
-    saving_usdc = max(billed_usdc - par.best_usdc, 0.0)
-    saving_bp = (
-        (saving_usdc / billed_usdc) * 10_000 if billed_usdc > 0 else 0.0
+    over_par_usdc = (comparable - par.par_usdc) * scale
+    over_par_bp = (
+        ((comparable - par.par_usdc) / par.par_usdc) * 10_000 if par.par_usdc > 0 else None
     )
+    saving_usdc = max(comparable - par.best_usdc, 0.0) * scale
+    saving_bp = (saving_usdc / billed_usdc) * 10_000 if billed_usdc > 0 else 0.0
 
     if over_par_bp is None:
         verdict = "unbenchmarked"
@@ -242,6 +284,7 @@ def assess(billed_usdc: float, par: Par, material_bp: float = MATERIAL_BP) -> di
         "benchmarked": True,
         "reason": "",
         "billed_usdc": billed_usdc,
+        "denomination": par.denomination,
         "par_usdc": par.par_usdc,
         "best_usdc": par.best_usdc,
         "best_seller": par.best_seller,
@@ -311,6 +354,47 @@ def quotes_from_catalog(catalog: dict, resource: str) -> list[Quote]:
                 at=now,
                 unit=str(meta.get("unit") or ""),
                 quantity=float(meta.get("quantity") or 0.0),
+            )
+        )
+    return out
+
+
+def quotes_by_unit(receipts: list[dict], unit: str) -> list[Quote]:
+    """Every seller's UNIT price for one kind of service, from real fills.
+
+    THE UNIT IS THE MARKET, and measuring this repo's own tape proved it: the
+    seller fleet gives each seller its own resource path, so no resource has more
+    than ONE seller and a resource-keyed benchmark can never fire. Group by unit
+    instead and `$/1k tokens` has four sellers spanning 1.3x — a real market with
+    real dispersion. GPU-seconds and megabytes have one seller each, which comes
+    back as ONE_SELLER, which is the honest answer rather than a missing one.
+
+    The price is `amount / quantity`, so a 500-token call and a 2,000-token call
+    from different sellers are finally comparable. A row without a positive
+    quantity is skipped rather than divided by zero: `Quote.unit_price` makes the
+    same refusal for the same reason.
+    """
+    out: list[Quote] = []
+    want = (unit or "").strip()
+    if not want:
+        return out
+    for r in receipts or []:
+        if (r.get("unit") or "").strip() != want:
+            continue
+        amount, qty = r.get("amount_usdc"), r.get("quantity")
+        if not isinstance(amount, (int, float)) or not isinstance(qty, (int, float)):
+            continue
+        if amount <= 0 or qty <= 0:
+            continue
+        out.append(
+            Quote(
+                seller=str(r.get("seller") or ""),
+                price_usdc=float(amount) / float(qty),
+                source="fill",
+                resource=str(r.get("resource") or ""),
+                at=float(r.get("settled_at") or 0.0),
+                unit=want,
+                quantity=float(qty),
             )
         )
     return out
