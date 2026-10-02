@@ -269,3 +269,45 @@ def test_a_deadline_is_dated_on_the_chains_clock_not_the_hosts(deployed):
     # And the contract agrees it has not expired.
     record = {"billed": 150.0, "metered": 150.0, "par": 150.0, "rule": "escalated-approved"}
     client.spend_approved(CATEGORY, VENDOR, 150, record, deadline=client.deadline_in(600))
+
+
+def test_the_owner_pays_from_their_own_wallet_and_burns_no_nonce(deployed):
+    """The escalation path that needs no signature. ecrecover cannot check a
+    smart-contract account (docs/WALLETS.md C1), so an owner on a Circle PIN
+    wallet could never clear spendApproved — but it can call the contract.
+
+    The nonce assertion is the point: nothing is signed, so nothing can go stale
+    between the owner deciding and the payment landing."""
+    _, wallet, usdc, client = deployed
+    before = usdc.functions.balanceOf(VENDOR).call()
+    nonce_before = client.approval_nonce()
+
+    record = {"billed": 300.0, "metered": 300.0, "par": 300.0, "rule": "owner-paid"}
+    tx = client.spend_as_owner(CATEGORY, VENDOR, 300, record)
+
+    assert usdc.functions.balanceOf(VENDOR).call() == before + 300 * USDC
+    assert client.approval_nonce() == nonce_before, "a direct owner payment signs nothing"
+
+    logs = wallet.events.Spent().process_receipt(
+        client._connect().eth.get_transaction_receipt(tx), errors=DISCARD
+    )
+    assert logs[0]["args"]["ownerApproved"] is True, "recorded as a human decision"
+    assert bytes(logs[0]["args"]["decisionHash"]) == decision_hash(record)
+    assert logs[0]["args"]["actor"] == client.owner_signer.address, "the owner acted"
+
+
+def test_the_agent_cannot_use_the_owners_path(deployed):
+    """If it could, the threshold would be a suggestion."""
+    from web3 import Web3
+
+    _, wallet, usdc, client = deployed
+    before = usdc.functions.balanceOf(VENDOR).call()
+
+    fn = wallet.functions.spendAsOwner(
+        category_id(CATEGORY), Web3.to_checksum_address(VENDOR), 300 * USDC,
+        decision_hash({"rule": "nice try"}),
+    )
+    with pytest.raises(Exception) as exc:
+        client._send(fn)  # defaults to the agent signer
+    assert "not owner" in str(exc.value) or "revert" in str(exc.value).lower()
+    assert usdc.functions.balanceOf(VENDOR).call() == before, "nothing moved"

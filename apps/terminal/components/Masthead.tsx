@@ -29,6 +29,11 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   // The loop after the tape: a reader sees what buying cost, then drives the
   // decision the cost produces.
   ["/loop", "The Loop", "Drive It"],
+  // Spend after the loop: the loop drives ONE decision, this is a business's
+  // whole book of them. In the nav rather than operator-only like /ops,
+  // because a reviewer should be able to find the owner's page without us in
+  // the room, and it is the page that shows the agent refusing.
+  ["/spend", "Spend", "Money Agent"],
   ["/developers", "Developers", "For Coders"],
 ];
 

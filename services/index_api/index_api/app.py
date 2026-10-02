@@ -1323,6 +1323,32 @@ def _policy_for(business):
         return None
 
 
+@app.get("/operator/businesses")
+def operator_businesses(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """Who the operator runs for, and the traction numbers derived from it.
+
+    Derived, never maintained: the counts come from the registry itself, so the
+    number on this page cannot drift from the list beside it. That matters more
+    than usual here, because these are the figures a reviewer checks.
+
+    Mainnet and testnet are reported separately and there is no field that adds
+    them. An unconsented business appears under a pseudonym and still counts:
+    dropping it would understate real usage, naming it would use somebody's
+    identity without asking.
+    """
+    _meter_agent(request, agent)
+    from .businesses import counts, load
+
+    registry = load()
+    return {
+        "businesses": [b.as_public_dict() for b in registry],
+        "counts": counts(registry),
+    }
+
+
 @app.get("/operator/statement/{business}")
 def operator_statement(
     business: str,

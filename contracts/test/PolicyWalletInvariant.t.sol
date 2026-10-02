@@ -27,6 +27,7 @@ contract PolicyWalletHandler is Test {
     uint256 public totalPaid;
     uint256 public approvedSpends;
     uint256 public agentSpends;
+    uint256 public ownerSpends;
 
     constructor(PolicyWallet _wallet, MockUSDC _usdc, uint256 _ownerKey) {
         wallet = _wallet;
@@ -54,6 +55,26 @@ contract PolicyWalletHandler is Test {
 
         totalPaid += amount;
         agentSpends++;
+    }
+
+    /// The owner paying from their own wallet. Included so the cap is proven
+    /// across BOTH spending paths: an invariant that only ever drove the agent
+    /// would hold on a contract where the owner's path forgot to check it.
+    function spendByOwner(uint256 amount, uint256 dt, uint256 seed) external {
+        vm.warp(block.timestamp + bound(dt, 1, 5 days));
+
+        uint256 room = _headroom();
+        if (room == 0) return;
+        amount = bound(amount, 1, room);
+
+        address to = address(uint160(uint256(keccak256(abi.encode("owner-to", seed)))));
+        if (to == address(0)) return;
+
+        vm.prank(vm.addr(ownerKey));
+        wallet.spendAsOwner(INFRA, to, amount, keccak256(abi.encode("owner", seed, amount)));
+
+        totalPaid += amount;
+        ownerSpends++;
     }
 
     /// The path that needs a human. Signed here over the live nonce, so a stale
@@ -143,6 +164,36 @@ contract PolicyWalletInvariantTest is Test {
             wallet.approvalNonce(),
             handler.approvedSpends(),
             "an owner approval was consumed more or less than once"
+        );
+    }
+
+    /// The handler can drive all three spending paths.
+    ///
+    /// Not an `afterInvariant`: that hook runs after EVERY run, and Foundry may
+    /// spend a whole sequence (or a shrunk one) inside a single handler
+    /// function, so asserting all three moved there fails on a healthy suite.
+    /// Measured here instead, as one deterministic call each. Without it the
+    /// invariants are green by silence: a handler function nobody calls still
+    /// reports passing properties about the path it was added to cover.
+    function test_the_handler_exercises_every_spending_path() public {
+        handler.spend(10 * 1e6, 1, 1);
+        handler.spendApproved(20 * 1e6, 1, 2);
+        handler.spendByOwner(30 * 1e6, 1, 3);
+
+        assertGt(handler.agentSpends(), 0, "the agent path");
+        assertGt(handler.approvedSpends(), 0, "the signed-approval path");
+        assertGt(handler.ownerSpends(), 0, "the owner path");
+        assertEq(handler.totalPaid(), 60 * 1e6, "and each one moved its money");
+    }
+
+    /// The owner's direct calls consume NO nonce. There is no signature on that
+    /// path, which is the reason it exists: nothing can go stale between
+    /// deciding and paying.
+    function invariant_the_owners_own_wallet_consumes_no_approval_nonce() public view {
+        assertEq(
+            wallet.approvalNonce(),
+            handler.approvedSpends(),
+            "a direct owner payment consumed a signature nonce"
         );
     }
 

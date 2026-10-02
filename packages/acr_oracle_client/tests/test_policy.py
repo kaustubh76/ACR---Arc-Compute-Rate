@@ -175,3 +175,35 @@ def test_the_wallet_address_actually_arrives_from_the_environment(monkeypatch):
         assert c.wallet_address == addr
     finally:
         reset_settings()
+
+
+# --- the owner's own wallet ------------------------------------------------
+
+def test_the_owner_path_refuses_when_one_key_holds_both_roles():
+    """Same refusal as spend_approved, for the same reason: an operator that is
+    also the owner has no threshold, and should say so rather than pay itself."""
+    c = PolicyClient(
+        rpc_url="http://127.0.0.1:1",
+        wallet_address="0x" + "cc" * 20,
+        agent_signer=_Sig(SAME),
+        owner_signer=_Sig(SAME),
+    )
+    with pytest.raises(RuntimeError, match="same key"):
+        c.spend_as_owner("infra", OTHER, 500, {"rule": "pay"})
+
+
+def test_the_owner_path_refuses_with_no_owner_key():
+    c = PolicyClient(
+        rpc_url="http://127.0.0.1:1",
+        wallet_address="0x" + "cc" * 20,
+        agent_signer=_Sig(SAME),
+        owner_signer=None,
+    )
+    with pytest.raises(RuntimeError, match="must go to a human"):
+        c.spend_as_owner("infra", OTHER, 500, {"rule": "pay"})
+
+
+def test_the_owner_path_refuses_when_unconfigured():
+    c = _client(agent_signer=None, owner_signer=None)
+    with pytest.raises(RuntimeError, match="not configured"):
+        c.spend_as_owner("infra", OTHER, 1, {"rule": "pay"})

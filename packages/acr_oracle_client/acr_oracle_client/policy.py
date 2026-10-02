@@ -74,6 +74,18 @@ POLICY_ABI = [
         "outputs": [],
     },
     {
+        "name": "spendAsOwner",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"name": "category", "type": "bytes32"},
+            {"name": "to", "type": "address"},
+            {"name": "amount", "type": "uint256"},
+            {"name": "decisionHash", "type": "bytes32"},
+        ],
+        "outputs": [],
+    },
+    {
         "name": "budgetOf",
         "type": "function",
         "stateMutability": "view",
@@ -241,16 +253,23 @@ class PolicyClient:
             "verifyingContract": Web3.to_checksum_address(self.wallet_address),
         }
 
-    def _send(self, fn, wait: bool = True) -> str:
+    def _send(self, fn, wait: bool = True, signer: Signer | None = None) -> str:
+        """Submit a built call. ``signer`` defaults to the agent.
+
+        Parameterised because ``spendAsOwner`` must be sent BY the owner — the
+        contract checks ``msg.sender``, so sending it from the agent's key would
+        revert "not owner" no matter who decided to pay.
+        """
+        who = signer or self.agent_signer
         w3 = self._connect()
         tx = fn.build_transaction(
             {
-                "from": self.agent_signer.address,
-                "nonce": w3.eth.get_transaction_count(self.agent_signer.address),
+                "from": who.address,
+                "nonce": w3.eth.get_transaction_count(who.address),
                 "chainId": w3.eth.chain_id,
             }
         )
-        tx_hash = self.agent_signer.send_transaction(w3, tx)
+        tx_hash = who.send_transaction(w3, tx)
         if wait:
             rcpt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=45)
             if rcpt.status != 1:
@@ -347,6 +366,41 @@ class PolicyClient:
             decision_hash(record),
         )
         return self._send(fn)
+
+    def spend_as_owner(self, category: str, to: str, amount_usdc, record: dict) -> str:
+        """The owner paying an escalated obligation from their OWN wallet.
+
+        This is the escalation path that needs no signature scheme. ``ecrecover``
+        cannot check a smart-contract account (``docs/WALLETS.md`` C1), so an
+        owner whose wallet is a Circle PIN-secured SCA can never clear
+        ``spendApproved`` — but it can simply call the contract, and the contract
+        checks ``msg.sender``. Nothing is signed off-chain, so nothing can go
+        stale between deciding and paying: there is no nonce and no deadline.
+
+        Sent by ``owner_signer``, necessarily. Refuses when that key is the
+        agent's, because an operator holding both would be approving its own
+        payments and the threshold would mean nothing — the same refusal
+        ``spend_approved`` makes, for the same reason.
+        """
+        from web3 import Web3
+
+        if not self.configured():
+            raise RuntimeError("PolicyClient not configured (wallet address or agent signer)")
+        if not self.can_escalate():
+            raise RuntimeError("no owner signer: this payment must go to a human")
+        if self.owner_signer.address.lower() == self.agent_signer.address.lower():
+            raise RuntimeError(
+                "the agent and the owner are the same key, so the escalation "
+                "threshold would authorize itself; give the owner its own key"
+            )
+
+        fn = self._contract().functions.spendAsOwner(
+            category_id(category),
+            Web3.to_checksum_address(to),
+            usdc_units(amount_usdc),
+            decision_hash(record),
+        )
+        return self._send(fn, signer=self.owner_signer)
 
     def sign_approval(
         self, category: str, to: str, amount_usdc, record: dict, deadline: int

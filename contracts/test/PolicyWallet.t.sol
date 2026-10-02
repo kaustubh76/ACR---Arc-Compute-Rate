@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {PolicyWallet} from "../src/PolicyWallet.sol";
 import {MockUSDC} from "./MockUSDC.sol";
 
@@ -365,4 +365,104 @@ contract PolicyWalletTest is Test {
         assertEq(wallet.owner(), next, "transferred");
         assertEq(wallet.pendingOwner(), address(0), "cleared");
     }
+
+    // --- the owner's own wallet, which is the threshold made literal --------
+
+    function test_the_owner_pays_an_escalated_obligation_from_their_own_wallet() public {
+        uint256 before = usdc.balanceOf(vendor);
+
+        vm.prank(ownerAddr);
+        wallet.spendAsOwner(INFRA, vendor, 500 * USDC1, dh);
+
+        assertEq(usdc.balanceOf(vendor), before + 500 * USDC1, "paid");
+        (,, uint256 spent,,,) = wallet.budgetOf(INFRA);
+        assertEq(spent, 500 * USDC1, "and it counts against the budget");
+    }
+
+    /// The per-transaction limit bounds the AGENT. The owner is the escalation
+    /// path, so a limit that also bound them would leave nothing above it.
+    function test_the_per_transaction_limit_does_not_bind_the_owner() public {
+        vm.prank(agent);
+        vm.expectRevert("needs owner approval");
+        wallet.spend(INFRA, vendor, 500 * USDC1, dh);
+
+        vm.prank(ownerAddr);
+        wallet.spendAsOwner(INFRA, vendor, 500 * USDC1, dh);
+        assertEq(usdc.balanceOf(vendor), 500 * USDC1, "the same payment, by the owner");
+    }
+
+    /// If an agent could reach this path the threshold would be a suggestion.
+    function test_an_agent_cannot_reach_the_owners_path() public {
+        vm.prank(agent);
+        vm.expectRevert("not owner");
+        wallet.spendAsOwner(INFRA, vendor, 500 * USDC1, dh);
+    }
+
+    function test_a_stranger_cannot_reach_the_owners_path() public {
+        vm.prank(address(0xDEAD));
+        vm.expectRevert("not owner");
+        wallet.spendAsOwner(INFRA, vendor, 1 * USDC1, dh);
+    }
+
+    /// The kill switch outranks the owner's own wallet, not just their signature.
+    function test_pause_stops_the_owner_too() public {
+        vm.prank(ownerAddr);
+        wallet.setPaused(true);
+
+        vm.prank(ownerAddr);
+        vm.expectRevert("paused");
+        wallet.spendAsOwner(INFRA, vendor, 1 * USDC1, dh);
+    }
+
+    /// The cap IS the budget. An owner paying one invoice must not undo an owner
+    /// closing a category; `setBudget` is how a budget changes, on the record.
+    function test_the_cap_still_binds_the_owner() public {
+        vm.prank(ownerAddr);
+        vm.expectRevert("over category budget");
+        wallet.spendAsOwner(INFRA, vendor, 1001 * USDC1, dh);
+    }
+
+    function test_the_owners_path_still_requires_a_payee_an_amount_and_a_reason() public {
+        vm.startPrank(ownerAddr);
+        vm.expectRevert("zero to");
+        wallet.spendAsOwner(INFRA, address(0), 1 * USDC1, dh);
+        vm.expectRevert("zero amount");
+        wallet.spendAsOwner(INFRA, vendor, 0, dh);
+        vm.expectRevert("zero decision hash");
+        wallet.spendAsOwner(INFRA, vendor, 1 * USDC1, bytes32(0));
+        vm.stopPrank();
+    }
+
+    function test_an_unknown_category_has_no_authority_even_for_the_owner() public {
+        vm.prank(ownerAddr);
+        vm.expectRevert("no such budget");
+        wallet.spendAsOwner(bytes32("travel"), vendor, 1 * USDC1, dh);
+    }
+
+    /// The record has to say a human did this, and name which one.
+    function test_the_event_records_a_human_decision_and_names_the_actor() public {
+        vm.recordLogs();
+        vm.prank(ownerAddr);
+        wallet.spendAsOwner(INFRA, vendor, 200 * USDC1, dh);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool found = false;
+        for (uint256 i = 0; i < logs.length; i++) {
+            // Spent(bytes32 indexed, address indexed, address indexed, ...)
+            if (logs[i].topics[0] == keccak256(
+                "Spent(bytes32,address,address,uint256,bytes32,bool,uint256,uint256,uint64)"
+            )) {
+                found = true;
+                assertEq(
+                    address(uint160(uint256(logs[i].topics[3]))), ownerAddr,
+                    "the actor is the owner, not an agent"
+                );
+                (, , bool ownerApproved, , ,) =
+                    abi.decode(logs[i].data, (uint256, bytes32, bool, uint256, uint256, uint64));
+                assertTrue(ownerApproved, "recorded as a human decision");
+            }
+        }
+        assertTrue(found, "no Spent event");
+    }
 }
+

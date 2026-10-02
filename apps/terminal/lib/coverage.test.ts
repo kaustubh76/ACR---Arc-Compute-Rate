@@ -70,6 +70,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // same state the sellers comment above describes. Raised to actual; the
   // ledger's is now 23 because every section title speaks in both editions.
   "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
+  // The owner's page speaks to an owner, not an operator: every heading, every
+  // outcome chip and the savings caveat all carry both registers.
+  "app/spend/view.tsx": 34, // incl. the five outcome chips and the budget states
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,
@@ -111,6 +114,7 @@ const EXEMPT: Record<string, string> = {
   "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
   "app/ops/loading.tsx": "skeleton",
+  "app/spend/loading.tsx": "skeleton",
   "app/index/[id]/loading.tsx": "skeleton",
   "app/page.tsx": "metadata only — SEO stays expert",
   "app/attack/page.tsx": "metadata only",
@@ -121,6 +125,7 @@ const EXEMPT: Record<string, string> = {
   "app/sellers/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
+  "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",

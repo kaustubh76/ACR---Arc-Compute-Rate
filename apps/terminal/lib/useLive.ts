@@ -16,6 +16,7 @@ import type { TapeData } from "./tape";
 import type {
   AttackStatus,
   BalancesData,
+  BusinessesPayload,
   BuyerRunStatus,
   CatalogData,
   Envelope,
@@ -27,6 +28,7 @@ import type {
   OnchainDirectRead,
   OpsLedger,
   RevenueData,
+  Statement,
   TerminalData,
   WebhookFeed,
   X402Info,
@@ -323,4 +325,26 @@ export function useOps() {
     ...RETRY,
   });
   return { ledger: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** Who the operator runs for. Slow-moving (onboarding is a commit), so this
+ *  polls gently — the page is not waiting on it to change. */
+export function useBusinesses() {
+  const { data, error, mutate } = useSWR<Envelope<BusinessesPayload | null>>(
+    "/api/operator/businesses",
+    fetcher,
+    { refreshInterval: 300_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { businesses: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** One business's Spend Statement. `null` slug means "nothing selected yet",
+ *  and SWR is given a null key so it does not fetch a statement for nobody. */
+export function useStatement(slug: string | null, days = 7) {
+  const { data, error, mutate } = useSWR<Envelope<Statement | null>>(
+    slug ? `/api/operator/statement?business=${encodeURIComponent(slug)}&days=${days}` : null,
+    fetcher,
+    { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { statement: data, error: error as Error | undefined, refresh: mutate };
 }

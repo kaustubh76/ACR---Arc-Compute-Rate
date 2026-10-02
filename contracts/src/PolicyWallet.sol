@@ -110,7 +110,11 @@ contract PolicyWallet {
     event Spent(
         bytes32 indexed category,
         address indexed to,
-        address indexed agent,
+        /// Whoever actually sent the transaction: an agent on the two agent
+        /// paths, the owner on `spendAsOwner`. Named `actor` rather than `agent`
+        /// because on the owner path it is not an agent, and an event field that
+        /// lies about who acted is worse than a longer word.
+        address indexed actor,
         uint256 amount,
         bytes32 decisionHash,
         bool ownerApproved,
@@ -289,7 +293,7 @@ contract PolicyWallet {
         // discovered by a payment nobody meant to make.
         require(amount < b.perTxLimit, "needs owner approval");
 
-        _spend(category, to, amount, decisionHash, false);
+        _spend(category, to, amount, decisionHash, false, false);
     }
 
     /// @notice A payment at or above `perTxLimit`, carrying the owner's signature.
@@ -324,7 +328,31 @@ contract PolicyWallet {
         // Consumed before the transfer, so a re-entrant call cannot reuse it.
         approvalNonce += 1;
 
-        _spend(category, to, amount, decisionHash, true);
+        _spend(category, to, amount, decisionHash, true, false);
+    }
+
+    /// @notice The owner paying an escalated obligation from their own wallet.
+    /// @dev    THIS IS THE THRESHOLD MADE LITERAL. Above `perTxLimit` the agent's
+    ///         `spend` reverts, and this is the only other way the money moves:
+    ///         `msg.sender` must BE the owner. Not a signature the agent relays,
+    ///         not a flag in a database somebody can set — the owner's own wallet
+    ///         sends the transaction, and the explorer shows it.
+    ///
+    ///         It exists because `ecrecover` cannot check a smart-contract
+    ///         account (`docs/WALLETS.md` C1), so an owner whose wallet is a
+    ///         Circle PIN-secured SCA could never clear `spendApproved`. Calling
+    ///         the contract needs no signature scheme at all, which is also why
+    ///         there is no nonce here to go stale.
+    ///
+    ///         No `perTxLimit` check: that limit bounds the AGENT. The cap still
+    ///         binds, because the cap is the budget and the owner closing a
+    ///         category should not be undone by the owner paying one invoice.
+    ///         `setBudget` is how a budget changes, on the record.
+    function spendAsOwner(bytes32 category, address to, uint256 amount, bytes32 decisionHash)
+        external
+    {
+        require(budgets[category].exists, "no such budget");
+        _spend(category, to, amount, decisionHash, true, true);
     }
 
     function _spend(
@@ -332,14 +360,24 @@ contract PolicyWallet {
         address to,
         uint256 amount,
         bytes32 decisionHash,
-        bool ownerApproved
+        bool ownerApproved,
+        bool byOwner
     ) internal {
         // G1 — the kill switch outranks every authority below it, including the
-        // owner's own signature: a paused wallet is paused.
+        // owner's own wallet: a paused wallet is paused. Checked before the
+        // authorization below so that stays true for every path.
         require(!paused, "paused");
 
-        // G2 — only an agent moves money. The owner's path is `withdraw`.
-        require(isAgent[msg.sender], "not agent");
+        // G2 — who may move money, and the two answers are not interchangeable.
+        // An agent on the agent paths (including when it relays the owner's
+        // signature, so the event names the operator that acted); the owner and
+        // only the owner on `spendAsOwner`. An agent must not reach the owner's
+        // path, or the threshold would be a suggestion.
+        if (byOwner) {
+            require(msg.sender == owner, "not owner");
+        } else {
+            require(isAgent[msg.sender], "not agent");
+        }
 
         // G3 — a payment with no recipient, no value, or no reasoning attached is
         // not a payment this contract will make. `decisionHash` is the commitment
