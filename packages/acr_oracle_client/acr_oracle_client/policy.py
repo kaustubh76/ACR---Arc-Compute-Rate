@@ -207,6 +207,10 @@ class PolicyClient:
         self.agent_signer = agent_signer or build_role_signer("taker", s)
         self.owner_signer = owner_signer or build_role_signer("owner", s)
         self._w3 = None
+        #: Cached once answered. A contract does not appear at an address later
+        #: in the same process, and re-reading code before every payment would
+        #: put an RPC round trip in front of the money.
+        self._wallet_status: str | None = None
 
     # --- plumbing -----------------------------------------------------------
 
@@ -222,6 +226,76 @@ class PolicyClient:
         wallet as unconfigured.
         """
         return bool(self.owner_signer)
+
+    def wallet_status(self) -> str:
+        """Is there actually a contract at this wallet, on the chain we are on?
+
+        ``ok`` · ``no_wallet`` · ``no_rpc`` · ``not_on_this_chain``.
+
+        THE PHANTOM PAYMENT THIS EXISTS TO REFUSE. A ``PolicyWallet`` address is
+        read with whatever RPC the press happens to hold, and the registry row
+        carrying it travels with the image to any deployment. Point a mainnet
+        press at a testnet wallet and every read returns empty: ``eth_call`` to
+        an address with no code does not revert, it succeeds and returns
+        nothing, so ``budget()`` decodes nothing and reports ``None`` — which the
+        statement renders as "no budget set on chain", identical to a correctly
+        wired wallet whose category is simply unset.
+
+        The write path is worse. A CALL to nothing does not revert either, so
+        ``eth_estimateGas`` SUCCEEDS (measured against a live Arc node: 22026
+        gas), the transaction broadcasts, the receipt comes back ``status: 1``,
+        and the only check ``_send`` makes passes. The operator then records a
+        payment with a TRANSACTION HASH AS ITS EVIDENCE. *Agents and Ledgers*
+        names exactly this as the thing SolidInvoice cannot disprove.
+
+        TESTED BY CODE PRESENCE, NOT BY A CHAIN LABEL. A registry row saying
+        ``chain: "testnet"`` is a label, and a label is what goes wrong first —
+        this repo has already shipped a bundle carrying the right chain id while
+        serving the wrong chain's data, and what caught it was a block height,
+        not the id. An address either has code on the chain you are connected to
+        or it does not, and no label can fake that.
+
+        ``no_rpc`` is kept apart from ``not_on_this_chain`` deliberately: a node
+        that is down is a thing to wait out, a wallet on another chain is a thing
+        to fix, and reporting them as one hides which.
+        """
+        if self._wallet_status is not None:
+            return self._wallet_status
+        if not self.wallet_address:
+            self._wallet_status = "no_wallet"
+            return self._wallet_status
+        w3 = self._connect()
+        if w3 is None:
+            # NOT cached: the node may come back, and a client built during a
+            # blip would otherwise refuse every payment for the rest of its life.
+            return "no_rpc"
+        try:
+            from web3 import Web3
+
+            code = w3.eth.get_code(Web3.to_checksum_address(self.wallet_address))
+        except Exception as exc:  # pragma: no cover - env dependent
+            log.warning("PolicyClient: cannot read code at %s (%s)", self.wallet_address, exc)
+            return "no_rpc"
+        self._wallet_status = "ok" if len(code) > 0 else "not_on_this_chain"
+        return self._wallet_status
+
+    def _require_wallet(self) -> None:
+        """Refuse to send when the contract is not there. This guards money."""
+        status = self.wallet_status()
+        if status == "ok":
+            return
+        if status == "no_wallet":
+            raise RuntimeError("PolicyClient not configured (no wallet address)")
+        if status == "no_rpc":
+            raise RuntimeError(
+                "cannot reach the chain to confirm the wallet, so nothing is sent"
+            )
+        raise RuntimeError(
+            f"no contract at {self.wallet_address} on the chain this client is "
+            "reading: the wallet is NOT ON THIS CHAIN. A call to an address with "
+            "no code succeeds and moves nothing, so sending here would record a "
+            "payment that never happened"
+        )
 
     def _connect(self):
         if self._w3 is not None:
@@ -359,6 +433,7 @@ class PolicyClient:
 
         if not self.configured():
             raise RuntimeError("PolicyClient not configured (wallet address or agent signer)")
+        self._require_wallet()
         fn = self._contract().functions.spend(
             category_id(category),
             Web3.to_checksum_address(to),
@@ -393,6 +468,7 @@ class PolicyClient:
                 "the agent and the owner are the same key, so the escalation "
                 "threshold would authorize itself; give the owner its own key"
             )
+        self._require_wallet()
 
         fn = self._contract().functions.spendAsOwner(
             category_id(category),

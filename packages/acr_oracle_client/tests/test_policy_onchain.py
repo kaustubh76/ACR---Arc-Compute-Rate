@@ -311,3 +311,82 @@ def test_the_agent_cannot_use_the_owners_path(deployed):
         client._send(fn)  # defaults to the agent signer
     assert "not owner" in str(exc.value) or "revert" in str(exc.value).lower()
     assert usdc.functions.balanceOf(VENDOR).call() == before, "nothing moved"
+
+
+# --- the phantom payment ---------------------------------------------------
+#
+# *Agents and Ledgers* names SolidInvoice for "the most complete write path, and
+# no way to disprove a phantom payment", and this client could produce one.
+#
+# A PolicyWallet address is read with whatever RPC the press happens to hold. On
+# a chain where that address has no code, a CALL does not revert — it succeeds
+# and returns empty. So `eth_estimateGas` succeeds (measured against a live Arc
+# node: 22026 gas), the transaction broadcasts, the receipt comes back
+# `status: 1`, and `_send`'s only check passes. `ops_actions._settle` then writes
+# a payment with a TRANSACTION HASH AS ITS EVIDENCE — into `moved_usdc`, the
+# beancount export and the owner's statement.
+#
+# Nothing downstream can tell that from a real payment. The one thing that can
+# is the absence of code at the address, which is why the guard tests exactly
+# that and not the registry's `chain` label: when the label is the thing that
+# went wrong, you have to compare something the label cannot fake.
+
+
+def test_a_wallet_with_no_code_is_refused_rather_than_paid_into(deployed):
+    """The money must not leave for an address that is not the contract."""
+    _w3, _wallet, _usdc, client = deployed
+
+    nowhere = PolicyClient(
+        rpc_url=RPC,
+        # Well-formed, checksummed, and nothing is deployed there.
+        wallet_address="0x00000000000000000000000000000000DeaDBeef",
+        agent_signer=LocalKeySigner(AGENT_KEY),
+        owner_signer=LocalKeySigner(OWNER_KEY),
+    )
+
+    assert nowhere.wallet_status() == "not_on_this_chain"
+    assert client.wallet_status() == "ok", "the real one still reads as fine"
+
+    record = {"obligation_id": "phantom-1", "billed_usdc": 1.0}
+    with pytest.raises(RuntimeError) as owner_err:
+        nowhere.spend_as_owner(CATEGORY, "0x" + "cc" * 20, 1.0, record)
+    assert "not on this chain" in str(owner_err.value).lower()
+
+    with pytest.raises(RuntimeError) as agent_err:
+        nowhere.spend(CATEGORY, "0x" + "cc" * 20, 1.0, record)
+    assert "not on this chain" in str(agent_err.value).lower()
+
+
+def test_the_status_says_which_of_the_four_reasons_it_is(deployed):
+    """`budget()` returns None for four different reasons and always has.
+
+    A reader cannot act on that: "no wallet", "the RPC is down", "this wallet is
+    on another chain" and "that category has no budget" are four different
+    things to do on a Monday morning, and the statement rendered all of them as
+    the same gold chip.
+    """
+    _w3, _wallet, _usdc, client = deployed
+
+    assert client.wallet_status() == "ok"
+
+    no_wallet = PolicyClient(
+        rpc_url=RPC, wallet_address=None,
+        agent_signer=LocalKeySigner(AGENT_KEY), owner_signer=LocalKeySigner(OWNER_KEY),
+    )
+    assert no_wallet.wallet_status() == "no_wallet"
+
+    dead_rpc = PolicyClient(
+        rpc_url="http://127.0.0.1:1", wallet_address=client.wallet_address,
+        agent_signer=LocalKeySigner(AGENT_KEY), owner_signer=LocalKeySigner(OWNER_KEY),
+    )
+    assert dead_rpc.wallet_status() == "no_rpc", "a dead node is not an absent contract"
+
+
+def test_a_real_wallet_still_pays_after_the_guard(deployed):
+    """The guard must not break the thing it protects."""
+    w3, _wallet, usdc, client = deployed
+    to = "0x" + "cc" * 20
+    before = usdc.functions.balanceOf(w3.to_checksum_address(to)).call()
+    client.spend(CATEGORY, to, 1.0, {"obligation_id": "real-1"})
+    after = usdc.functions.balanceOf(w3.to_checksum_address(to)).call()
+    assert after - before == 1 * USDC, "a real wallet still moves real money"
