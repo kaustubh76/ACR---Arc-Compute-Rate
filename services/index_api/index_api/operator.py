@@ -40,6 +40,7 @@ import json
 import logging
 import os
 import time
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 
 from .counterparty import UNKNOWN, CounterpartyVerdict
@@ -226,10 +227,59 @@ def hashable_record(row: dict) -> dict:
     return {k: v for k, v in (row or {}).items() if k not in UNHASHED}
 
 
+def _restates_the_last(d: ObligationDecision, target: str) -> bool:
+    """Would this row say exactly what the last row about this bill already said?
+
+    THE LOG RECORDS DECISIONS, NOT TICKS. An unpaid obligation is re-decided on
+    every run — deliberately, because the screen is re-asked each time and a
+    verdict that can change its mind is the whole point — and a rerouted bill is
+    never settled, so it comes back for ever. Run by a person that is a handful
+    of rows. On an hourly schedule it is twenty-four identical rows a day per
+    open bill, and `work.decisions` on the traction page would climb steadily
+    while nothing whatsoever had happened. A number inflated by repetition is
+    the kind of flattery this whole module is built to refuse.
+
+    Compared on the HASHED record, so `at` is not the only difference that
+    counts and a changed screen verdict, price, meter or intent all still get
+    written. Payments can never be suppressed by this: check 1 refuses a second
+    payment of the same reference, so a `pay` is never a restatement of a `pay`.
+
+    Reads only the tail, and never raises — `log_decision` must not acquire a
+    new way to fail.
+    """
+    try:
+        if not os.path.exists(target):
+            return False
+        with open(target, encoding="utf-8") as fh:
+            rows = fh.readlines()[-200:]
+        want = {k: v for k, v in asdict(d).items() if k not in UNHASHED and k != "at"}
+        for line in reversed(rows):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if str(row.get("obligation_id") or "") != d.obligation_id:
+                continue
+            have = {k: v for k, v in row.items() if k not in UNHASHED and k != "at"}
+            return have == want
+    except Exception:  # pragma: no cover - a read failure must not block a write
+        return False
+    return False
+
+
 def log_decision(d: ObligationDecision, path: str | None = None) -> None:
     """Append one decision. Never raises: a full disk must not stop a payment
-    that already cleared policy, and the authoritative record is on chain."""
+    that already cleared policy, and the authoritative record is on chain.
+
+    Skips a row that only restates the last decision about the same bill — see
+    `_restates_the_last` for why a schedule makes that necessary.
+    """
     target = path or LOG_PATH
+    if _restates_the_last(d, target):
+        return
     try:
         os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
         with open(target, "a", encoding="utf-8") as fh:
@@ -332,6 +382,127 @@ def obligation_key(
     # error of original entry this check exists to prevent.
     return base if not period_end else f"{base}@{int(period_end)}"
 
+
+def obligations_for(
+    business,
+    receipts: list[dict],
+    catalog: dict,
+    paid_through: dict[tuple[str, str], float] | None = None,
+) -> list[Obligation]:
+    """One per (seller, resource) this business really bought, for the period.
+
+    THE PERIOD IS NOW A PERIOD. This filtered on `payer` and nothing else, so
+    "for the period" meant the whole archive, start to end of file — and since
+    `obligation_key` had no time component either, a paid `(seller, resource)`
+    pair stayed in `settled_refs` forever and every later settlement from that
+    seller was refused as a duplicate. Harmless while a human ran this once.
+    Fatal on a schedule: the first tick pays, every tick after it refuses
+    everything, and the only symptom is a number that stops going up.
+
+    `paid_through` is `operator.settled_through(decisions)` — where the last
+    paid bill for each pair ended. Receipts at or before that boundary are
+    already settled; what is left is this period.
+
+    AN OBLIGATION HERE IS A PERIOD'S BILL, not a single call, and that is a unit
+    decision rather than a presentational one. The benchmark is a UNIT price
+    ($/1k tokens), so the thing compared against it has to be a unit price too.
+    Pairing one call's price with the meter's cumulative count divides a
+    per-call figure by a period's quantity and reports nine thousand basis
+    points of discount — which is precisely what the first version of this
+    script did, on real data, before anybody looked.
+
+    So: `billed_usdc` is everything that seller charged for that service, and
+    `vendor_quantity` is everything we took. Their ratio is the effective unit
+    price, which is the number the market can actually be compared with.
+    """
+    treasury = business.treasury.lower()
+    through = paid_through or {}
+    billed: dict[tuple[str, str], float] = defaultdict(float)
+    consumed: dict[tuple[str, str], float] = defaultdict(float)
+    units: dict[tuple[str, str], str] = {}
+    calls: dict[tuple[str, str], int] = defaultdict(int)
+    first: dict[tuple[str, str], float] = {}
+    last: dict[tuple[str, str], float] = {}
+
+    for r in receipts:
+        if (r.get("payer") or "").lower() != treasury:
+            continue
+        seller, resource = r.get("seller") or "", resource_path(r.get("resource") or "")
+        amount, qty = r.get("amount_usdc"), r.get("quantity")
+        if not seller or not resource or not isinstance(amount, (int, float)):
+            continue
+        key = (seller, resource)
+        at = float(r.get("settled_at") or 0.0)
+        # STRICTLY AFTER the last period we paid for. A receipt exactly on the
+        # boundary was in that bill, and counting it again is how a period
+        # overlaps its predecessor and the same consumption gets billed twice.
+        #
+        # A ZERO BOUND MEANS NO BOUND, not a bound at the epoch. Written as
+        # `at <= bound` it also dropped every receipt with no `settled_at` —
+        # `at` is 0.0 for those — so nothing was ever billed for a pair we had
+        # never paid. Two tests in `test_operator_duplicates.py` caught it
+        # immediately, which is the only reason it is not in this commit.
+        # An unstamped settlement still gets billed, once, in the first period;
+        # it cannot drag `period_start` down because `first`/`last` only record
+        # a truthy `at`, and the boundary that payment sets excludes it
+        # afterwards.
+        bound = through.get((seller.lower(), resource), 0.0)
+        if bound and at <= bound:
+            continue
+        billed[key] += float(amount)
+        consumed[key] += float(qty or 0.0)
+        calls[key] += 1
+        if at and (key not in first or at < first[key]):
+            first[key] = at
+        if at > last.get(key, 0.0):
+            last[key] = at
+        if r.get("unit"):
+            units[key] = str(r["unit"])
+
+    out: list[Obligation] = []
+    for key in sorted(billed):
+        seller, resource = key
+        amount = billed[key]
+        if amount <= 0:
+            continue
+        out.append(
+            Obligation(
+                obligation_id=obligation_key(
+                    business.slug, seller, resource, last.get(key, 0.0)
+                ),
+                vendor=seller,
+                # ROUNDED HERE, AND NOWHERE LATER. These are sums of x402
+                # nanopayments — 0.004409607843137255 is a real receipt amount —
+                # so a period's total is routinely finer than the six decimals
+                # USDC actually has. `usdc_units` refuses such a number on the
+                # way to the chain, and it is right to: "round it before paying,
+                # so the rounding is a decision someone made."
+                #
+                # The decision is made HERE rather than at payment because
+                # `billed_usdc` is what the ledger prints, what the chain
+                # commits, and what `ledger_audit` compares `paid_usdc` against.
+                # Rounding later would make every payment disagree with its own
+                # bill by a fraction of a cent, and the audit would report an
+                # error of original entry on every row — correctly.
+                billed_usdc=round(amount, 6),
+                business=business.slug,
+                category=(business.categories or ("general",))[0],
+                kind="x402",
+                resource=resource,
+                vendor_quantity=consumed[key] or None,
+                # The window this bill covers, taken from the settlements in it
+                # rather than from the clock. `period_start` is the FIRST
+                # settlement included, so the meter — which keeps
+                # `settled_at >= since` — measures exactly the set that was
+                # billed. A boundary invented from `now` would both disagree
+                # with the meter and mint a new id every tick.
+                period_start=first.get(key, 0.0),
+                period_end=last.get(key, 0.0),
+                # The unit is what makes two sellers comparable at all.
+                unit=units.get(key, ""),
+            )
+        )
+    return out
 
 def settled_through(decisions) -> dict[tuple[str, str], float]:
     """For each ``(vendor, resource)`` this business has really paid, the moment

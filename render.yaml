@@ -210,6 +210,15 @@ services:
       # rather than after.
       - key: ACR_OPERATOR_LOG_PATH
         value: data/operator_decisions.jsonl
+      # WHETHER ANYTHING RUNS THE OPERATOR WITHOUT BEING ASKED. `off` · `dry` ·
+      # `live`, and the default in code is `off` — declared here anyway, because
+      # a money loop whose state can only be learned by reading source is a
+      # money loop nobody can audit from the deploy. `dry` decides and records
+      # and pays nothing, which is how you prove the loop ticks on this host
+      # before the first payment depends on it. Editing this in the Render
+      # dashboard does NOT restart the service: it needs a SKIP_BUILD redeploy.
+      - key: ACR_OPERATOR_AUTORUN
+        value: "off"
       # The audit trail of human actions, beside the decision log. Named for the
       # same reason: an unset path is how nobody could say where it went.
       - key: ACR_OPS_AUDIT_PATH
@@ -412,6 +421,15 @@ services:
       # rather than after.
       - key: ACR_OPERATOR_LOG_PATH
         value: data/operator_decisions.jsonl
+      # WHETHER ANYTHING RUNS THE OPERATOR WITHOUT BEING ASKED. `off` · `dry` ·
+      # `live`, and the default in code is `off` — declared here anyway, because
+      # a money loop whose state can only be learned by reading source is a
+      # money loop nobody can audit from the deploy. `dry` decides and records
+      # and pays nothing, which is how you prove the loop ticks on this host
+      # before the first payment depends on it. Editing this in the Render
+      # dashboard does NOT restart the service: it needs a SKIP_BUILD redeploy.
+      - key: ACR_OPERATOR_AUTORUN
+        value: "off"
       # The audit trail of human actions, beside the decision log. Named for the
       # same reason: an unset path is how nobody could say where it went.
       - key: ACR_OPS_AUDIT_PATH

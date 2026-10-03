@@ -353,6 +353,41 @@ async def _warm_chain(stop: asyncio.Event) -> None:
             log.exception("chain cache warm failed")
 
 
+async def _operator_loop(stop: asyncio.Event) -> None:
+    """The spend operator, on its own timer, when it is armed.
+
+    ITS OWN TASK AND NOT A CHORE ON THE WARM LOOP, deliberately. `_warm_chain`
+    runs `reader.read_all` and `futures.read_all` bare inside one `try`, ahead
+    of everything after them, so a single throttled Arc read skips the rest of
+    that tick — the hazard `_run_keeper` was isolated to avoid and the two reads
+    above it still have. A loop that pays bills must not be downstream of
+    somebody else's RPC luck.
+
+    Off unless `ACR_OPERATOR_AUTORUN` says otherwise, so a checkout, a laptop
+    and CI all do nothing. `operator_keeper` holds the cooldown, the lock and
+    the kill switch; this is only the clock.
+    """
+    from . import operator_keeper
+
+    while not stop.is_set():
+        # The interval FIRST, so arming the loop never means a payment during
+        # boot — the one moment the process is least able to report what it did.
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=operator_keeper.sleep_s())
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        if not operator_keeper.enabled():
+            continue
+        try:
+            verdict = await asyncio.to_thread(operator_keeper.tick_once)
+            if verdict:
+                log.info("operator: %s", verdict)
+        except Exception:  # pragma: no cover - a chore must never cost a beat
+            log.exception("operator tick failed")
+
+
 #: The systems-ledger snapshot, recomputed on its own slow timer. None until
 #: the first pass lands — served as "pending", never as an empty dashboard.
 _ops_cache: dict | None = None
@@ -540,6 +575,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_background(stop)),
         asyncio.create_task(_warm_chain(stop)),
         asyncio.create_task(_ops_loop(stop)),
+        asyncio.create_task(_operator_loop(stop)),
     ]
     try:
         yield
@@ -719,7 +755,24 @@ def health() -> dict:
         # Is anything still minding the book? Pure module-state read — no chain
         # calls, no credentials — so it cannot slow the cheapest probe we have.
         "keeper": _keeper_status(),
+        # The autonomous spender's standing, beside the venue's. An operator
+        # asking "is anything paying our bills?" should not have to read a log
+        # to find out, and "off" is a legitimate answer that must be visible
+        # rather than inferred from silence.
+        "operator": _operator_status(),
     }
+
+
+def _operator_status() -> dict:
+    """The spend operator's standing, with the same containment as the keeper's:
+    /health is the probe everything leans on, so an import that blew up here
+    must not take the liveness check down with it."""
+    try:
+        from . import operator_keeper
+
+        return operator_keeper.status()
+    except Exception:  # pragma: no cover - health must answer regardless
+        return {"mode": "unknown"}
 
 
 def _keeper_status() -> dict:

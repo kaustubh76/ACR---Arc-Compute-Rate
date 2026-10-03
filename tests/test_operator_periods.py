@@ -334,3 +334,60 @@ def test_the_old_convention_really_would_have_refused_it():
     )[0]
     assert windowed.billed_usdc == 5.0, "only what settled after the legacy payment"
     assert not is_duplicate(windowed, settled_refs_from(old_log))
+
+
+# --- the log records decisions, not ticks -----------------------------------
+
+
+def test_an_unchanged_decision_is_not_written_twice(tmp_path):
+    """On a schedule, an unpaid bill is re-decided every tick — deliberately,
+    because the screen is re-asked each time. A rerouted bill is never settled,
+    so it comes back for ever: twenty-four identical rows a day per open bill,
+    and `work.decisions` climbing while nothing happened.
+    """
+    from index_api.operator import log_decision
+    from index_api.statement import read_decisions
+
+    log = tmp_path / "decisions.jsonl"
+    ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
+
+    first = decide(ob, remaining_usdc=100.0)
+    log_decision(first, str(log))
+    log_decision(decide(ob, remaining_usdc=100.0), str(log))
+    log_decision(decide(ob, remaining_usdc=100.0), str(log))
+    assert len(read_decisions(path=str(log))) == 1, "three identical ticks, one decision"
+
+
+def test_a_changed_mind_is_always_written(tmp_path):
+    """The suppression must not hide the thing the re-decision exists for. A
+    different verdict, price, meter or intent is new information."""
+    from index_api.operator import log_decision
+    from index_api.statement import read_decisions
+
+    log = tmp_path / "decisions.jsonl"
+    ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
+
+    log_decision(decide(ob, remaining_usdc=100.0), str(log))
+    changed = decide(ob, remaining_usdc=100.0)
+    changed.screen_risk = "flagged"
+    log_decision(changed, str(log))
+    rows = read_decisions(path=str(log))
+    assert len(rows) == 2
+    assert rows[-1]["screen_risk"] == "flagged"
+
+
+def test_two_different_bills_never_suppress_each_other(tmp_path):
+    """The comparison is per obligation id. Interleaved decisions about two
+    bills must both land."""
+    from index_api.operator import log_decision
+    from index_api.statement import read_decisions
+
+    log = tmp_path / "decisions.jsonl"
+    other = "0x" + "cd" * 20
+    rows = [_receipt(100.0), {**_receipt(100.0), "seller": other}]
+    a, b = _obligations(_Biz(), rows, {}, {})
+    for ob in (a, b, a, b):
+        log_decision(decide(ob, remaining_usdc=100.0), str(log))
+    logged = read_decisions(path=str(log))
+    assert len(logged) == 2, "each bill decided once, repeats suppressed"
+    assert {r["vendor"] for r in logged} == {a.vendor, b.vendor}

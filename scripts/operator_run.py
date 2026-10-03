@@ -35,8 +35,7 @@ from index_api.marketplace import build_catalog
 from index_api.operator import (
     ESCALATE,
     PAY,
-    Obligation,
-    obligation_key,
+    obligations_for,
     resource_path,
     run_obligation,
     settled_refs_from,
@@ -84,126 +83,11 @@ def _path_of(resource: str) -> str:
     return resource_path(resource)
 
 
-def _obligations(
-    business,
-    receipts: list[dict],
-    catalog: dict,
-    paid_through: dict[tuple[str, str], float] | None = None,
-) -> list[Obligation]:
-    """One per (seller, resource) this business really bought, for the period.
-
-    THE PERIOD IS NOW A PERIOD. This filtered on `payer` and nothing else, so
-    "for the period" meant the whole archive, start to end of file — and since
-    `obligation_key` had no time component either, a paid `(seller, resource)`
-    pair stayed in `settled_refs` forever and every later settlement from that
-    seller was refused as a duplicate. Harmless while a human ran this once.
-    Fatal on a schedule: the first tick pays, every tick after it refuses
-    everything, and the only symptom is a number that stops going up.
-
-    `paid_through` is `operator.settled_through(decisions)` — where the last
-    paid bill for each pair ended. Receipts at or before that boundary are
-    already settled; what is left is this period.
-
-    AN OBLIGATION HERE IS A PERIOD'S BILL, not a single call, and that is a unit
-    decision rather than a presentational one. The benchmark is a UNIT price
-    ($/1k tokens), so the thing compared against it has to be a unit price too.
-    Pairing one call's price with the meter's cumulative count divides a
-    per-call figure by a period's quantity and reports nine thousand basis
-    points of discount — which is precisely what the first version of this
-    script did, on real data, before anybody looked.
-
-    So: `billed_usdc` is everything that seller charged for that service, and
-    `vendor_quantity` is everything we took. Their ratio is the effective unit
-    price, which is the number the market can actually be compared with.
-    """
-    treasury = business.treasury.lower()
-    through = paid_through or {}
-    billed: dict[tuple[str, str], float] = defaultdict(float)
-    consumed: dict[tuple[str, str], float] = defaultdict(float)
-    units: dict[tuple[str, str], str] = {}
-    calls: dict[tuple[str, str], int] = defaultdict(int)
-    first: dict[tuple[str, str], float] = {}
-    last: dict[tuple[str, str], float] = {}
-
-    for r in receipts:
-        if (r.get("payer") or "").lower() != treasury:
-            continue
-        seller, resource = r.get("seller") or "", _path_of(r.get("resource") or "")
-        amount, qty = r.get("amount_usdc"), r.get("quantity")
-        if not seller or not resource or not isinstance(amount, (int, float)):
-            continue
-        key = (seller, resource)
-        at = float(r.get("settled_at") or 0.0)
-        # STRICTLY AFTER the last period we paid for. A receipt exactly on the
-        # boundary was in that bill, and counting it again is how a period
-        # overlaps its predecessor and the same consumption gets billed twice.
-        #
-        # A ZERO BOUND MEANS NO BOUND, not a bound at the epoch. Written as
-        # `at <= bound` it also dropped every receipt with no `settled_at` —
-        # `at` is 0.0 for those — so nothing was ever billed for a pair we had
-        # never paid. Two tests in `test_operator_duplicates.py` caught it
-        # immediately, which is the only reason it is not in this commit.
-        # An unstamped settlement still gets billed, once, in the first period;
-        # it cannot drag `period_start` down because `first`/`last` only record
-        # a truthy `at`, and the boundary that payment sets excludes it
-        # afterwards.
-        bound = through.get((seller.lower(), resource), 0.0)
-        if bound and at <= bound:
-            continue
-        billed[key] += float(amount)
-        consumed[key] += float(qty or 0.0)
-        calls[key] += 1
-        if at and (key not in first or at < first[key]):
-            first[key] = at
-        if at > last.get(key, 0.0):
-            last[key] = at
-        if r.get("unit"):
-            units[key] = str(r["unit"])
-
-    out: list[Obligation] = []
-    for key in sorted(billed):
-        seller, resource = key
-        amount = billed[key]
-        if amount <= 0:
-            continue
-        out.append(
-            Obligation(
-                obligation_id=obligation_key(
-                    business.slug, seller, resource, last.get(key, 0.0)
-                ),
-                vendor=seller,
-                # ROUNDED HERE, AND NOWHERE LATER. These are sums of x402
-                # nanopayments — 0.004409607843137255 is a real receipt amount —
-                # so a period's total is routinely finer than the six decimals
-                # USDC actually has. `usdc_units` refuses such a number on the
-                # way to the chain, and it is right to: "round it before paying,
-                # so the rounding is a decision someone made."
-                #
-                # The decision is made HERE rather than at payment because
-                # `billed_usdc` is what the ledger prints, what the chain
-                # commits, and what `ledger_audit` compares `paid_usdc` against.
-                # Rounding later would make every payment disagree with its own
-                # bill by a fraction of a cent, and the audit would report an
-                # error of original entry on every row — correctly.
-                billed_usdc=round(amount, 6),
-                business=business.slug,
-                category=(business.categories or ("general",))[0],
-                kind="x402",
-                resource=resource,
-                vendor_quantity=consumed[key] or None,
-                # The window this bill covers, taken from the settlements in it
-                # rather than from the clock. `period_start` is the FIRST
-                # settlement included, so the meter — which keeps
-                # `settled_at >= since` — measures exactly the set that was
-                # billed. A boundary invented from `now` would both disagree
-                # with the meter and mint a new id every tick.
-                period_start=first.get(key, 0.0),
-                period_end=last.get(key, 0.0),
-                # The unit is what makes two sellers comparable at all.
-                unit=units.get(key, ""),
-            )
-        )
-    return out
+#: The builder moved into the package, because the press now needs it too: an
+#: unattended operator cannot import from `scripts/`, and two copies of the rule
+#: that decides what a business owes is the one duplication this product cannot
+#: afford. Kept as a name this file already uses.
+_obligations = obligations_for
 
 
 def main() -> int:

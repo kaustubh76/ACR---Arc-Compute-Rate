@@ -396,13 +396,29 @@ def test_the_meter_matches_a_vendor_whatever_case_the_address_arrived_in():
 # --- the log ---------------------------------------------------------------
 
 def test_the_decision_log_is_appendable_and_readable(tmp_path):
-    d = decide(_ob(), par=_par(*AT_PAR), remaining_usdc=100.0, per_tx_limit_usdc=50.0, now=NOW)
+    """Appends, and creates the directory it was pointed at.
+
+    This used to write ONE decision twice and assert two rows. It no longer
+    does, because the log now records decisions rather than ticks: a row that
+    only restates the last decision about the same bill is dropped. An unpaid
+    obligation is re-decided on every run by design, and on an hourly schedule
+    the old behaviour was twenty-four identical rows a day per open bill —
+    `work.decisions` climbing while nothing had happened. So appendability is
+    shown with two DIFFERENT decisions, which is what it was always about.
+    """
     path = tmp_path / "nested" / "decisions.jsonl"
-    log_decision(d, str(path))
-    log_decision(d, str(path))
+    first = decide(_ob(), par=_par(*AT_PAR), remaining_usdc=100.0,
+                   per_tx_limit_usdc=50.0, now=NOW)
+    log_decision(first, str(path))
+    log_decision(first, str(path))  # the same tick again: not a second decision
+
+    second = decide(_ob(obligation_id="ob-2"), par=_par(*AT_PAR), remaining_usdc=100.0,
+                    per_tx_limit_usdc=50.0, now=NOW)
+    log_decision(second, str(path))
 
     rows = [json.loads(ln) for ln in path.read_text().splitlines()]
-    assert len(rows) == 2
+    assert len(rows) == 2, "one row per decision, not one per write"
+    assert [r["obligation_id"] for r in rows] == ["ob-1", "ob-2"]
     assert rows[0]["intent"] == PAY and rows[0]["rule"]
 
 

@@ -197,3 +197,37 @@ make verify-operator                        # prove a deployment
 
 `--live` is refused for a business with no `PolicyWallet` rather than doing a dry
 run under the wrong name.
+
+### Without being asked
+
+Those are all a person typing. The operator also runs on its own clock inside
+the press, which is what makes "settled without a human touching them" a thing
+the record shows rather than a thing the design permits:
+
+| `ACR_OPERATOR_AUTORUN` | what happens |
+|---|---|
+| `off` | nothing. The default every checkout, laptop and CI run gets |
+| `dry` | it wakes on its cadence, prices, meters, screens and decides — and pays nothing |
+| `live` | it also pays what clears policy |
+
+`dry` is not a formality. The first question about any new loop is whether it
+ticks at all on that host, and that should be answerable before a payment
+depends on it — the deployed press currently reports `checked_at: null` for all
+three of the venue keeper's chores, which is exactly the state `dry` exists to
+rule out. `GET /health` carries the operator's mode, its last verdict and both
+clocks (when it was last checked, and when it last did work); `/ops` reports the
+same and warns when an armed loop has missed a period.
+
+**In the press and not in GitHub Actions**, for the reason this repo already
+wrote down when it retired two scheduled workflows on 2026-08-03: a cron'd run
+would need the credentials in CI, which is a strictly larger blast radius than
+the scoped key it would replace. A cadence in Actions would also be inert on any
+branch but the default.
+
+Three things it will not do. It never clears an escalation — that stays behind
+the token-gated `POST /ops/actions`, because a loop approving its own
+escalations would make the autonomy figure meaningless rather than better. Its
+interval has a floor no environment variable can lower, so a typo cannot turn it
+into a tight loop against a `PolicyWallet`. And a tick that cannot read the
+settlement tape says so and bills nothing, rather than reporting that there is
+nothing to bill.

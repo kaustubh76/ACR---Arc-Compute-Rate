@@ -739,6 +739,41 @@ def _operator(rec: Recorder) -> None:
                  "signer (ACR_OWNER_PRIVATE_KEY) or clear them by hand with spendAsOwner",
         )
 
+    # --- is anything actually running it ------------------------------------
+    #
+    # The question this section could not answer until the operator had a clock:
+    # an agent somebody has to trigger is a tool, and "nobody has run it for a
+    # week" looked identical to "there was nothing to do".
+    from . import operator_keeper
+
+    st = operator_keeper.status()
+    armed = st["mode"] != "off"
+    rec.check(
+        armed,
+        f"autorun: {st['mode']}"
+        + (f" every {st['every_s'] / 60:.0f} min" if armed else " — every run is a person typing"),
+        # Somebody's deployment choice, not our code being wrong. `off` is the
+        # default and a legitimate state; it just must not be a silent one.
+        warn_only=True,
+        detail=None if armed
+        else "set ACR_OPERATOR_AUTORUN=dry to prove the loop ticks on this host, "
+             "then =live to let it pay what clears policy",
+    )
+    if armed:
+        # A loop that has never reported is the failure this page exists for —
+        # and it is not hypothetical on this host, where all three keeper chores
+        # read `checked_at: null`.
+        if st["checked_at"] is None:
+            rec.unknown("autorun has not reported a pass yet", "armed, but no tick has landed")
+        else:
+            fresh = float(st["checked_age_s"] or 0.0) < float(st["every_s"]) * 2
+            rec.check(
+                fresh,
+                f"last pass {float(st['checked_age_s']):.0f}s ago: {st['verdict'] or 'nothing to do'}",
+                warn_only=True,
+                detail=None if fresh else "the clock has missed at least one period",
+            )
+
     # --- is anybody waiting on that human -----------------------------------
     #
     # SANDBOXES EXCLUDED, for the reason every traction figure excludes them and
