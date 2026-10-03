@@ -33,6 +33,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from pathlib import Path
 
 from .businesses import Business, resolve
+from .counterparty import FLAGGED, UNKNOWN
 from .operator import ESCALATE, HOLD, LOG_PATH, PAY, REFUSE, REROUTE
 
 log = logging.getLogger("index_api.statement")
@@ -194,7 +195,106 @@ def summarise(decisions: list[dict]) -> dict:
         "saved_usdc": saved,
         "consumption_discrepancies": discrepancies,
         "unmetered": unmetered,
+        **autonomy(decisions),
+        **agreement(decisions),
+        **screening(decisions),
     }
+
+
+def autonomy(decisions: list[dict]) -> dict:
+    """"Obligations settled on time without a human touching them" — RFB 4.
+
+    Two facts, kept as counts rather than one percentage, because the
+    interesting failure is a perfect rate over three decisions.
+
+    UNTIL `actor` EXISTED THIS WAS NOT ANSWERABLE. An owner's approval was
+    written as a plain ``pay``, identical in every field to one the agent
+    reached alone, and landed in `decided` and `moved_usdc` beside it. The
+    autonomy figure a log like that produces is 100%, always, which is the most
+    flattering number on the page and means nothing.
+
+    ON TIME IS REPORTED AGAINST ITS OWN DENOMINATOR. An obligation with no due
+    date cannot be late, and counting it as punctual would turn "we do not know
+    when this was due" into evidence of promptness. The runner does not set due
+    dates yet, so `due_known` is honestly zero today and the figure starts
+    working the day obligations carry one.
+    """
+    terminal = (PAY, HOLD, REROUTE, REFUSE)
+    by_agent = by_owner = 0
+    on_time = due_known = 0
+
+    for d in decisions:
+        if str(d.get("intent") or "") not in terminal:
+            continue
+        if str(d.get("actor") or "agent") == "owner":
+            by_owner += 1
+        else:
+            by_agent += 1
+        due = d.get("due_at")
+        at = d.get("at")
+        if isinstance(due, (int, float)) and isinstance(at, (int, float)):
+            due_known += 1
+            if float(at) <= float(due):
+                on_time += 1
+
+    return {
+        "settled_by_agent": by_agent,
+        "settled_by_owner": by_owner,
+        "settled_on_time": on_time,
+        "settled_with_a_due_date": due_known,
+    }
+
+
+def agreement(decisions: list[dict]) -> dict:
+    """"Decisions made vs escalated, and HOW OFTEN THE HUMAN AGREED" — RFB 4.
+
+    Agreement needs two opinions. The agent now records what it would have done
+    when it escalated (`recommended_intent`), so an owner's resolution can be
+    compared against it instead of against nothing.
+
+    THE DENOMINATOR IS RESOLUTIONS, NOT ESCALATIONS. A queue nobody has answered
+    is not unanimous agreement; it is an empty sample, and dividing by the
+    escalation count would report a confident 0% while the owner is on holiday.
+
+    AND NOT EVERY ESCALATION CARRIES A RECOMMENDATION. "No budget on chain"
+    means the agent had no authority to form one, so those are excluded rather
+    than counted as a disagreement the agent never voiced.
+    """
+    agreed = resolved = 0
+    for d in decisions:
+        if str(d.get("actor") or "") != "owner":
+            continue
+        want = str(d.get("recommended_intent") or "")
+        if not want:
+            continue
+        resolved += 1
+        if str(d.get("intent") or "") == want:
+            agreed += 1
+    return {"owner_resolutions": resolved, "owner_agreed": agreed}
+
+
+def screening(decisions: list[dict]) -> dict:
+    """"Risk events caught BEFORE the transaction" — RFB 5.
+
+    Sound by construction rather than by assertion: `decide` runs the
+    counterparty check at step 4 and only ever assigns ``pay`` after step 8,
+    returning early in between, so a flagged screen cannot coexist with a
+    payment. "Before" is the ordering, not a hope.
+
+    `unknown` IS NOT COUNTED AS CAUGHT. It means no screen could answer, and a
+    product that files "we could not check" under "we caught something" has
+    inverted the one claim this check makes. It is reported on its own line, as
+    the thing it is: an unscreened payment somebody should be able to find.
+    """
+    caught = unscreened = 0
+    for d in decisions:
+        risk = str(d.get("screen_risk") or "")
+        intent = str(d.get("intent") or "")
+        if risk == FLAGGED and intent != PAY:
+            caught += 1
+        elif risk == UNKNOWN and intent == PAY:
+            unscreened += 1
+    return {"risk_events_caught": caught, "paid_unscreened": unscreened}
 
 
 def _market_card(tca_fn, treasury: str, days: int) -> dict:
@@ -276,11 +376,44 @@ def _budgets(business: Business, policy_for) -> list[dict]:
     client = policy_for(business)
     if client is None:
         return []
+
+    # WHY it is unconfigured, not just that it is. `budget()` answers None for
+    # four different situations and the page rendered all four as one gold chip:
+    # no wallet, the node is down, this wallet is on another chain, and the
+    # honest "nobody has set a limit for this category yet". Those are four
+    # different things to do on a Monday morning.
+    status = "ok"
+    if hasattr(client, "wallet_status"):
+        try:
+            status = client.wallet_status()
+        except Exception as exc:  # pragma: no cover - env dependent
+            log.warning("statement: wallet status unreadable (%s)", exc)
+            status = "no_rpc"
+    reasons = {
+        "no_wallet": "no wallet address on this business",
+        "no_rpc": "the chain could not be reached, so this is unknown rather than unset",
+        "not_on_this_chain": (
+            "no contract at this address on the chain this service reads, so no "
+            "budget here can be trusted"
+        ),
+    }
+
     out = []
     for category in business.categories:
-        b = client.budget(category)
+        # GUARDED, like the market card below. A raising client would 500 the
+        # whole statement, and a statement whose decisions are all in hand must
+        # not fail because one optional read did.
+        try:
+            b = client.budget(category) if status == "ok" else None
+        except Exception as exc:  # pragma: no cover - env dependent
+            log.warning("statement: budget read failed for %s (%s)", category, exc)
+            b = None
+            status = "no_rpc"
         if b is None:
-            out.append({"category": category, "configured": False})
+            row = {"category": category, "configured": False}
+            if status != "ok":
+                row["reason"] = reasons[status]
+            out.append(row)
             continue
         out.append({**b, "configured": True})
     return out
@@ -295,6 +428,12 @@ def build_statement(
     policy_for=None,
     log_path: str | Path | None = None,
     now: float | None = None,
+    #: How many decision rows to return. The page wants a readable page; the
+    #: archiver that preserves these rows across a redeploy wants all of them,
+    #: and a cap it cannot raise would silently truncate the record it exists to
+    #: save — counts running SHORT, never long, which is the hardest shape of
+    #: this bug to notice.
+    limit: int | None = None
 ) -> dict | None:
     """The owner-facing statement for one business, or None if unknown.
 
@@ -335,7 +474,8 @@ def build_statement(
                 "reason": card.get("reason") or "no tape for this payer",
             }
 
-    escalations = pending_escalations(decisions)[:RECENT_LIMIT]
+    cap = RECENT_LIMIT if limit is None else max(1, min(1000, int(limit)))
+    escalations = pending_escalations(decisions)[:cap]
 
     return {
         "business": b.as_public_dict(),
@@ -347,6 +487,6 @@ def build_statement(
         # What the owner has to act on. First, because it is the only part of
         # the statement that is waiting on them.
         "escalations": escalations,
-        "recent": list(reversed(decisions))[:RECENT_LIMIT],
+        "recent": list(reversed(decisions))[:cap],
         "market_context": context,
     }

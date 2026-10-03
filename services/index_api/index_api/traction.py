@@ -63,6 +63,19 @@ def _per_business(b: Business) -> dict:
         "recoverable_usdc": s["saved_usdc"],
         "discrepancies": s["consumption_discrepancies"],
         "unmetered": s["unmetered"],
+        **{
+            k: s[k]
+            for k in (
+                "settled_by_agent",
+                "settled_by_owner",
+                "settled_on_time",
+                "settled_with_a_due_date",
+                "owner_resolutions",
+                "owner_agreed",
+                "risk_events_caught",
+                "paid_unscreened",
+            )
+        },
         # A per-business ledger anyone can open and check the arithmetic in.
         "ledger": f"/operator/ledger/{b.slug}",
         "statement": f"/operator/statement/{b.slug}",
@@ -81,6 +94,19 @@ def build_traction(registry: tuple[Business, ...] | None = None, now: float | No
     )
     intents: dict[str, int] = defaultdict(int)
     decided = escalated = discrepancies = unmetered = decisions = 0
+    #: The figures RFB 4 and RFB 5 ask for by name. Summed across businesses the
+    #: same way everything else here is: from the rows, at request time.
+    brief: dict[str, int] = defaultdict(int)
+    BRIEF_KEYS = (
+        "settled_by_agent",
+        "settled_by_owner",
+        "settled_on_time",
+        "settled_with_a_due_date",
+        "owner_resolutions",
+        "owner_agreed",
+        "risk_events_caught",
+        "paid_unscreened",
+    )
 
     for r in rows:
         c = by_chain[r["chain"]]
@@ -92,6 +118,8 @@ def build_traction(registry: tuple[Business, ...] | None = None, now: float | No
         escalated += r["escalated"]
         discrepancies += r["discrepancies"]
         unmetered += r["unmetered"]
+        for k in BRIEF_KEYS:
+            brief[k] += r[k]
 
     for b in reg:
         for d in read_decisions(business=b.slug):
@@ -115,6 +143,29 @@ def build_traction(registry: tuple[Business, ...] | None = None, now: float | No
             "by_intent": {k: intents.get(k, 0) for k in (PAY, HOLD, REROUTE, ESCALATE, REFUSE)},
             "consumption_discrepancies": discrepancies,
             "unmetered": unmetered,
+            # RFB 4: "obligations settled on time without a human touching
+            # them", and "decisions made vs escalated, and how often the human
+            # agreed". RFB 5: "risk events caught before the transaction".
+            #
+            # Every one is a pair of counts rather than a rate. A rate hides its
+            # denominator, and the denominators here are the interesting part: a
+            # perfect agreement figure over zero resolutions, or a perfect
+            # punctuality figure over zero due dates, are both the shape this
+            # product exists to refuse to print.
+            "autonomy": {
+                "settled_by_agent": brief["settled_by_agent"],
+                "settled_by_owner": brief["settled_by_owner"],
+                "settled_on_time": brief["settled_on_time"],
+                "settled_with_a_due_date": brief["settled_with_a_due_date"],
+            },
+            "agreement": {
+                "owner_resolutions": brief["owner_resolutions"],
+                "owner_agreed": brief["owner_agreed"],
+            },
+            "screening": {
+                "risk_events_caught": brief["risk_events_caught"],
+                "paid_unscreened": brief["paid_unscreened"],
+            },
         },
         "per_business": rows,
         "note": (

@@ -652,6 +652,25 @@ def operator_approve(params: dict, dry_run: bool) -> dict:
         raise ActionError(
             400, "no owner key is configured, so nobody here can approve this"
         )
+    # AND THE WALLET HAS TO BE THERE. The dry run is the gate, and it showed
+    # green against an address with no code on this chain: `can_escalate()` is
+    # only "is there an owner key", and a CALL to nothing neither reverts nor
+    # fails to estimate. The live call then returned a real transaction hash for
+    # a payment that moved nothing, and `_settle` wrote it down as evidence.
+    status = client.wallet_status() if hasattr(client, "wallet_status") else "ok"
+    if status != "ok":
+        raise ActionError(
+            400,
+            {
+                "no_wallet": f"{b.slug} has no wallet address",
+                "no_rpc": "the chain could not be reached, so nothing is approved",
+                "not_on_this_chain": (
+                    f"{b.slug}'s wallet {b.policy_wallet} has no contract on the "
+                    "chain this service reads. Paying there would record a "
+                    "payment that never happened"
+                ),
+            }[status],
+        )
 
     record = hashable_record(row)
     if dry_run:
@@ -711,8 +730,25 @@ def _settle(row: dict, business: str, *, intent: str, rule: str,
     agent wrote it, and the resolution sits after it. `pending_escalations` reads
     the pair and stops showing the item, which is why approving clears the queue
     without anything being rewritten.
+
+    MARKED `actor="owner"`, AND THAT IS NOT DECORATION. This row was written as a
+    plain ``pay``, identical in every field to one the agent reached alone, so
+    every figure downstream counted an owner's approval as autonomous work: it
+    landed in `decided` and in `moved_usdc` with nothing to tell it apart. "How
+    many obligations were settled WITHOUT A HUMAN TOUCHING THEM" was unanswerable
+    from a log where the human left no mark.
+
+    THE EVIDENCE COMES FORWARD TOO. The escalation carried the meter, the screen
+    and the benchmark; this row carried none of them, so the ledger export and
+    the audit saw a payment with no counterparty verdict and no metered count,
+    and `ledger_audit` would read a settled obligation as unscreened. The facts
+    did not change when a person agreed with them.
     """
     from .operator import ObligationDecision, log_decision
+
+    def _num(key: str):
+        v = row.get(key)
+        return float(v) if isinstance(v, (int, float)) else None
 
     log_decision(
         ObligationDecision(
@@ -728,6 +764,22 @@ def _settle(row: dict, business: str, *, intent: str, rule: str,
             escalated=False,
             paid_usdc=paid_usdc,
             tx=tx,
+            actor="owner",
+            # What the agent said it would do, carried so the two can be
+            # compared. This is the whole of "how often the human agreed".
+            recommended_intent=str(row.get("recommended_intent") or ""),
+            metered_quantity=_num("metered_quantity"),
+            vendor_quantity=_num("vendor_quantity"),
+            discrepancy=_num("discrepancy"),
+            screen_risk=str(row.get("screen_risk") or ""),
+            screen_matched=list(row.get("screen_matched") or []),
+            screen_backend=str(row.get("screen_backend") or ""),
+            par_usdc=_num("par_usdc"),
+            best_usdc=_num("best_usdc"),
+            over_par_bp=_num("over_par_bp"),
+            saving_usdc=_num("saving_usdc"),
+            due_at=_num("due_at"),
+            invoice_ref=str(row.get("invoice_ref") or ""),
         )
     )
 
