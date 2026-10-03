@@ -789,6 +789,10 @@ export interface SpendDecision {
    *  enforces in the data. */
   screen_risk?: string;
   screen_matched?: string[];
+  /** Which screen answered: `yente` · `denylist` · `off`. A verdict without its
+   *  source is a claim without a basis — "clear" from a sanctions dataset and
+   *  "clear" from a local list of zero are not the same assurance. */
+  screen_backend?: string;
   par_usdc?: number | null;
   best_usdc?: number | null;
   over_par_bp?: number | null;
@@ -812,6 +816,10 @@ export interface SpendBudget {
   per_tx_limit_usdc?: number;
   period_start?: number;
   period_length?: number;
+  /** Why it is unconfigured, when the press can tell. Absent means the honest
+   *  "nobody has set a limit for this category yet"; present means something is
+   *  wrong with the wallet itself and no figure about it can be trusted. */
+  reason?: string;
 }
 
 /** Payload of /api/operator/statement.
@@ -872,6 +880,49 @@ export interface TractionRow {
   /** Paths a reader can open to check the arithmetic themselves. */
   ledger: string;
   statement: string;
+  /** The same figures the aggregate reports, per business. */
+  settled_by_agent: number;
+  settled_by_owner: number;
+  settled_on_time: number;
+  settled_with_a_due_date: number;
+  owner_resolutions: number;
+  owner_agreed: number;
+  risk_events_caught: number;
+  paid_unscreened: number;
+}
+
+/** One of the six errors *Agents and Ledgers* says a trial balance cannot see,
+ *  run. `searched` is what makes `found: 0` mean anything: a check that looked
+ *  at nothing and found nothing is indistinguishable from a clean book. */
+export interface LedgerCheck {
+  error: string;
+  question: string;
+  searched: number;
+  found: number;
+}
+
+/** One thing that balances and is still wrong. */
+export interface LedgerFinding {
+  error: string;
+  /** Empty when the finding is about the period rather than a single row. */
+  obligation_id: string;
+  detail: string;
+}
+
+/** Payload of /api/operator/audit — the part the ledger cannot do for itself. */
+export interface LedgerAudit {
+  business?: string;
+  period_days?: number;
+  as_of: number;
+  decisions: number;
+  clean: boolean;
+  /** Settlements with no payee, which cannot be attributed to any obligation.
+   *  Reported apart because counting them as covered would be the very
+   *  omission the first check exists to find. */
+  unattributable_settlements: number;
+  checks: LedgerCheck[];
+  findings: LedgerFinding[];
+  note: string;
 }
 
 /** Payload of /api/operator/traction. Derived at request time, never
@@ -898,6 +949,22 @@ export interface TractionPayload {
     by_intent: Record<string, number>;
     consumption_discrepancies: number;
     unmetered: number;
+    /** RFB 4: "obligations settled on time without a human touching them".
+     *  Counts, not a rate: `settled_on_time` is reported against the number of
+     *  obligations that HAVE a due date, because one without a due date cannot
+     *  be late and counting it punctual would be flattering nonsense. */
+    autonomy: {
+      settled_by_agent: number;
+      settled_by_owner: number;
+      settled_on_time: number;
+      settled_with_a_due_date: number;
+    };
+    /** RFB 4: "how often the human agreed". The denominator is RESOLUTIONS, not
+     *  escalations: an unanswered queue is an empty sample, not unanimity. */
+    agreement: { owner_resolutions: number; owner_agreed: number };
+    /** RFB 5: "risk events caught before the transaction". `paid_unscreened` is
+     *  kept apart because "we could not check" is not "we caught something". */
+    screening: { risk_events_caught: number; paid_unscreened: number };
   };
   per_business: TractionRow[];
   note: string;

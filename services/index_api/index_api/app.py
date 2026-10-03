@@ -1408,11 +1408,122 @@ def operator_ledger(
     return to_beancount(rows, b.slug)
 
 
+def _confirm_tx(business):
+    """Does the chain corroborate a transaction we recorded as a payment?
+
+    Returns a callable answering True / False / None. `None` is load-bearing:
+    an unreachable node, a pruned history or a wallet we cannot even locate are
+    all "could not tell", and reporting those as phantoms would cry wolf on
+    every blip until nobody read the audit at all.
+
+    Corroboration is deliberately narrow — the receipt exists, it succeeded, and
+    it was sent TO this business's wallet. A receipt alone is not enough: the
+    whole failure being checked for is a transaction that succeeded and did
+    nothing, and the one thing it cannot do is have gone to a contract that is
+    not there.
+    """
+    if not business.policy_wallet:
+        return None
+    try:
+        from acr_oracle_client.policy import PolicyClient
+        from web3.exceptions import TransactionNotFound
+
+        client = PolicyClient(wallet_address=business.policy_wallet)
+        if client.wallet_status() != "ok":
+            # The wallet itself is absent on this chain, so nothing sent to it
+            # can be corroborated and nothing can be denied either.
+            return lambda _tx: None
+        w3 = client._connect()
+        if w3 is None:
+            return None
+    except Exception as exc:  # pragma: no cover - env dependent
+        log.warning("audit: no chain to corroborate against (%s)", exc)
+        return None
+
+    wallet = str(business.policy_wallet).lower()
+
+    def confirm(tx: str):
+        try:
+            rcpt = w3.eth.get_transaction_receipt(tx)
+        except TransactionNotFound:
+            # THE NODE ANSWERED, AND ITS ANSWER WAS NO. Different from a node
+            # that could not be reached, and collapsing the two was the bug in
+            # the first version of this: a fabricated hash read as "could not
+            # tell", so the audit reported clean against a planted phantom.
+            #
+            # Safe on Arc specifically: finality is deterministic and there are
+            # no reorgs, so a settled transaction is permanent and a node that
+            # does not have it never saw it. The caveat is history pruning —
+            # against a pruned node an old payment would read as denied. The
+            # press reads a full node; if that changes, this goes back to None.
+            return False
+        except Exception:
+            return None
+        if rcpt is None:
+            return None
+        if int(getattr(rcpt, "status", 0)) != 1:
+            return False
+        to = str(getattr(rcpt, "to", "") or "").lower()
+        return to == wallet
+
+    return confirm
+
+
+@app.get("/operator/audit/{business}")
+def operator_audit(
+    business: str,
+    request: Request,
+    days: int = 90,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """The six errors a trial balance cannot see, searched for by name.
+
+    *Agents and Ledgers* — the analysis this hackathon hands every team — argues
+    that double entry's one built-in check is nearly worthless against an agent:
+    "nearly every mistake an LLM can make with money passes it." It names six,
+    and says the controls that catch them live OUTSIDE the ledger.
+
+    `/operator/ledger/{business}` serves the balanced file. This serves the part
+    the file cannot do for itself, and none of these checks reads the ledger
+    alone: omission compares our decisions against the sellers' own settlement
+    tape, commission asks whether the payee ever served this business, principle
+    asks the registry rather than the exporter.
+
+    Ungated for the same reason as the statement and the ledger: an accountant
+    should not need a key to check our arithmetic, and a reviewer should not
+    need one to check whether we checked.
+    """
+    _meter_agent(request, agent)
+    from .businesses import resolve
+    from .ledger_audit import audit, load_tape
+    from .statement import read_decisions
+
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    window = max(1, min(365, int(days)))
+    since = time.time() - window * 86_400
+    out = audit(
+        read_decisions(business=b.slug, since=since),
+        load_tape(),
+        treasury=b.treasury,
+        slug=b.slug,
+        categories=b.categories,
+        # The chain's opinion of the payments we claim. `None` for "could not
+        # tell" so a sleeping node is never reported as a phantom.
+        confirm=_confirm_tx(b),
+    )
+    out["business"] = b.slug
+    out["period_days"] = window
+    return out
+
+
 @app.get("/operator/statement/{business}")
 def operator_statement(
     business: str,
     request: Request,
     days: int = 7,
+    limit: int | None = None,
     agent: VerifiedAgent | None = Depends(optional_agent),
 ) -> dict:
     """What the owner reads: what the agent decided, and what is waiting on them.
@@ -1431,7 +1542,9 @@ def operator_statement(
     separation is load-bearing.
     """
     _meter_agent(request, agent)
-    st = build_statement(business, days=days, tca_fn=payer_tca, policy_for=_policy_for)
+    st = build_statement(
+        business, days=days, limit=limit, tca_fn=payer_tca, policy_for=_policy_for
+    )
     if st is None:
         raise HTTPException(
             status_code=404,

@@ -193,3 +193,60 @@ def test_the_ledger_window_is_clamped(registry):
     for days in ("1", "9999", "-5", "notanumber"):
         r = client.get(f"/operator/ledger/acme?days={days}")
         assert r.status_code in (200, 422), days
+
+
+# --- the audit, over HTTP ---------------------------------------------------
+#
+# `test_ledger_audit.py` puts each of the six errors in front of its own check.
+# This is the other half: that the route exists, answers, and carries all six —
+# because a module can be perfect while the route serves five.
+
+
+def test_the_audit_route_reports_all_six(registry):
+    from index_api.ledger_audit import ERRORS, PHANTOM
+
+    registry([ACME])
+    r = client.get("/operator/audit/acme")
+    assert r.status_code == 200
+    body = r.json()
+    names = tuple(c["error"] for c in body["checks"])
+    assert names[:6] == ERRORS, "the essay's six, in its order"
+    # And the one the essay says nobody can disprove, reported beside them
+    # rather than smuggled into the list it is not part of.
+    assert names[6] == PHANTOM and len(names) == 7
+    assert body["business"] == "acme"
+
+
+def test_the_audit_says_what_each_check_searched(registry):
+    """`found: 0` on its own is indistinguishable from a book nobody opened."""
+    registry([ACME])
+    body = client.get("/operator/audit/acme").json()
+    assert all("searched" in c and "question" in c for c in body["checks"])
+
+
+def test_the_audit_never_calls_an_unattributable_settlement_clean(registry):
+    """A settlement with no payee is neither covered nor a finding, and folding
+    it into either would be the omission the first check exists to find."""
+    registry([ACME])
+    body = client.get("/operator/audit/acme").json()
+    assert "unattributable_settlements" in body
+    assert isinstance(body["unattributable_settlements"], int)
+
+
+def test_an_unknown_business_has_no_audit(registry):
+    registry([ACME])
+    assert client.get("/operator/audit/nobody").status_code == 404
+
+
+def test_the_audit_window_is_clamped(registry):
+    registry([ACME])
+    for days in ("1", "9999", "-5", "notanumber"):
+        r = client.get(f"/operator/audit/acme?days={days}")
+        assert r.status_code in (200, 422), days
+
+
+def test_the_audit_does_not_leak_the_index_dollar_figure(registry):
+    """The same rule as the statement: `anchors/GAP.md` puts the index reference
+    level 20x to 1159x off market, so its dollar figure never reaches a page."""
+    registry([ACME])
+    assert "overpaid_usdc" not in client.get("/operator/audit/acme").text

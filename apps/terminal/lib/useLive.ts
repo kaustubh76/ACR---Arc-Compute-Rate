@@ -23,6 +23,7 @@ import type {
   FuturesRoster,
   HealthData,
   HedgerState,
+  LedgerAudit,
   LiveBuyResponse,
   MarketReceiptsData,
   OnchainDirectRead,
@@ -348,6 +349,17 @@ export function useStatement(slug: string | null, days = 7) {
     { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
   );
   return { statement: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** One business's ledger audit. Polls beside the statement it sits with,
+ *  because both answer the same question: is this book telling the truth now. */
+export function useLedgerAudit(slug: string | null, days = 90) {
+  const { data, error, mutate } = useSWR<Envelope<LedgerAudit | null>>(
+    slug ? `/api/operator/audit?business=${encodeURIComponent(slug)}&days=${days}` : null,
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { ledgerAudit: data, error: error as Error | undefined, refresh: mutate };
 }
 
 /** The traction numbers. Slow-moving and cheap to recompute, so this polls
