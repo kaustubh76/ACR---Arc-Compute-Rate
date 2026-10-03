@@ -32,6 +32,13 @@ import re
 CURRENCY = "USDC"
 PLACES = 6
 
+#: The tolerance declared on the closing balance assertion: one unit at the
+#: currency's own precision. Declared rather than implied, because *Agents and
+#: Ledgers* praises beancount for exactly one control — "Balance assertions with
+#: declared tolerance; next assertion catches wrong predictions" — and an
+#: assertion whose tolerance nobody wrote down is a tolerance nobody agreed to.
+BALANCE_TOLERANCE = 10 ** -PLACES
+
 _BAD = re.compile(r"[^A-Za-z0-9-]")
 
 
@@ -149,6 +156,40 @@ def to_beancount(
             )
         out.append(f'{day} note {treasury} "{_q(detail)}"')
         out.append("")
+
+    # THE CLOSING ASSERTION. The one beancount control the essay names by
+    # itself, and the one this file did not have.
+    #
+    # Be precise about what it buys. It does not prove the payments were right —
+    # nothing inside a ledger can, which is the essay's whole argument and why
+    # `ledger_audit.py` exists beside this file. What it does is make the file
+    # answerable to itself: `bean-check` now refuses it if a transaction is
+    # edited, dropped or appended after the fact, and the NEXT export of the
+    # same period has to arrive at the same total or fail out loud. A ledger
+    # that merely balances cannot tell you any of that, because every edit that
+    # keeps two postings equal still balances.
+    #
+    # Dated the day AFTER the last entry: beancount evaluates a balance at the
+    # start of its date, so asserting on the final day would assert a total that
+    # excludes that day's own payments.
+    total = sum(float(d.get("paid_usdc") or 0.0) for d in paid)
+    last = max((float(d.get("at") or 0.0) for d in rows), default=0.0)
+    assert_day = (
+        _day(last + 86_400)
+        if rows
+        else datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
+    )
+    out += [
+        "",
+        "; Every posting above sums to zero. So would a payment to the wrong",
+        "; vendor, in the wrong account, for the wrong amount, or booked",
+        "; backwards. Those six are checked outside this file, which is where",
+        "; the essay says such controls have to live.",
+    ]
+    out.append(
+        f"{assert_day} balance {treasury}  "
+        f"{_amount(-total)} ~ {_amount(BALANCE_TOLERANCE)} {CURRENCY}"
+    )
 
     return "\n".join(out).rstrip() + "\n"
 

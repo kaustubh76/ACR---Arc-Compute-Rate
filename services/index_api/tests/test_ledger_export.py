@@ -195,3 +195,53 @@ def test_an_empty_ledger_does_not_open_its_account_in_1970():
     today = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
     assert "1970-01-01" not in text
     assert f"{today} open Assets:Treasury:Acr-fleet" in text
+
+
+# --- the closing assertion ------------------------------------------------
+
+
+def _assertion(text: str) -> tuple[str, float, float]:
+    """The `balance` directive, parsed back out of the file."""
+    m = re.search(
+        r"^(\d{4}-\d{2}-\d{2}) balance (\S+)\s+(-?\d+\.\d+) ~ (\d+\.\d+) " + CURRENCY,
+        text,
+        re.M,
+    )
+    assert m, f"no balance assertion in:\n{text}"
+    return m.group(1), float(m.group(3)), float(m.group(4))
+
+
+def test_the_ledger_asserts_its_own_closing_balance():
+    """*Agents and Ledgers* praises beancount for exactly one control —
+    "Balance assertions with declared tolerance" — and this file had none."""
+    _day, amount, tol = _assertion(to_beancount([_paid(), _paid(obligation_id="i2")], "acr-fleet"))
+    assert amount == -5.0, "two 2.5 payments leave the treasury 5.0 down"
+    assert tol == 0.000001, "the tolerance is declared, not implied"
+
+
+def test_the_assertion_is_dated_after_the_last_entry():
+    """beancount evaluates a balance at the START of its date, so asserting on
+    the final day would assert a total that excludes that day's own payments."""
+    day, amount, _ = _assertion(to_beancount([_paid()], "acr-fleet"))
+    assert day > "2026-10-02", day
+    assert amount == -2.5
+
+
+def test_a_dry_run_moves_the_asserted_balance_by_nothing():
+    """Every row in the committed archive is `pay` with `paid_usdc: 0.0`. If
+    those counted, the file would assert a treasury that had paid out money it
+    still holds."""
+    _day, amount, _ = _assertion(to_beancount([_paid(paid_usdc=0.0)], "acr-fleet"))
+    assert amount == 0.0
+
+
+def test_the_assertion_matches_the_postings_it_closes():
+    """Derived independently here, the way `balance_problems` re-derives the
+    postings rather than trusting the writer."""
+    rows = [_paid(), _paid(obligation_id="i2", paid_usdc=1.25), _paid(obligation_id="i3", intent="reroute", paid_usdc=0.0)]
+    text = to_beancount(rows, "acr-fleet")
+    _day, asserted, _tol = _assertion(text)
+    treasury_postings = [
+        float(m) for m in re.findall(r"^  Assets:Treasury:\S+\s+(-?\d+\.\d+) " + CURRENCY, text, re.M)
+    ]
+    assert round(sum(treasury_postings), 6) == asserted
