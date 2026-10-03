@@ -26,6 +26,17 @@ fi
 # The archive must hold every settlement production has, or this image erases
 # them: the free tier has no disk and the seller rehydrates from the file that
 # ships inside the image. `--check` exits 1 when production is ahead of the repo.
+# The operator's decisions live on the same disk that is about to be erased, and
+# nothing was pulling them in. A redeploy without this silently reverts the
+# traction page to the rows that ship inside the image — a smaller number, not a
+# broken page, which is the failure shape nobody investigates.
+if ! uv run python "${ROOT}/scripts/archive_decisions.py" --check; then
+  echo ""
+  echo "  Production holds operator decisions this repo does not."
+  echo "  Run: make archive-decisions   then commit the archive."
+  exit 1
+fi
+
 if ! uv run python "${ROOT}/scripts/archive_receipts.py" --check; then
   echo "production holds settlements the archive lacks — run 'uv run python scripts/archive_receipts.py', commit, then redeploy" >&2
   exit 1

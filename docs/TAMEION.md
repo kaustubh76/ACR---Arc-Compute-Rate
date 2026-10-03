@@ -11,6 +11,42 @@ every price against what other sellers are really charging, screens the
 counterparty, pays what clears policy, escalates what is not its call, and
 writes a double-entry ledger a human can open.
 
+## The claim we are not making
+
+*Agents and Ledgers* — the analysis this event asks every team to read — says a
+balanced ledger proves almost nothing: *"That equality is the ledger's one
+built-in check and nearly every mistake an LLM can make with money passes it."*
+It names six, and says the controls that catch them live **outside** the ledger.
+
+So we do not claim the books balance and stop there. `GET /operator/audit/{business}`
+searches for all six by their own names, and not one of the checks reads the
+ledger alone:
+
+| The error | What we check, and against what |
+|---|---|
+| omission | the sellers' own settlement tape, for a payment with no decision |
+| commission | whether the payee ever served this business at all |
+| principle | the registry's declared categories, not the exporter's own mapping |
+| original entry | billed against paid, and the retry that pays twice |
+| compensating | over- and under-counts that cancel across a period |
+| complete reversal | a posting whose direction is inverted and still sums to zero |
+
+And a seventh, reported beside them because it is **not** one of the essay's six:
+the **phantom payment** — the fictitious entry the essay says nobody can
+disprove, naming SolidInvoice for *"the most complete write path, and no way to
+disprove a phantom payment."* We could produce one: on a chain where the budget
+contract has no code, a call neither reverts nor fails to estimate, so a
+transaction broadcasts, returns `status: 1`, and gets written down as a payment
+with a hash as its evidence. The client now refuses to send at all, and the
+audit looks for one anyway — a control nobody audits is a control nobody can
+show you. Every claimed payment is put back to the chain; a node that cannot
+answer is "could not tell", never a finding.
+
+Every check reports **what it searched**, because `found: 0` over nothing
+examined is indistinguishable from a clean book. A settlement with no payee is
+reported as unattributable rather than counted clean, since it cannot be matched
+to any decision either way.
+
 ## The delta, computed rather than asserted
 
 FAQ Q6 judges the gap: *"where was the product and how many users did it have
@@ -33,17 +69,29 @@ new in the window.
 |---|---|
 | **Who it runs for** | [`/traction`](https://arc-compute-rate.vercel.app/traction) — counted from the registry and the decision log at request time |
 | **One business's money** | [`/spend`](https://arc-compute-rate.vercel.app/spend) — the statement, the budgets, and the queue waiting on its owner |
-| **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero |
-| **Prove it** | `make verify-operator` — fifteen checks against a deployment, including the honesty properties |
+| **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero, and a closing `balance` assertion with a declared tolerance. Each `/traction` row links to its own, as a download |
+| **What the ledger cannot check** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, searched for by name. Rendered at the foot of `/spend` |
+| **Prove it** | `make verify-operator` — twenty-five checks against a deployment, including the honesty properties and whether the queue can actually be cleared |
 
 **Stated plainly, because a reviewer will check.** The loop runs on **Arc
 testnet**, where the fleet's real settlement history gives the meter genuine
 consumption to count. Those settlements **predate the window** — what is
-in-window is the onboarding and every decision since. No `PolicyWallet` is
-funded yet, so the operator prices and meters and has **moved nothing**:
-`moved_usdc` is zero on the traction page and reported as zero. Canteen say test
-USDC counts and real USDC on mainnet counts for more; both numbers are kept
-apart and neither is inflated.
+in-window is the onboarding and every decision since.
+
+The operator now spends. `PolicyWallet`
+[`0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32`](https://testnet.arcscan.app/address/0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32)
+holds the fleet's USDC under a 1 USDC cap with a 0.05 USDC per-payment limit.
+A live run paid five obligations, rerouted three to cheaper sellers, and
+escalated the one bill at or above that limit; the owner settled it with
+`spendAsOwner`, from a different key, because the contract refuses an approval
+signed by the thing being approved. The contract's own `spent` figure and the
+decision log agree.
+
+Everything here is **test USDC on Arc testnet**. Canteen say test USDC counts
+and real USDC on mainnet counts for more; the two are reported apart, never
+summed, and `moved_usdc` is what was actually paid rather than what was
+assessed — `priced_usdc` is the second number, and collapsing them would be the
+most tempting lie available on a traction page.
 
 ## The four decisions worth arguing with
 

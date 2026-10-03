@@ -659,6 +659,26 @@ and it proves its own tamper-resistance.
   TCA → decided as a reroute → paid as the next Circle Gateway nanopayment, which is itself a
   settlement. Nothing in the chain is asserted; each link is a public record the next one reads.
   *The receipt teaches the buyer, the buyer changes shops, the new receipt lands on the pile.*
+- **beancount — `GET /operator/ledger/{business}`** — the plain-text, double-entry accounting
+  format the spend operator exports its decisions in, one transaction per payment, each carrying
+  the rule that produced it and the hash the chain holds. Double-entry means every transaction's
+  postings sum to zero, so a missing or invented figure fails arithmetic rather than review;
+  `make verify-operator` re-checks that against the served file with its own reader, because
+  importing the exporter's checker would let a bug pass its own output. A reroute is a note on the
+  record, never a transaction, since no money moved. Each `/traction` row downloads its own.
+  *The shop's own books, in a format an accountant's software can open and add up.*
+- **audit (the six errors) — `GET /operator/audit/{business}`** — the check the ledger cannot do for
+  itself. *Agents and Ledgers* argues that double entry's one built-in test is nearly worthless
+  against an agent — "nearly every mistake an LLM can make with money passes it" — and names six that
+  balance perfectly: **omission** (a payment nobody recorded), **commission** (the right amount to the
+  wrong party), **principle** (the right amount in the wrong kind of account), **original entry** (the
+  wrong amount on both sides, or a retry that paid twice), **compensating** (two mistakes that
+  cancel), and **complete reversal** (the debit and the credit swapped). Each is searched for by name
+  and reported with HOW MUCH IT SEARCHED, because nothing found in nothing examined reads exactly like
+  a clean book. None of the six reads the ledger alone: omission compares our decisions against the
+  sellers' own settlement tape, commission asks whether the payee ever served this business, principle
+  asks the registry. *Counting the stock and ringing the bank, instead of checking that the two
+  columns of the book add to the same number.*
 
 ---
 

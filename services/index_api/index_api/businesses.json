@@ -15,7 +15,7 @@
       "slug": "acr-fleet",
       "name": "ACR buyer-agent fleet",
       "treasury": "0x674055533b05ec3fd135fc21c4d91a4a2d3193d3",
-      "policy_wallet": "",
+      "policy_wallet": "0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32",
       "consented": true,
       "tier": "own",
       "chain": "testnet",

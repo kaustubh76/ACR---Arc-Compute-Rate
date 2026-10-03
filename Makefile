@@ -199,6 +199,20 @@ ledger:
 	@test -n "$(BUSINESS)" || { echo "BUSINESS not set — e.g. make ledger BUSINESS=acr-fleet"; exit 1; }
 	uv run python -c "import sys; from index_api.businesses import resolve; from index_api.ledger_export import to_beancount; from index_api.statement import read_decisions; b=resolve('$(BUSINESS)'); sys.exit('no business registered as $(BUSINESS)') if b is None else sys.stdout.write(to_beancount(read_decisions(business=b.slug), b.slug))"
 
+# Fold the operator's live decisions into the committed archive, for exactly the
+# reason x402-capture exists: production has no persistent disk, so every
+# decision made since the last deploy lives on a volume the next deploy erases.
+# Without this the traction page quietly reverts to the rows that ship in the
+# image — a smaller number, not a broken page, which is the failure shape nobody
+# investigates. Run it BEFORE a redeploy, then commit the archive.
+archive-decisions:
+	uv run python scripts/archive_decisions.py
+
+# The preflight form: exits 1 when production holds decisions the archive does
+# not, so a redeploy can refuse to throw them away.
+archive-decisions-check:
+	uv run python scripts/archive_decisions.py --check
+
 # Run the spend operator for one business. Dry run unless LIVE=1, and --live is
 # refused for a business with no PolicyWallet rather than doing a dry run under
 # the wrong name.
