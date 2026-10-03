@@ -46,7 +46,7 @@ def _row(**kw) -> dict:
 
 
 def _wire(monkeypatch, *, businesses, decisions=(), archived=(), live=(),
-          status="ok", owner=True, explode=False):
+          status="ok", owner=True, explode=False, agent_kind="circle"):
     """Point the section at known state.
 
     `read_decisions` is called three ways by one function — unfiltered, at the
@@ -79,6 +79,9 @@ def _wire(monkeypatch, *, businesses, decisions=(), archived=(), live=(),
 
         def can_escalate(self):
             return owner
+
+        def signer_kinds(self):
+            return {"agent": agent_kind, "owner": "local" if owner else "none"}
 
     import acr_oracle_client.policy as pol
 
@@ -281,3 +284,20 @@ def test_an_operator_that_has_decided_nothing_says_so(monkeypatch):
     _wire(monkeypatch, businesses=[_biz()])
     c = _find(_run(), "nothing decided")
     assert c["ok"] is True
+
+
+def test_the_payment_channel_is_reported_and_a_raw_key_is_a_warning(monkeypatch):
+    """Circle's developer-controlled wallet and a raw local key produce
+    IDENTICAL calldata, so nothing downstream can tell them apart — and five
+    payments on Arc testnet went out from a raw EOA while a fifth of the score
+    is Circle tool usage. A warning rather than a failure: a raw key pays
+    correctly, it just leaves the keys on the host.
+    """
+    _wire(monkeypatch, businesses=[_biz()], agent_kind="circle")
+    c = _find(_run(), "the agent pays through")
+    assert c["ok"] is True and "circle" in c["label"]
+
+    _wire(monkeypatch, businesses=[_biz()], agent_kind="local")
+    c = _find(_run(), "the agent pays through")
+    assert (c["ok"], c["warn"]) == (False, True)
+    assert "ACR_CIRCLE_TAKER_WALLET_ID" in (c["detail"] or ""), "and what to set"

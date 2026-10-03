@@ -150,6 +150,35 @@ request from the decision log and the sellers' tape — never cached, so it cann
 report a verdict that was true last week. Counting how many times we served it
 would measure our own traffic and call it compliance.
 
+## Which Circle product does which job here
+
+[`docs/WALLETS.md`](WALLETS.md) is the full map. What matters for the operator is
+narrower, and one line of it was not true until recently.
+
+| leg of the loop | what settles it |
+|---|---|
+| the fleet buying compute | **Circle Gateway**, x402 v2 — the seller's gate verifies and settles through `CircleFacilitator`, and the batch reference is what the receipt tape records |
+| the operator paying a bill | a `PolicyWallet` call signed by a **Circle developer-controlled wallet** — the same channel the hourly oracle prints go out through |
+| the owner clearing an escalation | a raw key, necessarily — see below |
+| screening a counterparty | **not a Circle product**: self-hosted OpenSanctions (`yente`) when configured, a local denylist otherwise |
+
+**The payment channel is now on the record.** Circle's developer-controlled
+wallet and a raw local key build *identical* calldata, so no reader of the
+chain, the log or the ledger could tell which one paid — and five payments on
+Arc testnet went out from a raw EOA. Every decision now carries `paid_via`
+(`circle` · `local`), set before the record is hashed, so the commitment says
+which channel was authorised. `/ops` reports it per business and warns on a raw
+key. That is the same argument `screen_backend` won: a verdict without its
+source is a claim without a basis.
+
+**Two limits, stated rather than papered over.** The owner's leg is a raw key by
+construction: `ACR_OWNER_PRIVATE_KEY` wins over a Circle owner wallet in
+`build_role_signer`, and `spendApproved` can never work with a Circle smart
+account because `ecrecover` cannot check a contract — so `spendAsOwner` is the
+only Circle-compatible owner route. And the screen is not Circle's: nothing in
+Circle's SDK surface here screens an address, so `addresses_screened` is counted
+against a denylist or OpenSanctions and named for what it is.
+
 ## The four decisions worth arguing with
 
 **PAR is observed quotes, never the published index.**

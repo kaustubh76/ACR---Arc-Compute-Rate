@@ -376,8 +376,8 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                 <tr>
                   <td>
                     <Ed
-                      x="Saved by rerouting"
-                      p="Saved by buying from somebody cheaper"
+                      x="Overpay found by rerouting"
+                      p="Money we could have saved by buying from somebody cheaper"
                     />
                   </td>
                   <td className="mono">{price(s.saved_usdc)}</td>

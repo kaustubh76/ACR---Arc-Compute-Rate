@@ -157,6 +157,18 @@ class ObligationDecision:
     vendor_quantity: float | None = None
     #: Positive == the vendor billed for more than we counted.
     discrepancy: float | None = None
+    #: WHICH CHANNEL the money went out through: ``circle`` for a Circle
+    #: developer-controlled wallet, ``local`` for a raw key, ``""`` when no
+    #: policy client was offered. The same argument `screen_backend` won one
+    #: field below: a verdict without its source is a claim without a basis, and
+    #: a payment without its channel is too.
+    #:
+    #: Set BEFORE the record is hashed, so the commitment on chain says which
+    #: channel was authorised rather than which one a later reader assumes. Five
+    #: payments on Arc testnet went out from a raw EOA while the config now
+    #: resolves the agent role to Circle, and nothing anywhere could tell —
+    #: identical calldata either way.
+    paid_via: str = ""
     #: ``clear`` · ``flagged`` · ``unknown`` · ``""`` when no screen was offered.
     #: In the hashed record, so the commitment says what was known about the
     #: counterparty at the moment the money moved — not what a later re-screen
@@ -172,7 +184,16 @@ class ObligationDecision:
     par_usdc: float | None = None
     best_usdc: float | None = None
     over_par_bp: float | None = None
+    #: How far above the going rate this bill is, in USDC. `over_par_bp` is the
+    #: same fact as a ratio; this is it in the unit a reader budgets in. It was
+    #: computed by `assess` and thrown away at the boundary.
+    over_par_usdc: float | None = None
     #: Recoverable, because somebody is offering it at that price.
+    #:
+    #: HYPOTHETICAL, AND THE LABEL MUST SAY SO. A reroute buys nothing — it
+    #: declines this vendor and names a cheaper offer. `ledger_export` refuses
+    #: to book it as income for exactly this reason: "writing the avoided
+    #: overpay as `Income:Savings` would be inventing a credit".
     saving_usdc: float | None = None
     reroute_to: str = ""
     escalated: bool = False
@@ -195,6 +216,50 @@ class ObligationDecision:
     #: was for is part of what the decision rested on.
     period_start: float = 0.0
     period_end: float = 0.0
+    # --- what the decision was JUDGED ON, so it can be replayed -------------
+    #
+    # `PolicyWallet.sol` says the hash is "what makes the off-chain ledger
+    # REPLAYABLE rather than merely stored". It was not: the record pinned every
+    # OUTPUT of the pricing step — par, best, bp, saving — and none of its
+    # inputs or thresholds. A reviewer could prove a row had not been edited and
+    # could re-check the arithmetic between those four numbers. They could not
+    # recompute them, could not tell which market produced them, and could not
+    # tell what limits the comparison was judged against.
+    #
+    # Worst of them was the denomination: given a bill of 1.5 against a par of
+    # 0.002, nothing said whether the bill had been divided by a quantity or
+    # compared whole. A thousandfold fork with no field to settle it.
+    #
+    # All of these are inside `as_record()`, so from here the chain commits to
+    # the parameters as well as the verdict.
+    #: ``x402`` · ``invoice`` · ``milestone`` · ``subscription``.
+    kind: str = ""
+    #: The service's own unit, which decides WHICH market was consulted.
+    unit: str = ""
+    early_pay_discount: float = 0.0
+    #: ``unit`` or ``whole`` — whether the bill was divided by a quantity.
+    par_denomination: str = ""
+    #: How many independent sellers the benchmark rested on.
+    par_sellers: int | None = None
+    #: ``NO_QUOTES`` · ``ONE_SELLER`` · ``NO_INDEPENDENT_SELLER`` · ``NO_QUANTITY``
+    par_reason: str = ""
+    #: Why the screen said what it said — the field that tells a denylist of
+    #: zero addresses from a real dataset answering.
+    screen_reason: str = ""
+    #: Whether a screen ran at all, as against having nothing to say.
+    screen_screened: bool | None = None
+    #: Whether an unknown verdict was configured to block — an environment
+    #: variable that CHANGES THE BRANCH and used to leave no trace at all.
+    screen_required: bool | None = None
+    #: The authority the decision cleared against, read from the contract.
+    remaining_usdc: float | None = None
+    per_tx_limit_usdc: float | None = None
+    #: The four thresholds. Three come from the environment at import, so
+    #: without them a reviewer cannot recover them from the repo either.
+    meter_tolerance: float | None = None
+    unbenchmarked_max_usdc: float | None = None
+    pay_window_s: float | None = None
+    material_bp: float | None = None
     #: Carried from the obligation, so the record can answer "was this settled
     #: on time". It was being dropped at this boundary, which is the whole
     #: reason nothing could.
@@ -227,6 +292,20 @@ def hashable_record(row: dict) -> dict:
     return {k: v for k, v in (row or {}).items() if k not in UNHASHED}
 
 
+#: Fields that differ between two ticks for reasons that are not the decision.
+#:
+#: `at` is the obvious one. The budget headroom is the subtle one: it moves every
+#: time anything is paid, and once it was recorded, two otherwise identical
+#: re-decisions of the same open bill stopped matching — which would have undone
+#: the restatement rule and put an unpaid rerouted bill back to twenty-four
+#: identical rows a day.
+#:
+#: Safe to ignore here precisely because it is NOT noise: if the headroom changed
+#: enough to change the answer, `intent` and `rule` change with it, and those are
+#: compared.
+_DRIFTS = ("at", "remaining_usdc")
+
+
 def _restates_the_last(d: ObligationDecision, target: str) -> bool:
     """Would this row say exactly what the last row about this bill already said?
 
@@ -252,7 +331,7 @@ def _restates_the_last(d: ObligationDecision, target: str) -> bool:
             return False
         with open(target, encoding="utf-8") as fh:
             rows = fh.readlines()[-200:]
-        want = {k: v for k, v in asdict(d).items() if k not in UNHASHED and k != "at"}
+        want = {k: v for k, v in asdict(d).items() if k not in UNHASHED and k not in _DRIFTS}
         for line in reversed(rows):
             line = line.strip()
             if not line:
@@ -263,11 +342,112 @@ def _restates_the_last(d: ObligationDecision, target: str) -> bool:
                 continue
             if str(row.get("obligation_id") or "") != d.obligation_id:
                 continue
-            have = {k: v for k, v in row.items() if k not in UNHASHED and k != "at"}
+            have = {k: v for k, v in row.items() if k not in UNHASHED and k not in _DRIFTS}
             return have == want
     except Exception:  # pragma: no cover - a read failure must not block a write
         return False
     return False
+
+
+def replay(row: dict) -> ObligationDecision:
+    """Re-run the decision from its own record.
+
+    `PolicyWallet.sol` says the hash is "what makes the off-chain ledger
+    REPLAYABLE rather than merely stored". Until the record carried the
+    decision's INPUTS as well as its outputs, that was tamper-evidence wearing
+    the word replay: a reviewer could prove a row had not been edited, and could
+    re-check the arithmetic between the four pricing numbers, but could not
+    recompute them, could not tell which market produced them, and could not
+    tell what thresholds they were judged against.
+
+    Now they can. This rebuilds the obligation and the three judgments from the
+    row and asks `decide()` the same question again. A verdict that differs means
+    one of three things, all worth knowing: the record is incomplete, the code's
+    behaviour changed, or the row was written by something other than this
+    ladder — which is how the `inv-0044` fixture was caught claiming a per-tx
+    escalation that check 5 would have pre-empted.
+
+    THE CLOCK IS TAKEN FROM THE RECORD, not from now. `at` is the only
+    non-deterministic input `decide()` has that the record already pinned, and
+    replaying against the present would make every held bill come due.
+    """
+    from .counterparty import CounterpartyVerdict
+
+    def num(key):
+        v = row.get(key)
+        return float(v) if isinstance(v, (int, float)) else None
+
+    ob = Obligation(
+        obligation_id=str(row.get("obligation_id") or ""),
+        vendor=str(row.get("vendor") or ""),
+        billed_usdc=float(row.get("billed_usdc") or 0.0),
+        business=str(row.get("business") or ""),
+        category=str(row.get("category") or "general"),
+        kind=str(row.get("kind") or ""),
+        resource=str(row.get("resource") or ""),
+        vendor_quantity=num("vendor_quantity"),
+        unit=str(row.get("unit") or ""),
+        period_start=float(row.get("period_start") or 0.0),
+        period_end=float(row.get("period_end") or 0.0),
+        due_at=num("due_at"),
+        invoice_ref=str(row.get("invoice_ref") or ""),
+        early_pay_discount=float(row.get("early_pay_discount") or 0.0),
+    )
+
+    # THE BENCHMARK, REBUILT AS A REAL `Par`, so `assess` re-derives the
+    # arithmetic instead of being handed back the answer that was recorded.
+    # That is the stronger replay: the recorded `over_par_bp` and `saving_usdc`
+    # have to fall out of `par_usdc`, `best_usdc`, the bill and the
+    # denomination again, or the row does not reproduce.
+    #
+    # `quotes` is deliberately not recorded and so cannot be rebuilt — it is
+    # other sellers' prices at a moment that has passed. `assess` does not read
+    # it, which is why the median is reproducible from the record and the
+    # quotes behind it are not.
+    par_usdc = num("par_usdc")
+    par = None
+    if par_usdc is not None or row.get("par_reason"):
+        par = Par(
+            resource=ob.resource,
+            available=par_usdc is not None,
+            denomination=str(row.get("par_denomination") or "call"),
+            reason=str(row.get("par_reason") or ""),
+            par_usdc=par_usdc,
+            best_usdc=num("best_usdc"),
+            best_seller=str(row.get("reroute_to") or ""),
+            sellers=int(row.get("par_sellers") or 0),
+        )
+
+    screen = None
+    if row.get("screen_risk"):
+        screen = CounterpartyVerdict(
+            address=ob.vendor,
+            risk=str(row["screen_risk"]),
+            backend=str(row.get("screen_backend") or ""),
+            matched=tuple(row.get("screen_matched") or ()),
+            reason=str(row.get("screen_reason") or ""),
+            screened=bool(row.get("screen_screened", True)),
+        )
+
+    kw = {}
+    for threshold in (
+        "meter_tolerance", "unbenchmarked_max_usdc", "pay_window_s", "material_bp",
+    ):
+        v = num(threshold)
+        if v is not None:
+            kw[threshold] = v
+
+    return decide(
+        ob,
+        par=par,
+        screen=screen,
+        metered_quantity=num("metered_quantity"),
+        settled_refs=set(),
+        remaining_usdc=num("remaining_usdc"),
+        per_tx_limit_usdc=num("per_tx_limit_usdc"),
+        now=float(row.get("at") or 0.0),
+        **kw,
+    )
 
 
 def log_decision(d: ObligationDecision, path: str | None = None) -> None:
@@ -638,6 +818,15 @@ def decide(
         period_end=ob.period_end,
         due_at=ob.due_at,
         invoice_ref=ob.invoice_ref,
+        kind=ob.kind,
+        unit=ob.unit,
+        early_pay_discount=ob.early_pay_discount,
+        remaining_usdc=remaining_usdc,
+        per_tx_limit_usdc=per_tx_limit_usdc,
+        meter_tolerance=meter_tolerance,
+        unbenchmarked_max_usdc=unbenchmarked_max_usdc,
+        pay_window_s=pay_window_s,
+        material_bp=material_bp,
     )
 
     # 1 — already paid. First, because every later check would be work done on
@@ -685,6 +874,14 @@ def decide(
         d.screen_risk = screen.risk
         d.screen_matched = list(screen.matched)
         d.screen_backend = getattr(screen, "backend", "")
+        d.screen_reason = getattr(screen, "reason", "") or ""
+        d.screen_screened = bool(getattr(screen, "screened", True))
+        # The environment variable that decides whether `unknown` blocks. It
+        # changes this branch and left no trace in the record at all, so a
+        # replay could reach the opposite verdict and look correct.
+        from .counterparty import REQUIRED as _screen_required
+
+        d.screen_required = bool(_screen_required)
         if not screen.payable:
             d.intent, d.escalated = ESCALATE, True
             d.recommended_intent = REFUSE
@@ -733,6 +930,13 @@ def decide(
         d.best_usdc = verdict["best_usdc"]
         d.over_par_bp = verdict["over_par_bp"]
         d.saving_usdc = verdict["saving_usdc"]
+        # Computed by `assess` and dropped here until now. It is the gap in
+        # DOLLARS rather than basis points — the same fact the bp figure
+        # carries, in the unit a reader actually budgets in.
+        d.over_par_usdc = verdict.get("over_par_usdc")
+        d.par_denomination = str(verdict.get("denomination") or "")
+        d.par_sellers = verdict.get("sellers")
+        d.par_reason = str(verdict.get("reason") or "")
 
         if verdict["verdict"] == "over_par":
             cheaper = verdict["best_seller"]
@@ -800,15 +1004,24 @@ def decide(
         return d
 
     d.intent = PAY
-    d.rule = _pay_rule(d, verdict)
+    d.rule = _pay_rule(d, verdict, material_bp)
     return d
 
 
-def _pay_rule(d: ObligationDecision, verdict: dict | None) -> str:
-    """Why this payment was made, in one line a reviewer can act on."""
+def _pay_rule(
+    d: ObligationDecision, verdict: dict | None, material_bp: float = MATERIAL_BP
+) -> str:
+    """Why this payment was made, in one line a reviewer can act on.
+
+    TAKES THE THRESHOLD IT IS JUDGED ON. This read the module global while
+    `decide()` compared against its own `material_bp` argument, so a caller
+    passing a different threshold got the verdict computed on their value and
+    the sentence computed on 25.0 — the number and the prose disagreeing about
+    the same decision, which is the one thing a record must never do.
+    """
     if verdict and verdict.get("benchmarked"):
         bp = verdict["over_par_bp"]
-        where = "at par" if abs(bp) < MATERIAL_BP else f"{bp:+.0f} bp against par"
+        where = "at par" if abs(bp) < material_bp else f"{bp:+.0f} bp against par"
         return f"{where} on {verdict['sellers']} observed sellers, inside budget"
     return "unbenchmarked but under the ceiling, inside budget"
 
@@ -882,7 +1095,12 @@ def run_obligation(
         par = par_from_quotes(ob.resource, quotes, exclude_seller=ob.vendor)
 
     remaining = per_tx = None
+    paid_via = ""
     if policy is not None:
+        try:
+            paid_via = str(policy.signer_kinds().get("agent") or "")
+        except Exception:  # pragma: no cover - a reporting field must not block a payment
+            paid_via = ""
         budget = policy.budget(ob.category)
         if budget is None:
             # No budget on chain means no authority, and that is not the same as
@@ -912,6 +1130,7 @@ def run_obligation(
         remaining = budget["remaining_usdc"]
         per_tx = budget["per_tx_limit_usdc"]
 
+    # Carried onto the decision before `as_record()` hashes it.
     d = decide(
         ob,
         par=par,
@@ -923,6 +1142,7 @@ def run_obligation(
         now=now,
     )
 
+    d.paid_via = paid_via
     if d.intent == PAY and policy is not None:
         if dry_run:
             d.notes.append("dry run: cleared policy, no payment sent")

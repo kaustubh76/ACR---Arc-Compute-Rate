@@ -227,6 +227,29 @@ class PolicyClient:
         """
         return bool(self.owner_signer)
 
+    def signer_kinds(self) -> dict:
+        """WHICH CHANNEL each role would pay through: ``circle`` · ``local`` ·
+        ``none``.
+
+        The same argument `screen_backend` won: a verdict without its source is
+        a claim without a basis, and a payment without its channel is too. The
+        operator's agent role resolves to a Circle developer-controlled wallet
+        when `ACR_CIRCLE_TAKER_WALLET_ID` and an API key are both set, and
+        silently to a raw local key otherwise — identical calldata either way, so
+        nothing downstream could tell. Five payments on Arc testnet went out
+        from a raw EOA for exactly that reason, while the deck's 20% is "Circle
+        tool usage".
+
+        Class names only, deliberately: `CircleWalletSigner.address` is lazy and
+        a reporting surface must not make a network call to answer.
+        """
+        def kind(signer) -> str:
+            if signer is None:
+                return "none"
+            return "circle" if type(signer).__name__ == "CircleWalletSigner" else "local"
+
+        return {"agent": kind(self.agent_signer), "owner": kind(self.owner_signer)}
+
     def wallet_status(self) -> str:
         """Is there actually a contract at this wallet, on the chain we are on?
 

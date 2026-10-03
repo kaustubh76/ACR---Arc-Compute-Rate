@@ -391,3 +391,74 @@ def test_two_different_bills_never_suppress_each_other(tmp_path):
     logged = read_decisions(path=str(log))
     assert len(logged) == 2, "each bill decided once, repeats suppressed"
     assert {r["vendor"] for r in logged} == {a.vendor, b.vendor}
+
+
+# --- which channel the money went out through -------------------------------
+
+
+def test_the_record_says_which_channel_paid():
+    """A payment without its channel is a claim without a basis — the same
+    argument `screen_backend` won.
+
+    Circle's developer-controlled wallet and a raw local key build IDENTICAL
+    calldata, so no reader of the chain, the log or the ledger could tell which
+    one paid. Five payments on Arc testnet went out from a raw EOA while
+    `build_role_signer("taker")` now resolves to Circle, and nothing anywhere
+    recorded the difference.
+    """
+    from index_api.operator import run_obligation
+
+    class _Policy:
+        def __init__(self, kind):
+            self.kind = kind
+
+        def signer_kinds(self):
+            return {"agent": self.kind, "owner": "local"}
+
+        def budget(self, _category):
+            return {"remaining_usdc": 100.0, "per_tx_limit_usdc": 50.0}
+
+        def spend(self, *_a, **_k):
+            return "0x" + "ee" * 32
+
+    ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
+    d = run_obligation(ob, receipts=[_receipt(100.0)], catalog={},
+                       policy=_Policy("circle"), dry_run=True, log_path="/dev/null")
+    assert d.paid_via == "circle"
+
+    d = run_obligation(ob, receipts=[_receipt(100.0)], catalog={},
+                       policy=_Policy("local"), dry_run=True, log_path="/dev/null")
+    assert d.paid_via == "local"
+
+
+def test_the_channel_is_part_of_what_was_hashed():
+    """Set before `as_record()` runs, so the commitment on chain says which
+    channel was authorised rather than which one a later reader assumes."""
+    from index_api.operator import UNHASHED
+
+    assert "paid_via" not in UNHASHED
+    ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
+    d = decide(ob, remaining_usdc=100.0)
+    d.paid_via = "circle"
+    assert d.as_record()["paid_via"] == "circle"
+
+
+def test_a_policy_client_that_cannot_say_does_not_block_the_payment():
+    """A reporting field must never be able to stop money that cleared policy."""
+    from index_api.operator import PAY, run_obligation
+
+    class _Mute:
+        def signer_kinds(self):
+            raise RuntimeError("circle api down")
+
+        def budget(self, _category):
+            return {"remaining_usdc": 100.0, "per_tx_limit_usdc": 50.0}
+
+        def spend(self, *_a, **_k):
+            return "0x" + "ee" * 32
+
+    ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
+    d = run_obligation(ob, receipts=[_receipt(100.0)], catalog={},
+                       policy=_Mute(), dry_run=True, log_path="/dev/null")
+    assert d.paid_via == ""
+    assert d.intent == PAY, "and the decision still stands"

@@ -710,12 +710,28 @@ def _operator(rec: Recorder) -> None:
             client = PolicyClient(wallet_address=b.policy_wallet)
             status = client.wallet_status()
             owner_seen = owner_seen or client.can_escalate()
+            kinds = client.signer_kinds()
         except Exception as exc:  # noqa: BLE001 — one business must not take the page
             rec.unknown(f"{b.slug}: wallet unread", str(exc)[:160])
             continue
         if status == "no_rpc":
             rec.unknown(f"{b.slug}: wallet unread", "the RPC would not answer eth_getCode")
             continue
+        # WHICH CHANNEL THIS BUSINESS'S MONEY GOES OUT THROUGH. Circle's
+        # developer-controlled wallet and a raw local key produce identical
+        # calldata, so nothing downstream could tell them apart — and five
+        # payments went out from a raw EOA while the deck allots a fifth of the
+        # score to Circle tool usage. A warning rather than a failure: a raw key
+        # pays correctly, it just is not the custody story.
+        rec.check(
+            kinds.get("agent") == "circle",
+            f"{b.slug}: the agent pays through {kinds.get('agent')}"
+            + (f", the owner through {kinds.get('owner')}" if kinds.get("owner") != "none" else ""),
+            warn_only=True,
+            detail=None if kinds.get("agent") == "circle"
+            else "set ACR_CIRCLE_TAKER_WALLET_ID and ACR_CIRCLE_API_KEY to spend through "
+                 "Circle custody; a raw key works and leaves the keys on the host",
+        )
         rec.check(
             status == "ok",
             f"{b.slug}: PolicyWallet {b.policy_wallet[:10]}… {status}",
