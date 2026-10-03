@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator archive-decisions archive-decisions-check ledger operator-run
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -42,6 +42,13 @@ help:
 	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
 	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
 	@echo "  make tape-audit      measure what REAL Arc settlement flow yields as an index"
+	@echo ""
+	@echo "  the spend operator (apps for businesses — pays their machine bills):"
+	@echo "  make operator-run    BUSINESS=slug [LIVE=1] — decide and pay one business's bills"
+	@echo "  make ledger          BUSINESS=slug — their decisions as a beancount file that balances"
+	@echo "  make verify-operator probe the deployed operator surfaces end to end"
+	@echo "  make archive-decisions       fold production's decisions into the committed archive"
+	@echo "  make archive-decisions-check exit 1 if production holds rows the archive does not"
 	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
 	@echo "  make agent           offline demo: discover the catalog, pay the dev gate"

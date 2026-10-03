@@ -23,7 +23,7 @@
         "machine-services"
       ],
       "onboarded_at": 1790946149,
-      "note": "Our own agent fleet's spend on machine services. 75 real exact-scheme Gateway settlements across 7 sellers and 4 units (0.325467 USDC), so the meter has genuine consumption to count and PAR has genuine price dispersion to measure against. Those settlements are dated 2026-09-12/13 and therefore PREDATE the Tameion window; what is in-window is the onboarding and every decision made since. No PolicyWallet yet, so the operator prices and meters here and cannot spend: `spends: false` on every surface."
+      "note": "75 real exact-scheme Gateway settlements across 7 sellers and 4 units (0.325467 USDC) on 2026-09-12/13, which predate the Tameion window: they are what the meter counts, not what the operator did. The operator's own work is the decision log. PolicyWallet 0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32 on Arc testnet holds its USDC under a 1 USDC cap and a 0.05 per-payment limit, so `spends` is true and `moved_usdc` is money that really left."
     },
     {
       "slug": "sandbox",

@@ -49,8 +49,26 @@ def check(ok: bool, label: str) -> bool:
     return ok
 
 
-def _fetch(url: str) -> tuple[int, str]:
-    req = urllib.request.Request(url, headers={"accept": "*/*"})
+#: A deliberately wrong key, shaped so it is FORWARDED rather than rejected.
+#:
+#: The Next proxy refuses a missing or malformed token itself — 401, locally,
+#: without ever contacting the press — so probing with no header proved only
+#: that the proxy exists. Against the default target this check passed
+#: unconditionally while claiming to have learned something about the press.
+#:
+#: With a well-formed key the proxy forwards, and the PRESS answers: 404 when no
+#: ACR_OPS_TOKEN is configured (it does not admit the console exists), 401 when
+#: one is and this is not it. That difference is the whole point, and it is the
+#: same answer through either target.
+#:
+#: It is a wrong key on purpose, and the press's bad-key limiter counts it. One
+#: per run is the cost of knowing; 429 is accepted below as "configured" because
+#: a limiter that answers is a console that exists.
+PROBE_KEY = "verify-operator-probe-not-a-real-key"
+
+
+def _fetch(url: str, headers: dict | None = None) -> tuple[int, str]:
+    req = urllib.request.Request(url, headers={"accept": "*/*", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
             return r.status, r.read().decode("utf-8", "replace")
@@ -61,7 +79,7 @@ def _fetch(url: str) -> tuple[int, str]:
         return 0, ""
 
 
-def get(path: str) -> tuple[int, str]:
+def get(path: str, headers: dict | None = None) -> tuple[int, str]:
     """Fetch one surface from whichever host is being verified.
 
     The Next app serves `/api/operator/...` and the press serves
@@ -71,7 +89,7 @@ def get(path: str) -> tuple[int, str]:
     also the honest way to tell "this surface is missing" from "I asked the
     wrong host".
     """
-    status, body = _fetch(TERMINAL + path)
+    status, body = _fetch(TERMINAL + path, headers)
     if status == 404:
         alt = path[4:] if path.startswith("/api/") else "/api" + path
         # A press answers `/operator/statement/{slug}`; the proxy takes a query.
@@ -80,7 +98,7 @@ def get(path: str) -> tuple[int, str]:
         # turned out to point at the press's path space from the terminal origin.
         alt = alt.replace("/operator/ledger?business=", "/operator/ledger/")
         alt = alt.replace("/operator/audit?business=", "/operator/audit/")
-        s2, b2 = _fetch(TERMINAL + alt)
+        s2, b2 = _fetch(TERMINAL + alt, headers)
         if s2 != 404:
             return s2, b2
     return status, body
@@ -262,7 +280,7 @@ def main() -> int:
     # and they are exactly the two a reviewer needs to tell apart —
     #   404  no ACR_OPS_TOKEN on this deployment, so the buttons are dead
     #   401  a console IS configured and refused us, which is the healthy answer
-    status, _ = get("/api/ops/actions")
+    status, _ = get("/api/ops/actions", headers={"X-ACR-Ops-Token": PROBE_KEY})
     check(
         status in (401, 429),
         "the operator console is configured, so the queue can actually be cleared "

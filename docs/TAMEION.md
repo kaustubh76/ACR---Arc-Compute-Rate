@@ -11,6 +11,13 @@ every price against what other sellers are really charging, screens the
 counterparty, pays what clears policy, escalates what is not its call, and
 writes a double-entry ledger a human can open.
 
+**Where the pages are.** `/spend` and `/traction` exist in `apps/terminal` and are reachable from
+the masthead, but **the terminal is not deployed yet** — it is built for Arc mainnet and correctly
+refuses a testnet press, which is the guard that exists because a resumed testnet seller once served
+testnet data under a mainnet masthead. Until the mainnet press is woken, the honest live surface is
+the API above, and these tables link to what actually answers. Run the pages locally with
+`make api` and `make terminal`.
+
 ## The claim we are not making
 
 *Agents and Ledgers* — the analysis this event asks every team to read — says a
@@ -67,11 +74,11 @@ new in the window.
 
 | | |
 |---|---|
-| **Who it runs for** | [`/traction`](https://arc-compute-rate.vercel.app/traction) — counted from the registry and the decision log at request time |
-| **One business's money** | [`/spend`](https://arc-compute-rate.vercel.app/spend) — the statement, the budgets, and the queue waiting on its owner |
+| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — counted from the registry and the decision log at request time |
+| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets, and the queue waiting on its owner |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero, and a closing `balance` assertion with a declared tolerance. Each `/traction` row links to its own, as a download |
 | **What the ledger cannot check** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, searched for by name. Rendered at the foot of `/spend` |
-| **Prove it** | `make verify-operator` — twenty-five checks against a deployment, including the honesty properties and whether the queue can actually be cleared |
+| **Prove it** | `make verify-operator` — every honesty property above, re-checked against a live deployment, including whether the queue can actually be cleared. Some checks are conditional on what the deployment has, so it reports the count it ran rather than promising one |
 
 **Stated plainly, because a reviewer will check.** The loop runs on **Arc
 testnet**, where the fleet's real settlement history gives the meter genuine
