@@ -145,6 +145,12 @@ class ObligationDecision:
     #: concluded.
     screen_risk: str = ""
     screen_matched: list[str] = field(default_factory=list)
+    #: WHICH screen answered: ``yente`` · ``denylist`` · ``off``. Dropped at this
+    #: boundary until now, which is how a verdict of ``clear`` produced by
+    #: comparing against a list of ZERO addresses was indistinguishable from one
+    #: produced by a real sanctions dataset. A risk verdict without its source is
+    #: a claim without a basis.
+    screen_backend: str = ""
     par_usdc: float | None = None
     best_usdc: float | None = None
     over_par_bp: float | None = None
@@ -155,6 +161,26 @@ class ObligationDecision:
     paid_usdc: float = 0.0
     tx: str | None = None
     notes: list[str] = field(default_factory=list)
+    #: Who wrote this record: ``agent`` for a decision the operator reached on
+    #: its own authority, ``owner`` for one a person settled out of the queue.
+    #: Without it an owner-approved payment is written as a plain ``pay`` and is
+    #: indistinguishable from an autonomous one — and "obligations settled
+    #: without a human touching them" is precisely the difference.
+    actor: str = "agent"
+    #: What the agent WOULD have done with authority it did not have. Set only
+    #: where it escalated, and deliberately left empty where it has no opinion
+    #: to offer: "no budget on chain" is an absence of authority, not a
+    #: recommendation, and counting it would invent an agreement to measure.
+    recommended_intent: str = ""
+    #: Carried from the obligation, so the record can answer "was this settled
+    #: on time". It was being dropped at this boundary, which is the whole
+    #: reason nothing could.
+    due_at: float | None = None
+    #: The vendor's own reference, carried so the duplicate check can run BOTH
+    #: of its halves from the log. `is_duplicate` matches our id or this one;
+    #: with only the id on the record, a re-sent invoice under a fresh id is
+    #: invisible — "checking one catches half", and the log only had one.
+    invoice_ref: str = ""
 
     def as_record(self) -> dict:
         """The dict that gets hashed into ``PolicyWallet``.
@@ -243,6 +269,76 @@ def _payable_to(vendor: str) -> bool:
     return True
 
 
+def resource_path(resource: str) -> str:
+    """A resource's path, whatever form it arrived in.
+
+    The archive records `/compute/acr-seller-inf-frontier`; a catalog records
+    `https://host/compute/acr-seller-inf-frontier`. Matching them as raw strings
+    finds nothing, which is exactly what the first version of the runner did —
+    it reported zero obligations against 75 real settlements and looked like a
+    quiet success.
+    """
+    r = resource or ""
+    if "://" in r:
+        rest = r.split("://", 1)[1]
+        r = "/" + rest.split("/", 1)[1] if "/" in rest else "/"
+    return r
+
+
+def obligation_key(business_slug: str, seller: str, resource: str) -> str:
+    """The id a period's bill is known by.
+
+    HERE, AND NOT IN THE RUNNER, because two things now have to agree about it:
+    the loop that mints these ids and the audit that looks for a settlement with
+    no decision. If they build the key differently the audit reports an omission
+    for every receipt, which is the loudest possible way to be wrong.
+
+    THE WHOLE PATH, not its last segment. `rsplit("/", 1)[-1]` gave
+    `/curve/ACR-INF` and `/vol/ACR-INF` the same id, and two rows in the
+    committed archive still share it.
+    """
+    path = resource_path(resource)
+    leaf = path.strip("/").replace("/", "-") or "root"
+    return f"{business_slug}:{seller[:10]}:{leaf}"
+
+
+def settled_refs_from(decisions) -> set[str]:
+    """Every reference money has already moved against.
+
+    THE DUPLICATE CHECK HAD NOTHING TO CHECK AGAINST. `decide` has taken a
+    `settled_refs` argument since it was written, and the only real caller —
+    `scripts/operator_run.py` — never passed one, so check 1 of 8 ran against an
+    empty set on every production run. *Agents and Ledgers* names this exact
+    failure as an error of original entry: "the wrong amount on both sides, or
+    paid twice after a retry". A retry would have been paid twice.
+
+    Derived from the log rather than kept as a counter, for the same reason the
+    budget is read from the contract: a tally beside the record is a second
+    opinion about the only authoritative thing, and the two drift.
+
+    A DRY RUN IS NOT A SETTLEMENT. Keying on `intent == "pay"` alone would mark
+    every cleared-but-unsent decision as paid, and the next real run would
+    refuse the very bill it exists to settle — the duplicate check inverted into
+    a denial of service. Money has to have actually moved.
+    """
+    out: set[str] = set()
+    for d in decisions or ():
+        if str(d.get("intent") or "") != PAY:
+            continue
+        try:
+            if float(d.get("paid_usdc") or 0.0) <= 0:
+                continue
+        except (TypeError, ValueError):
+            continue
+        # Both halves, because `is_duplicate` matches either: our own id for a
+        # retried call, the vendor's ref for a re-sent invoice.
+        for key in ("obligation_id", "invoice_ref"):
+            v = str(d.get(key) or "").strip()
+            if v:
+                out.add(v)
+    return out
+
+
 def is_duplicate(ob: Obligation, settled_refs: set[str]) -> bool:
     """Have we already paid this?
 
@@ -289,6 +385,8 @@ def decide(
         rule="",
         metered_quantity=metered_quantity,
         vendor_quantity=ob.vendor_quantity,
+        due_at=ob.due_at,
+        invoice_ref=ob.invoice_ref,
     )
 
     # 1 — already paid. First, because every later check would be work done on
@@ -310,12 +408,14 @@ def decide(
     if ob.vendor_quantity is not None:
         if metered_quantity is None:
             d.intent, d.escalated = ESCALATE, True
+            d.recommended_intent = REFUSE
             d.rule = "unmetered: we hold no record of consuming this, so we cannot check the bill"
             return d
         d.discrepancy = ob.vendor_quantity - metered_quantity
         allowed = abs(metered_quantity) * meter_tolerance
         if d.discrepancy > allowed:
             d.intent, d.escalated = ESCALATE, True
+            d.recommended_intent = REFUSE
             d.rule = (
                 f"metered below billed: they billed {ob.vendor_quantity:g}, "
                 f"we counted {metered_quantity:g}"
@@ -333,8 +433,10 @@ def decide(
     if screen is not None:
         d.screen_risk = screen.risk
         d.screen_matched = list(screen.matched)
+        d.screen_backend = getattr(screen, "backend", "")
         if not screen.payable:
             d.intent, d.escalated = ESCALATE, True
+            d.recommended_intent = REFUSE
             where = ", ".join(screen.matched) if screen.matched else screen.backend
             d.rule = (
                 f"counterparty {screen.risk}: {where} — not a payment the agent makes"
@@ -366,6 +468,9 @@ def decide(
         reason = (verdict or {}).get("reason") or "NO_PAR"
         if ob.billed_usdc > unbenchmarked_max_usdc:
             d.intent, d.escalated = ESCALATE, True
+            # No opinion on the price, so the recommendation is to wait for one
+            # rather than to refuse a bill that may be perfectly fair.
+            d.recommended_intent = HOLD
             d.rule = (
                 f"unbenchmarked ({reason}) and above the "
                 f"{unbenchmarked_max_usdc:g} USDC ceiling for a price we cannot check"
@@ -398,6 +503,7 @@ def decide(
                 )
                 return d
             d.intent, d.escalated = ESCALATE, True
+            d.recommended_intent = REFUSE
             d.rule = (
                 f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
                 "and that seller is the one billing us"
@@ -423,6 +529,9 @@ def decide(
     # again on chain regardless of what this function concluded.
     if per_tx_limit_usdc is not None and ob.billed_usdc >= per_tx_limit_usdc:
         d.intent, d.escalated = ESCALATE, True
+        # Everything else cleared. This is the one escalation where the agent's
+        # recommendation is to PAY: the bill is sound, the authority is not.
+        d.recommended_intent = PAY
         d.rule = (
             f"{ob.billed_usdc:g} USDC is at or above the "
             f"{per_tx_limit_usdc:g} per-payment limit, so the owner signs this one"
@@ -430,6 +539,9 @@ def decide(
         return d
     if remaining_usdc is not None and ob.billed_usdc > remaining_usdc:
         d.intent, d.escalated = ESCALATE, True
+        # Not refuse: the bill may be fine and the period rolls. Waiting is the
+        # honest recommendation when the only thing missing is money.
+        d.recommended_intent = HOLD
         d.rule = (
             f"over budget: {ob.billed_usdc:g} USDC against {remaining_usdc:g} left "
             f"in {ob.category} this period"
@@ -538,6 +650,11 @@ def run_obligation(
                 escalated=True,
                 metered_quantity=metered,
                 vendor_quantity=ob.vendor_quantity,
+                due_at=ob.due_at,
+                invoice_ref=ob.invoice_ref,
+                # No `recommended_intent` ON PURPOSE. Without a budget the agent
+                # has no authority to form an opinion, and inventing one here
+                # would put an agreement into the numerator that nobody made.
             )
             log_decision(d, log_path)
             return d

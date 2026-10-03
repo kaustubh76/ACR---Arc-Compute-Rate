@@ -32,7 +32,15 @@ from collections import defaultdict
 from acr_core import get_settings
 from index_api.businesses import resolve
 from index_api.marketplace import build_catalog
-from index_api.operator import ESCALATE, PAY, Obligation, run_obligation
+from index_api.operator import (
+    ESCALATE,
+    PAY,
+    Obligation,
+    obligation_key,
+    resource_path,
+    run_obligation,
+    settled_refs_from,
+)
 
 
 def _receipts(settings) -> list[dict]:
@@ -56,19 +64,23 @@ def _receipts(settings) -> list[dict]:
     return rows
 
 
-def _path_of(resource: str) -> str:
-    """A resource's path, whatever form it arrived in.
+def _rpc_host(url: str) -> str:
+    """The endpoint's host, never its path.
 
-    The archive records `/compute/acr-seller-inf-frontier`; a catalog records
-    `https://host/compute/acr-seller-inf-frontier`. Matching them as raw strings
-    finds nothing, which is exactly what the first version of this script did —
-    it reported zero obligations against 75 real settlements and looked like a
-    quiet success.
+    `https://rpc.testnet.arc-node.thecanteenapp.com/v1/<key>` identifies us by a
+    secret in its path, so the only safe thing to print is the hostname.
     """
-    r = resource or ""
-    if "://" in r:
-        r = "/" + r.split("://", 1)[1].split("/", 1)[-1] if "/" in r.split("://", 1)[1] else "/"
-    return r
+    from urllib.parse import urlparse
+
+    try:
+        return urlparse(url or "").hostname or "(none)"
+    except ValueError:
+        return "(unparseable)"
+
+
+def _path_of(resource: str) -> str:
+    """Kept as a name this file already uses; the rule lives in `operator`."""
+    return resource_path(resource)
 
 
 def _obligations(business, receipts: list[dict], catalog: dict) -> list[Obligation]:
@@ -114,11 +126,22 @@ def _obligations(business, receipts: list[dict], catalog: dict) -> list[Obligati
             continue
         out.append(
             Obligation(
-                obligation_id=(
-                    f"{business.slug}:{seller[:10]}:{resource.rsplit('/', 1)[-1]}"
-                ),
+                obligation_id=obligation_key(business.slug, seller, resource),
                 vendor=seller,
-                billed_usdc=amount,
+                # ROUNDED HERE, AND NOWHERE LATER. These are sums of x402
+                # nanopayments — 0.004409607843137255 is a real receipt amount —
+                # so a period's total is routinely finer than the six decimals
+                # USDC actually has. `usdc_units` refuses such a number on the
+                # way to the chain, and it is right to: "round it before paying,
+                # so the rounding is a decision someone made."
+                #
+                # The decision is made HERE rather than at payment because
+                # `billed_usdc` is what the ledger prints, what the chain
+                # commits, and what `ledger_audit` compares `paid_usdc` against.
+                # Rounding later would make every payment disagree with its own
+                # bill by a fraction of a cent, and the audit would report an
+                # error of original entry on every row — correctly.
+                billed_usdc=round(amount, 6),
                 business=business.slug,
                 category=(business.categories or ("general",))[0],
                 kind="x402",
@@ -160,11 +183,26 @@ def main() -> int:
     receipts = _receipts(s)
     catalog = build_catalog(s.x402_resource_base or "http://127.0.0.1:8000", s)
     obligations = _obligations(b, receipts, catalog)
+
+    # What has already been paid, so check 1 has something to check against. It
+    # never did: `decide` has taken `settled_refs` since it was written and this
+    # script, its only real caller, never passed one — so a retried bill was
+    # paid twice and the log would have shown two clean payments.
+    from index_api.statement import read_decisions
+
+    already = settled_refs_from(read_decisions(business=b.slug))
     if args.limit:
         obligations = obligations[: args.limit]
 
+    # WHICH ENDPOINT THIS RAN THROUGH. Nothing in this repo recorded that, and on
+    # testnet it decides whether the work counts at all: Canteen counts traction
+    # through the RPC they issue, so a run against the public endpoint is work
+    # that happened and was not seen. The HOST only — the Canteen URL carries a
+    # key in its path, and a key printed to a terminal is a key in a transcript.
+    print(f"rpc        : {_rpc_host(s.arc_rpc_url)}")
     print(f"business   : {b.slug} ({b.public_name}) on {b.chain}")
     print(f"receipts   : {len(receipts)} in the archive")
+    print(f"settled    : {len(already)} reference(s) already paid")
     print(f"obligations: {len(obligations)}")
     print(f"mode       : {'LIVE' if args.live else 'dry run'}\n")
 
@@ -175,8 +213,17 @@ def main() -> int:
             receipts=receipts,
             catalog=catalog,
             policy=policy,
+            settled_refs=already,
             dry_run=not args.live,
         )
+        # Within one run too: two obligations resolving to one reference is the
+        # retry shape, and the second must not be paid because the first just
+        # was. Only a real payment joins the set, for the same reason
+        # `settled_refs_from` ignores dry runs.
+        if d.intent == PAY and d.paid_usdc > 0:
+            already.add(ob.obligation_id)
+            if ob.invoice_ref:
+                already.add(ob.invoice_ref)
         tally[d.intent] += 1
         mark = {PAY: "pay", ESCALATE: "ask", "reroute": "reroute",
                 "hold": "hold", "refuse": "refuse"}.get(d.intent, d.intent)
