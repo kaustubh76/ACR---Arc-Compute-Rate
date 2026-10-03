@@ -207,6 +207,25 @@ def tick_once(force: bool = False) -> str | None:
     return verdict
 
 
+def _policy_for(business):
+    """A ``PolicyClient`` for one business, or None.
+
+    The same shape as `app.py:_policy_for` and deliberately not an import of it:
+    that one lives beside the HTTP routes and logs against the statement, and a
+    loop that spends money should not fail because a web module moved. Returns
+    None rather than raising, so one unconfigured business cannot end the pass.
+    """
+    if not getattr(business, "policy_wallet", ""):
+        return None
+    try:
+        from acr_oracle_client.policy import PolicyClient
+
+        return PolicyClient(wallet_address=business.policy_wallet)
+    except Exception as exc:  # noqa: BLE001 - env dependent
+        log.warning("operator: no policy client for %s (%s)", business.slug, exc)
+        return None
+
+
 def _pass(now: float) -> str:
     from .app import get_facilitator
     from .marketplace import build_receipts
@@ -239,12 +258,33 @@ def _pass(now: float) -> str:
         decisions = read_decisions(business=b.slug)
         obligations = obligations_for(b, tape, {}, settled_through(decisions))[:MAX_PER_TICK]
         refs = settled_refs_from(decisions)
+        # WITHOUT THIS THE LOOP COULD NOT PAY, AND SAID IT HAD.
+        #
+        # The first version of this pass called `run_obligation` with no
+        # `policy`, so the payment block — `if d.intent == PAY and policy is not
+        # None` — was never true. In `live` mode it recorded `intent: "pay"`
+        # with `paid_usdc: 0.0` and no `tx`: a decision labelled live that moved
+        # nothing. Worse than refusing, because `settled_refs_from` ignores a
+        # row with no money on it, so the same bill came back every tick for
+        # ever while the traction page counted a payment that never happened.
+        # Check 8 could not run either, so the budget was never consulted.
+        #
+        # Built per business and per pass, never cached, for the reason
+        # `app.py:_policy_for` gives: the wallet address comes from the registry,
+        # and a cached client keeps spending for a business whose wallet was
+        # rotated.
+        policy = _policy_for(b) if live else None
+        if live and policy is None:
+            # Refuse rather than quietly dry-run under the name "live".
+            counts["no_wallet"] = counts.get("no_wallet", 0) + 1
+            continue
         for ob in obligations:
             try:
                 d = run_obligation(
                     ob,
                     receipts=tape,
                     catalog={},
+                    policy=policy,
                     settled_refs=refs,
                     since=ob.period_start,
                     dry_run=not live,

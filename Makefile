@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator archive-decisions archive-decisions-check ledger operator-run
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -47,6 +47,7 @@ help:
 	@echo "  make operator-run    BUSINESS=slug [LIVE=1] — decide and pay one business's bills"
 	@echo "  make ledger          BUSINESS=slug — their decisions as a beancount file that balances"
 	@echo "  make verify-operator probe the deployed operator surfaces end to end"
+	@echo "  make sandbox-decisions       regenerate the demo fixtures by running the ladder"
 	@echo "  make archive-decisions       fold production's decisions into the committed archive"
 	@echo "  make archive-decisions-check exit 1 if production holds rows the archive does not"
 	@echo ""
@@ -107,7 +108,7 @@ eval-gate:
 	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
 	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
-ci: lint test eval-gate golden-check anchors-check openapi-doc-check
+ci: lint test eval-gate golden-check anchors-check openapi-doc-check sandbox-decisions-check
 
 build-contracts:
 	cd contracts && forge build
@@ -212,6 +213,17 @@ ledger:
 # Without this the traction page quietly reverts to the rows that ship in the
 # image — a smaller number, not a broken page, which is the failure shape nobody
 # investigates. Run it BEFORE a redeploy, then commit the archive.
+# The sandbox's decision fixtures, DERIVED rather than typed. One of the six was
+# hand-written to describe a decision the ladder cannot reach (a 140 USDC bill
+# escalating on the per-payment limit, when an unpriceable bill meets the
+# unbenchmarked ceiling first), and it rendered in the escalation queue — which
+# cannot be shown at all without a sandbox. `--check` is in `make ci`.
+sandbox-decisions:
+	uv run python scripts/gen_sandbox_decisions.py
+
+sandbox-decisions-check:
+	uv run python scripts/gen_sandbox_decisions.py --check
+
 archive-decisions:
 	uv run python scripts/archive_decisions.py
 

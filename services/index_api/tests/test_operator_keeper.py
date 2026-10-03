@@ -204,3 +204,87 @@ def test_the_loop_never_settles_an_escalation_itself():
     assert "spend_as_owner" not in called
     assert "spendAsOwner" not in called
     assert "run_obligation" in called, "and the one path it does take is the agent's own"
+
+
+# --- it has to be able to pay, and must not pretend it did ------------------
+
+
+class _Biz:
+    slug = "payer"
+    treasury = "0x" + "11" * 20
+    policy_wallet = "0x" + "a7" * 20
+    chain = "testnet"
+    categories = ("machine-services",)
+
+
+def _tape_row(at: float = 1_000.0) -> dict:
+    return {
+        "payer": _Biz.treasury,
+        "seller": "0x" + "ab" * 20,
+        "resource": "/compute/x",
+        "amount_usdc": 0.5,
+        "quantity": 100.0,
+        "settled_at": at,
+    }
+
+
+def _wire_pass(monkeypatch, *, policy, businesses=None):
+    """A pass with a known tape, a known business and a known policy client."""
+    import index_api.marketplace as mkt
+
+    monkeypatch.setattr(ok, "_businesses", lambda: businesses if businesses is not None else [_Biz()])
+    monkeypatch.setattr(mkt, "build_receipts", lambda _fac: {"receipts": [_tape_row()]})
+    monkeypatch.setattr(ok, "_policy_for", lambda _b: policy)
+    import index_api.statement as st
+
+    monkeypatch.setattr(st, "read_decisions", lambda **_k: [])
+
+
+class _Policy:
+    """Enough of a PolicyClient to be paid through."""
+
+    def __init__(self) -> None:
+        self.spent: list[tuple] = []
+
+    def signer_kinds(self):
+        return {"agent": "circle", "owner": "local"}
+
+    def budget(self, _category):
+        return {"remaining_usdc": 100.0, "per_tx_limit_usdc": 50.0}
+
+    def spend(self, category, to, amount, _record):
+        self.spent.append((category, to, amount))
+        return "0x" + "ee" * 32
+
+
+def test_a_live_tick_actually_reaches_the_wallet(monkeypatch):
+    """THE BUG THIS PINS. The first version of `_pass` called `run_obligation`
+    with no `policy`, so `if d.intent == PAY and policy is not None` was never
+    true: `live` mode recorded `intent: "pay"` with `paid_usdc: 0.0` and no
+    `tx`. A decision labelled live that moved nothing — and because
+    `settled_refs_from` ignores a row with no money on it, the same bill came
+    back every tick for ever while the traction page counted the payment."""
+    monkeypatch.setenv("ACR_OPERATOR_AUTORUN", "live")
+    policy = _Policy()
+    _wire_pass(monkeypatch, policy=policy)
+    verdict = ok.tick_once(force=True)
+    assert policy.spent, f"a live tick must reach the wallet; verdict was {verdict!r}"
+    assert "live" in verdict and "USDC" in verdict
+
+
+def test_a_dry_tick_never_reaches_the_wallet(monkeypatch):
+    monkeypatch.setenv("ACR_OPERATOR_AUTORUN", "dry")
+    policy = _Policy()
+    _wire_pass(monkeypatch, policy=policy)
+    ok.tick_once(force=True)
+    assert policy.spent == [], "a dry run must not spend"
+
+
+def test_a_live_tick_with_no_wallet_refuses_rather_than_dry_running(monkeypatch):
+    """"--live is refused for a business with no PolicyWallet rather than doing
+    a dry run under the wrong name" is the runner's rule; the loop keeps it."""
+    monkeypatch.setenv("ACR_OPERATOR_AUTORUN", "live")
+    _wire_pass(monkeypatch, policy=None)
+    verdict = ok.tick_once(force=True)
+    assert "no_wallet" in verdict
+    assert "pay" not in verdict, "and it must not report a payment"
