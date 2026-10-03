@@ -776,6 +776,11 @@ const AUDIT_WORDS: Record<string, [string, string]> = {
   "original entry": ["original entry", "the wrong amount, or paid twice"],
   compensating: ["compensating", "two errors that cancel each other out"],
   "complete reversal": ["complete reversal", "booked backwards"],
+  // Not one of the essay's six, and the row that carries this page's headline
+  // claim. Without an entry here it fell through to the raw string and printed
+  // "phantom payment" in the plain edition too — the one row a plain reader
+  // most needs words for.
+  "phantom payment": ["phantom payment", "a payment that never happened"],
 };
 
 /** The six errors a balanced ledger cannot see, and what the search found.

@@ -103,6 +103,36 @@ def _read_one(target: Path) -> list[dict]:
     return rows
 
 
+def decision_key(row: dict) -> tuple[str, float, str]:
+    """What makes two decision rows THE SAME DECISION, for an archiver.
+
+    Receipts dedupe on ``tx_ref``. A decision has no such key: the log is
+    append-only and the same obligation legitimately appears twice — once
+    escalated, once resolved — so ``intent`` is part of the identity. Keying on
+    ``obligation_id`` alone would drop every resolution, which is precisely the
+    half of the record that proves a human was involved. ``at`` carries
+    sub-second precision from ``time.time()``, so two decisions about one
+    obligation inside the same second stay distinct.
+
+    This lives here, rather than in ``scripts/archive_decisions.py`` where it
+    was written, because the systems ledger now answers "how many live
+    decisions would a redeploy destroy?" — and that answer is only true if it
+    is computed with the SAME rule the archiver will apply. Two copies of this
+    tuple in two files is a dashboard that reports a backlog the archiver
+    considers already saved, or the reverse, with nothing to make either of
+    them notice.
+
+    Distinct from :func:`read_decisions`'s own dedupe, which compares whole
+    rows: that one is protecting a READER from showing the archive-plus-live
+    overlap twice, and for that job the strictest possible key is the safe one.
+    """
+    return (
+        str(row.get("obligation_id") or ""),
+        float(row.get("at") or 0.0),
+        str(row.get("intent") or ""),
+    )
+
+
 def read_decisions(
     path: str | Path | None = None,
     business: str = "",
@@ -198,6 +228,52 @@ def summarise(decisions: list[dict]) -> dict:
         **autonomy(decisions),
         **agreement(decisions),
         **screening(decisions),
+        **compliance(decisions),
+    }
+
+
+def compliance(decisions: list[dict]) -> dict:
+    """RFB 5's counts, named for what this product actually does.
+
+    THE BRIEF SAYS "addresses monitored". WE DO NOT MONITOR. The screen runs
+    once, inside the decision, at the moment the money would move; nothing
+    re-screens on a schedule, and `counterparty.py` records that as an
+    aspiration rather than a feature. So the figure is `addresses_screened`, and
+    calling it anything else would be the overclaim this whole product is built
+    to refuse — the same refusal as `unknown` never reading as `clear`.
+
+    An ALERT is a flagged counterparty. It is RESOLVED when that obligation
+    reached a terminal decision rather than sitting in the queue; `escalate` is
+    the alert still open. Two counts, never a rate: a resolution figure over one
+    alert is not a percentage of anything.
+
+    Counted over DISTINCT addresses, because one vendor billed nine times is one
+    counterparty, and counting the bills would make a quiet month look like
+    diligence.
+    """
+    terminal = (PAY, HOLD, REROUTE, REFUSE)
+    screened: set[str] = set()
+    alerted: set[str] = set()
+    resolved: set[str] = set()
+
+    for d in decisions:
+        vendor = str(d.get("vendor") or "").lower()
+        risk = str(d.get("screen_risk") or "")
+        if not vendor or not risk:
+            # No verdict on this row means no screen reached it — checks 1 to 3
+            # return before the counterparty is consulted. Not screened, and not
+            # counted as if it were.
+            continue
+        screened.add(vendor)
+        if risk == FLAGGED:
+            alerted.add(vendor)
+            if str(d.get("intent") or "") in terminal:
+                resolved.add(vendor)
+
+    return {
+        "addresses_screened": len(screened),
+        "alerts_raised": len(alerted),
+        "alerts_resolved": len(resolved),
     }
 
 

@@ -1369,9 +1369,13 @@ def operator_traction(
     checkable rather than asserted.
     """
     _meter_agent(request, agent)
+    from .ledger_audit import load_tape
     from .traction import build_traction
 
-    return build_traction()
+    # The tape is the other side of the money: a treasury appearing as the
+    # SELLER on a settlement is a treasury that was paid, which is the half of
+    # "total USDC received and paid out" that did not exist until now.
+    return build_traction(tape=load_tape())
 
 
 @app.get("/operator/ledger/{business}", response_class=PlainTextResponse)
@@ -1433,7 +1437,7 @@ def _confirm_tx(business):
             # The wallet itself is absent on this chain, so nothing sent to it
             # can be corroborated and nothing can be denied either.
             return lambda _tx: None
-        w3 = client._connect()
+        w3 = client.web3()
         if w3 is None:
             return None
     except Exception as exc:  # pragma: no cover - env dependent

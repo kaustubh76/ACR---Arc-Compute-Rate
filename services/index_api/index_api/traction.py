@@ -44,7 +44,37 @@ from .statement import read_decisions, summarise
 _DECIDED = (PAY, HOLD, REROUTE, REFUSE)
 
 
-def _per_business(b: Business) -> dict:
+def received_usdc(treasury: str, tape: list[dict] | None) -> float:
+    """What this business was PAID, from the sellers' own settlement tape.
+
+    RFB 4 asks for "total USDC received and paid out" and only the second half
+    existed. The first is not a new measurement — it is the same tape the
+    omission check already reads, looked at from the other side: a treasury that
+    appears as the SELLER on a settlement is a treasury that was paid.
+
+    Read from the tape rather than from our own decisions deliberately. The
+    decision log is what this operator did; money arriving is what somebody else
+    did, and a business's own records are the wrong authority for it. This is
+    the essay's "reconciliation against the bank" pointed at income.
+
+    No tape means NOT MEASURED, and the caller reports that rather than zero. A
+    confident 0.0 from a file that failed to load is the kind of number this
+    page exists to refuse.
+    """
+    if not tape or not treasury:
+        return 0.0
+    t = treasury.lower()
+    total = 0.0
+    for r in tape:
+        if str(r.get("seller") or "").lower() != t:
+            continue
+        amount = r.get("amount_usdc")
+        if isinstance(amount, (int, float)):
+            total += float(amount)
+    return round(total, 6)
+
+
+def _per_business(b: Business, tape: list[dict] | None = None) -> dict:
     rows = read_decisions(business=b.slug)
     s = summarise(rows)
     return {
@@ -59,6 +89,11 @@ def _per_business(b: Business) -> dict:
         "escalated": s["escalated"],
         # What the operator actually paid out, and what it only assessed.
         "moved_usdc": s["paid_usdc"],
+        # And what came IN, from the other side of the same tape. Kept beside
+        # `moved_usdc` and never netted against it: a business that received 10
+        # and paid 10 has done twice the work of one that did neither, and a
+        # single net figure would report both as zero.
+        "received_usdc": received_usdc(b.treasury, tape),
         "priced_usdc": round(sum(float(r.get("billed_usdc") or 0.0) for r in rows), 6),
         "recoverable_usdc": s["saved_usdc"],
         "discrepancies": s["consumption_discrepancies"],
@@ -74,6 +109,9 @@ def _per_business(b: Business) -> dict:
                 "owner_agreed",
                 "risk_events_caught",
                 "paid_unscreened",
+                "addresses_screened",
+                "alerts_raised",
+                "alerts_resolved",
             )
         },
         # A per-business ledger anyone can open and check the arithmetic in.
@@ -82,15 +120,28 @@ def _per_business(b: Business) -> dict:
     }
 
 
-def build_traction(registry: tuple[Business, ...] | None = None, now: float | None = None) -> dict:
+def build_traction(
+    registry: tuple[Business, ...] | None = None,
+    now: float | None = None,
+    #: The sellers' settlement tape, for the money that came IN. Injected like
+    #: every other collaborator here so the whole page stays testable without a
+    #: chain or a disk; absent means `received_usdc` is 0.0 and the note says
+    #: the tape was not supplied.
+    tape: list[dict] | None = None,
+) -> dict:
     """Every traction figure, computed from the rows that justify it."""
     # Through `real()`, so a sandbox business cannot move a single figure on
     # this page. It demonstrates the UI; it is not usage.
     reg = real(registry)
-    rows = [_per_business(b) for b in reg]
+    rows = [_per_business(b, tape) for b in reg]
 
     by_chain: dict[str, dict[str, float]] = defaultdict(
-        lambda: {"moved_usdc": 0.0, "priced_usdc": 0.0, "recoverable_usdc": 0.0}
+        lambda: {
+            "moved_usdc": 0.0,
+            "received_usdc": 0.0,
+            "priced_usdc": 0.0,
+            "recoverable_usdc": 0.0,
+        }
     )
     intents: dict[str, int] = defaultdict(int)
     decided = escalated = discrepancies = unmetered = decisions = 0
@@ -106,11 +157,15 @@ def build_traction(registry: tuple[Business, ...] | None = None, now: float | No
         "owner_agreed",
         "risk_events_caught",
         "paid_unscreened",
+        "addresses_screened",
+        "alerts_raised",
+        "alerts_resolved",
     )
 
     for r in rows:
         c = by_chain[r["chain"]]
         c["moved_usdc"] += r["moved_usdc"]
+        c["received_usdc"] += r["received_usdc"]
         c["priced_usdc"] += r["priced_usdc"]
         c["recoverable_usdc"] += r["recoverable_usdc"]
         decisions += r["decisions"]
@@ -165,6 +220,20 @@ def build_traction(registry: tuple[Business, ...] | None = None, now: float | No
             "screening": {
                 "risk_events_caught": brief["risk_events_caught"],
                 "paid_unscreened": brief["paid_unscreened"],
+            },
+            # RFB 5's counts, named for what this product does rather than for
+            # what the brief wishes it did: we SCREEN at decision time, we do
+            # not monitor continuously, and `addresses_monitored` would be the
+            # overclaim this page exists to refuse.
+            #
+            # Summed across businesses, so a counterparty two businesses both
+            # screened counts twice here and once in each row. That is the
+            # honest reading of a per-business figure added up; a repo-wide
+            # distinct count would need a set this function does not hold.
+            "compliance": {
+                "addresses_screened": brief["addresses_screened"],
+                "alerts_raised": brief["alerts_raised"],
+                "alerts_resolved": brief["alerts_resolved"],
             },
         },
         "per_business": rows,
