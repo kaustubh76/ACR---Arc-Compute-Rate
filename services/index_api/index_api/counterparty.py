@@ -169,6 +169,28 @@ class DenyListScreen(CounterpartyScreen):
                 matched=("local-denylist",),
                 reason="this address is on the operator's own denylist",
             )
+        if not self.denied:
+            # A SCREEN THAT CANNOT FAIL IS NOT A SCREEN. With no list configured
+            # this used to answer CLEAR with the reason "not on a local list of
+            # 0" — and the reason is dropped at the record boundary, so every
+            # vendor rendered a teal "clear · checked, fine" chip whose entire
+            # basis was a comparison against nothing. That is the module's own
+            # `unknown` is never `clear` rule, one step further out: the
+            # distinction it protects is between a verdict and the absence of
+            # one, and an empty list produces the absence.
+            #
+            # `unknown` stays payable unless ACR_SCREEN_REQUIRED says otherwise,
+            # so this changes what we CLAIM, not what we allow. `screening()`
+            # counts unknown-and-paid as `paid_unscreened`, which now reports
+            # the truth about a host with no list.
+            return CounterpartyVerdict(
+                address=address, risk=UNKNOWN, backend=self.backend,
+                reason=(
+                    "no denylist is configured, so nothing was compared: set "
+                    "ACR_SCREEN_DENYLIST or ACR_SCREEN_YENTE_URL"
+                ),
+                screened=False,
+            )
         return CounterpartyVerdict(
             address=address, risk=CLEAR, backend=self.backend,
             reason=f"not on a local list of {len(self.denied)}",

@@ -321,6 +321,19 @@ def build_role_signer(
         key = (getattr(settings, "reader_private_key", "") or "").strip()
         return LocalKeySigner(key) if key and not key.startswith("#") else None
 
+    # THE OWNER IS THE ONE ROLE THAT MUST NOT SHARE A KEY WITH THE AGENT, for a
+    # harder reason than the reader's: `spendAsOwner` REFUSES when the two
+    # addresses match, in the contract and again in `PolicyClient`. Falling back
+    # to the ambient poster key made owner and taker the same EOA, so an operator
+    # with a funded PolicyWallet still could not clear its own escalation queue —
+    # the config had no way to name a second party. Its own key wins over the
+    # wallet id, so a deployment can keep its Circle owner wallet and still hand
+    # a raw key to a one-off approval.
+    if role == "owner":
+        key = (getattr(settings, "owner_private_key", "") or "").strip()
+        if key and not key.startswith("#"):
+            return LocalKeySigner(key)
+
     field = _ROLE_WALLET_FIELDS.get(role)
     wallet_id = (getattr(settings, field, "") or "").strip() if field else ""
     api_key = (settings.circle_api_key or "").strip()

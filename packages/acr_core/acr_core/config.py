@@ -161,6 +161,20 @@ class ACRSettings(BaseSettings):
     #: `build_role_signer("reader")` refuses to fall back to it. Empty → a caller
     #: mints no card and goes anonymous, which is a working state.
     reader_private_key: str = ""
+    #: Private key the `owner` role signs with — the escalation authority, and
+    #: nothing else.
+    #:
+    #: SEPARATE BECAUSE THE CONTRACT REQUIRES IT TO BE. `PolicyWallet.spendAsOwner`
+    #: is the path a human takes to settle what the agent would not, and both the
+    #: contract and `PolicyClient` refuse it when the owner is also the agent —
+    #: an approval signed by the thing being approved is not an approval. With
+    #: only `poster_private_key` to fall back on, both roles resolved to one
+    #: address and the escalation queue could never be cleared: the configuration
+    #: could not express the two parties the design is built on.
+    #:
+    #: Empty → the owner role falls back as before, which is correct for a
+    #: deployment with no escalations and no PolicyWallet.
+    owner_private_key: str = ""
 
     # --- Arc network (verified testnet facts) ---
     #: Arc testnet chain id. Arc makes USDC a native system contract that is

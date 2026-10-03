@@ -89,11 +89,44 @@ def test_unknown_is_payable_by_default_and_not_when_screening_is_required(monkey
 
 
 def test_screened_is_a_separate_fact_from_clear():
-    """"No screen ran" and "ran and found nothing" must not render the same."""
+    """"No screen ran" and "ran and found nothing" must not render the same.
+
+    This test used to assert that an EMPTY `DenyListScreen` answers `clear`,
+    which is the very collapse the docstring forbids: a list of zero addresses
+    cannot find anything, so "ran and found nothing" and "nothing ran" were the
+    same event wearing different words. The honest comparison needs a list with
+    something in it.
+    """
     off = NullCounterpartyScreen().check(A)
     assert off.risk == UNKNOWN and off.screened is False
-    on = DenyListScreen().check(A)
-    assert on.risk == CLEAR and on.screened is True
+
+    nothing_to_compare = DenyListScreen().check(A)
+    assert nothing_to_compare.risk == UNKNOWN, "an empty list is not a screen"
+    assert nothing_to_compare.screened is False
+
+    real = DenyListScreen(denied={"0x" + "ff" * 20}).check(A)
+    assert real.risk == CLEAR and real.screened is True
+
+
+def test_a_screen_with_nothing_to_compare_says_so():
+    """The deployed default today: no ACR_SCREEN_* is set on either service.
+
+    Every vendor rendered a teal "clear · checked, fine" chip whose whole basis
+    was a comparison against zero addresses — and `backend`/`reason` are dropped
+    at the decision boundary, so no reader could ever have found that out.
+    """
+    v = DenyListScreen().check(A)
+    assert v.risk == UNKNOWN
+    assert "no denylist is configured" in v.reason
+    assert v.backend == "denylist", "it still says which floor answered"
+
+
+def test_a_configured_denylist_still_flags_and_still_clears():
+    """The fix must not disarm the floor it is making honest."""
+    bad = "0x" + "ff" * 20
+    screen = DenyListScreen(denied={bad})
+    assert screen.check(bad).risk == FLAGGED
+    assert screen.check(A).risk == CLEAR
 
 
 # --- the local floor ------------------------------------------------------
