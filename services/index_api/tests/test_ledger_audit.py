@@ -361,3 +361,99 @@ def test_a_dry_run_is_not_a_phantom():
     tx. They claim nothing, so there is nothing to corroborate."""
     out = _audit([_paid(paid_usdc=0.0, tx=None)])
     assert [f for f in out["findings"] if f["error"] == "phantom payment"] == []
+
+
+# --- the bank statement the audit reads from --------------------------------
+#
+# `load_tape` had no tests and one caller, and it is the input to the omission
+# check — the one error whose whole method is "compare our books against
+# somebody else's record". Every failure mode here returns an empty list, and an
+# empty tape makes the omission check report CLEAN. That is the shape worth
+# testing: the function cannot fail loudly, so the only protection is knowing
+# exactly which empty means what.
+
+
+def test_the_tape_is_read_from_the_file_it_is_given(tmp_path):
+    """The `path` parameter had no caller. It is the seam a test needs, and
+    deleting it would mean every test of this function had to reach for an
+    environment variable instead."""
+    import json
+
+    from index_api.ledger_audit import load_tape
+
+    p = tmp_path / "receipts.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in (_receipt(), _receipt(amount=2.0))) + "\n")
+    rows = load_tape(str(p))
+    assert len(rows) == 2
+    assert [r["amount_usdc"] for r in rows] == [1.0, 2.0]
+
+
+def test_a_half_written_line_does_not_truncate_the_tape(tmp_path):
+    """An interrupted write leaves half a line. Taking that as the end of the
+    file would silently drop every settlement behind it — and the audit would
+    then report the dropped ones as omissions, which is a false accusation
+    rather than a missed one."""
+    import json
+
+    from index_api.ledger_audit import load_tape
+
+    p = tmp_path / "receipts.jsonl"
+    p.write_text(
+        json.dumps(_receipt()) + "\n"
+        + '{"payer": "0x11", "amount_usd\n'  # a crash mid-write
+        + json.dumps(_receipt(amount=3.0)) + "\n"
+    )
+    rows = load_tape(str(p))
+    assert [r["amount_usdc"] for r in rows] == [1.0, 3.0], "the row behind the tear survived"
+
+
+def test_a_missing_tape_is_empty_and_the_audit_says_it_searched_nothing(tmp_path):
+    """The dangerous empty. A tape that is not there and a tape with nothing in
+    it both read as zero settlements, and zero settlements makes the omission
+    check pass — so the check has to report what it searched, not just its
+    verdict."""
+    from index_api.ledger_audit import load_tape
+
+    assert load_tape(str(tmp_path / "nope.jsonl")) == []
+
+    out = _audit([_paid()], receipts=[])
+    om = next(c for c in out["checks"] if c["error"] == ERRORS[0])
+    assert om["searched"] == 0, "the reader can see the denominator was empty"
+
+
+def test_the_environment_names_the_tape_when_no_path_is_given(tmp_path, monkeypatch):
+    """Production sets `ACR_RECEIPT_ARCHIVE_PATH` in `render.yaml`, and the
+    fallback beside the module is what makes a fresh checkout work. If the env
+    var were ignored the audit would read the committed copy on the deployed
+    host — stale books, reported as current."""
+    import json
+
+    from index_api.ledger_audit import load_tape
+
+    p = tmp_path / "from-env.jsonl"
+    p.write_text(json.dumps(_receipt(amount=7.5)) + "\n")
+    monkeypatch.setenv("ACR_RECEIPT_ARCHIVE_PATH", str(p))
+    assert [r["amount_usdc"] for r in load_tape()] == [7.5]
+
+
+def test_the_committed_tape_is_readable_and_not_empty():
+    """The fallback is a real file in the image, not a hopeful path. If it ever
+    stops being one, the omission check quietly starts searching nothing on
+    every host that has no env var set."""
+    from index_api.ledger_audit import load_tape
+
+    rows = load_tape()
+    assert rows, "the committed receipt archive should ship beside the module"
+    assert all(isinstance(r, dict) for r in rows)
+
+
+# --- the injected clock -----------------------------------------------------
+
+
+def test_the_audit_reports_the_moment_it_was_asked_about():
+    """`now=` had no caller either. It is the repo's standing idiom — a clock
+    passed in rather than read — and it is what lets `as_of` be asserted at all
+    instead of compared against a moving target."""
+    out = audit([_paid()], [_receipt()], treasury=TREASURY, slug="acme",
+                categories=CATS, now=1_790_000_000.0)
+    assert out["as_of"] == 1_790_000_000.0

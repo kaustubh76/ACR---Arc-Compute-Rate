@@ -310,6 +310,18 @@ class PolicyClient:
             self._w3 = None
         return self._w3
 
+    def web3(self):
+        """The connected client, or None. A PUBLIC door onto what `_connect`
+        already built.
+
+        `app.py`'s audit confirmer needs a chain to put a transaction back to,
+        and it was reaching into `client._connect()` — a private method, from
+        another package, in the one code path that decides whether a recorded
+        payment is corroborated. A caller that has to break encapsulation to do
+        its job is a caller whose job the class forgot to offer.
+        """
+        return self._connect()
+
     def _contract(self):
         from web3 import Web3
 

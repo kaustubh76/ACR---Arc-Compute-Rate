@@ -10,7 +10,7 @@ import type { OpsCheck, OpsLedger, OpsSection } from "@/lib/types";
 /* The systems ledger — the operator's page, made public.
 
    Everything here was previously a 45-minute terminal ritual: `make
-   verify-live`, read nine sections of ✓/!/✗, decide. The checker now runs
+   verify-live`, read a dozen sections of ✓/!/✗, decide. The checker now runs
    inside the press on its own timer and this renders what it found.
 
    The house rule about unread-versus-empty is doing the most work on this
@@ -283,9 +283,9 @@ export function OpsView() {
 
           {data.sections.map((s) => {
             const st = standing(s.checks);
-            // A column for reasons nobody gave is a column of nothing. Five of
-            // the nine sections carry no detail at all, and reserving space
-            // for it there is what pushed each label away from its own tick.
+            // A column for reasons nobody gave is a column of nothing. Most
+            // sections carry no detail at all, and reserving space for it
+            // there is what pushed each label away from its own tick.
             const hasDetail = s.checks.some((c) => Boolean(c.detail));
             return (
               /* `s.name` earns its keep twice here: it names the plain-edition

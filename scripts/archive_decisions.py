@@ -39,6 +39,12 @@ import sys
 import urllib.request
 from pathlib import Path
 
+# What makes two decision rows the same row — defined in the package that ships
+# to production, not here, because `/ops` now reports how many live decisions a
+# redeploy would destroy and that figure is only true when it is computed with
+# the rule THIS script will apply. See `statement.decision_key`.
+from index_api.statement import decision_key as _key
+
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE = ROOT / "services" / "index_api" / "index_api" / "operator_decisions.jsonl"
 API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
@@ -53,18 +59,6 @@ LIMIT = 1000
 DAYS = 365
 
 
-def _key(row: dict) -> tuple:
-    """What makes two decision rows the same row.
-
-    `at` carries sub-second precision from `time.time()`, so two decisions about
-    one obligation in the same second are still distinct. `intent` is in the key
-    because an escalation and its resolution share an id by design.
-    """
-    return (
-        str(row.get("obligation_id") or ""),
-        float(row.get("at") or 0.0),
-        str(row.get("intent") or ""),
-    )
 
 
 def _archived(path: Path) -> list[dict]:
@@ -89,8 +83,14 @@ class NoOperatorThere(RuntimeError):
     """
 
 
-def _businesses(api: str, include_sandbox: bool = False) -> list[str]:
-    """Every registered business, SANDBOXES EXCLUDED.
+def _businesses(api: str) -> list[str]:
+    """Every registered business, SANDBOXES EXCLUDED — and not optionally.
+
+    This took an ``include_sandbox`` flag that nothing ever passed, so the
+    branch was unreachable. Removed rather than wired to a CLI switch: the only
+    thing that flag could do is merge the demonstration fixtures into the record
+    of what the agent did for real businesses, which the paragraph below exists
+    to forbid. An option whose only use is the forbidden one should not exist.
 
     A sandbox's decisions are hand-written fixtures that already ship in their
     own archive (`operator_decisions.sandbox.jsonl`), kept apart so they can be
@@ -112,7 +112,7 @@ def _businesses(api: str, include_sandbox: bool = False) -> list[str]:
     return [
         str(b["slug"])
         for b in rows
-        if b.get("slug") and (include_sandbox or not b.get("sandbox"))
+        if b.get("slug") and not b.get("sandbox")
     ]
 
 
