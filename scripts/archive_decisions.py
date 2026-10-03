@@ -78,6 +78,17 @@ def _archived(path: Path) -> list[dict]:
     return out
 
 
+class NoOperatorThere(RuntimeError):
+    """The press answered, and it has no operator surfaces.
+
+    A legitimate state, and the one this script meets on the FIRST deploy: the
+    running image predates the operator, so there are no decisions on it to lose.
+    Distinguished from a network failure because the two call for opposite
+    actions — deploy over it, or stop and investigate — and a traceback said
+    neither.
+    """
+
+
 def _businesses(api: str, include_sandbox: bool = False) -> list[str]:
     """Every registered business, SANDBOXES EXCLUDED.
 
@@ -87,8 +98,16 @@ def _businesses(api: str, include_sandbox: bool = False) -> list[str]:
     would merge a demonstration into the record of what the agent actually did
     for actual businesses — the one mixture this product cannot afford.
     """
-    with urllib.request.urlopen(f"{api}/operator/businesses", timeout=60) as r:
-        body = json.load(r)
+    try:
+        with urllib.request.urlopen(f"{api}/operator/businesses", timeout=60) as r:
+            body = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise NoOperatorThere(
+                f"{api} has no /operator/businesses: the running image predates "
+                "the spend operator, so it holds no decisions to archive"
+            ) from e
+        raise
     rows = body.get("data", body).get("businesses") or []
     return [
         str(b["slug"])
@@ -126,7 +145,14 @@ def main() -> int:
     rel = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
     print(f"archive   {rel}: {len(have)} row(s)")
 
-    slugs = [a.business] if a.business else _businesses(a.api)
+    try:
+        slugs = [a.business] if a.business else _businesses(a.api)
+    except NoOperatorThere as e:
+        # Nothing to lose, so nothing to refuse. A preflight that blocked here
+        # would make the first deploy of the operator impossible.
+        print(f"live      {e}")
+        print("nothing to archive")
+        return 0
     print(f"live      {a.api}: {len(slugs)} real business(es), sandboxes excluded")
 
     new: list[dict] = []
