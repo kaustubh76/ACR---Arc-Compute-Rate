@@ -310,9 +310,25 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
     # `futures.configured` branch below was not enough: this outer guard would
     # still have returned first on a mirror-only deployment.
-    from acr_core import testnet_surfaces_enabled as _gs
-
-    mirror_configured = bool(_gs().receipt_mirror_address)
+    # THIS LINE KILLED THE WHOLE LOOP FOR FOUR WEEKS.
+    #
+    # It read `bool(_gs().receipt_mirror_address)`, where `_gs` was an alias for
+    # `testnet_surfaces_enabled` — a function that takes a required `settings`
+    # argument and returns a BOOL. So the call raised TypeError on the way in,
+    # before `while not stop.is_set()`, and since `_warm_chain` is an
+    # `asyncio.create_task` whose exception nobody awaits until shutdown, the
+    # task died at every boot in silence.
+    #
+    # The alias reads like it was meant to be `get_settings`, and `settings` is
+    # already in scope two lines above — so the import was never needed at all.
+    #
+    # What was off for four weeks: the self-ping that keeps a free instance
+    # awake, the oracle cache warming, the settlement mirror, the venue keeper's
+    # heartbeat and roll checks, and the memory guard that stops a 512 MiB tier
+    # from OOM-killing the process. The visible symptom was `checked_at: null`
+    # for all three keeper chores on a sixty-second loop — which is what finding
+    # this started from. Landed 2026-09-05 in b8649bb.
+    mirror_configured = bool(settings.receipt_mirror_address)
     if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
         return
     while not stop.is_set():
@@ -325,22 +341,49 @@ async def _warm_chain(stop: asyncio.Event) -> None:
         try:
             # First, because it is the one that keeps everything else running.
             await _touch_self()
+            # EACH CHORE IN ITS OWN try/except, not just the keeper's.
+            #
+            # These two reads used to sit bare inside the outer handler, ahead of
+            # everything after them — so ONE throttled Arc read skipped the
+            # mirror, the memory guard and the keeper for that tick, every tick,
+            # and the only trace was a line in the server log. `_run_keeper`
+            # already carried this reasoning ("the caller's handler would also
+            # catch this, but then a keeper failure would skip the rest of that
+            # tick") and the reads above it never got it.
+            #
+            # Not hypothetical: the deployed press reports `checked_at: null` for
+            # all three keeper chores after ten minutes of uptime on a
+            # sixty-second loop, with `keeper.enabled: true`. The recording code
+            # dates from 2026-09-05, so the image is not too old to have it —
+            # which leaves a read above it throwing, or the outer guard. Arc
+            # answers 429, and this is the shape that turns a throttle into a
+            # silently dead chore.
             if reader.configured:
-                await asyncio.to_thread(reader.read_all, use_cache=False)
-                # Cheap while it matters, free once it doesn't: this returns
-                # immediately as soon as provenance is populated. Guard on the
-                # global rather than get_poster(), which would lazily build a
-                # THROWAWAY poster if this tick beat _background's set_poster()
-                # — we'd hydrate an instance nothing else can see.
-                if _poster is not None:
-                    await _rehydrate_provenance(_poster)
-                    await _post_if_overdue(store, _poster, reader, settings)
+                try:
+                    await asyncio.to_thread(reader.read_all, use_cache=False)
+                    # Cheap while it matters, free once it doesn't: this returns
+                    # immediately as soon as provenance is populated. Guard on
+                    # the global rather than get_poster(), which would lazily
+                    # build a THROWAWAY poster if this tick beat _background's
+                    # set_poster() — we'd hydrate an instance nothing else can
+                    # see.
+                    if _poster is not None:
+                        await _rehydrate_provenance(_poster)
+                        await _post_if_overdue(store, _poster, reader, settings)
+                except Exception:  # pragma: no cover - a chore must never cost a beat
+                    log.warning("warm: the oracle read failed", exc_info=True)
             if futures.configured:
-                await asyncio.to_thread(futures.read_all, use_cache=False)
-                # The tape pages back several hours over a throttled RPC, so it
-                # is the most expensive read the desk serves — and it sits on
-                # /futures, the endpoint the venue's liveness is judged by.
-                await asyncio.to_thread(futures.recent_trades, use_cache=False)
+                try:
+                    await asyncio.to_thread(futures.read_all, use_cache=False)
+                    # The tape pages back several hours over a throttled RPC, so
+                    # it is the most expensive read the desk serves — and it sits
+                    # on /futures, the endpoint the venue's liveness is judged by.
+                    await asyncio.to_thread(futures.recent_trades, use_cache=False)
+                except Exception:  # pragma: no cover - a chore must never cost a beat
+                    log.warning("warm: the venue read failed", exc_info=True)
+                # OUTSIDE that handler: the keeper's chores are cooldown-driven
+                # and do not need the reads to have landed. A throttled tape must
+                # not stop a settlement.
                 await _run_keeper(futures)
             # OUTSIDE the futures guard, deliberately. Mirroring settlements has
             # no venue dependency, and a deployment with no ACR_FUTURES_ADDRESS
