@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Ed } from "@/components/Ed";
 import { ageWords, fmtInt, fmtPrice } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
@@ -45,6 +47,28 @@ const INTENTS: Array<[key: string, x: string, p: string]> = [
   ["refuse", "Refused outright", "Turned down"],
 ];
 
+/** `n of m`, and the honest thing when `m` is zero.
+ *
+ *  Every figure in the block above has a denominator that can be zero: nobody
+ *  has resolved an escalation yet, no obligation carries a due date yet. A rate
+ *  over zero prints 100% or 0% with equal confidence and no information, and
+ *  those are the two most flattering numbers available on a traction page. */
+function Of({ n, of }: { n: number; of: number }) {
+  if (of <= 0) {
+    return (
+      <span className="label">
+        <Ed x="none yet" p="none yet" />
+      </span>
+    );
+  }
+  return (
+    <>
+      {fmtInt(n)}
+      <span className="label"> / {fmtInt(of)}</span>
+    </>
+  );
+}
+
 function BusinessRow({ r }: { r: TractionRow }) {
   return (
     <tr>
@@ -67,12 +91,25 @@ function BusinessRow({ r }: { r: TractionRow }) {
       </td>
       <td>
         {/* Both links, because a figure a reader cannot open is a claim. The
-            statement was emitted and unreachable from this page. */}
-        <a className="section-link" href={r.statement}>
+            statement was emitted and unreachable from this page.
+
+            Built from the slug, NOT from `r.statement`/`r.ledger`. Those are
+            the press's own paths (`/operator/...`), and they are correct for
+            the press — but they are relative, so on this origin they resolved
+            against the terminal and landed on the 404 page. The terminal links
+            into its own space: a page for the statement, its proxy for the
+            file. tests/test_render_parity.py carries the exemption. */}
+        <Link className="section-link" href={`/spend?business=${encodeURIComponent(r.slug)}`}>
           <Ed x="statement" p="the summary" />
-        </a>
+        </Link>
         {" · "}
-        <a className="section-link" href={r.ledger}>
+        {/* `download`, because beancount is a file format with tools that read
+            it — bean-check on a saved file, not a tab of plain text. */}
+        <a
+          className="section-link"
+          href={`/api/operator/ledger?business=${encodeURIComponent(r.slug)}`}
+          download={`${r.slug}.beancount`}
+        >
           <Ed x="ledger" p="the file" />
         </a>
       </td>
@@ -245,6 +282,84 @@ function Numbers({ t }: { t: TractionPayload }) {
                     <Ed x="Bills we held no record for" p="Bills we had no record of" />
                   </td>
                   <td className="mono">{fmtInt(t.work.unmetered)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* THE THREE FIGURES THE BRIEFS NAME BY WORD, each as a pair of counts.
+
+          "Obligations settled on time without a human touching them" and
+          "decisions made vs escalated, and how often the human agreed" are
+          RFB 4's own wording; "risk events caught before the transaction" is
+          RFB 5's. None of them was answerable until the record said who acted
+          and what the agent would have done.
+
+          NO PERCENTAGES. Each of these is N of M, because every one of them has
+          a denominator that can be zero, and a rate over zero prints 100% or
+          0% with equal confidence and equal meaninglessness. */}
+      <section className="section">
+        <div className="section-head">
+          <h2>
+            <Ed x="Without a person in the room" p="What it did on its own" />
+          </h2>
+        </div>
+        <p className="standfirst">
+          <Ed
+            x="Counted apart since the record started saying who acted. An owner's approval used to be written as an ordinary payment, so every one of these figures would have read as the agent's own work."
+            p="We count what the agent did alone apart from what a person approved. Before, the two looked the same."
+          />
+        </p>
+        <div className="panel panel-pad">
+          <div className="table-scroll">
+            <table>
+              <tbody>
+                <tr>
+                  <td>
+                    <Ed x="Settled by the agent alone" p="Finished by the agent alone" />
+                  </td>
+                  <td className="mono">{fmtInt(t.work.autonomy.settled_by_agent)}</td>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed x="Settled by its owner" p="Finished by a person" />
+                  </td>
+                  <td className="mono">{fmtInt(t.work.autonomy.settled_by_owner)}</td>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed x="Settled on time" p="Paid by the date due" />
+                  </td>
+                  {/* Against its OWN denominator. A bill with no due date cannot
+                      be late, and counting it punctual would turn "we do not
+                      know when this was due" into evidence of promptness. */}
+                  <td className="mono">
+                    <Of n={t.work.autonomy.settled_on_time} of={t.work.autonomy.settled_with_a_due_date} />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed x="The owner agreed with the agent" p="The person agreed with the agent" />
+                  </td>
+                  <td className="mono">
+                    <Of n={t.work.agreement.owner_agreed} of={t.work.agreement.owner_resolutions} />
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed x="Risk caught before the payment" p="Risky payees stopped before paying" />
+                  </td>
+                  <td className="mono">{fmtInt(t.work.screening.risk_events_caught)}</td>
+                </tr>
+                <tr>
+                  <td>
+                    {/* Never folded into the line above. "We could not check"
+                        filed under "we caught something" inverts the claim. */}
+                    <Ed x="Paid without a screen answering" p="Paid when the check could not answer" />
+                  </td>
+                  <td className="mono">{fmtInt(t.work.screening.paid_unscreened)}</td>
                 </tr>
               </tbody>
             </table>

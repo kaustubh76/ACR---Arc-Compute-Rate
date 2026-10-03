@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Ed } from "@/components/Ed";
 import { EscalationActions } from "@/components/spend/EscalationActions";
 import { Term } from "@/components/Term";
-import { useBusinesses, useStatement } from "@/lib/useLive";
+import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 import { CHAIN, CHAIN_TESTNET, txUrl } from "@/lib/chain";
 import { useNow } from "@/lib/useNow";
-import type { SpendBudget, SpendDecision, Statement } from "@/lib/types";
+import type { LedgerAudit, SpendBudget, SpendDecision, Statement } from "@/lib/types";
 
 /* The Spend Statement — the owner's page.
 
@@ -174,6 +174,13 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
         {d.screen_matched && d.screen_matched.length > 0 ? (
           <div className="mono">{d.screen_matched.join(" · ")}</div>
         ) : null}
+        {/* WHICH screen said so. A verdict without its source is a claim
+            without a basis: "clear" from a sanctions dataset and "clear" from a
+            local list of three addresses are not the same assurance, and the
+            record used to drop the difference before anyone could read it. */}
+        {d.screen_backend ? (
+          <div className="label mono">{d.screen_backend}</div>
+        ) : null}
       </td>
 
       <td>
@@ -211,13 +218,24 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
 
 function BudgetRow({ b }: { b: SpendBudget }) {
   if (!b.configured) {
+    /* TWO DIFFERENT FACTS, AND THEY USED TO LOOK THE SAME. "Nobody has set a
+       limit" is a thing the owner can fix in a minute. "There is no contract at
+       this address on the chain we are reading" means every figure on this page
+       about that wallet is unfounded, and a payment sent there would move
+       nothing while recording that it had. The press now says which, so the
+       chip can stop guessing. */
     return (
       <tr>
         <td className="mono">{b.category}</td>
         <td colSpan={3}>
-          <span className="chip chip-gold">
-            <Ed x="no budget set on chain" p="nobody has set a limit for this yet" />
+          <span className={`chip ${b.reason ? "chip-breach" : "chip-gold"}`}>
+            {b.reason ? (
+              <Ed x="wallet not on this chain" p="this wallet is not where we are looking" />
+            ) : (
+              <Ed x="no budget set on chain" p="nobody has set a limit for this yet" />
+            )}
           </span>
+          {b.reason ? <p className="standfirst">{b.reason}</p> : null}
         </td>
       </tr>
     );
@@ -259,6 +277,29 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
         </section>
       ) : null}
 
+      {/* ZERO IS A RESULT, which is this file's own rule three sections up and
+          the one place it was not followed. The section used to disappear
+          entirely at zero, so a reader could not tell "nothing is waiting" from
+          "this page has no queue" — and an empty queue is the single best thing
+          this product can report. */}
+      {st.escalations.length === 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>
+              <Ed x="Waiting on you" p="Waiting for you" />
+            </h2>
+            <span className="label">0</span>
+          </div>
+          <div className="panel panel-pad">
+            <p className="standfirst">
+              <Ed
+                x="Nothing is waiting. Every obligation in this period was settled under the budget the owner set, or refused with a reason."
+                p="Nothing needs you right now. The agent handled everything within your limits."
+              />
+            </p>
+          </div>
+        </section>
+      )}
       {st.escalations.length > 0 && (
         <section className="section">
           <div className="section-head">
@@ -527,11 +568,37 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
           </div>
         ) : (
           <div className="panel panel-pad">
+            {/* WHICH failure, not just that there was one. `statement.py`
+                distinguishes four: the lookup exceeded its budget (SLOW), it
+                raised (UNAVAILABLE), nobody asked for it, or this treasury has
+                no indexed history. All four used to print the last sentence,
+                which told an owner their wallet has no history when in fact a
+                subgraph read had timed out — and a 7s read against a 5s budget
+                is precisely the bug that once made a working statement look
+                broken. The decision rows above never depend on this block, so
+                saying so is the useful half of the message. */}
             <p className="standfirst">
-              <Ed
-                x="No indexed history for this treasury yet."
-                p="We have no published history for this wallet yet."
-              />
+              {ctx.reason === "SLOW" ? (
+                <Ed
+                  x="The comparison took longer than its budget, so the statement came without it. Every decision above is unaffected."
+                  p="The price comparison was too slow to wait for. The decisions above are not affected."
+                />
+              ) : ctx.reason === "UNAVAILABLE" ? (
+                <Ed
+                  x="The comparison could not be read this time. Every decision above is unaffected, and a reload may carry it."
+                  p="We could not load the price comparison this time. The decisions above are not affected."
+                />
+              ) : ctx.reason === "not requested" ? (
+                <Ed
+                  x="Not requested for this statement."
+                  p="We did not ask for the price comparison here."
+                />
+              ) : (
+                <Ed
+                  x="No indexed history for this treasury yet."
+                  p="We have no published history for this wallet yet."
+                />
+              )}
             </p>
           </div>
         )}
@@ -540,12 +607,22 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
   );
 }
 
-export function SpendView() {
+/** `initial` comes from `?business=` on the page, already validated there.
+ *  It seeds the choice and nothing more: once a reader presses a button the
+ *  local state owns it, so the selector keeps working on a deep-linked page. */
+export function SpendView({ initial = null }: { initial?: string | null }) {
   const nowS = useNow();
   const { businesses, error: listError } = useBusinesses();
   const rows = businesses?.data?.businesses ?? [];
-  const [chosen, setChosen] = useState<string | null>(null);
-  const slug = chosen ?? rows[0]?.slug ?? null;
+  const [chosen, setChosen] = useState<string | null>(initial);
+  // The deep link is honoured immediately — waiting for the business list to
+  // arrive would flash the wrong business first — but not past the point where
+  // the registry can contradict it. A well-formed slug nobody has onboarded
+  // would otherwise fetch a statement for nobody, and this page renders that
+  // as "the press did not answer", which blames the service for a bad link.
+  const strayLink =
+    chosen !== null && rows.length > 0 && !rows.some((b) => b.slug === chosen);
+  const slug = (strayLink ? null : chosen) ?? rows[0]?.slug ?? null;
   const { statement, error: stError, refresh } = useStatement(slug);
   const st = statement?.data ?? null;
 
@@ -682,6 +759,107 @@ export function SpendView() {
       ) : null}
 
       {st ? <StatementBody st={st} onSettled={() => void refresh()} /> : null}
+      <LedgerAuditSection slug={slug} />
     </>
+  );
+}
+
+/* What each of the six is called, and what it is in plain words.
+
+   The expert names are the essay's own, because a reader who has read it should
+   recognise them on sight and a reader who has not should be able to search for
+   them. The plain column is what the error actually does to your money. */
+const AUDIT_WORDS: Record<string, [string, string]> = {
+  omission: ["omission", "a payment nobody wrote down"],
+  commission: ["commission", "the money went to the wrong party"],
+  principle: ["principle", "booked under the wrong heading"],
+  "original entry": ["original entry", "the wrong amount, or paid twice"],
+  compensating: ["compensating", "two errors that cancel each other out"],
+  "complete reversal": ["complete reversal", "booked backwards"],
+};
+
+/** The six errors a balanced ledger cannot see, and what the search found.
+ *
+ *  This sits LAST on purpose. Everything above it is the agent reporting its
+ *  own work; this is the only block that reports on that report, and a reader
+ *  has to have seen the decisions before "we checked them" means anything.
+ *
+ *  `searched` is rendered beside every `found`, because a check that looked at
+ *  nothing and found nothing reads exactly like a clean book. */
+function LedgerAuditSection({ slug }: { slug: string | null }) {
+  const { ledgerAudit } = useLedgerAudit(slug);
+  const a: LedgerAudit | null = ledgerAudit?.data ?? null;
+  if (!a) return null;
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>
+          <Ed x="What the ledger cannot check" p="What adding up cannot catch" />
+        </h2>
+        <span className="label">{a.clean ? "no findings" : `${a.findings.length}`}</span>
+      </div>
+      <p className="standfirst standfirst-block">
+        <Ed
+          x="Every transaction in the beancount export sums to zero. So would a payment to the wrong vendor, in the wrong account, for the wrong amount, or booked backwards. These six are searched for outside the ledger, because inside it they all balance."
+          p="The books add up. So would paying the wrong person, or paying twice. These six checks look for the mistakes that still add up."
+        />
+      </p>
+      <div className="panel panel-pad">
+        <div className="table-scroll">
+          <table>
+            <tbody>
+              {a.checks.map((c) => {
+                const [x, pl] = AUDIT_WORDS[c.error] ?? [c.error, c.error];
+                return (
+                  <tr key={c.error}>
+                    <td>
+                      <Ed x={x} p={pl} />
+                    </td>
+                    <td className="mono">
+                      {c.found > 0 ? (
+                        <span className="chip chip-breach">{fmtInt(c.found)}</span>
+                      ) : (
+                        <span className="chip chip-teal">
+                          <Ed x="none" p="none" />
+                        </span>
+                      )}
+                    </td>
+                    {/* The denominator, always. "found 0 of 0 searched" is not
+                        a clean book, and without this column it looks like one. */}
+                    <td className="mono">
+                      <Ed
+                        x={`${fmtInt(c.searched)} checked`}
+                        p={`${fmtInt(c.searched)} looked at`}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {a.findings.length > 0 ? (
+          <ul>
+            {a.findings.map((f, i) => (
+              <li key={`${f.error}-${f.obligation_id}-${i}`}>
+                <span className="label">{f.error}</span> {f.detail}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {a.unattributable_settlements > 0 ? (
+          /* Never folded into "clean". A settlement with no payee cannot be
+             matched to any decision, so it is neither covered nor a finding —
+             and calling it covered would be the omission this exists to find. */
+          <p className="standfirst">
+            <Ed
+              x={`${fmtInt(a.unattributable_settlements)} settlement(s) name no payee, so no decision can be matched to them either way.`}
+              p={`${fmtInt(a.unattributable_settlements)} payments do not say who was paid, so they cannot be checked.`}
+            />
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }

@@ -40,7 +40,18 @@ VIEWS: dict[str, tuple[str, ...]] = {
         "app/spend/view.tsx",
         "components/spend/EscalationActions.tsx",
     ),
+    # The SAME views, audited against a statement whose market context failed.
+    # `market_context` is a union of three shapes and only the happy one was
+    # ever seeded, so `reason` — the field that tells SLOW from "no tape for
+    # this payer" — was never audited at all, and the page rendered one fixed
+    # sentence for every cause. A gate that only ever sees the good payload
+    # audits the good payload.
+    "statement (market context unavailable)": (
+        "app/spend/view.tsx",
+        "components/spend/EscalationActions.tsx",
+    ),
     "traction": ("app/traction/view.tsx",),
+    "audit": ("app/spend/view.tsx",),
 }
 
 #: field path → why it is deliberately not rendered. Every entry is a claim
@@ -58,7 +69,10 @@ EXEMPT: dict[str, str] = {
     "market_context.note": "the view states the bp-only caveat in both editions beside the figure",
     "market_context.spent_usdc": "the summary's own paid/priced figures are the honest ones",
     "market_context.benchmarked": "purchases carries the same signal for a reader",
-    "period_days": "rendered as the section label",
+    "period_days": (
+        "rendered as the section label on the statement; on the audit the window "
+        "is the whole record rather than a figure a reader picks"
+    ),
     "recent[].at": "the rows are already newest-first; a timestamp per row is noise",
     "recent[].obligation_id": "the React key and the settle control's parameter, not display",
     "recent[].business": "every row on this page belongs to the business in the heading",
@@ -94,17 +108,62 @@ EXEMPT: dict[str, str] = {
     "budgets[].period_length": "same: the figure that matters is what is left",
     "budgets[].per_tx_limit_usdc": "surfaced as the escalation rule when it fires",
     "spend.by_intent": "the summary counts decided and escalated; /traction breaks out intents",
+    # The RFB figures are computed in `summarise` because /traction needs them
+    # per business, and reported on /traction because that is the page asking
+    # "how much is this really doing". Repeating them on an owner's statement,
+    # which already carries `decided` and `escalated`, would be two numbers for
+    # one fact in two places that drift.
+    "spend.settled_by_agent": "reported on /traction, beside its own denominator",
+    "spend.settled_by_owner": "reported on /traction, beside its own denominator",
+    "spend.settled_on_time": "reported on /traction, against obligations that have a due date",
+    "spend.settled_with_a_due_date": "the denominator for the line above, on /traction",
+    "spend.owner_resolutions": "the denominator for agreement, on /traction",
+    "spend.owner_agreed": "reported on /traction, as N of resolutions rather than a rate",
+    "spend.risk_events_caught": (
+        "reported on /traction; this page surfaces the screen per decision, "
+        "where a reader can see which counterparty it was"
+    ),
+    "spend.paid_unscreened": (
+        "reported on /traction; per decision this page already shows the "
+        "'no record' and screen chips on the row itself"
+    ),
     "spend.unmetered": "surfaced per decision as the 'no record' chip",
     # --- traction ---
     # (`note` is rendered verbatim by the view, so it is not exempt.)
     "businesses.mainnet": "`by_chain` reports each chain's own figures",
     "businesses.testnet": "`by_chain` reports each chain's own figures",
-    "per_business[].slug": "the React key",
+    "per_business[].slug": "the React key, and what both of this row's links are built from",
+    "per_business[].statement": (
+        "the PRESS's own path. Correct there, wrong here: it is relative, so on "
+        "the terminal origin it resolved against the terminal and 404ed. The "
+        "view links to /spend?business={slug} instead"
+    ),
+    "per_business[].ledger": (
+        "same — the view links to its own proxy, /api/operator/ledger?business={slug}, "
+        "which serves the beancount file as a download"
+    ),
     "per_business[].consented": "folded into `label`",
     "per_business[].decided": "the work block reports it across all businesses",
     "per_business[].escalated": "the work block reports it across all businesses",
     "per_business[].unmetered": "surfaced per decision on /spend",
     "work.decisions": "rendered as the section label",
+    # --- audit ---
+    # (`clean`, `checks[]` and `findings[]` are all rendered; `as_of` is covered
+    #  by the entry at the top of this ledger.)
+    "checks[].question": (
+        "asked in the section's own standfirst, in both editions, rather than "
+        "six times down a column nobody would read twice"
+    ),
+    "note": "the same caveat is the standfirst, where a reader meets it first",
+    "decisions": (
+        "the count of decisions audited. The statement above it already reports "
+        "the period's decision count, and two numbers for one fact drift"
+    ),
+    "business": "the page is already a single business's, named in its heading",
+    "findings[].obligation_id": (
+        "part of the React key, and empty by design on a period-level finding "
+        "like a compensating pair, where no single row is the error"
+    ),
 }
 
 
@@ -186,7 +245,7 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
             "best_usdc": 0.48, "over_par_bp": 400.0, "saving_usdc": 0.1,
             "reroute_to": "", "escalated": False, "paid_usdc": 2.5,
             "tx": "0x" + "ee" * 32, "notes": ["a note"],
-            "screen_risk": "clear", "screen_matched": [],
+            "screen_risk": "clear", "screen_matched": [], "screen_backend": "yente",
         },
         {  # an escalation, so the queue is populated
             "at": 1_790_900_100, "obligation_id": "esc-1", "vendor": "0x" + "dd" * 20,
@@ -197,6 +256,7 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
             "over_par_bp": 10.0, "saving_usdc": 0.0, "reroute_to": "",
             "escalated": True, "paid_usdc": 0.0, "tx": None, "notes": [],
             "screen_risk": "flagged", "screen_matched": ["us_ofac_sdn"],
+            "screen_backend": "yente",
         },
     ]
     log = tmp_path / "live.jsonl"
@@ -205,6 +265,17 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
     monkeypatch.setattr(st_mod, "ARCHIVE_PATH", tmp_path / "absent.jsonl")
 
     class _Pol:
+        """A wallet that answers for one category and refuses the other.
+
+        The refusing branch is seeded on purpose: `_budgets` now explains WHY a
+        budget is unconfigured, and a payload that only ever contains the happy
+        shape audits the happy shape. That is the hole that let
+        `market_context.reason` ship unrendered.
+        """
+
+        def wallet_status(self):
+            return "ok"
+
         def budget(self, category):
             return {
                 "category": category, "cap_usdc": 1000.0, "spent_usdc": 2.5,
@@ -220,7 +291,45 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
             "spent_usdc": 2.5, "vw_slippage_bp": 130.0, "overpaid_usdc": 999.0,
         },
     )
-    return {"statement": statement, "traction": build_traction()}
+    # The same statement with the market context refused, which is the shape
+    # production serves whenever the subgraph is slow or silent. `_market_card`
+    # answers `{"available": False, "reason": ...}` and `build_statement` passes
+    # the reason through, so this exercises the branch rather than asserting it.
+    degraded = build_statement(
+        "parity", days=90, policy_for=lambda b: _Pol(),
+        tca_fn=lambda payer, days=7: {"available": False, "reason": "SLOW"},
+    )
+    # The six-error audit, with a finding planted so `findings[]` is a populated
+    # list rather than an empty one. An empty list is a different leaf set, and
+    # auditing only the empty shape is how `notes: []` went unchecked here once.
+    from index_api.ledger_audit import audit as ledger_audit
+
+    tape = [{
+        "payer": "0x" + "aa" * 20, "seller": "0x" + "bb" * 20,
+        "resource": "https://press.example/compute/x", "amount_usdc": 1.0,
+        "quantity": 10.0,
+    }]
+    audited = ledger_audit(
+        [{
+            "at": 1_790_900_000.0, "obligation_id": "paid-1", "vendor": "0x" + "cc" * 20,
+            "category": "not-declared", "billed_usdc": 1.0, "paid_usdc": 9.0,
+            "intent": "pay", "rule": "at par", "resource": "/compute/x",
+            "discrepancy": None,
+        }],
+        tape,
+        treasury="0x" + "aa" * 20,
+        slug="parity",
+        categories=("infra",),
+    )
+    audited["business"] = "parity"
+    audited["period_days"] = 90
+
+    return {
+        "statement": statement,
+        "statement (market context unavailable)": degraded,
+        "traction": build_traction(),
+        "audit": audited,
+    }
 
 
 @pytest.fixture

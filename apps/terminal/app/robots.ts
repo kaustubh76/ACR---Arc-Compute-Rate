@@ -19,8 +19,8 @@ import type { MetadataRoute } from "next";
  * crawler blocked here could never fetch the page, so it could never read the
  * noindex either.
  *
- * No Sitemap: line. Nine routes do not need one, and pointing robots.txt at a
- * /sitemap.xml that does not exist would mint exactly the 404 this file is
+ * No Sitemap: line. Thirteen routes do not need one, and pointing robots.txt at
+ * a /sitemap.xml that does not exist would mint exactly the 404 this file is
  * part of removing.
  */
 export default function robots(): MetadataRoute.Robots {
