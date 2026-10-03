@@ -201,6 +201,39 @@ services:
       # real revenue into every developer's local counters.
       - key: ACR_RECEIPT_ARCHIVE_PATH
         value: services/index_api/index_api/receipts_live.jsonl
+      # The operator's decision log. NAMED HERE even though the default is the
+      # same path, because an unset variable is how this was discovered: nothing
+      # in this file mentioned the operator at all, so "where do its decisions
+      # go on a host with no disk" had no answer anybody could read. They go to
+      # data/, which this tier erases on every deploy, which is why
+      # `scripts/archive_decisions.py` exists and why it runs BEFORE a redeploy
+      # rather than after.
+      - key: ACR_OPERATOR_LOG_PATH
+        value: data/operator_decisions.jsonl
+      # WHETHER ANYTHING RUNS THE OPERATOR WITHOUT BEING ASKED. `off` · `dry` ·
+      # `live`, and the default in code is `off` — declared here anyway, because
+      # a money loop whose state can only be learned by reading source is a
+      # money loop nobody can audit from the deploy. `dry` decides and records
+      # and pays nothing, which is how you prove the loop ticks on this host
+      # before the first payment depends on it. Editing this in the Render
+      # dashboard does NOT restart the service: it needs a SKIP_BUILD redeploy.
+      - key: ACR_OPERATOR_AUTORUN
+        value: "off"
+      # The audit trail of human actions, beside the decision log. Named for the
+      # same reason: an unset path is how nobody could say where it went.
+      - key: ACR_OPS_AUDIT_PATH
+        value: data/ops_actions.jsonl
+      # THE ESCALATION AUTHORITY. Without it `build_role_signer("owner")` falls
+      # back to ACR_POSTER_PRIVATE_KEY, so the owner and the agent resolve to one
+      # address — and `spendAsOwner` refuses that, in the contract and again in
+      # PolicyClient. The dry run would show green and the chain would revert.
+      - key: ACR_OWNER_PRIVATE_KEY
+        sync: false
+      # A denylist with nothing in it is not a screen. With this unset every
+      # counterparty verdict is `unknown` and says so, which is honest but
+      # useless; give it something real to compare against.
+      - key: ACR_SCREEN_DENYLIST
+        sync: false
       - key: ACR_WEBHOOK_LOG_PATH
         value: data/webhook_events.jsonl
       # Open by design (agents call this from anywhere). The desk endpoints are
@@ -379,6 +412,39 @@ services:
         value: data/x402_receipts.jsonl
       - key: ACR_RECEIPT_ARCHIVE_PATH
         value: services/index_api/index_api/receipts_live.jsonl
+      # The operator's decision log. NAMED HERE even though the default is the
+      # same path, because an unset variable is how this was discovered: nothing
+      # in this file mentioned the operator at all, so "where do its decisions
+      # go on a host with no disk" had no answer anybody could read. They go to
+      # data/, which this tier erases on every deploy, which is why
+      # `scripts/archive_decisions.py` exists and why it runs BEFORE a redeploy
+      # rather than after.
+      - key: ACR_OPERATOR_LOG_PATH
+        value: data/operator_decisions.jsonl
+      # WHETHER ANYTHING RUNS THE OPERATOR WITHOUT BEING ASKED. `off` · `dry` ·
+      # `live`, and the default in code is `off` — declared here anyway, because
+      # a money loop whose state can only be learned by reading source is a
+      # money loop nobody can audit from the deploy. `dry` decides and records
+      # and pays nothing, which is how you prove the loop ticks on this host
+      # before the first payment depends on it. Editing this in the Render
+      # dashboard does NOT restart the service: it needs a SKIP_BUILD redeploy.
+      - key: ACR_OPERATOR_AUTORUN
+        value: "off"
+      # The audit trail of human actions, beside the decision log. Named for the
+      # same reason: an unset path is how nobody could say where it went.
+      - key: ACR_OPS_AUDIT_PATH
+        value: data/ops_actions.jsonl
+      # THE ESCALATION AUTHORITY. Without it `build_role_signer("owner")` falls
+      # back to ACR_POSTER_PRIVATE_KEY, so the owner and the agent resolve to one
+      # address — and `spendAsOwner` refuses that, in the contract and again in
+      # PolicyClient. The dry run would show green and the chain would revert.
+      - key: ACR_OWNER_PRIVATE_KEY
+        sync: false
+      # A denylist with nothing in it is not a screen. With this unset every
+      # counterparty verdict is `unknown` and says so, which is honest but
+      # useless; give it something real to compare against.
+      - key: ACR_SCREEN_DENYLIST
+        sync: false
       - key: ACR_WEBHOOK_LOG_PATH
         value: data/webhook_events.jsonl
       # No faucet, no demo buyer, no attack lab: `testnet_surfaces_enabled` is

@@ -88,6 +88,11 @@ export const PLAIN_GLOSSARY = {
     gloss: "the honest give-or-take range around an estimate: where the true number almost surely sits",
     theme: "statistics",
   },
+  par: {
+    term: "par",
+    gloss: "the going rate: what other sellers are actually charging for the same thing right now",
+    theme: "money",
+  },
   bp: {
     term: "basis point (bp)",
     gloss: "one hundredth of one percent: a penny on a hundred dollars",

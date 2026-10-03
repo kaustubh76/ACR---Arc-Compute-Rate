@@ -46,6 +46,13 @@ PRINT_WARN_AGE_S = float(os.environ.get("VERIFY_PRINT_WARN_AGE_S", "5400"))
 #: Below this a roll fails on its own budget guard — a silent expiry.
 VENUE_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_VENUE_FLOOR_USDC", "2.5"))
 TAKER_WALLET_FLOOR_USDC = float(os.environ.get("VERIFY_TAKER_FLOOR_USDC", "1.0"))
+#: How long an obligation may wait on a person before the queue is reported as
+#: a problem rather than as the product working. An escalation IS the design —
+#: the agent reaching its authority and stopping — so a fresh queue is a pass.
+#: A day old means nobody is reading it, which is an operator fact and the only
+#: thing this check can honestly claim.
+OPERATOR_QUEUE_STALE_H = float(os.environ.get("ACR_OPS_QUEUE_STALE_H", "24"))
+
 #: How often the background loop recomputes. A full pass is cheap off the warm
 #: memos, but it is still not something to do per request.
 OPS_VERIFY_S = float(os.environ.get("ACR_OPS_VERIFY_S", "900"))
@@ -658,6 +665,190 @@ def _humans_this_window(rec: Recorder, window) -> None:
     )
 
 
+def _operator(rec: Recorder) -> None:
+    """The spend operator: its record, its queue, and the wallets it spends from.
+
+    THE HAZARD THIS SECTION EXISTS FOR. Every other section on this page watches
+    something on chain or in a subgraph — state that outlives the container.
+    The operator's decisions are written to ``data/``, which is untracked AND in
+    ``.dockerignore``, so the free tier erases them on every redeploy. Nothing
+    was watching that: the record of what the agent decided could go to zero
+    between two deploys and this page would have reported the system healthy,
+    because everything it looked at was.
+
+    Four checks, in the order the failures actually bite: can it spend at all,
+    is there a person it can reach, is anybody waiting on that person, and is
+    the record of what it did safe from the next deploy.
+    """
+    from pathlib import Path
+
+    from . import businesses as reg
+    from .operator import LOG_PATH
+    from .statement import ARCHIVE_PATH, decision_key, pending_escalations, read_decisions
+
+    # --- can it spend, and from a wallet that is really there ---------------
+    #
+    # `wallet_status` does an `eth_getCode`, deliberately: `Business.chain` is a
+    # LABEL, and a label is what went wrong when the testnet→mainnet switch left
+    # a mislabelled bundle behind. A CALL to a codeless address does not revert,
+    # so an operator pointed at a wallet that exists on the other chain reports
+    # a transaction hash for a payment that moved nothing.
+    real = reg.real()
+    spenders = [b for b in real if b.policy_wallet]
+    rec.check(
+        bool(real),
+        f"{len(real)} real business(es) registered, {len(spenders)} with a wallet to spend from",
+        warn_only=True,
+        detail=None if real else "no business in businesses.json: nothing to operate for",
+    )
+
+    owner_seen = False
+    for b in spenders:
+        try:
+            from acr_oracle_client.policy import PolicyClient
+
+            client = PolicyClient(wallet_address=b.policy_wallet)
+            status = client.wallet_status()
+            owner_seen = owner_seen or client.can_escalate()
+            kinds = client.signer_kinds()
+        except Exception as exc:  # noqa: BLE001 — one business must not take the page
+            rec.unknown(f"{b.slug}: wallet unread", str(exc)[:160])
+            continue
+        if status == "no_rpc":
+            rec.unknown(f"{b.slug}: wallet unread", "the RPC would not answer eth_getCode")
+            continue
+        # WHICH CHANNEL THIS BUSINESS'S MONEY GOES OUT THROUGH. Circle's
+        # developer-controlled wallet and a raw local key produce identical
+        # calldata, so nothing downstream could tell them apart — and five
+        # payments went out from a raw EOA while the deck allots a fifth of the
+        # score to Circle tool usage. A warning rather than a failure: a raw key
+        # pays correctly, it just is not the custody story.
+        rec.check(
+            kinds.get("agent") == "circle",
+            f"{b.slug}: the agent pays through {kinds.get('agent')}"
+            + (f", the owner through {kinds.get('owner')}" if kinds.get("owner") != "none" else ""),
+            warn_only=True,
+            detail=None if kinds.get("agent") == "circle"
+            else "set ACR_CIRCLE_TAKER_WALLET_ID and ACR_CIRCLE_API_KEY to spend through "
+                 "Circle custody; a raw key works and leaves the keys on the host",
+        )
+        rec.check(
+            status == "ok",
+            f"{b.slug}: PolicyWallet {b.policy_wallet[:10]}… {status}",
+            detail=None if status == "ok"
+            else "a CALL to a codeless address SUCCEEDS, so spending here would return a "
+                 "transaction hash for a payment that moved nothing — the client refuses it, "
+                 "and the registry's `chain` for this business is the thing to check",
+        )
+
+    # --- is there a human it can escalate TO --------------------------------
+    if spenders:
+        rec.check(
+            owner_seen,
+            "an owner key is configured" if owner_seen else "no owner key: escalations cannot be cleared",
+            # Somebody else's key, not our correctness. The agent still runs
+            # correctly without it — it escalates and waits, which is the honest
+            # behaviour — so this is a warning and never a failure.
+            warn_only=True,
+            detail=None if owner_seen
+            else "payments at or above the threshold will queue indefinitely: set the owner "
+                 "signer (ACR_OWNER_PRIVATE_KEY) or clear them by hand with spendAsOwner",
+        )
+
+    # --- is anything actually running it ------------------------------------
+    #
+    # The question this section could not answer until the operator had a clock:
+    # an agent somebody has to trigger is a tool, and "nobody has run it for a
+    # week" looked identical to "there was nothing to do".
+    from . import operator_keeper
+
+    st = operator_keeper.status()
+    armed = st["mode"] != "off"
+    rec.check(
+        armed,
+        f"autorun: {st['mode']}"
+        + (f" every {st['every_s'] / 60:.0f} min" if armed else " — every run is a person typing"),
+        # Somebody's deployment choice, not our code being wrong. `off` is the
+        # default and a legitimate state; it just must not be a silent one.
+        warn_only=True,
+        detail=None if armed
+        else "set ACR_OPERATOR_AUTORUN=dry to prove the loop ticks on this host, "
+             "then =live to let it pay what clears policy",
+    )
+    if armed:
+        # A loop that has never reported is the failure this page exists for —
+        # and it is not hypothetical on this host, where all three keeper chores
+        # read `checked_at: null`.
+        if st["checked_at"] is None:
+            rec.unknown("autorun has not reported a pass yet", "armed, but no tick has landed")
+        else:
+            fresh = float(st["checked_age_s"] or 0.0) < float(st["every_s"]) * 2
+            rec.check(
+                fresh,
+                f"last pass {float(st['checked_age_s']):.0f}s ago: {st['verdict'] or 'nothing to do'}",
+                warn_only=True,
+                detail=None if fresh else "the clock has missed at least one period",
+            )
+
+    # --- is anybody waiting on that human -----------------------------------
+    #
+    # SANDBOXES EXCLUDED, for the reason every traction figure excludes them and
+    # one more. The sandbox's escalations are hand-written fixtures that exist so
+    # the queue UI has something to render, which means they are DESIGNED to sit
+    # there forever: counting them reported three demonstration invoices as an
+    # operator backlog, and no age threshold could ever clear them. The first
+    # version of this section did exactly that — a demonstration presented as
+    # real operation, which is the same error as a traction overclaim pointed the
+    # other way.
+    slugs = {b.slug for b in real}
+    mine = [r for r in read_decisions() if (r.get("business") or "") in slugs]
+    queue = pending_escalations(mine)
+    oldest_h = (
+        (time.time() - min(float(q.get("at") or 0.0) for q in queue)) / 3600 if queue else 0.0
+    )
+    rec.check(
+        oldest_h < OPERATOR_QUEUE_STALE_H,
+        f"escalation queue: {len(queue)} obligation(s) waiting on a person"
+        + (f", oldest {oldest_h:.1f}h" if queue else "") + ", sandboxes excluded",
+        # Whether a human reads their queue is not our code being correct.
+        warn_only=True,
+        detail=None if oldest_h < OPERATOR_QUEUE_STALE_H
+        else f"waiting longer than {OPERATOR_QUEUE_STALE_H:.0f}h, so nobody is reading the "
+             "queue — they are on /operator/statement/{business}, and clearing one needs the "
+             "owner key",
+    )
+
+    # --- is the record safe from the next deploy ----------------------------
+    #
+    # Sandboxes excluded HERE because the archiver excludes them: counting a
+    # sandbox row as at-risk would raise a warning that `make archive-decisions`
+    # can never clear, which trains an operator to ignore this line.
+    archived = read_decisions(path=ARCHIVE_PATH)
+    live = [r for r in read_decisions(path=LOG_PATH) if (r.get("business") or "") in slugs]
+    have = {decision_key(r) for r in archived}
+    at_risk = [r for r in live if decision_key(r) not in have]
+    rec.check(
+        not at_risk,
+        f"decision record: {len(archived)} archived in the image, {len(live)} on the "
+        f"erasable disk, {len(at_risk)} a redeploy would destroy",
+        warn_only=True,
+        detail=None if not at_risk
+        else "run `make archive-decisions` and commit the archive, then rebuild — "
+             f"{Path(LOG_PATH)} is in .dockerignore and does not survive a deploy",
+    )
+
+    newest = max((float(r.get("at") or 0.0) for r in mine), default=0.0)
+    rec.check(
+        True,
+        f"{len(mine)} decision(s) on the record, newest {(time.time() - newest) / 3600:.1f}h ago"
+        if mine
+        # Not an unknown: every file was read and none held a decision for a real
+        # business. An operator that has decided nothing yet is a legible state,
+        # and it is the state of every first deploy.
+        else "decision record: nothing decided for a real business yet, and read cleanly",
+    )
+
+
 SECTIONS = [
     ("oracle", "The oracle", _oracle),
     ("press", "The press", _press),
@@ -669,6 +860,7 @@ SECTIONS = [
     ("agent", "The agent gate", _agent),
     ("hedger", "The hedger", _hedger),
     ("funding", "Wallet runway", _funding),
+    ("operator", "The spend operator", _operator),
 ]
 
 

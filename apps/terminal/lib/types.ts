@@ -727,3 +727,267 @@ export interface KeeperStatus {
   heartbeat?: KeeperChore;
   roll?: KeeperChore;
 }
+
+/** One business the operator runs for, as a public surface may show it.
+ *
+ *  `name` is ABSENT, not empty, when the business has not consented — the
+ *  Python side omits the key for that reason, and a UI that read an empty
+ *  string would render an unnamed row as though the name were merely missing.
+ *  Use `label`, which is the name when permitted and a stable pseudonym
+ *  otherwise. */
+export interface BusinessRow {
+  slug: string;
+  label: string;
+  name?: string;
+  treasury: string;
+  tier: "own" | "network" | "cohort" | "oss" | string;
+  chain: "mainnet" | "testnet" | string;
+  consented: boolean;
+  categories: string[];
+  onboarded_at: number;
+  /** False means the operator can price and meter for them but cannot spend. */
+  spends: boolean;
+  /** A demonstration, not a customer. Rendered as a chip wherever the business
+   *  appears, and excluded from every traction figure server-side by
+   *  `businesses.real()`. */
+  sandbox?: boolean;
+}
+
+/** Payload of /api/operator/businesses. Counts are DERIVED from the list, so
+ *  the number and the rows beside it cannot disagree. There is deliberately no
+ *  field adding mainnet and testnet. */
+export interface BusinessesPayload {
+  businesses: BusinessRow[];
+  counts: {
+    businesses: number;
+    consented: number;
+    mainnet: number;
+    testnet: number;
+    spending: number;
+    by_tier: Record<string, number>;
+  };
+}
+
+/** One recorded decision. `rule` is the line naming the check that fired, and
+ *  it is the field a reader should see first. */
+export interface SpendDecision {
+  at: number;
+  obligation_id: string;
+  vendor: string;
+  category: string;
+  billed_usdc: number;
+  intent: "pay" | "hold" | "reroute" | "escalate" | "refuse" | string;
+  rule: string;
+  business?: string;
+  resource?: string;
+  metered_quantity?: number | null;
+  vendor_quantity?: number | null;
+  discrepancy?: number | null;
+  /** `clear` · `flagged` · `unknown` · absent when no screen was offered.
+   *  `unknown` must never render as `clear`: a screening service that timed out
+   *  is not a clean bill of health, which is the rule `counterparty.py`
+   *  enforces in the data. */
+  screen_risk?: string;
+  screen_matched?: string[];
+  /** Which screen answered: `yente` · `denylist` · `off`. A verdict without its
+   *  source is a claim without a basis — "clear" from a sanctions dataset and
+   *  "clear" from a local list of zero are not the same assurance. */
+  screen_backend?: string;
+  par_usdc?: number | null;
+  best_usdc?: number | null;
+  over_par_bp?: number | null;
+  saving_usdc?: number | null;
+  reroute_to?: string;
+  escalated?: boolean;
+  paid_usdc?: number;
+  tx?: string | null;
+  notes?: string[];
+}
+
+/** One category's budget, as the CONTRACT states it. `configured: false` means
+ *  the category exists in the registry but no budget has been set on chain —
+ *  reported rather than omitted, because omitting reads as "no spend here". */
+export interface SpendBudget {
+  category: string;
+  configured: boolean;
+  cap_usdc?: number;
+  spent_usdc?: number;
+  remaining_usdc?: number;
+  per_tx_limit_usdc?: number;
+  period_start?: number;
+  period_length?: number;
+  /** Why it is unconfigured, when the press can tell. Absent means the honest
+   *  "nobody has set a limit for this category yet"; present means something is
+   *  wrong with the wallet itself and no figure about it can be trusted. */
+  reason?: string;
+}
+
+/** Payload of /api/operator/statement.
+ *
+ *  `market_context` is in BASIS POINTS ONLY and carries its own note. The
+ *  index's USDC figure is deliberately absent upstream: `anchors/GAP.md`
+ *  records its reference level 20x to 1159x off real market prices, so the bp
+ *  is scale-invariant and the dollars are not. Every USDC saving here comes
+ *  from a reroute, where another seller was named at a lower price. */
+export interface Statement {
+  business: BusinessRow;
+  period_days: number;
+  as_of: number;
+  spends: boolean;
+  spend: {
+    decisions: number;
+    by_intent: Record<string, number>;
+    decided: number;
+    escalated: number;
+    paid_usdc: number;
+    saved_usdc: number;
+    consumption_discrepancies: number;
+    unmetered: number;
+  };
+  budgets: SpendBudget[];
+  escalations: SpendDecision[];
+  recent: SpendDecision[];
+  market_context: {
+    available: boolean;
+    reason?: string;
+    purchases?: number;
+    benchmarked?: number;
+    spent_usdc?: number;
+    vw_slippage_bp?: number;
+    basis?: string;
+    note?: string;
+  };
+}
+
+/** One business's row on the traction page. `moved_usdc` is what the operator
+ *  PAID OUT; `priced_usdc` is what it assessed. They are different claims and
+ *  the page keeps them apart. */
+export interface TractionRow {
+  slug: string;
+  label: string;
+  tier: string;
+  chain: string;
+  consented: boolean;
+  spends: boolean;
+  decisions: number;
+  decided: number;
+  escalated: number;
+  moved_usdc: number;
+  /** What the business was PAID, read from the sellers' own settlement tape
+   *  rather than from our decisions. Never netted against `moved_usdc`: a
+   *  business that received 10 and paid 10 did twice the work of one that did
+   *  neither, and one net figure reports both as zero. */
+  received_usdc: number;
+  priced_usdc: number;
+  recoverable_usdc: number;
+  discrepancies: number;
+  unmetered: number;
+  /** Paths a reader can open to check the arithmetic themselves. */
+  ledger: string;
+  statement: string;
+  /** The same figures the aggregate reports, per business. */
+  settled_by_agent: number;
+  settled_by_owner: number;
+  settled_on_time: number;
+  settled_with_a_due_date: number;
+  owner_resolutions: number;
+  owner_agreed: number;
+  risk_events_caught: number;
+  paid_unscreened: number;
+  addresses_screened: number;
+  alerts_raised: number;
+  alerts_resolved: number;
+}
+
+/** One of the six errors *Agents and Ledgers* says a trial balance cannot see,
+ *  run. `searched` is what makes `found: 0` mean anything: a check that looked
+ *  at nothing and found nothing is indistinguishable from a clean book. */
+export interface LedgerCheck {
+  error: string;
+  question: string;
+  searched: number;
+  found: number;
+}
+
+/** One thing that balances and is still wrong. */
+export interface LedgerFinding {
+  error: string;
+  /** Empty when the finding is about the period rather than a single row. */
+  obligation_id: string;
+  detail: string;
+}
+
+/** Payload of /api/operator/audit — the part the ledger cannot do for itself. */
+export interface LedgerAudit {
+  business?: string;
+  period_days?: number;
+  as_of: number;
+  decisions: number;
+  clean: boolean;
+  /** Settlements with no payee, which cannot be attributed to any obligation.
+   *  Reported apart because counting them as covered would be the very
+   *  omission the first check exists to find. */
+  unattributable_settlements: number;
+  checks: LedgerCheck[];
+  findings: LedgerFinding[];
+  note: string;
+}
+
+/** Payload of /api/operator/traction. Derived at request time, never
+ *  maintained, so no figure can drift from the rows beside it. There is
+ *  deliberately no field adding mainnet and testnet. */
+export interface TractionPayload {
+  as_of: number;
+  businesses: {
+    businesses: number;
+    consented: number;
+    mainnet: number;
+    testnet: number;
+    spending: number;
+    by_tier: Record<string, number>;
+  };
+  by_chain: Record<
+    string,
+    {
+      moved_usdc: number;
+      /** Read from the sellers' own tape, never netted against `moved_usdc`. */
+      received_usdc: number;
+      priced_usdc: number;
+      recoverable_usdc: number;
+    }
+  >;
+  work: {
+    decisions: number;
+    decided: number;
+    escalated: number;
+    by_intent: Record<string, number>;
+    consumption_discrepancies: number;
+    unmetered: number;
+    /** RFB 4: "obligations settled on time without a human touching them".
+     *  Counts, not a rate: `settled_on_time` is reported against the number of
+     *  obligations that HAVE a due date, because one without a due date cannot
+     *  be late and counting it punctual would be flattering nonsense. */
+    autonomy: {
+      settled_by_agent: number;
+      settled_by_owner: number;
+      settled_on_time: number;
+      settled_with_a_due_date: number;
+    };
+    /** RFB 4: "how often the human agreed". The denominator is RESOLUTIONS, not
+     *  escalations: an unanswered queue is an empty sample, not unanimity. */
+    agreement: { owner_resolutions: number; owner_agreed: number };
+    /** RFB 5: "risk events caught before the transaction". `paid_unscreened` is
+     *  kept apart because "we could not check" is not "we caught something". */
+    screening: { risk_events_caught: number; paid_unscreened: number };
+    /** RFB 5, named for what we do. We screen at decision time; we do not
+     *  monitor continuously, so this is `addresses_screened` and never
+     *  `addresses_monitored`. */
+    compliance: {
+      addresses_screened: number;
+      alerts_raised: number;
+      alerts_resolved: number;
+    };
+  };
+  per_business: TractionRow[];
+  note: string;
+}

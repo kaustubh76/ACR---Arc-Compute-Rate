@@ -16,18 +16,22 @@ import type { TapeData } from "./tape";
 import type {
   AttackStatus,
   BalancesData,
+  BusinessesPayload,
   BuyerRunStatus,
   CatalogData,
   Envelope,
   FuturesRoster,
   HealthData,
   HedgerState,
+  LedgerAudit,
   LiveBuyResponse,
   MarketReceiptsData,
   OnchainDirectRead,
   OpsLedger,
   RevenueData,
+  Statement,
   TerminalData,
+  TractionPayload,
   WebhookFeed,
   X402Info,
 } from "./types";
@@ -323,4 +327,48 @@ export function useOps() {
     ...RETRY,
   });
   return { ledger: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** Who the operator runs for. Slow-moving (onboarding is a commit), so this
+ *  polls gently — the page is not waiting on it to change. */
+export function useBusinesses() {
+  const { data, error, mutate } = useSWR<Envelope<BusinessesPayload | null>>(
+    "/api/operator/businesses",
+    fetcher,
+    { refreshInterval: 300_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { businesses: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** One business's Spend Statement. `null` slug means "nothing selected yet",
+ *  and SWR is given a null key so it does not fetch a statement for nobody. */
+export function useStatement(slug: string | null, days = 7) {
+  const { data, error, mutate } = useSWR<Envelope<Statement | null>>(
+    slug ? `/api/operator/statement?business=${encodeURIComponent(slug)}&days=${days}` : null,
+    fetcher,
+    { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { statement: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** One business's ledger audit. Polls beside the statement it sits with,
+ *  because both answer the same question: is this book telling the truth now. */
+export function useLedgerAudit(slug: string | null, days = 90) {
+  const { data, error, mutate } = useSWR<Envelope<LedgerAudit | null>>(
+    slug ? `/api/operator/audit?business=${encodeURIComponent(slug)}&days=${days}` : null,
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { ledgerAudit: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** The traction numbers. Slow-moving and cheap to recompute, so this polls
+ *  gently — nobody is watching it tick. */
+export function useTraction() {
+  const { data, error, mutate } = useSWR<Envelope<TractionPayload | null>>(
+    "/api/operator/traction",
+    fetcher,
+    { refreshInterval: 120_000, revalidateOnFocus: true, ...RETRY },
+  );
+  return { traction: data, error: error as Error | undefined, refresh: mutate };
 }

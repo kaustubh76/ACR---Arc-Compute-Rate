@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "The business registry. Onboarding is a commit: see businesses.py for why.",
+    "A business IS its treasury address. `consented` gates the NAME only; an",
+    "unconsented business still counts and still gets a published ledger, under",
+    "the pseudonym `business <slug>`.",
+    "`policy_wallet` empty means the operator can price and meter for them but",
+    "cannot spend \u2014 which is what an evaluation looks like, and a real state.",
+    "`chain` is per business because mainnet and testnet totals are reported",
+    "separately and must never be added together.",
+    "`sandbox: true` is a DEMONSTRATION, not a customer. It renders wherever a business renders \u2014 the escalation queue and the decision table cannot be shown at all without one \u2014 and `businesses.real()` excludes it from every traction figure. Its decisions live in operator_decisions.sandbox.jsonl so that anyone auditing what the agent really did reads only real rows."
+  ],
+  "businesses": [
+    {
+      "slug": "acr-fleet",
+      "name": "ACR buyer-agent fleet",
+      "treasury": "0x674055533b05ec3fd135fc21c4d91a4a2d3193d3",
+      "policy_wallet": "0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32",
+      "consented": true,
+      "tier": "own",
+      "chain": "testnet",
+      "categories": [
+        "machine-services"
+      ],
+      "onboarded_at": 1790946149,
+      "note": "75 real exact-scheme Gateway settlements across 7 sellers and 4 units (0.325467 USDC) on 2026-09-12/13, which predate the Tameion window: they are what the meter counts, not what the operator did. The operator's own work is the decision log. PolicyWallet 0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32 on Arc testnet holds its USDC under a 1 USDC cap and a 0.05 per-payment limit, so `spends` is true and `moved_usdc` is money that really left."
+    },
+    {
+      "slug": "sandbox",
+      "name": "Sandbox Studio",
+      "treasury": "0x5C7a91Fb3E068d24A1c9B7e05F32d684Ca07B19E",
+      "policy_wallet": "",
+      "consented": true,
+      "tier": "own",
+      "chain": "testnet",
+      "categories": [
+        "infra",
+        "contractors"
+      ],
+      "onboarded_at": 1790866800,
+      "sandbox": true,
+      "note": "A demonstration so the escalation queue, the meter, the counterparty screen and the dry-run labelling can all be seen working. Hand-written decisions, not a real business, excluded from every traction number. No PolicyWallet on purpose: inventing contract state would make the page's own sentence about reading budgets from the contract false, and `spends: false` is both true here and the state the real business is in until a wallet is funded."
+    }
+  ]
+}

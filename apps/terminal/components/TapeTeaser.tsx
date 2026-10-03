@@ -46,12 +46,20 @@ export function TapeTeaser() {
     <section className="section">
       <div className="section-head">
         {HEAD}
-        <span style={{ display: "inline-flex", gap: 14 }}>
+        {/* Three, and the order is the argument: drive one decision, read what
+            buying cost, then see the agent deciding a business's whole book of
+            them. /spend was in the masthead from the day it shipped but on no
+            home surface at all, so the only reader who found it was one who
+            already knew to look. */}
+        <span style={{ display: "inline-flex", gap: 14, flexWrap: "wrap" }}>
           <Link href="/loop" className="section-link">
             <Ed x="Drive the loop →" p="Drive it →" />
           </Link>
           <Link href="/tape" className="section-link">
             <Ed x="Read the tape →" p="See the receipts →" />
+          </Link>
+          <Link href="/spend" className="section-link">
+            <Ed x="Watch it spend →" p="See it pay bills →" />
           </Link>
         </span>
       </div>

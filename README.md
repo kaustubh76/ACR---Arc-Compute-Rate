@@ -128,6 +128,42 @@ curl -s https://acr-api-mainnet.onrender.com/onchain/ACR-INF   # the settlement-
 
 ---
 
+## Tameion — the spend operator
+
+*Canteen × Circle × Arc, 27 September – 10 October 2026.*
+Full detail in [`docs/TAMEION.md`](docs/TAMEION.md).
+
+An agent that holds a business's USDC inside an on-chain budget it cannot
+exceed, meters what was actually consumed, checks every price against what other
+sellers are really charging, screens the counterparty, pays what clears policy,
+escalates what is not its call, and writes a double-entry ledger a human can
+open.
+
+| | |
+|---|---|
+| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. The `/traction` page renders it; the terminal is not deployed yet, so the API is the live surface |
+| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, same caveat |
+| **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
+| **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
+| **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
+| **Prove it** | `make verify-operator` |
+
+Stated here because a reviewer will check: the loop runs on **Arc testnet**,
+where the fleet's real settlement history gives the meter genuine consumption to
+count, and those settlements predate the window. The budget contract is now
+deployed and funded, so the operator spends: a live run paid five obligations,
+rerouted three, and escalated the one bill at or above the per-payment limit for
+its owner to settle. It is **test USDC**, reported as test USDC — mainnet and
+testnet totals are never summed, and what was *paid* is kept apart from what was
+*assessed*.
+
+Four decisions are argued out in [`docs/TAMEION.md`](docs/TAMEION.md): why the
+benchmark is observed quotes rather than this project's own published index, why
+the owner's own wallet is the escalation path, why a screen that cannot answer is
+never "clear", and why a reroute is not a ledger transaction.
+
+---
+
 ## The three integrations, and what to run for each
 
 ### Arc — the chain, and the money
@@ -243,7 +279,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **761 py** · **176 forge** · **210 terminal** · **58 matchstick** · glossary **560/560** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **1163 py** · **217 forge** · **210 terminal** · **58 matchstick** · glossary **564/564** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -315,6 +351,7 @@ Stated here rather than discovered. The full trust model — who can do what, an
 | [`docs/ARCHITECTURE-DIAGRAM.md`](docs/ARCHITECTURE-DIAGRAM.md) | The architecture canvas explained zone by zone |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | Every technical term in plain English, with analogies |
 | [`IMPLEMENTATION.md`](IMPLEMENTATION.md) | Implementation notes and the layout → blueprint mapping |
+| [`docs/TAMEION.md`](docs/TAMEION.md) | The Tameion spend operator: the delta, what is live, and the four decisions worth arguing with |
 
 The full index, including the runbooks, is [`docs/README.md`](docs/README.md).
 

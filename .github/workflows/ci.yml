@@ -61,6 +61,8 @@ jobs:
             services/index_api/tests/test_futures_roll_onchain.py \
             packages/acr_oracle_client/tests/test_onchain.py \
             packages/acr_oracle_client/tests/test_mirror_onchain.py \
+            packages/acr_oracle_client/tests/test_policy_onchain.py \
+            services/index_api/tests/test_operator_onchain.py \
             -p no:cacheprovider --import-mode=importlib -rs 2>&1 | tee /tmp/onchain.txt
           # A skip is the failure mode that matters here: these suites skip
           # silently without a node, which is exactly how a broken one stayed
@@ -89,6 +91,13 @@ jobs:
       # this is what makes the claim true. A step, never a job (see below).
       - name: Endpoint reference matches app.openapi()
         run: uv run python scripts/gen_openapi_doc.py --check
+
+      # The demo fixtures must be decisions the ladder actually reaches. One of
+      # the six was hand-written to describe a per-payment escalation that an
+      # unpriceable bill can never get to, and it rendered in the escalation
+      # queue — the one surface that cannot be shown without a sandbox.
+      - name: Demo fixtures are what the ladder produces
+        run: uv run python scripts/gen_sandbox_decisions.py --check
 
       # ~150s: five scenarios x three indices. A step, never a job — verify_claims
       # counts top-level jobs in this file and asserts the number against the docs.
