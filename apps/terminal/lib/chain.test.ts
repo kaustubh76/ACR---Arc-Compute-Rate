@@ -215,7 +215,7 @@ test("the freshness window matches the contract it copies", () => {
   const block = opsPy.match(/SECTIONS = \[([\s\S]*?)\]/);
   assert.ok(block, "ops.py should still declare SECTIONS");
   const pillars = [...block![1].matchAll(/\(\s*"([a-z]+)"\s*,/g)].map((m) => m[1]);
-  assert.ok(pillars.length >= 9, `expected the nine pillars, read ${pillars.length}`);
+  assert.ok(pillars.length >= 9, `SECTIONS parsed as only ${pillars.length} — the regex broke`);
 
   const opsView = readFileSync(join(__dirname, "..", "app", "ops", "view.tsx"), "utf8");
   const titled = [...opsView.matchAll(/^\s{2}([a-z]+):\s*<Ed /gm)].map((m) => m[1]);

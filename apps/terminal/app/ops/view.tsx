@@ -54,6 +54,7 @@ const SECTION_TITLE: Record<string, React.ReactNode> = {
   agent: <Ed x="The agent gate" p="Which robot is calling, and what filters it" />,
   hedger: <Ed x="The hedger" p="The robot that trades for us" />,
   funding: <Ed x="Wallet runway" p="Money left in our wallets" />,
+  operator: <Ed x="The spend operator" p="The robot that pays our customers' bills" />,
 };
 
 /** One check's mark. `null` gets its own word — "unread", never a tick and

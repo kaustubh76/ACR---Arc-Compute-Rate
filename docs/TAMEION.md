@@ -100,6 +100,56 @@ summed, and `moved_usdc` is what was actually paid rather than what was
 assessed — `priced_usdc` is the second number, and collapsing them would be the
 most tempting lie available on a traction page.
 
+## The figures the briefs ask for, by name
+
+RFB 4 and RFB 5 name their traction metrics in words, so here is each one
+mapped to the field that answers it. The values are not copied into this file:
+a doc that restates a count is a doc that will contradict the page, and the page
+is [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction).
+
+| The brief asks for | The field | Read it at |
+|---|---|---|
+| businesses operated | `businesses.real`, and `businesses.by_chain` because testnet and mainnet are never summed | `/operator/traction` |
+| total USDC received and paid out | `by_chain[].moved_usdc` and `by_chain[].received_usdc` | `/operator/traction`, per business on `/traction` |
+| obligations settled without a human touching them | `work.autonomy.settled_by_agent` beside `settled_by_owner` | both, per business |
+| …and settled on time | `work.autonomy.settled_on_time` of `settled_with_a_due_date` | both |
+| decisions made vs escalated | `work.decided` and `work.escalated`, two numbers rather than a ratio | both |
+| how often the human agreed | `work.agreement.owner_agreed` of `owner_resolutions` | both |
+| addresses monitored | `work.compliance.addresses_screened` — **screened**, see below | `/operator/traction` |
+| alerts generated and resolved | `work.compliance.alerts_raised`, `alerts_resolved` | `/operator/traction` |
+| risk events caught before the transaction | `work.screening.risk_events_caught`, beside `paid_unscreened` | both |
+| compliance reports generated | no counter — the artifact is `GET /operator/audit/{business}` | see below |
+
+**Three of these are zero, and the zeros are load-bearing.**
+
+`received_usdc` is 0 because the fleet is the buyer on every settlement it
+appears in and has never once been the seller. It is computed from the sellers'
+own tape rather than asserted, so it stops being zero the moment the fleet is
+paid — and the function is tested against a treasury that *is* paid, which is
+what makes today's zero a measurement instead of an absence.
+
+`settled_on_time` is 0 **of 0**, because no obligation carries a due date:
+nothing in the real inputs supplies one, and deriving a plausible-looking one
+would be inventing exactly the data this product refuses to invent. `autonomy()`
+will not count a bill with no due date as punctual. The alternative turns "we do
+not know when this was due" into evidence of promptness, and a perfect on-time
+rate over an empty denominator is the single most flattering number available on
+a traction page.
+
+`alerts_raised` is 0 because every counterparty put to a screen came back clear.
+The field is named **screened** and not *monitored* on purpose: the screen runs
+at decision time, before money moves, and nothing re-screens an address on a
+schedule. `counterparty.py` records monitoring as an aspiration rather than a
+feature, and claiming the brief's word would be the overclaim this whole
+document exists to refuse.
+
+**"Compliance reports generated" has no counter, deliberately.** The artifact is
+[`GET /operator/audit/{business}`](https://acr-api-1fto.onrender.com/operator/audit/acr-fleet):
+the six errors a trial balance cannot see, searched for by name, generated on
+request from the decision log and the sellers' tape — never cached, so it cannot
+report a verdict that was true last week. Counting how many times we served it
+would measure our own traffic and call it compliance.
+
 ## The four decisions worth arguing with
 
 **PAR is observed quotes, never the published index.**
