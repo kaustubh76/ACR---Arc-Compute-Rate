@@ -30,14 +30,32 @@ fi
 # nothing was pulling them in. A redeploy without this silently reverts the
 # traction page to the rows that ship inside the image — a smaller number, not a
 # broken page, which is the failure shape nobody investigates.
-if ! uv run python "${ROOT}/scripts/archive_decisions.py" --check; then
+# --api "${URL}" is NOT optional. Both archivers default to ACR_API_URL or the
+# MAINNET press, and this script redeploys whichever service SERVICE_ID names —
+# so unqualified they interrogated a different host than the one about to be
+# erased. Measured: the default answered about acr-api-mainnet (which has no
+# operator at all, so "nothing to archive", so the gate passed) while the
+# testnet press held 19 decisions nobody had asked about. A preflight pointed at
+# the wrong host is worse than none: it reports safety it never checked.
+DECISIONS_RC=0
+uv run python "${ROOT}/scripts/archive_decisions.py" --api "${URL}" --check || DECISIONS_RC=$?
+if [[ "${DECISIONS_RC}" -eq 1 ]]; then
   echo ""
   echo "  Production holds operator decisions this repo does not."
   echo "  Run: make archive-decisions   then commit the archive."
   exit 1
+elif [[ "${DECISIONS_RC}" -ne 0 ]]; then
+  # 2 is "I could not tell" — a sleeping host, a truncated page. Distinguished
+  # from 1 because the two call for opposite actions, and because printing the
+  # "production is ahead" sentence for an unread host sends the operator to run
+  # an archiver that will fail the same way.
+  echo ""
+  echo "  Could not read ${URL}, so it cannot be shown to be safe to erase."
+  echo "  Wake it: curl ${URL}/health   (a free-tier cold start takes ~20 s), then re-run."
+  exit 1
 fi
 
-if ! uv run python "${ROOT}/scripts/archive_receipts.py" --check; then
+if ! uv run python "${ROOT}/scripts/archive_receipts.py" --api "${URL}" --check; then
   echo "production holds settlements the archive lacks — run 'uv run python scripts/archive_receipts.py', commit, then redeploy" >&2
   exit 1
 fi

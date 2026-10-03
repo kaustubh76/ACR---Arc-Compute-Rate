@@ -83,6 +83,36 @@ class NoOperatorThere(RuntimeError):
     """
 
 
+class NotOurPress(RuntimeError):
+    """The host answered, and it is not an ACR press at all.
+
+    A typo'd or decommissioned Render hostname returns a plain 404 — the same
+    status an OLDER ACR image returns for ``/operator/businesses``, because that
+    route did not exist yet. One of those means "nothing to lose, deploy over
+    it" and the other means "you are pointed at the wrong machine", and the
+    preflight read both as the first: measured against a hostname that has never
+    existed, it printed "nothing to archive" and passed.
+
+    Which is the failure this file opens by describing — a smaller number, not a
+    broken page — arrived at from the other end.
+    """
+
+
+def _is_our_press(api: str) -> dict | None:
+    """The control probe. ``/health`` is on every ACR image ever deployed.
+
+    Runs only after a 404, and it is the cheapest question that the 404 itself
+    cannot answer: a press that is ours answers it with JSON carrying a
+    ``status``, and a hostname that is not ours has nothing on that path either.
+    """
+    try:
+        with urllib.request.urlopen(f"{api}/health", timeout=30) as r:
+            body = json.load(r)
+    except Exception:
+        return None
+    return body if isinstance(body, dict) and "status" in body else None
+
+
 def _businesses(api: str) -> list[str]:
     """Every registered business, SANDBOXES EXCLUDED — and not optionally.
 
@@ -103,9 +133,17 @@ def _businesses(api: str) -> list[str]:
             body = json.load(r)
     except urllib.error.HTTPError as e:
         if e.code == 404:
+            health = _is_our_press(api)
+            if health is None:
+                raise NotOurPress(
+                    f"{api} returned 404 for /operator/businesses AND has no /health: "
+                    "this is not an ACR press. Check the hostname — a wrong host "
+                    "cannot be shown to be safe to erase"
+                ) from e
             raise NoOperatorThere(
-                f"{api} has no /operator/businesses: the running image predates "
-                "the spend operator, so it holds no decisions to archive"
+                f"{api} (chain {health.get('chain_id')}) has no /operator/businesses: "
+                "the running image predates the spend operator, so it holds no "
+                "decisions to archive"
             ) from e
         raise
     rows = body.get("data", body).get("businesses") or []
@@ -153,12 +191,43 @@ def main() -> int:
         print(f"live      {e}")
         print("nothing to archive")
         return 0
+    except NotOurPress as e:
+        print(f"\nREFUSING: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
+        # PRODUCTION DID NOT ANSWER, which is not the same as having nothing.
+        #
+        # A free-tier host asleep behind a cold start takes longer than the
+        # timeout, and this used to leave an unhandled traceback — which exits
+        # 1, which is EXACTLY the code `--check` uses for "production is ahead
+        # of the archive". `deploy/redeploy-render.sh` then printed "Production
+        # holds operator decisions this repo does not" and told the operator to
+        # run the archiver, which would fail the same way. Measured against the
+        # sleeping mainnet press on 2026-10-03.
+        #
+        # 2, like the truncation refusal below: a distinct code for "I could not
+        # tell", so a caller can say the true sentence.
+        print(f"\nREFUSING: {a.api} did not answer ({type(e).__name__}: {e}).", file=sys.stderr)
+        print(
+            "  A host that cannot be read cannot be shown to be safe to erase. If it is "
+            "asleep, wake it (curl its /health) and re-run.",
+            file=sys.stderr,
+        )
+        return 2
     print(f"live      {a.api}: {len(slugs)} real business(es), sandboxes excluded")
 
     new: list[dict] = []
     truncated: list[str] = []
     for slug in slugs:
-        rows, full = _live(a.api, slug)
+        try:
+            rows, full = _live(a.api, slug)
+        except OSError as e:
+            # Same refusal, one business in. Reading some of production and
+            # reporting on it as though it were all of production is the shape
+            # that loses rows quietly.
+            print(f"\nREFUSING: {a.api} stopped answering at {slug} "
+                  f"({type(e).__name__}: {e}).", file=sys.stderr)
+            return 2
         if full:
             truncated.append(slug)
         fresh = [r for r in reversed(rows) if _key(r) not in seen]
