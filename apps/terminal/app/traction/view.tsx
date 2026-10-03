@@ -77,9 +77,37 @@ function BusinessRow({ r }: { r: TractionRow }) {
       <td className="mono">{r.tier}</td>
       <td className="mono">{fmtInt(r.decisions)}</td>
       <td className="mono">{price(r.moved_usdc)}</td>
+      <td className="mono">{price(r.received_usdc)}</td>
       <td className="mono">{price(r.priced_usdc)}</td>
       <td className="mono">{price(r.recoverable_usdc)}</td>
       <td className="mono">{fmtInt(r.discrepancies)}</td>
+      {/* PER BUSINESS, not just in the aggregate. RFB 4 asks "obligations
+          settled without a human touching them", and WHICH business needed one
+          is the half a total cannot answer: one owner clearing ten escalations
+          and ten owners clearing one each are the same number and not the same
+          product. */}
+      <td className="mono">{fmtInt(r.settled_by_agent)}</td>
+      <td className="mono">
+        {fmtInt(r.settled_by_owner)}
+        {r.owner_resolutions > 0 ? (
+          <span className="label">
+            {" "}
+            {fmtInt(r.owner_agreed)}/{fmtInt(r.owner_resolutions)}{" "}
+            <Ed x="agreed" p="agreed" />
+          </span>
+        ) : null}
+      </td>
+      <td className="mono">
+        {fmtInt(r.risk_events_caught)}
+        {/* Never folded into the number beside it. "We could not check" filed
+            under "we caught something" inverts the only claim it makes. */}
+        {r.paid_unscreened > 0 ? (
+          <span className="label">
+            {" "}
+            {fmtInt(r.paid_unscreened)} <Ed x="unscreened" p="not checked" />
+          </span>
+        ) : null}
+      </td>
       <td>
         <span className={`chip ${r.spends ? "chip-teal" : "chip-sky"}`}>
           {r.spends ? (
@@ -206,6 +234,12 @@ function Numbers({ t }: { t: TractionPayload }) {
                   <th>
                     <Ed x="Moved" p="Paid out" />
                   </th>
+                  {/* Beside what went out, never netted against it. A business
+                      that received 10 and paid 10 did twice the work of one
+                      that did neither, and one net figure reports both as 0. */}
+                  <th>
+                    <Ed x="Received" p="Taken in" />
+                  </th>
                   <th>
                     <Ed x="Priced" p="Checked over" />
                   </th>
@@ -219,6 +253,7 @@ function Numbers({ t }: { t: TractionPayload }) {
                   <tr key={chain}>
                     <td className="mono">{chain}</td>
                     <td className="mono">{price(v.moved_usdc)}</td>
+                    <td className="mono">{price(v.received_usdc)}</td>
                     <td className="mono">{price(v.priced_usdc)}</td>
                     <td className="mono">{price(v.recoverable_usdc)}</td>
                   </tr>
@@ -361,6 +396,27 @@ function Numbers({ t }: { t: TractionPayload }) {
                   </td>
                   <td className="mono">{fmtInt(t.work.screening.paid_unscreened)}</td>
                 </tr>
+                {/* SCREENED, not monitored. The brief asks for "addresses
+                    monitored"; this agent screens once, inside the decision,
+                    and nothing re-screens on a schedule. Reporting the word the
+                    brief used would claim a capability we do not have. */}
+                <tr>
+                  <td>
+                    <Ed x="Counterparties screened" p="Payees we checked" />
+                  </td>
+                  <td className="mono">{fmtInt(t.work.compliance.addresses_screened)}</td>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed x="Alerts raised, and settled" p="Warnings raised, and dealt with" />
+                  </td>
+                  <td className="mono">
+                    <Of
+                      n={t.work.compliance.alerts_resolved}
+                      of={t.work.compliance.alerts_raised}
+                    />
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -400,6 +456,9 @@ function Numbers({ t }: { t: TractionPayload }) {
                     <Ed x="Moved" p="Paid" />
                   </th>
                   <th>
+                    <Ed x="Received" p="Taken in" />
+                  </th>
+                  <th>
                     <Ed x="Priced" p="Checked" />
                   </th>
                   <th>
@@ -407,6 +466,15 @@ function Numbers({ t }: { t: TractionPayload }) {
                   </th>
                   <th>
                     <Ed x="Overbilled" p="Billed too much" />
+                  </th>
+                  <th>
+                    <Ed x="Settled alone" p="Done by itself" />
+                  </th>
+                  <th>
+                    <Ed x="Needed you" p="Needed a person" />
+                  </th>
+                  <th>
+                    <Ed x="Risk caught" p="Risky payees stopped" />
                   </th>
                   <th>
                     <Ed x="Spending" p="Can it pay?" />

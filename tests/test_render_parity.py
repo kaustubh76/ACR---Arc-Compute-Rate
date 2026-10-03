@@ -123,6 +123,19 @@ EXEMPT: dict[str, str] = {
         "reported on /traction; this page surfaces the screen per decision, "
         "where a reader can see which counterparty it was"
     ),
+    # RFB 5's counts live on /traction, the page that asks "how much is this
+    # really doing". An owner's statement already shows the screen verdict on
+    # every decision row, which is the per-decision form of the same fact.
+    "spend.addresses_screened": "reported on /traction; this page shows the screen per decision",
+    "spend.alerts_raised": "reported on /traction, beside the count that resolved them",
+    "spend.alerts_resolved": "reported on /traction, as N of raised rather than a rate",
+    "per_business[].addresses_screened": (
+        "the aggregate asks the useful question — how many counterparties this "
+        "agent put to a screen at all; the per-business table already carries "
+        "`risk_events_caught`, which is the row-level fact that changes a decision"
+    ),
+    "per_business[].alerts_raised": "aggregated on /traction; the row shows what was caught",
+    "per_business[].alerts_resolved": "aggregated on /traction; the row shows what was caught",
     "spend.paid_unscreened": (
         "reported on /traction; per decision this page already shows the "
         "'no record' and screen chips on the row itself"
@@ -146,6 +159,14 @@ EXEMPT: dict[str, str] = {
     "per_business[].decided": "the work block reports it across all businesses",
     "per_business[].escalated": "the work block reports it across all businesses",
     "per_business[].unmetered": "surfaced per decision on /spend",
+    # The only pair of the eight that is genuinely aggregate-only. Every
+    # obligation this operator builds carries no due date, because nothing in
+    # the real inputs supplies one, so per business this is 0 of 0 on every row
+    # — a column of "none yet" teaching a reader nothing. The aggregate says it
+    # once, where it belongs, and `autonomy()` refuses to report a rate over an
+    # empty denominator either way.
+    "per_business[].settled_on_time": "0 of 0 on every row; the aggregate says it once",
+    "per_business[].settled_with_a_due_date": "the denominator for the line above, reported once",
     "work.decisions": "rendered as the section label",
     # --- audit ---
     # (`clean`, `checks[]` and `findings[]` are all rendered; `as_of` is covered
@@ -337,15 +358,51 @@ def payloads(tmp_path, monkeypatch):
     return _payloads(tmp_path, monkeypatch)
 
 
+def _parent(path: str) -> str:
+    """The key one level above a leaf, with list markers dropped."""
+    parts = _norm(path).split(".")
+    return parts[-2] if len(parts) > 1 else ""
+
+
+def _rendered(leaf: str, src: str, rivals: set[str]) -> bool:
+    """Is THIS field rendered — not merely a field with the same name?
+
+    A BARE NAME SEARCH CANNOT TELL TWO FIELDS APART, and this payload emits the
+    same eight names twice: once per business in `per_business[]` and once for
+    the whole set in `work.autonomy`. The aggregate is rendered, the per-business
+    figures were not, and the gate passed all eight on the strength of the
+    aggregate — eight fields emitted and rendered nowhere, invisible to the exact
+    check that exists to find them.
+
+    So: when a leaf name is unambiguous, a bare match still proves it, because
+    there is nothing else it could be. When another path emits the same name,
+    the match has to be `something.leaf` where `something` is NOT the rival's
+    parent. `r.settled_by_agent` counts; `autonomy.settled_by_agent` does not.
+
+    Deliberately narrow. Tightening every leaf would fail fields that are read by
+    destructuring or passed as a prop, and a gate that cries wolf gets exemptions
+    written for it until it means nothing.
+    """
+    if not rivals:
+        return bool(re.search(r"\b" + re.escape(leaf) + r"\b", src))
+    pattern = r"([A-Za-z_$][\w$]*)\s*\.\s*" + re.escape(leaf) + r"\b"
+    return any(m.group(1) not in rivals for m in re.finditer(pattern, src))
+
+
 def test_every_emitted_field_is_rendered_or_exempt(payloads):
     unlisted: list[str] = []
     for name, payload in payloads.items():
         src = _source(name)
-        for path in sorted(_leaves(payload)):
+        paths = sorted(_leaves(payload))
+        by_leaf: dict[str, set[str]] = {}
+        for q in paths:
+            by_leaf.setdefault(q.split(".")[-1].replace("[]", ""), set()).add(_parent(q))
+        for path in paths:
             leaf = path.split(".")[-1].replace("[]", "")
             if not leaf or _exempt(path):
                 continue
-            if not re.search(r"\b" + re.escape(leaf) + r"\b", src):
+            rivals = by_leaf.get(leaf, set()) - {_parent(path)}
+            if not _rendered(leaf, src, rivals):
                 unlisted.append(f"{name}: {path}")
     assert unlisted == [], (
         "these fields are emitted and rendered nowhere. Render them, or add an "
@@ -388,3 +445,45 @@ def test_the_meter_and_the_screen_are_both_on_the_page(payloads):
     src = _source("statement")
     for field in ("metered_quantity", "vendor_quantity", "screen_risk"):
         assert field in src, f"{field} is emitted and the page never reads it"
+
+
+# --- the gate's own blind spot ---------------------------------------------
+
+
+def test_a_bare_name_cannot_prove_which_field_is_rendered():
+    """The hole this gate shipped with, pinned so it cannot come back.
+
+    `per_business[].settled_by_agent` and `work.autonomy.settled_by_agent` are
+    two different facts with one name. The gate searched for the bare word, so
+    the aggregate — which IS rendered — satisfied all eight per-business leaves,
+    and eight figures were emitted and rendered nowhere while the check designed
+    to find exactly that reported clean.
+    """
+    aggregate_only = "<td>{fmtInt(t.work.autonomy.settled_by_agent)}</td>"
+    assert not _rendered("settled_by_agent", aggregate_only, {"autonomy"}), (
+        "an aggregate read must not vouch for a per-row field of the same name"
+    )
+
+    with_the_row = aggregate_only + "<td>{fmtInt(r.settled_by_agent)}</td>"
+    assert _rendered("settled_by_agent", with_the_row, {"autonomy"})
+
+
+def test_an_unambiguous_name_still_passes_on_a_bare_match():
+    """Tightening every leaf would fail fields read by destructuring or passed
+    as a prop, and a gate that cries wolf gets exemptions written for it until
+    it means nothing. The strict rule applies only where a name is emitted
+    twice."""
+    assert _rendered("clean", "if (!a.clean) return null;", set())
+    assert _rendered("note", "const { note } = payload;", set())
+    assert not _rendered("nowhere", "nothing mentions it", set())
+
+
+def test_rivals_are_computed_from_the_payload_not_hand_listed():
+    """The ambiguity has to come from the data, or the next collision is missed.
+
+    `_parent` is what makes a rival a rival: two paths share a leaf name and
+    differ in the key above it.
+    """
+    assert _parent("work.autonomy.settled_by_agent") == "autonomy"
+    assert _parent("per_business[].settled_by_agent") == "per_business"
+    assert _parent("clean") == ""

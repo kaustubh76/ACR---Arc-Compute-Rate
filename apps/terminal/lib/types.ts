@@ -873,6 +873,11 @@ export interface TractionRow {
   decided: number;
   escalated: number;
   moved_usdc: number;
+  /** What the business was PAID, read from the sellers' own settlement tape
+   *  rather than from our decisions. Never netted against `moved_usdc`: a
+   *  business that received 10 and paid 10 did twice the work of one that did
+   *  neither, and one net figure reports both as zero. */
+  received_usdc: number;
   priced_usdc: number;
   recoverable_usdc: number;
   discrepancies: number;
@@ -889,6 +894,9 @@ export interface TractionRow {
   owner_agreed: number;
   risk_events_caught: number;
   paid_unscreened: number;
+  addresses_screened: number;
+  alerts_raised: number;
+  alerts_resolved: number;
 }
 
 /** One of the six errors *Agents and Ledgers* says a trial balance cannot see,
@@ -940,7 +948,13 @@ export interface TractionPayload {
   };
   by_chain: Record<
     string,
-    { moved_usdc: number; priced_usdc: number; recoverable_usdc: number }
+    {
+      moved_usdc: number;
+      /** Read from the sellers' own tape, never netted against `moved_usdc`. */
+      received_usdc: number;
+      priced_usdc: number;
+      recoverable_usdc: number;
+    }
   >;
   work: {
     decisions: number;
@@ -965,6 +979,14 @@ export interface TractionPayload {
     /** RFB 5: "risk events caught before the transaction". `paid_unscreened` is
      *  kept apart because "we could not check" is not "we caught something". */
     screening: { risk_events_caught: number; paid_unscreened: number };
+    /** RFB 5, named for what we do. We screen at decision time; we do not
+     *  monitor continuously, so this is `addresses_screened` and never
+     *  `addresses_monitored`. */
+    compliance: {
+      addresses_screened: number;
+      alerts_raised: number;
+      alerts_resolved: number;
+    };
   };
   per_business: TractionRow[];
   note: string;
