@@ -779,6 +779,14 @@ def _settle(row: dict, business: str, *, intent: str, rule: str,
             over_par_bp=_num("over_par_bp"),
             saving_usdc=_num("saving_usdc"),
             due_at=_num("due_at"),
+            # THE WINDOW THE ESCALATED BILL COVERED, carried forward. Dropped
+            # here it would default to 0, `settled_through` would fall back to
+            # the approval's own timestamp, and every settlement between the
+            # period's true end and the moment the owner got round to it would
+            # fall behind the next window — consumption that is never billed
+            # again, because the boundary moved past it.
+            period_start=_num("period_start") or 0.0,
+            period_end=_num("period_end") or 0.0,
             invoice_ref=str(row.get("invoice_ref") or ""),
         )
     )

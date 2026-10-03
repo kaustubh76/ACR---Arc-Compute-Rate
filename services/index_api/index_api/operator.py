@@ -113,6 +113,23 @@ class Obligation:
     #: gives `$/1k tokens` four sellers spanning 1.3x. Empty falls back to
     #: comparing whole-bill prices for the same resource.
     unit: str = ""
+    #: THE WINDOW THIS BILL COVERS, in unix seconds, and the reason the id can
+    #: be trusted twice.
+    #:
+    #: An obligation had no period, so `(seller, resource)` named a bill for all
+    #: of history. Once paid, that pair sat in `settled_refs` forever and the
+    #: next settlement from the same seller for the same service summed into an
+    #: id that was already there — refused as a duplicate, permanently. A human
+    #: running this once never sees it; an unattended run pays on its first tick
+    #: and then reports `refuse · already paid` for the rest of its life, while
+    #: the decision count keeps climbing. A smaller number, not a broken page.
+    #:
+    #: `period_end` comes from the DATA — the latest `settled_at` in the bill —
+    #: and never from the clock. With `now` it would mint a fresh id on every
+    #: tick, the duplicate check would never match, and the same consumption
+    #: would be paid again and again.
+    period_start: float = 0.0
+    period_end: float = 0.0
     due_at: float | None = None
     #: The vendor's own reference, for duplicate detection.
     invoice_ref: str = ""
@@ -172,6 +189,11 @@ class ObligationDecision:
     #: to offer: "no budget on chain" is an absence of authority, not a
     #: recommendation, and counting it would invent an agreement to measure.
     recommended_intent: str = ""
+    #: The window this bill covered, carried so the NEXT run knows where to
+    #: start. Hashed with everything else, because which settlements a payment
+    #: was for is part of what the decision rested on.
+    period_start: float = 0.0
+    period_end: float = 0.0
     #: Carried from the obligation, so the record can answer "was this settled
     #: on time". It was being dropped at this boundary, which is the whole
     #: reason nothing could.
@@ -285,7 +307,9 @@ def resource_path(resource: str) -> str:
     return r
 
 
-def obligation_key(business_slug: str, seller: str, resource: str) -> str:
+def obligation_key(
+    business_slug: str, seller: str, resource: str, period_end: float = 0.0
+) -> str:
     """The id a period's bill is known by.
 
     HERE, AND NOT IN THE RUNNER, because two things now have to agree about it:
@@ -299,7 +323,61 @@ def obligation_key(business_slug: str, seller: str, resource: str) -> str:
     """
     path = resource_path(resource)
     leaf = path.strip("/").replace("/", "-") or "root"
-    return f"{business_slug}:{seller[:10]}:{leaf}"
+    base = f"{business_slug}:{seller[:10]}:{leaf}"
+    # NO PERIOD MEANS THE OLD ID, BYTE FOR BYTE. The 19 rows in the committed
+    # archive were written before bills had windows, and `settled_refs_from`
+    # reads their ids back to decide what has already been paid. A new format
+    # that did not reproduce the old one would make every one of them
+    # unrecognisable and the next run would pay them all a second time — the
+    # error of original entry this check exists to prevent.
+    return base if not period_end else f"{base}@{int(period_end)}"
+
+
+def settled_through(decisions) -> dict[tuple[str, str], float]:
+    """For each ``(vendor, resource)`` this business has really paid, the moment
+    its last paid period ended.
+
+    This is where the next bill starts, and it is DERIVED rather than
+    configured: the record of what we paid is the only authority on what is
+    still owed, exactly as the budget is read from the contract rather than
+    tallied beside it.
+
+    KEYED ON THE PAIR, NOT THE ID, and for the reason `ledger_audit._omission`
+    gives for the same choice: the id is our naming convention and it has now
+    changed twice. The pair is the fact — this seller, this service.
+
+    THE BOOTSTRAP IS THE DANGEROUS PART. The 19 rows in the committed archive
+    predate windows, so they carry no `period_end`; falling back to the
+    decision's own `at` is the honest reading of them. Those bills summed every
+    receipt on the tape at the time they were paid, and a receipt cannot settle
+    after the payment that covered it — so "settled through the moment we paid"
+    is true of them, and anything that settled later is genuinely new. Without
+    the fallback the next run would re-pay all nineteen.
+
+    Only real payments count, for the same reason `settled_refs_from` ignores
+    dry runs: a cleared-but-unsent decision has settled nothing, and treating it
+    as a period boundary would skip the window it was supposed to pay for.
+    """
+    out: dict[tuple[str, str], float] = {}
+    for d in decisions or ():
+        if str(d.get("intent") or "") != PAY:
+            continue
+        try:
+            if float(d.get("paid_usdc") or 0.0) <= 0:
+                continue
+        except (TypeError, ValueError):
+            continue
+        key = (
+            str(d.get("vendor") or "").lower(),
+            resource_path(str(d.get("resource") or "")),
+        )
+        try:
+            end = float(d.get("period_end") or 0.0) or float(d.get("at") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if end > out.get(key, 0.0):
+            out[key] = end
+    return out
 
 
 def settled_refs_from(decisions) -> set[str]:
@@ -385,6 +463,8 @@ def decide(
         rule="",
         metered_quantity=metered_quantity,
         vendor_quantity=ob.vendor_quantity,
+        period_start=ob.period_start,
+        period_end=ob.period_end,
         due_at=ob.due_at,
         invoice_ref=ob.invoice_ref,
     )

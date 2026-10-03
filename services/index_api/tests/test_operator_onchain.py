@@ -16,6 +16,7 @@ record that no longer matches its commitment was edited after the payment.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,12 @@ from acr_oracle_client.signer import LocalKeySigner
 from index_api.operator import ESCALATE, PAY, Obligation, run_obligation
 from web3.logs import DISCARD
 
-RPC = "http://127.0.0.1:8545"
+#: Overridable because this machine runs more than one project. A parallel
+#: session took 127.0.0.1:8545 with its own anvil, and chain id cannot tell two
+#: anvils apart (both 31337) — so a run against the wrong one looks exactly like
+#: a run against the right one. CI starts anvil on the default, so it is
+#: unaffected; a second chain just needs ACR_TEST_RPC.
+RPC = os.environ.get("ACR_TEST_RPC", "http://127.0.0.1:8545")
 OWNER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 AGENT_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 
@@ -75,7 +81,7 @@ def business():
     """One onboarded business: a funded wallet, a budget, an authorized agent."""
     node = _anvil()
     if node is None:
-        pytest.skip("no anvil at 127.0.0.1:8545")
+        pytest.skip(f"no anvil at {RPC}")
     if not WALLET_ARTIFACT.exists() or not USDC_ARTIFACT.exists():
         pytest.skip("contracts not built (run: cd contracts && forge build)")
     w3, owner, agent = node
@@ -247,3 +253,134 @@ def test_an_overpriced_large_bill_is_rerouted_rather_than_escalated(business, tm
     assert d.reroute_to in {RIVAL_A, RIVAL_B}
     assert d.saving_usdc == pytest.approx(148.0)
     assert usdc.functions.balanceOf(VENDOR).call() == before
+
+
+# --- the second run, which is the one a schedule depends on ----------------
+
+#: A resource already in path form, because that is what the settlement tape
+#: really stores (`/prints/ACR-INF`, `/compute/…`) and what `_obligations`
+#: normalises to. The constants above are URL-shaped and the obligations in
+#: those tests are hand-built, so the mismatch never showed: routed through
+#: `_obligations`, a URL-shaped receipt makes the meter find nothing and the
+#: bill escalate as unmetered.
+PERIODIC = "/compute/periodic"
+
+#: Three sellers at one price, so the bill is at par and the test is about
+#: periods rather than about pricing. Every period below bills exactly this, so
+#: one par serves them all.
+PERIOD_CATALOG = {
+    "items": [
+        {"resource": PERIODIC, "accepts": [{"amount": "2000000", "payTo": VENDOR}]},
+        {"resource": PERIODIC, "accepts": [{"amount": "2000000", "payTo": RIVAL_A}]},
+        {"resource": PERIODIC, "accepts": [{"amount": "2000000", "payTo": RIVAL_B}]},
+    ]
+}
+
+
+class _Fleet:
+    """The shape `_obligations` needs: a slug, a treasury, a category."""
+
+    slug = "periods"
+    treasury = "0x" + "99" * 20
+    categories = (CATEGORY,)
+
+
+def _period_receipt(at: float) -> dict:
+    """One settlement: 2 USDC for 1,000 units, which is this resource's par.
+
+    No `unit`, so the benchmark comes from the catalog — the same branch the
+    hand-built obligations above exercise.
+    """
+    return {
+        "payer": _Fleet.treasury,
+        "seller": VENDOR,
+        "resource": PERIODIC,
+        "amount_usdc": 2.0,
+        "quantity": 1_000.0,
+        "settled_at": at,
+    }
+
+
+def test_new_consumption_after_a_payment_is_billed_again_and_paid_on_chain(business, tmp_path):
+    """THE PROOF THAT A SCHEDULE CAN WORK, against a real chain rather than a stub.
+
+    A bill had no period and `obligation_key` had no time component, so a paid
+    `(seller, resource)` pair sat in `settled_refs` forever: the next settlement
+    from that seller summed into an id that was already there and was refused as
+    a duplicate. A human running the operator once never meets this. An
+    unattended run pays on its first tick and refuses everything after it, while
+    the decision count keeps climbing — a smaller number, not a broken page.
+
+    Two things must be true at once, and the contract is the only witness that
+    counts: the second period is PAID, and the first is not paid a second time.
+    The wallet's own `spent` figure moving by exactly the two bills proves both.
+    """
+    import sys
+
+    from index_api.operator import settled_refs_from, settled_through
+    from index_api.statement import read_decisions
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+    from operator_run import _obligations
+
+    _w3, wallet, _usdc, policy = business
+    log = str(tmp_path / "decisions.jsonl")
+
+    def spent() -> int:
+        """The wallet's own figure. `budgetOf` returns
+        (exists, cap, spent, perTxLimit, periodStart, periodLength)."""
+        return wallet.functions.budgetOf(category_id(CATEGORY)).call()[2]
+
+    def tick(tape):
+        """One run of the operator, exactly as the runner drives it."""
+        rows = read_decisions(path=log) if Path(log).exists() else []
+        obligations = _obligations(_Fleet(), tape, PERIOD_CATALOG, settled_through(rows))
+        refs = settled_refs_from(rows)
+        return obligations, [
+            run_obligation(
+                ob, receipts=tape, catalog=PERIOD_CATALOG, policy=policy,
+                settled_refs=refs, since=ob.period_start,
+                dry_run=False, log_path=log,
+            )
+            for ob in obligations
+        ]
+
+    spent_before = spent()
+
+    # --- tick 1: one settlement, one bill, paid ----------------------------
+    tape = [_period_receipt(1_000.0)]
+    obs, decisions = tick(tape)
+    assert len(obs) == 1, "one (seller, resource) pair is one bill"
+    assert [d.intent for d in decisions] == [PAY], [d.rule for d in decisions]
+    assert decisions[0].paid_usdc == 2.0
+    assert obs[0].period_end == 1_000.0, "the window ends at the last settlement, not at `now`"
+    first_id = obs[0].obligation_id
+
+    # --- tick 2: nothing new, so nothing to do -----------------------------
+    obs, decisions = tick(tape)
+    assert obs == [] and decisions == [], (
+        "an idle tick must produce no bill at all — not a zero-amount one, and "
+        "certainly not a second payment of the period just settled"
+    )
+
+    # --- tick 3: the vendor serves us again --------------------------------
+    tape.append(_period_receipt(3_000.0))
+    obs, decisions = tick(tape)
+    assert len(obs) == 1, "THE BUG: new consumption used to be refused as a duplicate"
+    assert [d.intent for d in decisions] == [PAY], [d.rule for d in decisions]
+    assert decisions[0].billed_usdc == 2.0, "and the bill covers only the new period"
+    assert obs[0].obligation_id != first_id
+    assert obs[0].period_start == 3_000.0
+
+    # The meter saw the same window the bill did, so nothing was reported as a
+    # discrepancy. Passing the window to the bill and not to the meter would
+    # have the agent accusing this vendor of billing for a thousand units it
+    # had already been paid for.
+    assert decisions[0].metered_quantity == pytest.approx(1_000.0)
+    assert decisions[0].discrepancy in (None, 0.0)
+
+    # --- the chain, which is the only witness that counts -------------------
+    assert spent() - spent_before == 4 * USDC, (
+        "the wallet must have moved exactly the two bills, 2 then 2. More means a "
+        "period was paid twice; less means the second was refused."
+    )
