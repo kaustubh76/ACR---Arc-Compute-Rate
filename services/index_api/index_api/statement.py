@@ -201,6 +201,18 @@ def summarise(decisions: list[dict]) -> dict:
     #: a counterfactual, and the only value figure here that can be defended
     #: against the bank statement.
     held_back = 0.0
+    #: What a vendor billed for and our own meter could not find, priced at the
+    #: bill's own rate, over the bills that did not go out because of it.
+    #:
+    #: Prior Art #06, in the unit a budget is written in. `discrepancies` next
+    #: to it has always been a COUNT, and a count of findings is not a reason to
+    #: act: "three bills disagreed with our meter" and "seventy-six USDC of
+    #: those bills was for something that did not happen" are the same fact, and
+    #: only one of them gets answered.
+    #:
+    #: It cannot double-count with `held_back`: the meter is check 3 and returns
+    #: before the agreement at 4b, so no single decision can be both.
+    overbilled = 0.0
     discrepancies = 0
     unmetered = 0
 
@@ -230,6 +242,12 @@ def summarise(decisions: list[dict]) -> dict:
         disc = d.get("discrepancy")
         if isinstance(disc, (int, float)) and disc > 0:
             discrepancies += 1
+            # Only where the money stayed. A bill the owner approved anyway went
+            # out, whatever the meter said about it.
+            if intent in (ESCALATE, REFUSE, HOLD):
+                over = d.get("discrepancy_usdc")
+                if isinstance(over, (int, float)) and over > 0:
+                    overbilled += float(over)
         if "unmetered" in str(d.get("rule") or ""):
             unmetered += 1
 
@@ -246,6 +264,9 @@ def summarise(decisions: list[dict]) -> dict:
         #: Realised, unlike `saved_usdc`. See the accumulator for why the two
         #: must never be added together.
         "held_back_usdc": round(held_back, 6),
+        #: Realised, like `held_back_usdc` and for the same reason: the money
+        #: did not leave. Never add the two to `saved_usdc`.
+        "overbilled_usdc": round(overbilled, 6),
         "consumption_discrepancies": discrepancies,
         "unmetered": unmetered,
         **autonomy(decisions),

@@ -844,6 +844,9 @@ export interface Statement {
   /** Realised, unlike `saved_usdc`: a bill outside an agreement we had written
    *  down, which did not leave the wallet. The two must never be summed. */
   held_back_usdc: number;
+  /** Realised too: a vendor billed for more than our own meter could find, and
+   *  the bill did not go out. Never summed with `saved_usdc`. */
+  overbilled_usdc: number;
     consumption_discrepancies: number;
     unmetered: number;
   };

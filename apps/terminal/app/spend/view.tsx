@@ -398,6 +398,21 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                   </td>
                   <td className="mono">{price(s.held_back_usdc)}</td>
                 </tr>
+                {/* The third of the three, and the only one a reader is likely
+                    to have felt: a bill for seats nobody opened. `Consumption
+                    discrepancies` below has always been able to say that one
+                    bill disagreed with our meter — this says how much of it was
+                    for something that did not happen, which is the half anybody
+                    acts on. Realised, like the row above it: the money stayed. */}
+                <tr>
+                  <td>
+                    <Ed
+                      x="Overbilled against our own meter"
+                      p="Money billed for things we could not find any record of using"
+                    />
+                  </td>
+                  <td className="mono">{price(s.overbilled_usdc)}</td>
+                </tr>
                 <tr>
                   <td>
                     <Ed

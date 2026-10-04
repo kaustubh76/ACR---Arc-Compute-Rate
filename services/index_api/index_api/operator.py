@@ -157,6 +157,18 @@ class ObligationDecision:
     vendor_quantity: float | None = None
     #: Positive == the vendor billed for more than we counted.
     discrepancy: float | None = None
+    #: THE SAME GAP, IN MONEY. Prior Art #06's officials kept the standard
+    #: measures in the marketplace because a seller who supplies both the goods
+    #: and the measuring cup will eventually supply a smaller cup. We have kept
+    #: our own count since the beginning — and reported it in the service's own
+    #: units, which is the vendor's vocabulary, not a budget's.
+    #:
+    #: Priced at the bill's OWN effective rate (`billed_usdc / vendor_quantity`)
+    #: rather than at par or at the cheapest offer. Those two would answer a
+    #: different question — "is this dear?" — and this one is "how much of this
+    #: bill is for something that did not happen?". The vendor's own arithmetic
+    #: is the only fair basis for that.
+    discrepancy_usdc: float | None = None
     #: WHICH CHANNEL the money went out through: ``circle`` for a Circle
     #: developer-controlled wallet, ``local`` for a raw key, ``""`` when no
     #: policy client was offered. The same argument `screen_backend` won one
@@ -696,6 +708,86 @@ def obligations_for(
         )
     return out
 
+def obligations_from_entitlements(
+    business,
+    entitlements: list[dict],
+    paid_through: dict[tuple[str, str], float] | None = None,
+) -> list[tuple[Obligation, float | None]]:
+    """Bills that did not come from the settlement tape — Prior Art #06.
+
+    `obligations_for` reads x402 receipts, which is the only meter this project
+    happened to build first. A recurring vendor does not settle through our
+    paywall: it sends an invoice for an entitlement — fifty seats, a tier, a
+    retainer — and whether that entitlement was *used* lives in somebody else's
+    usage export. Both halves are still a bill and a count; only their source
+    changes.
+
+    Returns the obligation AND the independent count beside it, because the two
+    arrive together and `run_obligation`'s `metered_quantity` seam is what
+    carries the second one into check 3. Keeping them as a pair makes it
+    impossible to pass a bill without the count that judges it — which is the
+    failure the tri-state exists to prevent: omit the count and the meter check
+    silently vanishes, invent one and every bill escalates "unmetered".
+
+    Each row needs `payee`, `resource`, `billed_usdc` and the period it covers.
+    `billed_quantity` is what the vendor charged for and `used_quantity` is what
+    the independent source says happened; `used_quantity` absent is ``None``,
+    which means "we could not check" and is never zero.
+
+    The window comes from the BILL, never from the clock, for the reason commit
+    `a20d64a` records: a period taken from `now` mints a new id on every tick and
+    the same charge gets paid again and again.
+    """
+    through = paid_through or {}
+    out: list[tuple[Obligation, float | None]] = []
+
+    for row in entitlements or ():
+        payee = str(row.get("payee") or "").strip()
+        resource = resource_path(str(row.get("resource") or ""))
+        amount = row.get("billed_usdc")
+        if not payee or not resource or not isinstance(amount, (int, float)):
+            log.warning("entitlements: skipping a row with no payee, resource or amount")
+            continue
+        if float(amount) <= 0:
+            continue
+
+        period_end = float(row.get("period_end") or 0.0)
+        period_start = float(row.get("period_start") or 0.0)
+        # Already settled: the boundary is the end of the last period we paid
+        # for this pair, exactly as the tape-fed feeder treats it.
+        if period_end and period_end <= through.get((payee.lower(), resource), 0.0):
+            continue
+
+        billed_q = row.get("billed_quantity")
+        used_q = row.get("used_quantity")
+        out.append((
+            Obligation(
+                obligation_id=obligation_key(business.slug, payee, resource, period_end),
+                vendor=payee,
+                # Rounded here and nowhere later, for `usdc_units`' sake and so
+                # the ledger, the chain and the audit all see one figure.
+                billed_usdc=round(float(amount), 6),
+                business=business.slug,
+                category=str(row.get("category") or "")
+                or (business.categories or ("general",))[0],
+                kind=str(row.get("kind") or "subscription"),
+                resource=resource,
+                vendor_quantity=float(billed_q) if isinstance(billed_q, (int, float)) else None,
+                unit=str(row.get("unit") or ""),
+                period_start=period_start,
+                period_end=period_end,
+                # The three fields an invoice actually has and the tape never
+                # did. `due_at` finally gives check 7 something to say.
+                due_at=float(row["due_at"]) if isinstance(row.get("due_at"), (int, float)) else None,
+                invoice_ref=str(row.get("invoice_ref") or ""),
+                early_pay_discount=float(row.get("early_pay_discount") or 0.0),
+            ),
+            float(used_q) if isinstance(used_q, (int, float)) else None,
+        ))
+
+    return out
+
+
 def settled_through(decisions) -> dict[tuple[str, str], float]:
     """For each ``(vendor, resource)`` this business has really paid, the moment
     its last paid period ended.
@@ -868,13 +960,23 @@ def decide(
             d.rule = "unmetered: we hold no record of consuming this, so we cannot check the bill"
             return d
         d.discrepancy = ob.vendor_quantity - metered_quantity
+        if ob.vendor_quantity:
+            d.discrepancy_usdc = round(
+                d.discrepancy * (ob.billed_usdc / ob.vendor_quantity), 6
+            )
         allowed = abs(metered_quantity) * meter_tolerance
         if d.discrepancy > allowed:
             d.intent, d.escalated = ESCALATE, True
             d.recommended_intent = REFUSE
+            # THE MONEY IN THE SENTENCE, because the sentence is what a person
+            # reads. "They billed 50, we counted 12" is the finding; "76 USDC of
+            # this bill is for something that did not happen" is the reason
+            # anybody acts on it.
             d.rule = (
                 f"metered below billed: they billed {ob.vendor_quantity:g}, "
                 f"we counted {metered_quantity:g}"
+                + (f" — {d.discrepancy_usdc:g} USDC of this bill is for something "
+                   "that did not happen" if d.discrepancy_usdc else "")
             )
             return d
         if d.discrepancy < -allowed:
