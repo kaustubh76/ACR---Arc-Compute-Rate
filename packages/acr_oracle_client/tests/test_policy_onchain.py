@@ -18,6 +18,7 @@ threshold it cannot, and with the owner's signature it can.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,13 @@ from acr_oracle_client.policy import (
 from acr_oracle_client.signer import LocalKeySigner
 from web3.logs import DISCARD
 
-RPC = "http://127.0.0.1:8545"
+#: Overridable, because this machine runs more than one project. A parallel
+#: session held 127.0.0.1:8545 with its own anvil for seven hours, and chain id
+#: cannot tell two anvils apart — both are 31337 — so a run against the wrong
+#: one looks exactly like a run against the right one, and deploys into whatever
+#: state the other session has built up. CI starts anvil on the default and is
+#: unaffected; a second chain just needs ACR_TEST_RPC.
+RPC = os.environ.get("ACR_TEST_RPC", "http://127.0.0.1:8545")
 # anvil's first two deterministic keys: the owner and the agent must be
 # different parties or the threshold proves nothing.
 OWNER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -85,7 +92,7 @@ def _deploy(w3, acct, artifact: Path, *args):
 def chain():
     node = _anvil()
     if node is None:
-        pytest.skip("no anvil at 127.0.0.1:8545")
+        pytest.skip(f"no anvil at {RPC}")
     if not WALLET_ARTIFACT.exists() or not USDC_ARTIFACT.exists():
         pytest.skip("contracts not built (run: cd contracts && forge build)")
     return node
