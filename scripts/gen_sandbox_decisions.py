@@ -30,6 +30,7 @@ import json
 import sys
 from pathlib import Path
 
+from index_api.commitments import covering
 from index_api.counterparty import CounterpartyVerdict
 from index_api.operator import Obligation, decide
 from index_api.par import Par
@@ -142,13 +143,36 @@ CASES = [
              par=_market(best_usdc=0.5, best=SELLER_A), screen=UNKNOWN, metered_quantity=0.9,
              remaining_usdc=40.0, per_tx_limit_usdc=100.0),
     ),
+    (
+        # THE SYMBOLON REFUSING. The agreement covering this service allows 12
+        # units; the vendor delivered and billed for 20. Inside no market's
+        # opinion and outside the agreement, so it is held back with the
+        # overage named — which is the half of a three-way match that saves
+        # money rather than merely recording it.
+        "more than the agreement allows: held back, with the overage priced",
+        dict(ob=_ob(47, SELLER_A, 10.0, vendor_quantity=20.0),
+             par=_market(best_usdc=0.5, best=SELLER_A), screen=CLEAR,
+             metered_quantity=20.0,
+             remaining_usdc=40.0, per_tx_limit_usdc=100.0),
+    ),
 ]
 
 
 def build() -> list[dict]:
+    """Each case through `decide()`, with the agreement looked up for real.
+
+    `covering()` rather than a hand-passed commitment, so the fixture exercises
+    the register the live path reads and a row is covered only if the register
+    really covers it. Two of these are, one is deliberately not — the vendor in
+    the reroute case is a third party we never agreed anything with, which is
+    why the market is the right basis there.
+    """
     rows = []
     for i, (shows, kw) in enumerate(CASES):
-        d = decide(now=AT - (len(CASES) - i) * 600, **kw)
+        at = AT - (len(CASES) - i) * 600
+        ob = kw["ob"]
+        agreement = covering(ob.business, ob.vendor, ob.resource, at)
+        d = decide(now=at, commitment=agreement, **kw)
         row = {k: v for k, v in d.as_record().items()}
         # `as_record` omits the payment's own results by design; a fixture is a
         # record of a decision, so the two are added back as a real log row has
@@ -169,8 +193,10 @@ def main() -> int:
     text = "".join(json.dumps(r, separators=(",", ":"), default=str) + "\n" for _s, r in rows)
 
     for shows, row in rows:
+        agreed = row.get("commitment_verdict") or "-"
         print(f"  {row['obligation_id']:<22} {row['intent']:<9} "
-              f"{'recommend ' + row['recommended_intent'] if row['recommended_intent'] else '':<18} {shows}")
+              f"{'recommend ' + row['recommended_intent'] if row['recommended_intent'] else '':<18} "
+              f"{agreed:<16} {shows}")
 
     if a.check:
         have = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""

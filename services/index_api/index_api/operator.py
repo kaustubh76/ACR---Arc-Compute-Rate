@@ -232,6 +232,18 @@ class ObligationDecision:
     #
     # All of these are inside `as_record()`, so from here the chain commits to
     # the parameters as well as the verdict.
+    #: Which agreement this bill was judged against, and how it fared. The id
+    #: and the hash together are the reviewer's half of the symbolon: the hash
+    #: pins the terms as they stood, and it is inside `as_record()`, so the
+    #: chain commits to "this payment was made against that agreement".
+    commitment_id: str = ""
+    commitment_hash: str = ""
+    #: ``within`` · ``over_total`` · ``over_unit_price`` · ``over_quantity`` ·
+    #: ``outside_window`` · ``no_commitment``
+    commitment_verdict: str = ""
+    #: What the bill exceeded the agreement by, in USDC. The figure a mismatch
+    #: holds back, and the only one here that is money rather than a comparison.
+    over_commitment_usdc: float | None = None
     #: ``x402`` · ``invoice`` · ``milestone`` · ``subscription``.
     kind: str = ""
     #: The service's own unit, which decides WHICH market was consulted.
@@ -789,6 +801,10 @@ def decide(
     par: Par | None = None,
     screen: CounterpartyVerdict | None = None,
     metered_quantity: float | None = None,
+    #: The agreement this bill was made under, if there is one. Injected like
+    #: `par` and `screen` rather than loaded, so `decide` stays pure and a test
+    #: can put a known agreement in front of it.
+    commitment=None,
     settled_refs: set[str] | None = None,
     remaining_usdc: float | None = None,
     per_tx_limit_usdc: float | None = None,
@@ -897,16 +913,52 @@ def decide(
     else:
         d.notes.append("no counterparty screen was offered for this decision")
 
-    # 5 and 6 — the price, against observed quotes for the same service.
-    # OUR OWN count is the denominator when we have one: "we paid this much for
-    # what we actually took". The meter above has already escalated any material
-    # overstatement, so by here the two agree; where they differ within
-    # tolerance, our count is the one we can defend.
+    # 4b — THE AGREEMENT, when there is one. Prior Art #03, the symbolon.
+    #
+    # Before the market, because an agreement is more specific than a market: if
+    # we wrote down what this vendor would charge for this service, that is the
+    # thing to hold them to, and the going rate elsewhere is somebody else's
+    # business. A reroute would be the wrong answer here — we are not shopping,
+    # we are honouring a commitment we made.
+    #
+    # AND BECAUSE IT UNBLOCKS THE LADDER. Check 5 escalates any bill it cannot
+    # price above `unbenchmarked_max_usdc`, and a benchmark needs two
+    # independent sellers of the same unit — which a contractor's hourly rate
+    # and a SaaS seat price can never have. A market needs competitors; an
+    # agreement needs none, because it is what we agreed. So the price question
+    # now has three answers rather than two, and the ceiling is the last resort
+    # instead of the only one.
     priced_quantity = (
         metered_quantity
         if metered_quantity is not None and metered_quantity > 0
         else ob.vendor_quantity
     )
+    agreed = None
+    if commitment is not None:
+        from .commitments import assess as assess_commitment
+
+        agreed = assess_commitment(commitment, ob.billed_usdc, priced_quantity, t)
+        d.commitment_id = str(agreed.get("commitment_id") or "")
+        d.commitment_hash = str(agreed.get("commitment_hash") or "")
+        d.commitment_verdict = str(agreed.get("verdict") or "")
+        d.over_commitment_usdc = agreed.get("over_usdc")
+        if not agreed["matched"]:
+            d.intent, d.escalated = ESCALATE, True
+            d.recommended_intent = REFUSE
+            over = agreed.get("over_usdc")
+            d.rule = _commitment_rule(agreed, over)
+            return d
+        d.notes.append(
+            f"within the agreement {d.commitment_id}"
+            + (f" (at most {agreed['agreed_total_usdc']:g} USDC)"
+               if agreed.get("agreed_total_usdc") is not None else "")
+        )
+
+    # 5 and 6 — the price, against observed quotes for the same service.
+    # OUR OWN count is the denominator when we have one: "we paid this much for
+    # what we actually took". The meter above has already escalated any material
+    # overstatement, so by here the two agree; where they differ within
+    # tolerance, our count is the one we can defend.
     verdict = (
         assess(ob.billed_usdc, par, material_bp, quantity=priced_quantity)
         if par is not None
@@ -914,7 +966,20 @@ def decide(
     )
     if verdict is None or not verdict["benchmarked"]:
         reason = (verdict or {}).get("reason") or "NO_PAR"
-        if ob.billed_usdc > unbenchmarked_max_usdc:
+        # AN AGREEMENT IS A BASIS, SO THE CEILING DOES NOT APPLY.
+        #
+        # This is the point of check 4b. The ceiling exists because a price
+        # nobody can check should not be paid at size on the agent's own
+        # authority — but a bill inside an agreement we wrote down HAS been
+        # checked, against the better of the two standards. Without this branch
+        # a 140 USDC milestone escalates for being unpriceable while sitting
+        # exactly inside the contract that priced it, which is the ladder
+        # refusing to read its own evidence.
+        if agreed is not None and agreed.get("matched"):
+            d.notes.append(
+                f"no market for this ({reason}), priced against the agreement instead"
+            )
+        elif ob.billed_usdc > unbenchmarked_max_usdc:
             d.intent, d.escalated = ESCALATE, True
             # No opinion on the price, so the recommendation is to wait for one
             # rather than to refuse a bill that may be perfectly fair.
@@ -938,7 +1003,21 @@ def decide(
         d.par_sellers = verdict.get("sellers")
         d.par_reason = str(verdict.get("reason") or "")
 
-        if verdict["verdict"] == "over_par":
+        # AN AGREEMENT IS NOT SHOPPED. If this bill sits inside a commitment we
+        # made, the market comparison above is still RECORDED — the figures are
+        # on the row, and what renegotiating would be worth is exactly what an
+        # owner needs to know — but it does not reroute. Breaking a written
+        # agreement to chase a price is a business decision with consequences
+        # the agent cannot see, so it reports the opportunity and honours the
+        # commitment. My own test caught this: with a rival 6000 bp cheaper the
+        # ladder rerouted away from a vendor we had committed to.
+        if agreed is not None and agreed.get("matched"):
+            if verdict["verdict"] == "over_par" and verdict.get("saving_usdc"):
+                d.notes.append(
+                    f"a cheaper offer exists at {verdict['best_usdc']:g} — worth "
+                    f"{verdict['saving_usdc']:g} USDC if {d.commitment_id} is renegotiated"
+                )
+        elif verdict["verdict"] == "over_par":
             cheaper = verdict["best_seller"]
             # A cheaper seller who is the vendor itself is not a reroute; `par`
             # already excludes the biller, so reaching here means a real third
@@ -1008,6 +1087,36 @@ def decide(
     return d
 
 
+def _commitment_rule(agreed: dict, over: float | None) -> str:
+    """Why this bill did not fit the agreement, in one line.
+
+    Each failure gets its own sentence because each calls for a different
+    conversation: a price above what was agreed is a renegotiation, a quantity
+    above it is an over-delivery, and a bill outside the window is an agreement
+    that has run out. "Does not match" would collapse three different problems
+    into one shrug.
+    """
+    from .commitments import OUTSIDE_WINDOW, OVER_QUANTITY, OVER_TOTAL, OVER_UNIT_PRICE
+
+    cid = agreed.get("commitment_id") or "the agreement"
+    by = f" by {over:g} USDC" if isinstance(over, (int, float)) else ""
+    verdict = agreed.get("verdict")
+    if verdict == OUTSIDE_WINDOW:
+        return f"outside the window {cid} covers, so there is no agreement to pay under"
+    if verdict == OVER_TOTAL:
+        return (
+            f"over the {agreed['agreed_total_usdc']:g} USDC we agreed in {cid}{by}"
+        )
+    if verdict == OVER_QUANTITY:
+        return f"more than the quantity {cid} agreed to{by}"
+    if verdict == OVER_UNIT_PRICE:
+        return (
+            f"dearer per unit than the {agreed['agreed_unit_price_usdc']:g} "
+            f"we agreed in {cid}{by}"
+        )
+    return f"does not match {cid}"
+
+
 def _pay_rule(
     d: ObligationDecision, verdict: dict | None, material_bp: float = MATERIAL_BP
 ) -> str:
@@ -1039,6 +1148,15 @@ def run_obligation(
     catalog: dict,
     policy=None,
     screen=None,
+    #: The agreement this bill was made under. ``None`` means "look it up on
+    #: the register"; pass ``False`` to say there is deliberately none, which is
+    #: what a test wants when it is asking about the market instead.
+    commitment=None,
+    #: An independent count, when the meter cannot produce one from the
+    #: settlement tape. A timesheet or a seat export is a meter; the tape is
+    #: only the meter we happened to build first. Keeps the tri-state: ``None``
+    #: means "we could not check", ``0.0`` means "we checked and it was zero".
+    metered_quantity: float | None = None,
     settled_refs: set[str] | None = None,
     since: float = 0.0,
     now: float | None = None,
@@ -1067,7 +1185,33 @@ def run_obligation(
         quotes_from_receipts,
     )
 
-    metered = meter_quantity(receipts, ob.vendor, ob.resource, since)
+    t = now if now is not None else time.time()
+
+    # AN INJECTED COUNT WINS, because the tape is only the meter we built
+    # first. A contractor's timesheet and a seat export are meters too, and
+    # without this seam check 3 could never run on either: omit the quantity and
+    # the meter silently vanishes, supply it and every bill escalates
+    # "unmetered".
+    metered = (
+        metered_quantity
+        if metered_quantity is not None
+        else meter_quantity(receipts, ob.vendor, ob.resource, since)
+    )
+
+    # The agreement, looked up unless the caller has already answered. `False`
+    # is "there is deliberately none" and `None` is "go and look" — the
+    # distinction a test needs and a production caller never passes.
+    agreement = commitment
+    if agreement is None:
+        from .commitments import covering
+
+        try:
+            agreement = covering(ob.business, ob.vendor, ob.resource, t)
+        except Exception as exc:  # noqa: BLE001 - a register must not stop a decision
+            log.warning("operator: the commitment register was unreadable (%s)", exc)
+            agreement = None
+    elif agreement is False:
+        agreement = None
 
     # Screened on every run, not once at onboarding. Prior Art #07's whole point
     # is that a static list "was out of date the moment it was carved"; a verdict
@@ -1136,10 +1280,14 @@ def run_obligation(
         par=par,
         screen=verdict,
         metered_quantity=metered,
+        commitment=agreement,
         settled_refs=settled_refs,
         remaining_usdc=remaining,
         per_tx_limit_usdc=per_tx,
-        now=now,
+        # The clock resolved ONCE above and shared, so the agreement the
+        # register was asked about is the one the decision is judged against —
+        # an agreement cannot expire between the lookup and the verdict.
+        now=t,
     )
 
     d.paid_via = paid_via

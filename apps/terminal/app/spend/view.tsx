@@ -382,6 +382,22 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                   </td>
                   <td className="mono">{price(s.saved_usdc)}</td>
                 </tr>
+                {/* DIRECTLY BELOW the row above, and deliberately. The two look
+                    alike and are not: the one above is measured against another
+                    seller's OFFER and nothing was bought, which is why the
+                    ledger refuses to book it as income. This one is money a
+                    vendor asked for, outside an agreement we had written down,
+                    that did not leave the wallet. Adjacent so a reader sees the
+                    difference rather than having to be told it. */}
+                <tr>
+                  <td>
+                    <Ed
+                      x="Held back against an agreement"
+                      p="Money a vendor asked for that we had not agreed to pay"
+                    />
+                  </td>
+                  <td className="mono">{price(s.held_back_usdc)}</td>
+                </tr>
                 <tr>
                   <td>
                     <Ed

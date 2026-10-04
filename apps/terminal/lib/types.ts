@@ -841,6 +841,9 @@ export interface Statement {
     escalated: number;
     paid_usdc: number;
     saved_usdc: number;
+  /** Realised, unlike `saved_usdc`: a bill outside an agreement we had written
+   *  down, which did not leave the wallet. The two must never be summed. */
+  held_back_usdc: number;
     consumption_discrepancies: number;
     unmetered: number;
   };

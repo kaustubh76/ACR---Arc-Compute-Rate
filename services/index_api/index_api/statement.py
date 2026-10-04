@@ -189,6 +189,18 @@ def summarise(decisions: list[dict]) -> dict:
     by_intent = {k: 0 for k in (PAY, HOLD, REROUTE, ESCALATE, REFUSE)}
     saved = 0.0
     paid = 0.0
+    #: What a bill exceeded the agreement it was made under by, summed over the
+    #: bills that did not go out because of it.
+    #:
+    #: THE DIFFERENCE BETWEEN THIS AND `saved_usdc` IS THE WHOLE POINT. A
+    #: reroute's saving is measured against somebody else's OFFER and nothing
+    #: was bought, which is why `ledger_export` refuses to book it as income —
+    #: "writing the avoided overpay as `Income:Savings` would be inventing a
+    #: credit". This is money that was asked for, was outside an agreement we
+    #: had written down, and did not leave the wallet. A realised avoidance, not
+    #: a counterfactual, and the only value figure here that can be defended
+    #: against the bank statement.
+    held_back = 0.0
     discrepancies = 0
     unmetered = 0
 
@@ -207,6 +219,14 @@ def summarise(decisions: list[dict]) -> dict:
             p = d.get("paid_usdc")
             if isinstance(p, (int, float)):
                 paid += float(p)
+        # Only where the money really did not go out. A bill the owner later
+        # approved anyway was not held back by anything.
+        if intent in (ESCALATE, REFUSE, HOLD) and str(d.get("commitment_verdict") or "") not in (
+            "", "within", "no_commitment",
+        ):
+            over = d.get("over_commitment_usdc")
+            if isinstance(over, (int, float)) and over > 0:
+                held_back += float(over)
         disc = d.get("discrepancy")
         if isinstance(disc, (int, float)) and disc > 0:
             discrepancies += 1
@@ -223,6 +243,9 @@ def summarise(decisions: list[dict]) -> dict:
         "paid_usdc": paid,
         # Recoverable, because another seller was offering it.
         "saved_usdc": saved,
+        #: Realised, unlike `saved_usdc`. See the accumulator for why the two
+        #: must never be added together.
+        "held_back_usdc": round(held_back, 6),
         "consumption_discrepancies": discrepancies,
         "unmetered": unmetered,
         **autonomy(decisions),

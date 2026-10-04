@@ -195,6 +195,23 @@ def _commission(decisions: list[dict], receipts: list[dict], treasury: str):
         for r in receipts
         if str(r.get("payer") or "").lower() == t and r.get("seller")
     }
+    # A SIGNED AGREEMENT IS BETTER EVIDENCE THAN THE TAPE, and without this the
+    # check inverts into a false positive on every obligation that is not an
+    # x402 call. The tape only records machine-service settlements, so a
+    # contractor or a subscription vendor can never appear on it — and this
+    # check would report "paid somebody who never served this treasury" about
+    # every single one of them, which is the audit's hardest finding fired at
+    # the wrong target.
+    #
+    # The question the check asks is "was this party meant to be paid?". A
+    # commitment we wrote down, whose hash is on the decision and inside the
+    # transaction that paid it, answers that better than a receipt does: the
+    # receipt says money moved, the agreement says we intended it to.
+    #
+    # Not firing today only because nothing non-x402 has been paid yet.
+    for d in decisions:
+        if str(d.get("commitment_verdict") or "") == "within" and d.get("vendor"):
+            served.add(str(d["vendor"]).lower())
     found: list[Finding] = []
     searched = 0
 

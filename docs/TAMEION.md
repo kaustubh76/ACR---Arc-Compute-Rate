@@ -179,6 +179,56 @@ only Circle-compatible owner route. And the screen is not Circle's: nothing in
 Circle's SDK surface here screens an address, so `addresses_screened` is counted
 against a denylist or OpenSanctions and named for what it is.
 
+## A budget is a limit; an agreement is a commitment
+
+The `PolicyWallet` says *"you may spend at most 1 USDC on machine-services, and
+at most 0.05 in any one payment."* That is a **limit**. It is the right thing to
+put on chain — the contract says so itself: *"two numbers per category, because
+a third would be a number somebody could get wrong"*, and *"REFUSE, NEVER
+CLAMP"* — and it is not what an accounts-payable clerk reconciles against.
+
+A clerk matches three things: what was agreed, what arrived, and what was
+billed. Prior Art #03 calls it the symbolon, after the object broken in two
+whose halves had to fit. This repo had two of the three — the vendor's invoice,
+and our own meter counting what actually arrived (Prior Art #06). The missing
+half was the agreement.
+
+`operator_commitments.jsonl` is the register: payee, service, unit price, max
+quantity, window. It is **signed off chain and committed on chain** — the
+agreement's hash rides inside the decision record that `PolicyWallet` already
+hashes into the paying transaction, so the chain commits to *"this payment was
+made against that agreement"* with no new contract and no redeploy.
+
+**It also unblocks something.** The agent escalates any bill it cannot price
+above a 1 USDC ceiling, and a benchmark needs two independent sellers of the
+same unit — which a contractor's hourly rate and a SaaS seat price can never
+have. So every bill of real size was unpayable by construction, whatever its
+kind. A market needs competitors. **An agreement needs none, because it is what
+we agreed.** The price question now has three answers rather than two, and the
+ceiling is the last resort instead of the only one.
+
+Four orderings, each a decision worth arguing with:
+
+- **The meter outranks the agreement.** An agreement says what we would pay for
+  work done. It does not say the work was done.
+- **The budget outranks the agreement.** A commitment is not authority to exceed
+  the wallet, and the contract refuses rather than paying what is left.
+- **The agreement outranks the market.** A bill inside a commitment is not
+  rerouted, because we are honouring something we wrote down rather than
+  shopping. What the cheaper offer would have been worth is *recorded* — "a
+  cheaper offer exists at 0.2, worth 84 USDC if this is renegotiated" — so a
+  human can reopen the agreement. Breaking it is their call, not the agent's.
+- **The window outranks everything.** An expired agreement is not a cheaper one;
+  it is none.
+
+`held_back_usdc` is what this earns: money a vendor asked for, outside an
+agreement we had written down, that did not leave the wallet. It sits directly
+beneath `saved_usdc` on `/spend` because the two look alike and are not — a
+reroute's saving is measured against another seller's **offer** and nothing was
+bought, which is why the ledger refuses to book it as income. One is a
+counterfactual. The other is defensible against the bank statement, and they
+must never be added together.
+
 ## The four decisions worth arguing with
 
 **PAR is observed quotes, never the published index.**
