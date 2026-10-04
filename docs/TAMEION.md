@@ -229,6 +229,49 @@ bought, which is why the ledger refuses to book it as income. One is a
 counterfactual. The other is defensible against the bank statement, and they
 must never be added together.
 
+## Idle cash: what it would take, and what we did not build
+
+RFB 1 asks for an agent that puts idle reserves to work. Prior Art #02 is the
+Parable of the Talents, where the servant who buried the silver is the only one
+rebuked — *"you ought to have deposited my money with the bankers"* — and it
+names the hard part correctly: **not the yield, the timing.** Redeem too late and
+payroll does not clear.
+
+We did not build it, and this is the research rather than an excuse.
+
+**USYC is reachable on Arc, and we checked rather than taking the page's word.**
+Read first-hand over the public testnet RPC on 2026-10-04 (chain 5042002):
+`0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C` holds 183 bytes of proxy code,
+answers `symbol() == "USYC"`, `decimals() == 6`, and reports a testnet supply of
+1,377,750.228757. The Teller that mints and redeems it,
+`0x9fdF14c5B14173D74C08Af27AebFf39240dC105A`, is deployed too — `buy()` takes
+USDC and gives USYC, `sell()` goes back. Mainnet USYC is
+`0x8a5D989Bbb96929F689B0200f435f53dA42bF490`.
+
+**What stops it is an allowlist, not a contract.** Circle's own documentation is
+explicit: USYC is for institutions outside the United States, with eligibility
+restrictions and a $100,000 minimum. On testnet the path is narrower but still
+gated — get testnet USDC from the faucet, then **open a Circle Support ticket
+asking for the Arc testnet wallet to be allowlisted, which takes 24 to 48
+hours**, and only then can the Teller be called. We could not read our own
+eligibility to confirm it: the Teller's allowlist accessor is not under any of
+the three usual names, so the real ABI is needed and guessing at it would be
+worse than saying so.
+
+**So the honest position.** The capability is three lines of contract call
+behind a human approval with a two-day lead time. The part that is actually
+ours, and the part most treasury bots guess at, is the **forecast**: how much is
+provably idle past the longest committed outflow. We already hold what that
+needs — the obligations, their windows, and now the agreements they were made
+under — and none of it requires USYC. If the allowlist lands, the yield leg is
+small. If it does not, the forecast is still worth having and still honest,
+because it reports a number without asserting a rate.
+
+What we will not do is claim the loop. `operator.py`'s timing rule already says
+*"the cash is worth more here"* with no rate behind it, and that sentence is an
+assertion looking for evidence. Putting a yield figure next to it without the
+flow that earned it would be the same overclaim one step further on.
+
 ## The four decisions worth arguing with
 
 **PAR is observed quotes, never the published index.**
