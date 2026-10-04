@@ -3,6 +3,20 @@
 
     uv run python scripts/operator_run.py --business acr-fleet
     uv run python scripts/operator_run.py --business acr-fleet --live   # pays
+    uv run python scripts/operator_run.py --business acme --entitlements bills.json
+
+THE SECOND SOURCE. `--entitlements` reads bills that did NOT come through our
+paywall — a recurring vendor's invoice for fifty seats, a contractor's milestone
+— each one paired with an independent count of what was actually used. That is
+Prior Art #06 applied where it is worth the most: the agoranomoi kept the
+standard measures because a seller who supplies both the goods and the measuring
+cup will eventually supply a smaller cup, and a SaaS invoice arrives already
+totalled.
+
+A business with NO `PolicyWallet` is a first-class case here, not a degraded
+one: the operator prices, meters and reports, and cannot spend. The registry
+calls that "what an evaluation looks like", and it is the whole of what a new
+customer has to trust us with — a usage export, and no keys.
 
 WHAT AN OBLIGATION IS HERE, and why it is not invented. The fleet's own
 settlement archive says which machine services it consumed and how much of each.
@@ -26,6 +40,7 @@ decision here does not.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import sys
 from collections import defaultdict
 
@@ -36,6 +51,7 @@ from index_api.operator import (
     ESCALATE,
     PAY,
     obligations_for,
+    obligations_from_entitlements,
     resource_path,
     run_obligation,
     settled_refs_from,
@@ -90,11 +106,44 @@ def _path_of(resource: str) -> str:
 _obligations = obligations_for
 
 
+def _read_entitlements(path: str) -> list[dict] | None:
+    """Bills a vendor sent us, as JSON. A list, or an object with ``bills``.
+
+    Returns None on anything unreadable, so `main` can refuse with a sentence
+    instead of a traceback — this is the one input that comes from outside the
+    repo, typed or exported by somebody else, and the first thing a new customer
+    ever hands over.
+    """
+    import json
+
+    try:
+        raw = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"no such file: {path}", file=sys.stderr)
+        return None
+    except ValueError as exc:
+        print(f"{path} is not valid JSON ({exc})", file=sys.stderr)
+        return None
+    rows = raw.get("bills") if isinstance(raw, dict) else raw
+    if not isinstance(rows, list):
+        print(
+            f"{path} should be a JSON list of bills, or an object with a `bills` list",
+            file=sys.stderr,
+        )
+        return None
+    return [r for r in rows if isinstance(r, dict)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--business", required=True, help="registry slug or treasury address")
     ap.add_argument("--live", action="store_true", help="actually pay what clears policy")
     ap.add_argument("--limit", type=int, default=0, help="stop after N obligations")
+    ap.add_argument(
+        "--entitlements", default="",
+        help="a JSON file of bills that did not come through our paywall: each row "
+             "payee, resource, billed_usdc, billed_quantity, used_quantity, period_*",
+    )
     args = ap.parse_args()
 
     s = get_settings()
@@ -135,9 +184,26 @@ def main() -> int:
 
     receipts = _receipts(s)
     catalog = build_catalog(s.x402_resource_base or "http://127.0.0.1:8000", s)
-    obligations = _obligations(b, receipts, catalog, paid_through)
+
+    # EACH OBLIGATION CARRIES THE COUNT THAT JUDGES IT, or None where we have
+    # none. The tape-fed ones let `run_obligation` meter them from the receipts
+    # it is handed; an entitlement arrives with its usage already measured by
+    # somebody else, and `metered_quantity` is the seam that carries it in.
+    # Pairing them here rather than tracking two lists is what makes it
+    # impossible to run a bill past the meter by accident — the meter check is
+    # skipped by a `None` guard, so its absence leaves no trace in the record.
+    if args.entitlements:
+        rows = _read_entitlements(args.entitlements)
+        if rows is None:
+            return 2
+        pairs = obligations_from_entitlements(b, rows, paid_through)
+        source = f"{args.entitlements}: {len(rows)} bill(s) a vendor sent us"
+    else:
+        pairs = [(ob, None) for ob in _obligations(b, receipts, catalog, paid_through)]
+        source = f"{len(receipts)} settlement(s) in the archive"
     if args.limit:
-        obligations = obligations[: args.limit]
+        pairs = pairs[: args.limit]
+    obligations = [ob for ob, _ in pairs]
 
     # WHICH ENDPOINT THIS RAN THROUGH. Nothing in this repo recorded that, and on
     # testnet it decides whether the work counts at all: Canteen counts traction
@@ -146,7 +212,7 @@ def main() -> int:
     # key in its path, and a key printed to a terminal is a key in a transcript.
     print(f"rpc        : {_rpc_host(s.arc_rpc_url)}")
     print(f"business   : {b.slug} ({b.public_name}) on {b.chain}")
-    print(f"receipts   : {len(receipts)} in the archive")
+    print(f"bills from : {source}")
     print(f"settled    : {len(already)} reference(s) already paid")
     print(f"paid thru  : {len(paid_through)} (seller, resource) pair(s) settled to a point in time")
     print(f"obligations: {len(obligations)}")
@@ -163,12 +229,13 @@ def main() -> int:
     print(f"mode       : {'LIVE' if args.live else 'dry run'}\n")
 
     tally: dict[str, int] = defaultdict(int)
-    for ob in obligations:
+    for ob, metered in pairs:
         d = run_obligation(
             ob,
             receipts=receipts,
             catalog=catalog,
             policy=policy,
+            metered_quantity=metered,
             settled_refs=already,
             # The same window the bill was built from. `since` defaulted to 0.0
             # and was never passed, so the meter counted from the epoch — which
