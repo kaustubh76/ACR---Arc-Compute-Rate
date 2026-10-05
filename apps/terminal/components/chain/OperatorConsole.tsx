@@ -352,10 +352,10 @@ export function OperatorConsole() {
       ) : null}
 
       {note && (
-          <p className="muted vermilion" role="alert">
-            {note}
-          </p>
-        )}
+        <p className="muted vermilion" role="alert">
+          {note}
+        </p>
+      )}
 
       {/* Every attempt, including the refused ones. A console that recorded
           only what worked would be missing exactly the entries an operator

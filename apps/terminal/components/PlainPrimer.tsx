@@ -8,7 +8,7 @@ import { PRIMER_BEATS } from "@/lib/plainGlossary";
 
 export function PlainPrimer() {
   return (
-    <section className="section primer plain-only">
+    <section className="section plain-only">
       <div className="section-head">
         <span className="label">This paper in one minute</span>
         <span className="label muted">the same numbers, the whole story</span>

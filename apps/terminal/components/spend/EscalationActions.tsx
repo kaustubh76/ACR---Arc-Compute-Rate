@@ -189,7 +189,7 @@ export function EscalationActions({
   }
 
   return (
-    <div className="panel-pad">
+    <div className="escalation-form">
       <label className="label" htmlFor={`k-${decision.obligation_id}`}>
         <Ed x="Operator key" p="Your key" />
       </label>

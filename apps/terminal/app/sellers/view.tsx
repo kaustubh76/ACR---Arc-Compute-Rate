@@ -704,123 +704,123 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
                   const cleanHalf = 0.5 * s.clean_share;
                   const attHalf = s.attested ? 0.5 : 0;
                   return (
-                <Fragment key={s.seller}>
-                <tr
-                  className="row-link"
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={open}
-                  aria-label={`show how ${s.seller.slice(0, 10)} scored ${s.score.toFixed(3)}`}
-                  title={open ? "hide the arithmetic" : "show how this score was reached"}
-                  onClick={(e) => {
-                    /* The first cell holds an explorer link and a copy button.
-                       Without this guard, "open in the explorer" ALSO toggled
-                       the row and copying an address opened a panel nobody
-                       asked for. Adding the caret below makes the row visibly
-                       clickable, which makes that collision far easier to hit. */
-                    if ((e.target as HTMLElement).closest("a, .addr-copy")) return;
-                    setExpanded(open ? null : s.seller);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setExpanded(open ? null : s.seller);
-                    }
-                  }}
-                >
-                    {/* Was dead `shortAddr` text on a page whose whole claim is
-                        "check it yourself". AddressChip tiers honestly: a real
-                        hex address links out to the explorer, a simulated
-                        seller id gets the dashed ring and no link, so the sim
-                        tape cannot borrow the credibility of a real one. */}
-                    <td>
-                      {/* `.row-link` gives only `cursor: pointer`, and the hover
-                          tint at globals.css:1054 is on EVERY tbody tr — so a
-                          clickable row was pixel-identical to a static one, and
-                          invisible entirely to a touch user or a screenshot.
-                          The caret is the affordance the CSS cannot be; it is
-                          the same glyph pair WebhookActivity and
-                          details.disclosure already use. aria-hidden because
-                          aria-expanded on the row already carries the state. */}
-                      <span className="muted" aria-hidden>
-                        {open ? "▾ " : "▸ "}
-                      </span>
-                      <AddressChip address={s.seller} explorer={facts.explorer} />
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{s.score.toFixed(3)}</td>
-                    <td>
-                      <span className="share-bar" style={{ marginRight: 10 }}>
-                        <i style={{ width: `${100 * s.clean_share}%` }} />
-                      </span>
-                      {(100 * s.clean_share).toFixed(0)}%
-                    </td>
-                    <td>
-                      {s.attested ? (
-                        simTape ? (
-                          /* Not green, no tick, no link. The flag is true and it
-                             is the SIMULATOR's: a green EIP-712 tick is on-chain
-                             vocabulary this row has not earned, and a reader who
-                             reads it as the registry card above reads it exactly
-                             backwards. `chip-sim` is the tier the house already
-                             uses for simulated things. The title= tooltips are
-                             gone with it: they were where this hid. */
-                          <span className="chip chip-sim">
-                            <Ed x="sim record" p="simulated" />
+                    <Fragment key={s.seller}>
+                      <tr
+                        className="row-link"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={open}
+                        aria-label={`show how ${s.seller.slice(0, 10)} scored ${s.score.toFixed(3)}`}
+                        title={open ? "hide the arithmetic" : "show how this score was reached"}
+                        onClick={(e) => {
+                          /* The first cell holds an explorer link and a copy button.
+                             Without this guard, "open in the explorer" ALSO toggled
+                             the row and copying an address opened a panel nobody
+                             asked for. Adding the caret below makes the row visibly
+                             clickable, which makes that collision far easier to hit. */
+                          if ((e.target as HTMLElement).closest("a, .addr-copy")) return;
+                          setExpanded(open ? null : s.seller);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setExpanded(open ? null : s.seller);
+                          }
+                        }}
+                      >
+                        {/* Was dead `shortAddr` text on a page whose whole claim is
+                            "check it yourself". AddressChip tiers honestly: a real
+                            hex address links out to the explorer, a simulated
+                            seller id gets the dashed ring and no link, so the sim
+                            tape cannot borrow the credibility of a real one. */}
+                        <td>
+                          {/* `.row-link` gives only `cursor: pointer`, and the hover
+                              tint at globals.css:1054 is on EVERY tbody tr — so a
+                              clickable row was pixel-identical to a static one, and
+                              invisible entirely to a touch user or a screenshot.
+                              The caret is the affordance the CSS cannot be; it is
+                              the same glyph pair WebhookActivity and
+                              details.disclosure already use. aria-hidden because
+                              aria-expanded on the row already carries the state. */}
+                          <span className="muted" aria-hidden>
+                            {open ? "▾ " : "▸ "}
                           </span>
-                        ) : (
-                          <span className="green">
-                            {/* The badge is the claim; the registry is where the
-                                claim is checkable. There is no per-seller tx in
-                                the payload, so the contract is the honest target
-                                rather than a link implying more than we hold. */}
-                            {facts.registry && facts.explorer ? (
-                              <a
-                                className="chip chip-teal"
-                                href={`${facts.explorer}/address/${facts.registry}`}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <Ed x="EIP-712 ✓" p="signed ✓" />
-                              </a>
+                          <AddressChip address={s.seller} explorer={facts.explorer} />
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{s.score.toFixed(3)}</td>
+                        <td>
+                          <span className="share-bar" style={{ marginRight: 10 }}>
+                            <i style={{ width: `${100 * s.clean_share}%` }} />
+                          </span>
+                          {(100 * s.clean_share).toFixed(0)}%
+                        </td>
+                        <td>
+                          {s.attested ? (
+                            simTape ? (
+                              /* Not green, no tick, no link. The flag is true and it
+                                 is the SIMULATOR's: a green EIP-712 tick is on-chain
+                                 vocabulary this row has not earned, and a reader who
+                                 reads it as the registry card above reads it exactly
+                                 backwards. `chip-sim` is the tier the house already
+                                 uses for simulated things. The title= tooltips are
+                                 gone with it: they were where this hid. */
+                              <span className="chip chip-sim">
+                                <Ed x="sim record" p="simulated" />
+                              </span>
                             ) : (
-                              <Ed x="EIP-712 ✓" p="signed ✓" />
-                            )}
-                          </span>
-                        )
-                      ) : (
-                        <span className="muted">
-                          <Ed x="unattested" p="no record filed" />
-                        </span>
-                      )}
-                    </td>
-                    <td>{money(s.volume_usdc, 0)}</td>
-                  </tr>
-                  {open ? (
-                    <tr>
-                      <td colSpan={5} className="wrap">
-                        <span className="mono" style={{ fontSize: 12.5 }}>
-                          ½ · {(100 * s.clean_share).toFixed(0)}% = {cleanHalf.toFixed(3)}
-                          {"  ·  "}½ · {s.attested ? "1" : "0"} = {attHalf.toFixed(3)}
-                          {"  ·  "}
-                          <b className="gold">{s.score.toFixed(3)}</b>
-                        </span>{" "}
-                        <span className="muted" style={{ fontSize: 12.5 }}>
-                          {simTape ? (
-                            <Ed
-                              x="clean-volume share and the simulator's own record, half each."
-                              p="honest volume and the record our simulator made, half each."
-                            />
+                              <span className="green">
+                                {/* The badge is the claim; the registry is where the
+                                    claim is checkable. There is no per-seller tx in
+                                    the payload, so the contract is the honest target
+                                    rather than a link implying more than we hold. */}
+                                {facts.registry && facts.explorer ? (
+                                  <a
+                                    className="chip chip-teal"
+                                    href={`${facts.explorer}/address/${facts.registry}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    <Ed x="EIP-712 ✓" p="signed ✓" />
+                                  </a>
+                                ) : (
+                                  <Ed x="EIP-712 ✓" p="signed ✓" />
+                                )}
+                              </span>
+                            )
                           ) : (
-                            <Ed
-                              x="clean-volume share and the signed record, half each."
-                              p="honest volume and a filed record, half each."
-                            />
+                            <span className="muted">
+                              <Ed x="unattested" p="no record filed" />
+                            </span>
                           )}
-                        </span>
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
+                        </td>
+                        <td>{money(s.volume_usdc, 0)}</td>
+                      </tr>
+                      {open ? (
+                        <tr>
+                          <td colSpan={5} className="wrap">
+                            <span className="mono" style={{ fontSize: 12.5 }}>
+                              ½ · {(100 * s.clean_share).toFixed(0)}% = {cleanHalf.toFixed(3)}
+                              {"  ·  "}½ · {s.attested ? "1" : "0"} = {attHalf.toFixed(3)}
+                              {"  ·  "}
+                              <b className="gold">{s.score.toFixed(3)}</b>
+                            </span>{" "}
+                            <span className="muted" style={{ fontSize: 12.5 }}>
+                              {simTape ? (
+                                <Ed
+                                  x="clean-volume share and the simulator's own record, half each."
+                                  p="honest volume and the record our simulator made, half each."
+                                />
+                              ) : (
+                                <Ed
+                                  x="clean-volume share and the signed record, half each."
+                                  p="honest volume and a filed record, half each."
+                                />
+                              )}
+                            </span>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>

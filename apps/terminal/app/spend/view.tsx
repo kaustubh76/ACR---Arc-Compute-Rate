@@ -161,7 +161,10 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
         ) : null}
       </td>
 
-      <td>
+      {/* `wrap`, because `screen_matched` is a LIST and its joined length has
+          no bound, while `.sheet` brought `nowrap` with it. The 640px mono
+          release targets `td.mono`, which this cell is not. */}
+      <td className="wrap">
         {screen ? (
           <span className={`chip ${screen.cls}`}>
             <Ed x={screen.x} p={screen.p} />
@@ -227,7 +230,7 @@ function BudgetRow({ b }: { b: SpendBudget }) {
     return (
       <tr>
         <td className="mono">{b.category}</td>
-        <td colSpan={3}>
+        <td colSpan={3} className="wrap wrap-left">
           <span className={`chip ${b.reason ? "chip-breach" : "chip-gold"}`}>
             {b.reason ? (
               <Ed x="wallet not on this chain" p="this wallet is not where we are looking" />
@@ -353,8 +356,13 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
         </p>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet">
               <tbody>
+                <tr className="sheet-group">
+                  <th scope="rowgroup" colSpan={2}>
+                    <Ed x="Decisions" p="What it decided" />
+                  </th>
+                </tr>
                 <tr>
                   <td>
                     <Ed x="Decided" p="Handled by the agent" />
@@ -367,28 +375,27 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                   </td>
                   <td className="mono">{fmtInt(s.escalated)}</td>
                 </tr>
+                {/* THE SPLIT THIS TABLE EXISTS TO HOLD. Everything under this
+                    heading is money that really moved or really stayed, and the
+                    one figure under the next heading is not — it was worked out
+                    against an offer nobody took. They used to sit adjacent, on
+                    the hope that a reader would see the difference rather than
+                    be told it. Eight flush rows do not carry that, so the
+                    distinction is a heading now instead of a seating plan. */}
+                <tr className="sheet-group">
+                  <th scope="rowgroup" colSpan={2}>
+                    <Ed
+                      x="Money, realised"
+                      p="Money that really moved or really stayed"
+                    />
+                  </th>
+                </tr>
                 <tr>
                   <td>
                     <Ed x="Paid" p="Paid out" />
                   </td>
                   <td className="mono">{price(s.paid_usdc)}</td>
                 </tr>
-                <tr>
-                  <td>
-                    <Ed
-                      x="Overpay found by rerouting"
-                      p="Money we could have saved by buying from somebody cheaper"
-                    />
-                  </td>
-                  <td className="mono">{price(s.saved_usdc)}</td>
-                </tr>
-                {/* DIRECTLY BELOW the row above, and deliberately. The two look
-                    alike and are not: the one above is measured against another
-                    seller's OFFER and nothing was bought, which is why the
-                    ledger refuses to book it as income. This one is money a
-                    vendor asked for, outside an agreement we had written down,
-                    that did not leave the wallet. Adjacent so a reader sees the
-                    difference rather than having to be told it. */}
                 <tr>
                   <td>
                     <Ed
@@ -412,6 +419,36 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                     />
                   </td>
                   <td className="mono">{price(s.overbilled_usdc)}</td>
+                </tr>
+                {/* Alone under its own heading, because it is the one figure
+                    here that never touched the wallet: it is measured against
+                    another seller's OFFER, and nothing was bought. The ledger
+                    refuses to book it as income for that reason, and the page
+                    now refuses to seat it among the figures that did. */}
+                <tr className="sheet-group">
+                  <th scope="rowgroup" colSpan={2}>
+                    <Ed
+                      x="Measured, not realised"
+                      p="Money we spotted but did not actually save"
+                    />
+                  </th>
+                </tr>
+                <tr>
+                  <td>
+                    <Ed
+                      x="Overpay found by rerouting"
+                      p="Money we could have saved by buying from somebody cheaper"
+                    />
+                  </td>
+                  <td className="mono">{price(s.saved_usdc)}</td>
+                </tr>
+                <tr className="sheet-group">
+                  <th scope="rowgroup" colSpan={2}>
+                    <Ed
+                      x="Against our own meter"
+                      p="What our own count found"
+                    />
+                  </th>
                 </tr>
                 <tr>
                   <td>
@@ -465,7 +502,7 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
         {st.budgets.length > 0 && (
           <div className="panel panel-pad">
             <div className="table-scroll">
-              <table>
+              <table className="sheet">
                 <thead>
                   <tr>
                     <th>
@@ -521,7 +558,7 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
             </p>
           ) : (
             <div className="table-scroll">
-              <table>
+              <table className="sheet sheet-rules">
                 <thead>
                   <tr>
                     <th>
@@ -575,7 +612,7 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
               />
             </p>
             <div className="table-scroll">
-              <table>
+              <table className="sheet">
                 <tbody>
                   <tr>
                     <td>
@@ -726,7 +763,7 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
               </div>
             )}
             <div className="table-scroll">
-              <table>
+              <table className="sheet">
                 <thead>
                   <tr>
                     <th>
@@ -843,7 +880,7 @@ function LedgerAuditSection({ slug }: { slug: string | null }) {
       </p>
       <div className="panel panel-pad">
         <div className="table-scroll">
-          <table>
+          <table className="sheet">
             <tbody>
               {a.checks.map((c) => {
                 const [x, pl] = AUDIT_WORDS[c.error] ?? [c.error, c.error];
@@ -876,7 +913,7 @@ function LedgerAuditSection({ slug }: { slug: string | null }) {
           </table>
         </div>
         {a.findings.length > 0 ? (
-          <ul>
+          <ul className="findings">
             {a.findings.map((f, i) => (
               <li key={`${f.error}-${f.obligation_id}-${i}`}>
                 <span className="label">{f.error}</span> {f.detail}

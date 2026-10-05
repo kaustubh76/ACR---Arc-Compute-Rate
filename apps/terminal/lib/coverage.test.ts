@@ -166,7 +166,36 @@ const ALL = [...tsxFiles(join(ROOT, "app")), ...tsxFiles(join(ROOT, "components"
   relative(ROOT, f),
 );
 
-test("ledger: every surface is either covered or exempt (with a reason)", () => {
+/* Structural elements this stylesheet only reaches through a class. There is
+   no bare `table`, `ul`, `ol` or `dl` element selector in globals.css — every
+   table rule is scoped to `table.sheet` — so one of these without a className
+   renders on UA defaults: ~1px cell padding, no row rules, disc bullets, a
+   40px inset nobody chose. Eleven tables and one list shipped that way on
+   /spend and /traction and passed typecheck, lint, build and this whole file. */
+const STRUCTURAL = ["table", "ul", "ol", "dl"] as const;
+
+/** Class tokens this file can prove are intended, from one .tsx source.
+ *
+ *  Deliberately narrow: `className="a b"` literals, and the STATIC text of a
+ *  `className={`a ${x}`}` template. It does NOT read strings nested inside
+ *  `${…}`, because they are not all class names — `phase === "error" ? …` in
+ *  EscalationActions.tsx would be read as a class called `error`, and a gate
+ *  that cries wolf gets deleted. A runtime-computed class is out of reach of
+ *  any source scan; that is the limit, and it is written down rather than
+ *  papered over. */
+function classTokens(src: string): string[] {
+  const out: string[] = [];
+  const push = (blob: string) => {
+    for (const t of blob.replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) {
+      if (/^[A-Za-z_][\w-]*$/.test(t)) out.push(t);
+    }
+  };
+  for (const m of src.matchAll(/className="([^"]*)"/g)) push(m[1]);
+  for (const m of src.matchAll(/className=\{`([^`]*)`\}/g)) push(m[1]);
+  return out;
+}
+
+test("ledger: every surface is covered or exempt, classed, and its classes exist", () => {
   const unlisted = ALL.filter((f) => !(f in REQUIRED_COVERAGE) && !(f in EXEMPT));
   assert.deepEqual(
     unlisted,
@@ -178,6 +207,43 @@ test("ledger: every surface is either covered or exempt (with a reason)", () => 
     (f) => !ALL.includes(f),
   );
   assert.deepEqual(gone, [], `ledger entries with no file: ${gone.join(", ")}`);
+
+  /* A surface is not accounted for just because it is listed. Nothing in this
+     repo read `className` until now, which is how `table`, `teal`,
+     `wallet-panel`, `.is-on` and `primer` each shipped green. Two halves: an
+     element that cannot be styled without a class must carry one, and a class
+     that is carried must exist. */
+  const bare: string[] = [];
+  const dangling: string[] = [];
+  const css = readFileSync(join(ROOT, "app", "globals.css"), "utf8");
+  /* A letter or underscore after the dot, so `0.14` in an rgba() and `13.5px`
+     in a font-size are not read as selectors. Prose in a comment ("see
+     td.wrap") lands in here too, which only ever makes this half MORE
+     permissive — it can never invent a failure. */
+  const defined = new Set([...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+
+  for (const file of ALL) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    for (const el of STRUCTURAL) {
+      for (const m of src.matchAll(new RegExp(`<${el}(\\s[^>]*)?>`, "g"))) {
+        if ((m[1] ?? "").includes("className")) continue;
+        bare.push(`${file}:${src.slice(0, m.index).split("\n").length} <${el}>`);
+      }
+    }
+    for (const tok of classTokens(src)) {
+      if (!defined.has(tok)) dangling.push(`${file}: .${tok}`);
+    }
+  }
+  assert.deepEqual(
+    bare,
+    [],
+    `a <table>/<ul>/<ol>/<dl> with no className renders on browser defaults: ${bare.join(", ")}`,
+  );
+  assert.deepEqual(
+    dangling,
+    [],
+    `className with no rule in globals.css: ${dangling.join(", ")}`,
+  );
 });
 
 test("floors: every covered surface meets its minimum marker count", () => {

@@ -164,7 +164,7 @@ function Numbers({ t }: { t: TractionPayload }) {
         </p>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet">
               <tbody>
                 <tr>
                   <td>
@@ -185,9 +185,17 @@ function Numbers({ t }: { t: TractionPayload }) {
                   <td className="mono">{fmtInt(t.businesses.spending)}</td>
                 </tr>
                 {/* "Our own company" and "a studio we have never met" are not the
-                    same evidence, and one number would hide which is which. */}
+                    same evidence, and one number would hide which is which.
+                    These four sum to `Onboarded` above, so they are a breakdown
+                    of it and not four more entries beside it — which is all the
+                    heading and the rail are there to say. */}
+                <tr className="sheet-group">
+                  <th scope="rowgroup" colSpan={2}>
+                    <Ed x="How they arrived" p="How we met them" />
+                  </th>
+                </tr>
                 {TIERS.map(([key, x, pl]) => (
-                  <tr key={key}>
+                  <tr className="sheet-sub" key={key}>
                     <td>
                       <Ed x={x} p={pl} />
                     </td>
@@ -225,7 +233,7 @@ function Numbers({ t }: { t: TractionPayload }) {
         </p>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet">
               <thead>
                 <tr>
                   <th>
@@ -282,7 +290,7 @@ function Numbers({ t }: { t: TractionPayload }) {
         </div>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet">
               <tbody>
                 <tr>
                   <td>
@@ -349,7 +357,7 @@ function Numbers({ t }: { t: TractionPayload }) {
         </p>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet">
               <tbody>
                 <tr>
                   <td>
@@ -437,7 +445,7 @@ function Numbers({ t }: { t: TractionPayload }) {
         </p>
         <div className="panel panel-pad">
           <div className="table-scroll">
-            <table>
+            <table className="sheet sheet-wide">
               <thead>
                 <tr>
                   <th>
