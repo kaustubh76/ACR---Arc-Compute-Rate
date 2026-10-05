@@ -13,20 +13,27 @@ THE ORDER OF REFUSALS IS THE DESIGN. ``scripts/hedger.py`` already learned this:
 checks run cheapest-and-most-damning first, each one names itself, and a check
 that cannot be evaluated is a refusal rather than a pass. The order here is
 
-    1 duplicate            we already paid this
-    2 payable at all       a payee, and an amount
-    3 the meter            did we consume what they billed for
-    4 the counterparty     may we pay this address at all
-    5 benchmarked          is there a market price to judge against
-    6 the price            at par, over par, cheaper elsewhere
-    7 the timing           due now, or worth holding
-    8 the budget           per-transaction limit, then the period cap
+    1  duplicate           we already paid this
+    2  payable at all      a payee, and an amount
+    3  the meter           did we consume what they billed for
+    4  the counterparty    may we pay this address at all
+    4b the agreement       does this match what we agreed to pay
+    5  benchmarked         is there a market price to judge against
+    6  the price           at par, over par, cheaper elsewhere
+    7  the timing          due now, or worth holding
+    8  the budget          per-transaction limit, then the period cap
 
 and it is not interchangeable. Pricing an invoice we never owed is wasted work;
 rerouting one that is a duplicate pays a stranger twice. The meter comes before
 the price because a bill for work nobody did is not a pricing question — that is
 Prior Art #06's whole point, and the reason this agent is named after the
 official who kept the standard measure rather than after a bargain hunter.
+
+There are NINE, not the eight this list used to show: 4b arrived with the
+commitment register and was never added here. And a tenth outcome does not
+live in `decide()` at all — `run_obligation` escalates before reaching it when
+the business has no budget contract on chain, which is why that row carries
+none of the pricing or screening evidence the others do.
 
 REFUSE, NEVER CLAMP, and never silently. Every outcome carries a ``rule``: one
 line naming the check that fired. ``PolicyWallet`` stores the hash of this whole
@@ -251,7 +258,13 @@ class ObligationDecision:
     commitment_id: str = ""
     commitment_hash: str = ""
     #: ``within`` · ``over_total`` · ``over_unit_price`` · ``over_quantity`` ·
-    #: ``outside_window`` · ``no_commitment``
+    #: ``outside_window``, and ``""`` where no agreement covered the bill.
+    #:
+    #: NOT ``no_commitment``, which `commitments.NONE_FOUND` defines and the
+    #: ladder cannot reach: check 4b only runs `assess` when a commitment was
+    #: found, so the one branch that would emit it is never taken. The empty
+    #: string is the real "no agreement" value, and `statement.py` already
+    #: treats both as the same thing.
     commitment_verdict: str = ""
     #: What the bill exceeded the agreement by, in USDC. The figure a mismatch
     #: holds back, and the only one here that is money rather than a comparison.

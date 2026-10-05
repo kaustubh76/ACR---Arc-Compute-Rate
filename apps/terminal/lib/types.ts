@@ -886,6 +886,11 @@ export interface TractionRow {
   received_usdc: number;
   priced_usdc: number;
   recoverable_usdc: number;
+  /** REALISED, unlike `recoverable_usdc` above: money a vendor asked for that
+   *  did not leave the wallet. Totalled per chain on this page and shown per
+   *  business on that business's own statement (/spend). */
+  held_back_usdc: number;
+  overbilled_usdc: number;
   discrepancies: number;
   unmetered: number;
   /** Paths a reader can open to check the arithmetic themselves. */
@@ -959,7 +964,14 @@ export interface TractionPayload {
       /** Read from the sellers' own tape, never netted against `moved_usdc`. */
       received_usdc: number;
       priced_usdc: number;
+      /** HYPOTHETICAL: a cheaper offer existed and nothing was bought. */
       recoverable_usdc: number;
+      /** REALISED, and the pair a bank statement would corroborate: money a
+       *  vendor asked for that did not leave the wallet. Separate fields
+       *  because one is "we had not agreed to this" and the other is "our own
+       *  meter disagrees", and they are never added together. */
+      held_back_usdc: number;
+      overbilled_usdc: number;
     }
   >;
   work: {

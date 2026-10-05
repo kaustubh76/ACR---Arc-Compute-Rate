@@ -88,10 +88,12 @@ in-window is the onboarding and every decision since.
 The operator now spends. `PolicyWallet`
 [`0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32`](https://testnet.arcscan.app/address/0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32)
 holds the fleet's USDC under a 1 USDC cap with a 0.05 USDC per-payment limit.
-A live run paid five obligations, rerouted three to cheaper sellers, and
-escalated the one bill at or above that limit; the owner settled it with
-`spendAsOwner`, from a different key, because the contract refuses an approval
-signed by the thing being approved. The contract's own `spent` figure and the
+A live run paid five obligations on its own authority, rerouted three to cheaper
+sellers, and escalated the one bill at or above that limit; the owner settled
+that one with `spendAsOwner`, from a different key, because the contract refuses
+an approval signed by the thing being approved. So the log holds **six** rows
+carrying a transaction and five of them are the agent's — worth saying plainly,
+because counting `intent: pay` in the log gives six and this sentence says five. The contract's own `spent` figure and the
 decision log agree.
 
 Everything here is **test USDC on Arc testnet**. Canteen say test USDC counts
@@ -109,7 +111,7 @@ is [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/tractio
 
 | The brief asks for | The field | Read it at |
 |---|---|---|
-| businesses operated | `businesses.real`, and `businesses.by_chain` because testnet and mainnet are never summed | `/operator/traction` |
+| businesses operated | `businesses.businesses`, with `businesses.mainnet` and `businesses.testnet` beside it because the two are never summed | `/operator/traction` |
 | total USDC received and paid out | `by_chain[].moved_usdc` and `by_chain[].received_usdc` | `/operator/traction`, per business on `/traction` |
 | obligations settled without a human touching them | `work.autonomy.settled_by_agent` beside `settled_by_owner` | both, per business |
 | …and settled on time | `work.autonomy.settled_on_time` of `settled_with_a_due_date` | both |
