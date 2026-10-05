@@ -3121,6 +3121,21 @@ table.sheet td.wrap-left {
    at equal specificity and silently does nothing, which is how this fix was
    first written and would have shipped looking correct. Only source order
    settles it. Do not tidy this upwards. */
+/* A LABEL LINE UNDER A FIGURE IS PROSE, and `table.sheet td` is nowrap.
+   A long one — a benchmark's refusal, a screening service's reason — widened
+   its whole column instead of wrapping: "one seller, so no benchmark" grew the
+   par column by 380px, and "no independent seller to compare against" is
+   longer still. The FIGURE above it keeps nowrap, because a number broken
+   across two lines stops being a number.
+
+   `margin-left: auto` keeps the wrapped box against the right edge, with the
+   figure it annotates, instead of spanning a column it does not belong to. */
+table.sheet td.mono .label {
+  white-space: normal;
+  max-width: 32ch;
+  margin-left: auto;
+}
+
 .skel-gap {
   margin-top: var(--section-gap);
 }

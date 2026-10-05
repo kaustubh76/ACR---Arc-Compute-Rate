@@ -8,8 +8,9 @@ ACR is a reference rate for machine compute. The Tameion build puts a **spend
 operator** on top of it: an agent that holds a business's USDC inside an
 on-chain budget it cannot exceed, meters what was actually consumed, checks
 every price against what other sellers are really charging, screens the
-counterparty, pays what clears policy, escalates what is not its call, and
-writes a double-entry ledger a human can open.
+counterparty, weighs what the wallet actually holds against what is already
+dated, pays what clears policy, escalates what is not its call, and writes a
+double-entry ledger a human can open.
 
 **Where the pages are.** `/spend` and `/traction` exist in `apps/terminal` and are reachable from
 the masthead, but **the terminal is not deployed yet** — it is built for Arc mainnet and correctly
@@ -231,6 +232,54 @@ bought, which is why the ledger refuses to book it as income. One is a
 counterfactual. The other is defensible against the bank statement, and they
 must never be added together.
 
+## A budget is permission; cash is money
+
+The operator spent most of this build checking every bill against a **budget**:
+`cap - spent`, read from `PolicyWallet`'s own counters and enforced on chain.
+That is the right check and it answers the wrong question. A budget is
+permission. It reads 988 of 1,000 remaining on a wallet holding 2 USDC, the
+payment then reverts on chain, and an owner could read a healthy allowance
+beside an escalation queue the wallet could not possibly settle.
+
+RFB 4's list of what the agent decides opens with *"whether there is enough
+liquidity to cover what is due, and what is due next"*, so the ladder gained a
+rung — check 9, after the budget — and the statement gained a section. Three
+things about it are deliberate:
+
+- **It reads the ERC-20 view, at six decimals.** On Arc, USDC is the native gas
+  token at 18 decimals *and* an ERC-20 at `0x3600…` at 6. `PolicyWallet` holds
+  and `transfer`s the ERC-20, so that is the pile `spend` can actually move;
+  `eth_getBalance` would answer confidently about a different one.
+  [`PolicyWallet.sol`](../contracts/src/PolicyWallet.sol)'s own comment states
+  the stakes: *"Mixing them is a 1e12 error that looks like a fat finger."* The
+  token address comes from the wallet's `usdc()` getter rather than from
+  configuration, so the figure cannot drift from what `spend` transfers.
+- **A read that failed is not an empty wallet.** `held_usdc` is `null` when the
+  chain could not be reached, never `0.0`, and the statement prints the reason.
+  An unfunded wallet and an unreachable node are different things to do on a
+  Monday morning, and a confident zero would escalate every bill in the queue
+  on the strength of an RPC that happened to time out. So this check fails
+  **open**, which the counterparty screen deliberately does not — and the
+  asymmetry is the point. A screen that cannot answer is withholding
+  information about *this* payee, which is a reason to stop that payment. A
+  balance that cannot be read is no information about any of them, and
+  stopping on it would halt the whole queue the moment a node wobbled.
+- **A bill with no due date is counted apart, never folded in.** *"We do not
+  know when this is due"* is not *"it is due later"*, and adding it to the
+  dated total would make the figure look more precise while covering less. The
+  count of undated bills is printed beside the total so the number can say what
+  it does not include.
+
+The outcome is `escalate` with a recommendation of `hold`, not `refuse`: the
+bill may be perfectly sound and the owner may fund the wallet, so waiting is
+the honest advice when the only thing missing is money. Refusing would record a
+judgement about an invoice on the strength of our own bank balance.
+
+**What this is not.** It is not the forecast described in the next section.
+There is no burn rate here, no runway in days and no yield figure — it is what
+is held *now* against what is dated *now*, inside a thirty-day window. Calling
+it a forecast would be the overstatement this file keeps refusing.
+
 ## Idle cash: what it would take, and what we did not build
 
 RFB 1 asks for an agent that puts idle reserves to work. Prior Art #02 is the
@@ -264,8 +313,11 @@ worse than saying so.
 behind a human approval with a two-day lead time. The part that is actually
 ours, and the part most treasury bots guess at, is the **forecast**: how much is
 provably idle past the longest committed outflow. We already hold what that
-needs — the obligations, their windows, and now the agreements they were made
-under — and none of it requires USYC. If the allowlist lands, the yield leg is
+needs — the obligations, their windows, the agreements they were made under, and
+now the balance itself — and none of it requires USYC. The section above is the
+first half of that measurement and stops short of the second on purpose: what
+is held against what is dated is a reading, and *how much is provably idle* is a
+claim about the future. If the allowlist lands, the yield leg is
 small. If it does not, the forecast is still worth having and still honest,
 because it reports a number without asserting a rate.
 

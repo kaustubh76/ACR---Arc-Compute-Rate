@@ -50,11 +50,21 @@ def _tca(card):
 
 
 class _Pol:
-    def __init__(self, budgets):
+    def __init__(self, budgets, cash=None, raises=False):
         self._b = budgets
+        #: `None` means the read failed, which is NOT the same as 0.0. The
+        #: default is None so every existing test in this file exercises the
+        #: unmeasured branch, which is what production serves without an RPC.
+        self._cash = cash
+        self._raises = raises
 
     def budget(self, category):
         return self._b.get(category)
+
+    def balance_usdc(self):
+        if self._raises:
+            raise RuntimeError("the node hung up")
+        return self._cash
 
 
 # --- the separation this file exists to enforce ----------------------------
@@ -261,6 +271,84 @@ def test_a_configured_budget_is_reported_as_the_contract_states_it(tmp_path):
     )
     assert st["budgets"][0]["configured"] is True
     assert st["budgets"][0]["remaining_usdc"] == pytest.approx(988.0)
+
+
+# --- cash, which is not the same question as a budget ----------------------
+
+def test_a_budget_and_a_balance_are_two_different_questions(tmp_path):
+    """The defect this block exists to close.
+
+    `remaining_usdc` is `cap - spent` from the contract's counters: PERMISSION.
+    It reads 988 of 1000 on a wallet holding 2 USDC, and the payment then
+    reverts on chain. An owner could read a healthy allowance beside an
+    escalation queue the wallet could not possibly settle, and nothing on the
+    page said so.
+    """
+    live = {
+        "category": "infra", "cap_usdc": 1_000.0, "spent_usdc": 12.0,
+        "remaining_usdc": 988.0, "per_tx_limit_usdc": 100.0,
+        "period_start": 1, "period_length": 2,
+    }
+    st = build_statement(
+        "acme", registry=REG, policy_for=lambda b: _Pol({"infra": live}, cash=2.0),
+        log_path=_log(tmp_path, [_row(
+            obligation_id="esc", intent="escalate", billed_usdc=40.0,
+            rule="over the limit", due_at=NOW + 86_400,
+        )]),
+        now=NOW,
+    )
+    assert st["budgets"][0]["remaining_usdc"] == pytest.approx(988.0)
+    assert st["liquidity"]["held_usdc"] == pytest.approx(2.0)
+    assert st["liquidity"]["due_usdc"] == pytest.approx(40.0)
+    assert st["liquidity"]["covers_due"] is False
+    assert st["liquidity"]["reason"] == ""
+
+
+def test_a_business_with_no_wallet_declines_to_invent_a_balance(tmp_path):
+    """And says why, in prose, rather than reporting an empty wallet. The
+    sibling `spends` key already carries the fact; this does not repeat it as a
+    figure of 0."""
+    st = build_statement("eval", registry=REG, log_path=_log(tmp_path, [_row()]), now=NOW)
+    assert st["spends"] is False
+    assert st["liquidity"]["held_usdc"] is None
+    assert st["liquidity"]["covers_due"] is None
+    assert "no wallet" in st["liquidity"]["reason"]
+
+
+def test_an_unreadable_balance_is_unknown_rather_than_empty(tmp_path):
+    st = build_statement(
+        "acme", registry=REG, policy_for=lambda b: _Pol({}, cash=None),
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    assert st["liquidity"]["held_usdc"] is None
+    assert "unknown rather than empty" in st["liquidity"]["reason"]
+
+
+def test_a_raising_balance_read_does_not_500_the_statement(tmp_path):
+    """The same rule `_budgets` follows: a statement whose decisions are all in
+    hand must not fail because one optional chain read did."""
+    st = build_statement(
+        "acme", registry=REG, policy_for=lambda b: _Pol({}, raises=True),
+        log_path=_log(tmp_path, [_row()]), now=NOW,
+    )
+    assert st["liquidity"]["held_usdc"] is None
+    assert st["spend"]["decisions"] == 1
+
+
+def test_an_undated_escalation_is_counted_apart_on_the_statement_too(tmp_path):
+    st = build_statement(
+        "acme", registry=REG, policy_for=lambda b: _Pol({}, cash=5.0),
+        log_path=_log(tmp_path, [_row(
+            obligation_id="esc", intent="escalate", billed_usdc=900.0,
+            rule="over the limit",
+        )]),
+        now=NOW,
+    )
+    # 900 is owed and the wallet holds 5, but nothing says WHEN, so the figure
+    # does not claim it is due inside the window.
+    assert st["liquidity"]["due_usdc"] == 0.0
+    assert st["liquidity"]["undated"] == 1
+    assert st["liquidity"]["horizon_days"] == pytest.approx(30.0)
 
 
 # --- the business block ----------------------------------------------------

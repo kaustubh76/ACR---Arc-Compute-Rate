@@ -802,6 +802,55 @@ export interface SpendDecision {
   paid_usdc?: number;
   tx?: string | null;
   notes?: string[];
+  /* --- recorded on every decision, and rendered nowhere until now.
+     Fifty-three fields go into the record `PolicyWallet` hashes, and the
+     statement's own parity gate was blind to thirty-one of them because its
+     fixture rows were hand-written and had fallen behind the dataclass. These
+     are the ones an owner reading their own statement can act on. */
+  /** `agent` or `owner`. THE PRODUCT'S CENTRAL CLAIM is "obligations settled
+   *  without a human touching them", and a row that does not say who acted
+   *  cannot support it either way. */
+  actor?: string;
+  /** What the agent advises the person to do, on a decision it escalated.
+   *  Recorded, hashed, and invisible — which made "how often the human agreed"
+   *  unanswerable by the human doing the agreeing. */
+  recommended_intent?: string;
+  /** How the money moved: `circle` · `eoa` · empty. Testnet payments went out
+   *  from a raw EOA while the config resolved the agent role to Circle, and
+   *  nothing anywhere could tell: the calldata is identical either way. */
+  paid_via?: string;
+  /** When the bill falls due, in unix seconds. The input to the timing check,
+   *  and the denominator of "settled on time". */
+  due_at?: number | null;
+  /** The vendor's own reference. What a person reconciles against their own
+   *  books, and the second half of the duplicate check. */
+  invoice_ref?: string;
+  /** An early-payment discount, as a FRACTION (0.02 == 2% off). */
+  early_pay_discount?: number;
+  /** The service's own unit ("$/1k tokens"). It decides which market was
+   *  consulted, and the quantity beside it means nothing without it. */
+  unit?: string;
+  /** The meter discrepancy in money, on the vendor's own arithmetic.
+   *  `discrepancy` is the same gap in the service's unit. */
+  discrepancy_usdc?: number | null;
+  /** How far over the going rate, in USDC. `over_par_bp` is the same fact as a
+   *  ratio; this is it in the unit a reader budgets in. */
+  over_par_usdc?: number | null;
+  /** How many independent sellers the benchmark rested on. One is not a
+   *  benchmark, which is the whole of `anchors/GAP.md`. */
+  par_sellers?: number | null;
+  /** Why there is no par: `NO_QUOTES` · `ONE_SELLER` ·
+   *  `NO_INDEPENDENT_SELLER` · `NO_QUANTITY`. */
+  par_reason?: string;
+  /** Why the screen said what it said — the field that tells a denylist of
+   *  zero addresses from a real dataset answering. */
+  screen_reason?: string;
+  /** The agreement check: `within` · `over_total` · `over_unit_price` ·
+   *  `over_quantity` · `outside_window` · `no_commitment`. */
+  commitment_verdict?: string;
+  /** What the bill exceeded the written agreement by, in USDC. The figure
+   *  `held_back_usdc` on the summary is made of. */
+  over_commitment_usdc?: number | null;
 }
 
 /** One category's budget, as the CONTRACT states it. `configured: false` means
@@ -820,6 +869,32 @@ export interface SpendBudget {
    *  "nobody has set a limit for this category yet"; present means something is
    *  wrong with the wallet itself and no figure about it can be trusted. */
   reason?: string;
+}
+
+/** What the wallet HOLDS, against what is dated and waiting on the owner.
+ *
+ *  Not the same question as `SpendBudget`, and the page had only that one. A
+ *  budget is `cap - spent` from the contract's counters — PERMISSION — and it
+ *  reads healthy on a wallet holding nothing. This is MONEY.
+ *
+ *  `held_usdc` is `null` when the balance could not be read, never 0: an
+ *  unfunded wallet and an unreachable node are different facts, and `reason`
+ *  says which. `covers_due` is `null` for the same reason.
+ *
+ *  Not a forecast. There is no burn rate and no runway here — it is what is
+ *  held now against what is dated now, inside `horizon_days`. */
+export interface SpendLiquidity {
+  held_usdc: number | null;
+  due_usdc: number;
+  due_count: number;
+  soonest_at: number | null;
+  /** Escalations with no due date, counted apart and never inside `due_usdc`:
+   *  "we do not know when this is due" is not "it is due later". */
+  undated: number;
+  horizon_days: number;
+  covers_due: boolean | null;
+  /** Why `held_usdc` is null, in prose. Empty when it was read. */
+  reason: string;
 }
 
 /** Payload of /api/operator/statement.
@@ -841,16 +916,19 @@ export interface Statement {
     escalated: number;
     paid_usdc: number;
     saved_usdc: number;
-  /** Realised, unlike `saved_usdc`: a bill outside an agreement we had written
-   *  down, which did not leave the wallet. The two must never be summed. */
-  held_back_usdc: number;
-  /** Realised too: a vendor billed for more than our own meter could find, and
-   *  the bill did not go out. Never summed with `saved_usdc`. */
-  overbilled_usdc: number;
+    /** Realised, unlike `saved_usdc`: a bill outside an agreement we had
+     *  written down, which did not leave the wallet. Never summed with it. */
+    held_back_usdc: number;
+    /** Realised too: a vendor billed for more than our own meter could find,
+     *  and the bill did not go out. Never summed with `saved_usdc`. */
+    overbilled_usdc: number;
     consumption_discrepancies: number;
     unmetered: number;
   };
   budgets: SpendBudget[];
+  /** Beside the budgets, because permission and money are different questions
+   *  and the statement carried only the first. */
+  liquidity: SpendLiquidity;
   escalations: SpendDecision[];
   recent: SpendDecision[];
   market_context: {

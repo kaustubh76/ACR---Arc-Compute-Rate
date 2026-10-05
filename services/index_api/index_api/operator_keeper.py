@@ -227,11 +227,13 @@ def _policy_for(business):
 
 
 def _pass(now: float) -> str:
+    from . import entitlements, liquidity
     from .app import get_facilitator
     from .marketplace import build_receipts
     from .operator import (
         PAY,
         obligations_for,
+        obligations_from_entitlements,
         run_obligation,
         settled_refs_from,
         settled_through,
@@ -256,7 +258,27 @@ def _pass(now: float) -> str:
     paid_total = 0.0
     for b in businesses:
         decisions = read_decisions(business=b.slug)
-        obligations = obligations_for(b, tape, {}, settled_through(decisions))[:MAX_PER_TICK]
+        paid_through = settled_through(decisions)
+        # BOTH FEEDERS, which is new. The tape half has always run here; the
+        # invoice half existed with sixteen tests and no caller but a CLI flag,
+        # so on a schedule the agent could only ever see bills that came through
+        # our own paywall. An entitlement is where `due_at`, `invoice_ref` and
+        # `early_pay_discount` come from — the three inputs checks 7 and 1 need
+        # and never had — so until this, three rungs of a ten-rung ladder could
+        # not fire unattended whatever the register held.
+        #
+        # Paired, never two lists: `metered_quantity` is the seam that carries
+        # an independent count into check 3, and check 3 is skipped by a `None`
+        # guard that leaves no trace. Keeping the pair together makes it
+        # impossible to run a bill past the meter by accident. The tape-fed ones
+        # pass `None` and let `run_obligation` meter them from the receipts.
+        pairs: list[tuple[object, float | None]] = [
+            (ob, None) for ob in obligations_for(b, tape, {}, paid_through)
+        ]
+        pairs += obligations_from_entitlements(
+            b, entitlements.for_business(b.slug), paid_through
+        )
+        pairs = pairs[:MAX_PER_TICK]
         refs = settled_refs_from(decisions)
         # WITHOUT THIS THE LOOP COULD NOT PAY, AND SAID IT HAD.
         #
@@ -273,18 +295,36 @@ def _pass(now: float) -> str:
         # `app.py:_policy_for` gives: the wallet address comes from the registry,
         # and a cached client keeps spending for a business whose wallet was
         # rotated.
-        policy = _policy_for(b) if live else None
+        # READS IN BOTH MODES, SPEND IN ONE. The client is built whatever the
+        # mode, because reading what the wallet holds is a read and a `dry` pass
+        # that cannot see the cash is a rehearsal of a different performance —
+        # the same complaint that made `_pay_rule` stop claiming ", inside
+        # budget" after a pass that never read a budget.
+        #
+        # But only `live` hands it to `run_obligation`. The spend is gated on
+        # `dry_run` there, so passing it would also be safe; not passing it
+        # means a dry pass has no route to a wallet at all, which is the
+        # cheaper thing to be sure of.
+        reader = _policy_for(b)
+        liq = liquidity.assess(
+            reader.balance_usdc() if reader is not None else None,
+            [ob for ob, _ in pairs],
+            now,
+        )
+        policy = reader if live else None
         if live and policy is None:
             # Refuse rather than quietly dry-run under the name "live".
             counts["no_wallet"] = counts.get("no_wallet", 0) + 1
             continue
-        for ob in obligations:
+        for ob, metered in pairs:
             try:
                 d = run_obligation(
                     ob,
                     receipts=tape,
                     catalog={},
                     policy=policy,
+                    metered_quantity=metered,
+                    liquidity=liq,
                     settled_refs=refs,
                     since=ob.period_start,
                     dry_run=not live,

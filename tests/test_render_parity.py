@@ -104,6 +104,69 @@ EXEMPT: dict[str, str] = {
     "escalations[].saving_usdc": "nothing is recoverable until somebody decides; the table below carries it",
     "escalations[].over_par_bp": "the rule quotes the gap that stopped it; the table below carries the figure",
     "escalations[].tx": "nothing in this queue has a transaction yet",
+    # --- the thirty-one fields this gate could not see ---------------------
+    # The fixture's rows were hand-written, so a field the dataclass gained
+    # emitted no leaf and the gate reported clean on 56% of the record. They
+    # start from `asdict` now. Of the twenty-seven names it then named, fourteen
+    # are rendered on the decision row; these fifteen entries cover the thirteen
+    # that belong on the record and not on the page, plus the two the gate let
+    # through on its own narrow `parent.leaf` rule — `liq.held_usdc` in the Cash
+    # section satisfied `recent[].held_usdc`, and a spurious pass is worse than
+    # a written exemption because nobody can see it. Each line is a claim
+    # somebody can argue with.
+    #
+    # THE FOUR THRESHOLDS. On the record because a reviewer replaying a decision
+    # cannot recover an environment variable from the repo; off the page because
+    # the rule sentence already quotes the breach in words, and a column of
+    # unchanging constants is the kind of clutter that gets a surface ignored.
+    "recent[].meter_tolerance": "the rule sentence names the breach; the constant is for replay",
+    "recent[].material_bp": "same — on the record so a reviewer can replay, not so a reader can scan",
+    "recent[].pay_window_s": "the rule says 'not due for N days'; the window itself is for replay",
+    "recent[].unbenchmarked_max_usdc": "the rule names the limit when it fires; otherwise it is noise",
+    "escalations[].meter_tolerance": "shown nowhere by design; see the recent[] entry",
+    "escalations[].material_bp": "shown nowhere by design; see the recent[] entry",
+    "escalations[].pay_window_s": "shown nowhere by design; see the recent[] entry",
+    "escalations[].unbenchmarked_max_usdc": "shown nowhere by design; see the recent[] entry",
+    # THE METERING WINDOW. It is what makes the obligation id trustworthy twice
+    # (`operator.py` explains why at length), which is a property of the record
+    # rather than a figure an owner reads.
+    "recent[].period_start": "the window that makes the id unique per period, not a figure to read",
+    "recent[].period_end": "same: derived from the data, and load-bearing for the duplicate check",
+    "escalations[].period_start": "see the recent[] entry",
+    "escalations[].period_end": "see the recent[] entry",
+    # THE AGREEMENT'S IDENTITY. The VERDICT is now a chip on the row, which is
+    # the part that changes what a reader concludes; the id and the hash are how
+    # a reviewer finds the agreement in the register and proves it unedited.
+    "recent[].commitment_id": "the verdict is on the row; the id is how a reviewer finds the agreement",
+    "recent[].commitment_hash": "proves the agreement was not edited after the fact — a replay tool's job",
+    "escalations[].commitment_id": "see the recent[] entry",
+    "escalations[].commitment_hash": "see the recent[] entry",
+    # THE SCREEN'S BOOLEANS. `screen_risk`, `screen_backend` and `screen_reason`
+    # are all on the row; `required` and `screened` are the same facts as flags,
+    # and the 'no screen' chip already says when nothing answered.
+    "recent[].screen_required": "the 'no screen' chip says it, and two fields for one fact drift",
+    "recent[].screen_screened": "implied by the verdict being present at all",
+    "escalations[].screen_required": "see the recent[] entry",
+    "escalations[].screen_screened": "see the recent[] entry",
+    # THE CASH PICTURE, PER ROW. Identical on every decision in a pass, because
+    # the keeper reads the balance once and injects one picture into all of
+    # them. The statement renders it ONCE, in its own section at the top; down
+    # the column it would be the same three numbers repeated per row.
+    "recent[].held_usdc": "one picture per pass; the Cash section renders it once, above",
+    "recent[].due_usdc": "one picture per pass; the Cash section renders it once, above",
+    "recent[].liquidity_horizon_s": "rendered once as the Cash column header, in days",
+    "escalations[].held_usdc": "see the recent[] entry",
+    "escalations[].due_usdc": "see the recent[] entry",
+    "escalations[].liquidity_horizon_s": "see the recent[] entry",
+    # AND THE LAST TWO.
+    "recent[].kind": (
+        "x402 · invoice · milestone · subscription. An internal taxonomy for "
+        "which feeder built the obligation; the resource and the vendor are "
+        "what an owner recognises"
+    ),
+    "recent[].par_denomination": "`unit` or `whole`; the row renders the unit itself, which is the reader's question",
+    "escalations[].kind": "see the recent[] entry",
+    "escalations[].par_denomination": "see the recent[] entry",
     "budgets[].period_start": "a period's start is not what an owner checks; `left` is",
     "budgets[].period_length": "same: the figure that matters is what is left",
     "budgets[].per_tx_limit_usdc": "surfaced as the escalation rule when it fires",
@@ -243,8 +306,11 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
     skip `budgets` and `market_context` entirely, which is how both of those
     reached production unexercised.
     """
+    from dataclasses import asdict
+
     from index_api import businesses as biz
     from index_api import statement as st_mod
+    from index_api.operator import ObligationDecision
     from index_api.statement import build_statement
     from index_api.traction import build_traction
 
@@ -257,8 +323,27 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
     }]}))
     monkeypatch.setattr(biz, "REGISTRY_PATH", reg)
 
+    def row(**over) -> dict:
+        """A decision row carrying EVERY field the operator records.
+
+        HAND-WRITTEN DICTS ARE HOW THIS FIXTURE FELL 31 FIELDS BEHIND. A row
+        that omits a field emits no leaf, so the gate reported clean on 58% of
+        `ObligationDecision` — including the cash picture, the agreement
+        verdict and every threshold the decision was judged against. Starting
+        from `asdict` (which is what `operator.py:535` actually writes to the
+        log) means a new field on the dataclass arrives here by itself, and the
+        gate asks about it on the next run instead of never.
+        """
+        return {
+            **asdict(ObligationDecision(
+                at=0.0, obligation_id="", vendor="", category="",
+                billed_usdc=0.0, intent="", rule="",
+            )),
+            **over,
+        }
+
     rows = [
-        {  # a real payment, with every optional field populated
+        row(**{  # a real payment, with every optional field populated
             "at": 1_790_900_000, "obligation_id": "paid-1", "vendor": "0x" + "bb" * 20,
             "category": "infra", "billed_usdc": 2.5, "intent": "pay", "rule": "at par",
             "business": "parity", "resource": "/compute/x", "metered_quantity": 5.0,
@@ -267,8 +352,8 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
             "reroute_to": "", "escalated": False, "paid_usdc": 2.5,
             "tx": "0x" + "ee" * 32, "notes": ["a note"],
             "screen_risk": "clear", "screen_matched": [], "screen_backend": "yente",
-        },
-        {  # an escalation, so the queue is populated
+        }),
+        row(**{  # an escalation, so the queue is populated
             "at": 1_790_900_100, "obligation_id": "esc-1", "vendor": "0x" + "dd" * 20,
             "category": "infra", "billed_usdc": 150.0, "intent": "escalate",
             "rule": "over the per-payment limit", "business": "parity",
@@ -278,7 +363,14 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
             "escalated": True, "paid_usdc": 0.0, "tx": None, "notes": [],
             "screen_risk": "flagged", "screen_matched": ["us_ofac_sdn"],
             "screen_backend": "yente",
-        },
+            # DATED, so `liquidity.due_usdc` is a real figure here rather than
+            # the all-undated shape. In the past on purpose: `assess` counts an
+            # overdue bill IN ("the most due thing there is") and that branch
+            # is the one a horizon looking only forward would drop.
+            "due_at": 1_791_000_000, "invoice_ref": "VENDOR-1001",
+            "held_usdc": None, "due_usdc": 150.0, "liquidity_horizon_s": 2_592_000.0,
+            "recommended_intent": "hold",
+        }),
     ]
     log = tmp_path / "live.jsonl"
     log.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
@@ -421,6 +513,39 @@ def test_the_exempt_ledger_has_no_entries_for_fields_that_no_longer_exist(payloa
         if not any(f == _norm(k) or f.startswith(_norm(k) + ".") for f in live)
     )
     assert gone == [], "EXEMPT entries with no such field:\n  " + "\n  ".join(gone)
+
+
+def test_the_fixture_rows_carry_every_field_the_operator_records(payloads):
+    """The blindness this gate shipped with, pinned so it cannot come back.
+
+    Thirty-one of the fifty-five fields `operator.py:535` writes to the log were
+    absent from the hand-written fixture rows, and A FIELD THAT IS ABSENT EMITS
+    NO LEAF — so the check designed to catch "emitted and rendered nowhere"
+    reported clean on the cash picture, the agreement verdict, who acted, and
+    every threshold the decision was judged against. 56% of the record was
+    outside its reach, and every one of those thirty-one is inside the
+    fifty-three `as_record` hashes into the wallet.
+
+    The rows start from `asdict` now, which is what `operator.py` writes to the
+    log. This is the check that says so, and the one that fails the day somebody
+    writes a literal dict back in.
+    """
+    from dataclasses import asdict
+
+    from index_api.operator import ObligationDecision
+
+    recorded = set(asdict(ObligationDecision(
+        at=0.0, obligation_id="", vendor="", category="",
+        billed_usdc=0.0, intent="", rule="",
+    )))
+    for name in ("recent", "escalations"):
+        rows = payloads["statement"][name]
+        assert rows, f"the fixture has no {name} rows, so it audits nothing"
+        missing = sorted(recorded - set(rows[0]))
+        assert missing == [], (
+            f"{name}[] is missing {len(missing)} fields the operator records, so "
+            "this gate cannot see them:\n  " + "\n  ".join(missing)
+        )
 
 
 def test_every_exemption_gives_a_reason():

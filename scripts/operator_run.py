@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import time
 from collections import defaultdict
 
 from acr_core import get_settings
@@ -228,6 +229,25 @@ def main() -> int:
         )
     print(f"mode       : {'LIVE' if args.live else 'dry run'}\n")
 
+    # ONE CASH PICTURE FOR THE PASS, not one per bill. `due_usdc` is a sum over
+    # the obligations in hand, so it has to be computed where the set is. And
+    # re-reading the balance per bill would be N chain calls saying the same
+    # thing, while letting two decisions in one pass be judged against two
+    # different balances — which no reviewer could reconstruct afterwards from
+    # a log that records one number per row.
+    from index_api.liquidity import assess as assess_liquidity
+
+    liq = assess_liquidity(
+        policy.balance_usdc() if policy is not None else None,
+        [ob for ob, _ in pairs],
+        time.time(),
+    )
+    print(
+        f"cash       : {'not measured' if liq.held_usdc is None else f'{liq.held_usdc:g} USDC held'}"
+        f" · {liq.due_usdc:g} dated in {int(liq.horizon_s / 86_400)}d"
+        f"{f' · {liq.undated} undated' if liq.undated else ''}"
+    )
+
     tally: dict[str, int] = defaultdict(int)
     for ob, metered in pairs:
         d = run_obligation(
@@ -236,6 +256,7 @@ def main() -> int:
             catalog=catalog,
             policy=policy,
             metered_quantity=metered,
+            liquidity=liq,
             settled_refs=already,
             # The same window the bill was built from. `since` defaulted to 0.0
             # and was never passed, so the meter counted from the epoch — which

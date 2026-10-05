@@ -8,7 +8,13 @@ import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 import { CHAIN, CHAIN_TESTNET, txUrl } from "@/lib/chain";
 import { useNow } from "@/lib/useNow";
-import type { LedgerAudit, SpendBudget, SpendDecision, Statement } from "@/lib/types";
+import type {
+  LedgerAudit,
+  SpendBudget,
+  SpendDecision,
+  SpendLiquidity,
+  Statement,
+} from "@/lib/types";
 
 /* The Spend Statement — the owner's page.
 
@@ -68,6 +74,37 @@ const SCREEN: Record<string, { cls: string; x: string; p: string }> = {
   unknown: { cls: "chip-gold", x: "not screened", p: "could not check" },
 };
 
+/** The agreement check's verdicts, in English.
+ *
+ *  `commitments.py` calls each one "a sentence a reviewer can act on" and this
+ *  page rendered none of them: the verdict was computed, recorded and hashed
+ *  into the wallet while staying invisible — which is also why `held_back_usdc`
+ *  reached the summary with no row a reader could point at. */
+const AGREED: Record<string, { cls: string; x: string; p: string }> = {
+  within: { cls: "chip-teal", x: "within the agreement", p: "matches what we agreed" },
+  over_total: { cls: "chip-breach", x: "over the agreed total", p: "more than we agreed in total" },
+  over_unit_price: { cls: "chip-breach", x: "over the agreed rate", p: "a higher rate than we agreed" },
+  over_quantity: { cls: "chip-breach", x: "over the agreed quantity", p: "more than we asked for" },
+  outside_window: { cls: "chip-gold", x: "outside the agreed dates", p: "outside the dates we agreed" },
+  no_commitment: { cls: "chip-gold", x: "no agreement on file", p: "nothing written down for this" },
+};
+
+/** Why the benchmark could not answer.
+ *
+ *  A par of "…" with no reason reads as a bug. Each of these is a fact about
+ *  the market instead, and the one that matters most is `ONE_SELLER`: a single
+ *  quote is a price, not a benchmark, and `anchors/GAP.md` is the record of
+ *  what happens when the two are confused. */
+const PAR_REASON: Record<string, { x: string; p: string }> = {
+  NO_QUOTES: { x: "nobody else quoted this unit", p: "nobody else was quoting this" },
+  ONE_SELLER: { x: "one seller, so no benchmark", p: "only one seller, so nothing to compare" },
+  NO_INDEPENDENT_SELLER: {
+    x: "no independent seller to compare against",
+    p: "no unrelated seller to compare with",
+  },
+  NO_QUANTITY: { x: "no quantity, so no unit price", p: "no amount given, so no unit price" },
+};
+
 /** Every USDC figure on this page goes through `fmtPrice`, never a fixed number
  *  of decimals. `lib/format.ts` records why: five fixed decimals is five
  *  significant figures for a ~0.49 print and TWO for a ~0.0021 one, which once
@@ -93,6 +130,32 @@ function qty(n: number): string {
   return fmtPrice(n);
 }
 
+/** When the soonest dated bill falls, against the clock the figure was
+ *  computed on.
+ *
+ *  NOT `ageWords`, which only looks backwards ("3 hr ago"), and the whole point
+ *  of this figure is what is COMING. Past due renders as past due rather than
+ *  as a negative interval, because `liquidity.assess` deliberately counts an
+ *  overdue bill IN — "an overdue bill is the most due thing there is" — and a
+ *  column reading "in -2 days" would bury the one row that matters most.
+ *
+ *  Against `statement.as_of`, not the browser clock. The horizon was applied
+ *  server-side at that instant, so the prose and the total it sits beside
+ *  measure from the same moment; a live clock here would drift the words out of
+ *  step with the number and needs an SSR guard besides. */
+function dueWords(atS: number | null, asOf: number): string | null {
+  if (atS == null || !asOf) return null;
+  const left = atS - asOf;
+  if (left < 0) return "past due";
+  if (left < 3_600) return "within the hour";
+  // A day is where a reader stops counting in hours. The first cut was two
+  // days, and the same bill then read "in 48 hr" in the Cash row and "in 2
+  // days" on its own card — both correct, and together they look like two
+  // different facts.
+  if (left < 86_400) return `in ${Math.round(left / 3_600)} hr`;
+  return `in ${Math.round(left / 86_400)} days`;
+}
+
 /** `shortAddr` throws on undefined and returns "" for "", so the call sites
  *  decide what an absent counterparty looks like rather than the formatter. */
 function who(a: string | null | undefined): string {
@@ -113,6 +176,10 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
   const over = typeof d.discrepancy === "number" && d.discrepancy > 0;
   const under = typeof d.discrepancy === "number" && d.discrepancy < 0;
   const service = d.resource ? d.resource.split("/").pop() : "";
+  // Against `d.at`, the clock check 7 compared the due date to when it decided.
+  // The browser's clock would answer a different question — "is it due now" —
+  // and silently rewrite what the agent is recorded as having seen.
+  const dueNote = dueWords(d.due_at ?? null, d.at);
 
   return (
     <tr>
@@ -147,6 +214,20 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
             <Ed x="no record" p="no record" />
           </span>
         )}
+        {/* THE UNIT, which this column had been printing numbers without.
+            "5.0" against "5.0" is not a reading: `$/1k tokens` and `$/GPU-sec`
+            are different markets, and `operator.py` says the unit is what
+            decides WHICH one was consulted. */}
+        {d.unit ? <div className="label mono">{d.unit}</div> : null}
+        {/* The same gap in money, on the vendor's own arithmetic. The quantity
+            difference above says they billed for more than we counted; this
+            says what that was worth, which is the figure `overbilled_usdc` on
+            the summary is made of. */}
+        {typeof d.discrepancy_usdc === "number" && d.discrepancy_usdc !== 0 ? (
+          <div className="label mono">
+            {price(Math.abs(d.discrepancy_usdc))} USDC
+          </div>
+        ) : null}
       </td>
 
       <td className="mono">
@@ -158,6 +239,35 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
             {" "}
             {price(d.best_usdc)}
           </>
+        ) : null}
+        {/* The gap in USDC as well as in bp. The ratio is the scale-invariant
+            one and stays the basis of every claim; the dollars are the unit a
+            reader budgets in, and they were computed and dropped. */}
+        {typeof d.over_par_usdc === "number" && d.over_par_usdc > 0 ? (
+          <div className="label">
+            <Ed
+              x={`${price(d.over_par_usdc)} over`}
+              p={`${price(d.over_par_usdc)} more than the going rate`}
+            />
+          </div>
+        ) : null}
+        {/* HOW DEEP THE BENCHMARK WAS. One quote is a price, not a par, and a
+            figure that does not say how many sellers stood behind it invites
+            exactly the confidence `anchors/GAP.md` exists to withhold. */}
+        {typeof d.par_sellers === "number" && d.par_sellers > 0 ? (
+          <div className="label">
+            <Ed
+              x={`${fmtInt(d.par_sellers)} sellers`}
+              p={`compared with ${fmtInt(d.par_sellers)} sellers`}
+            />
+          </div>
+        ) : null}
+        {d.par_reason && PAR_REASON[d.par_reason] ? (
+          <div className="label">
+            <Ed {...PAR_REASON[d.par_reason]} />
+          </div>
+        ) : d.par_reason ? (
+          <div className="label mono">{d.par_reason}</div>
         ) : null}
       </td>
 
@@ -184,6 +294,11 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
         {d.screen_backend ? (
           <div className="label mono">{d.screen_backend}</div>
         ) : null}
+        {/* And WHY. The backend names who answered; this names what they
+            actually had to say, which is the difference between a dataset
+            returning no match and a denylist of zero addresses returning
+            nothing because it is empty. */}
+        {d.screen_reason ? <div className="label">{d.screen_reason}</div> : null}
       </td>
 
       <td>
@@ -202,9 +317,76 @@ function DecisionRow({ d, explorer }: { d: SpendDecision; explorer: string }) {
             />
           </div>
         ) : null}
+        {/* WAS THERE AN AGREEMENT, AND DID THE BILL MATCH IT. Check 4b, and the
+            one check whose verdict never reached a surface: it was computed,
+            written into the record and hashed into the wallet, and an owner
+            could read `held_back_usdc` on the summary above with no row to
+            point at as the reason. */}
+        {d.commitment_verdict ? (
+          <div className="label">
+            <span
+              className={`chip ${AGREED[d.commitment_verdict]?.cls ?? "chip-gold"}`}
+            >
+              {AGREED[d.commitment_verdict] ? (
+                <Ed
+                  x={AGREED[d.commitment_verdict].x}
+                  p={AGREED[d.commitment_verdict].p}
+                />
+              ) : (
+                d.commitment_verdict
+              )}
+            </span>
+            {typeof d.over_commitment_usdc === "number" &&
+            d.over_commitment_usdc > 0 ? (
+              <>
+                {" "}
+                <span className="mono">
+                  {price(d.over_commitment_usdc)} USDC
+                </span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+        {/* What the agent ADVISED, on a decision it handed over. "How often the
+            human agreed" is one of the four things RFB 4 asks this product to
+            report, and the recommendation it is measured against was recorded
+            and never shown. */}
+        {d.recommended_intent && INTENT[d.recommended_intent] ? (
+          <div className="label">
+            <Ed x="advised" p="the agent suggested" />
+            {" "}
+            <span className={`chip ${INTENT[d.recommended_intent].cls}`}>
+              <Ed
+                x={INTENT[d.recommended_intent].x}
+                p={INTENT[d.recommended_intent].p}
+              />
+            </span>
+          </div>
+        ) : null}
+        {d.early_pay_discount && d.early_pay_discount > 0 ? (
+          /* Not through `pct`, which prefixes a `+` to anything non-negative
+             and so rendered a discount as "+2.0% off for paying early". */
+          <div className="label">
+            <Ed
+              x={`${(d.early_pay_discount * 100).toFixed(1)}% off for paying early`}
+              p={`${(d.early_pay_discount * 100).toFixed(1)}% cheaper if paid early`}
+            />
+          </div>
+        ) : null}
+        {/* One line for the facts a reader reconciles against: what service,
+            the vendor's own reference, where it went instead, when it was due,
+            who acted, how the money moved, and the transaction. Woven into the
+            line that was already here rather than seven more columns. */}
         <div className="label mono">
           {service}
+          {d.invoice_ref ? ` · ${d.invoice_ref}` : ""}
           {d.reroute_to ? ` → ${shortAddr(d.reroute_to)}` : ""}
+          {dueNote ? ` · ${dueNote}` : ""}
+          {/* `agent` on nearly every row, and that IS the claim: a record that
+              does not name who acted cannot support "settled without a human
+              touching them" in either direction. */}
+          {` · ${d.actor === "owner" ? "by you" : "by the agent"}`}
+          {d.paid_via ? ` · ${d.paid_via}` : ""}
           {d.tx ? (
             <>
               {" · "}
@@ -256,6 +438,20 @@ function BudgetRow({ b }: { b: SpendBudget }) {
 function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void }) {
   const s = st.spend;
   const ctx = st.market_context;
+  // A statement from a press that predates the cash block has no `liquidity` at
+  // all, and the connection ladder will serve exactly that from an archived
+  // bundle. Absent is not zero here either, so the fallback wears the same "not
+  // measured" shape the press emits rather than rendering an empty wallet.
+  const liq: SpendLiquidity = st.liquidity ?? {
+    held_usdc: null,
+    due_usdc: 0,
+    due_count: 0,
+    soonest_at: null,
+    undated: 0,
+    horizon_days: 30,
+    covers_due: null,
+    reason: "this statement came from a press that does not report cash yet",
+  };
   // From the BUSINESS's chain: a testnet transaction does not live on the
   // mainnet explorer, and a link to the wrong one is worse than no link.
   const explorer =
@@ -331,6 +527,32 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                 </span>
               </div>
               <p className="standfirst">{d.rule}</p>
+              {/* WHAT THE AGENT ADVISES, on the card where the person decides.
+                  `recommended_intent` is set on every escalation the ladder
+                  produces, and it is the thing "how often the human agreed" is
+                  measured against — so the human doing the agreeing could not
+                  see what they were agreeing with. One woven line, with the
+                  bill's own references beside it, rather than a second panel. */}
+              <p className="label mono">
+                {d.recommended_intent && INTENT[d.recommended_intent] ? (
+                  <>
+                    <Ed x="agent advises" p="the agent suggests" />
+                    {" "}
+                    <span className={`chip ${INTENT[d.recommended_intent].cls}`}>
+                      <Ed
+                        x={INTENT[d.recommended_intent].x}
+                        p={INTENT[d.recommended_intent].p}
+                      />
+                    </span>
+                  </>
+                ) : (
+                  <Ed x="no recommendation recorded" p="the agent did not suggest one" />
+                )}
+                {d.invoice_ref ? ` · ${d.invoice_ref}` : ""}
+                {dueWords(d.due_at ?? null, d.at)
+                  ? ` · ${dueWords(d.due_at ?? null, d.at)}`
+                  : ""}
+              </p>
               <EscalationActions
                 business={st.business.slug}
                 decision={d}
@@ -475,6 +697,102 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
             />
           </p>
         </div>
+      </section>
+
+      {/* CASH, AND IT HAS TO COME BEFORE THE CAPS.
+
+          `remaining_usdc` in the table below is `cap - spent`, read from the
+          contract's own counters: PERMISSION. It reads perfectly healthy on a
+          wallet holding nothing, and the payment then reverts on chain. An
+          owner who met the full allowance first and the empty balance second
+          would have read the misleading figure first, which is the defect this
+          section exists to close.
+
+          RFB 4 opens its list of what the agent decides with "whether there is
+          enough liquidity to cover what is due". This is that same question put
+          back to the person the agent escalates to. */}
+      <section className="section">
+        <div className="section-head">
+          <h2>
+            <Ed x="Cash" p="Money in the wallet" />
+          </h2>
+          {/* Four states, and only one of them is an alarm. The chip is the
+              one the escalation queue already uses, dropped into the label slot
+              every other section head has — a change of weight rather than
+              another element on the page. */}
+          <span className="label">
+            {liq.held_usdc == null ? (
+              <Ed x="not measured" p="could not check" />
+            ) : liq.due_count === 0 ? (
+              <Ed x="nothing dated" p="nothing with a date yet" />
+            ) : liq.covers_due ? (
+              <Ed x="covers what is due" p="enough for what is coming" />
+            ) : (
+              <span className="chip chip-breach">
+                <Ed x="short of what is due" p="not enough for what is coming" />
+              </span>
+            )}
+          </span>
+        </div>
+        <p className="standfirst">
+          <Ed
+            x="What the wallet holds, against the bills waiting on you that carry a due date. A cap is permission; this is money, and the two can disagree."
+            p="What is really in the wallet. The limits below are what the agent may spend; this is what there is to spend."
+          />
+        </p>
+        <div className="panel panel-pad">
+          <div className="table-scroll">
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>
+                    <Ed x="Held" p="In the wallet" />
+                  </th>
+                  <th>
+                    <Ed
+                      x={`Due in ${fmtInt(liq.horizon_days)} days`}
+                      p={`Owed in ${fmtInt(liq.horizon_days)} days`}
+                    />
+                  </th>
+                  <th>
+                    <Ed x="Soonest" p="First one due" />
+                  </th>
+                  <th>
+                    <Ed x="Not dated" p="No date given" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="mono">{price(liq.held_usdc)}</td>
+                  <td className="mono">{price(liq.due_usdc)}</td>
+                  <td className="mono">
+                    {dueWords(liq.soonest_at, st.as_of) ?? price(null)}
+                  </td>
+                  <td className="mono">{fmtInt(liq.undated)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {/* Not "0 USDC". An unfunded wallet and an unreachable node are
+              different facts, the press keeps them apart, and collapsing them
+              at the last step would undo that. */}
+          {liq.reason ? <p className="standfirst">{liq.reason}</p> : null}
+          {liq.undated > 0 ? (
+            <p className="standfirst">
+              <Ed
+                x={`${fmtInt(liq.undated)} of these carry no due date, so they are counted apart rather than inside the total above: not knowing when a bill is due is not the same as it being due later.`}
+                p={`${fmtInt(liq.undated)} of these do not say when they are due, so they are left out of the total above rather than guessed at.`}
+              />
+            </p>
+          ) : null}
+        </div>
+        <p className="standfirst">
+          <Ed
+            x="Not a forecast. There is no burn rate and no runway here, only what is held now against what is dated now."
+            p="This is not a prediction. It is what is there now, and what is owed soon."
+          />
+        </p>
       </section>
 
       <section className="section">

@@ -139,6 +139,20 @@ def test_a_business_with_no_wallet_reports_that_it_cannot_spend(registry):
     assert body["budgets"] == []
 
 
+def test_the_cash_block_crosses_the_wire_and_is_null_rather_than_zero(registry):
+    """A budget and a balance are different questions, and the route carries
+    both. `held_usdc` must arrive as JSON `null` from a business with no wallet:
+    serialised as 0.0 it would read as an empty wallet over HTTP, which is the
+    one thing the figure exists to distinguish."""
+    registry([ACME])
+    liq = client.get("/operator/statement/acme").json()["liquidity"]
+    assert liq["held_usdc"] is None
+    assert liq["covers_due"] is None
+    assert liq["due_usdc"] == 0
+    assert liq["horizon_days"] == 30.0
+    assert "no wallet" in liq["reason"]
+
+
 def test_the_period_is_clamped_rather_than_taken_on_trust(registry):
     """A window nobody asked for is a slow query somebody can ask for
     repeatedly. The route accepts the parameter; it does not have to honour an
