@@ -254,6 +254,19 @@ function Numbers({ t }: { t: TractionPayload }) {
                   <th>
                     <Ed x="Recoverable found" p="Overpay found" />
                   </th>
+                  {/* The two REALISED figures, and they were computed on every
+                      request and then dropped — so this table totalled the
+                      hypothetical column and showed neither of the two a bank
+                      statement would corroborate. Money a vendor asked for
+                      that did not leave the wallet, kept in separate columns
+                      because one is "we had not agreed to this" and the other
+                      is "our own meter disagrees", and never added together. */}
+                  <th>
+                    <Ed x="Held back" p="Not paid, by agreement" />
+                  </th>
+                  <th>
+                    <Ed x="Overbilled" p="Not paid, by our count" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -264,6 +277,8 @@ function Numbers({ t }: { t: TractionPayload }) {
                     <td className="mono">{price(v.received_usdc)}</td>
                     <td className="mono">{price(v.priced_usdc)}</td>
                     <td className="mono">{price(v.recoverable_usdc)}</td>
+                    <td className="mono">{price(v.held_back_usdc)}</td>
+                    <td className="mono">{price(v.overbilled_usdc)}</td>
                   </tr>
                 ))}
               </tbody>

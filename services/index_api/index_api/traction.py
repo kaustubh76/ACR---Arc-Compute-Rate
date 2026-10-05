@@ -13,19 +13,23 @@ a traction claim stops being checkable.
 
 THE DISTINCTION THAT KEEPS THIS HONEST, and it is the whole file:
 
-    moved_usdc     what the OPERATOR actually paid out. Today this is zero for
-                   the fleet, because no PolicyWallet is funded yet and every
-                   decision was a dry run. Zero is the true answer and it is
-                   reported as zero.
+    moved_usdc     what the OPERATOR actually paid out: the sum of `paid_usdc`
+                   over rows that reached PAY, each one carrying the `tx` it
+                   was paid with. Not restated here on purpose — this file
+                   said "today this is zero… every decision was a dry run"
+                   for long enough to outlive the first six on-chain payments,
+                   so the one doc whose premise is "derived, never maintained"
+                   was carrying a maintained number, and understating its own
+                   side. Read it from `/operator/traction`.
     priced_usdc    what the operator assessed: metered, benchmarked, decided on.
                    Real work on real bills, and a different claim.
     recoverable    overpay found against an OBSERVED cheaper offer, with the
                    seller named on every one.
 
-The fleet's 0.325 USDC of historical settlements were moved by the buyer agent
-before this operator existed. Counting them as "value the agent moved" would be
-the single most tempting lie available here, and it would be a lie: the operator
-priced them, it did not pay them.
+The fleet's historical settlements — the larger figure, and the tempting one —
+were moved by the buyer agent before this operator existed. Counting them as
+"value the agent moved" would be the single most tempting lie available here,
+and it would be a lie: the operator priced them, it did not pay them.
 
 MAINNET AND TESTNET ARE NEVER SUMMED. Canteen say test USDC counts and mainnet
 counts more, which only means anything if the two are reported apart.
@@ -95,7 +99,19 @@ def _per_business(b: Business, tape: list[dict] | None = None) -> dict:
         # single net figure would report both as zero.
         "received_usdc": received_usdc(b.treasury, tape),
         "priced_usdc": round(sum(float(r.get("billed_usdc") or 0.0) for r in rows), 6),
+        # HYPOTHETICAL. A cheaper offer existed; nothing was bought against it,
+        # which is why the ledger refuses to book it and why it is named
+        # `recoverable` rather than `saved`.
         "recoverable_usdc": s["saved_usdc"],
+        # REALISED, and these two are the stronger claim: money a vendor asked
+        # for that did not leave the wallet. They were computed on every
+        # request and then dropped, so the page totalled the hypothetical
+        # figure and showed neither of the defensible ones. Kept apart from
+        # `recoverable_usdc` and from each other, and never summed into one
+        # "value" number — the whole point is which of them a bank statement
+        # would corroborate.
+        "held_back_usdc": s["held_back_usdc"],
+        "overbilled_usdc": s["overbilled_usdc"],
         "discrepancies": s["consumption_discrepancies"],
         "unmetered": s["unmetered"],
         **{
@@ -141,6 +157,8 @@ def build_traction(
             "received_usdc": 0.0,
             "priced_usdc": 0.0,
             "recoverable_usdc": 0.0,
+            "held_back_usdc": 0.0,
+            "overbilled_usdc": 0.0,
         }
     )
     intents: dict[str, int] = defaultdict(int)
@@ -168,6 +186,8 @@ def build_traction(
         c["received_usdc"] += r["received_usdc"]
         c["priced_usdc"] += r["priced_usdc"]
         c["recoverable_usdc"] += r["recoverable_usdc"]
+        c["held_back_usdc"] += r["held_back_usdc"]
+        c["overbilled_usdc"] += r["overbilled_usdc"]
         decisions += r["decisions"]
         decided += r["decided"]
         escalated += r["escalated"]
