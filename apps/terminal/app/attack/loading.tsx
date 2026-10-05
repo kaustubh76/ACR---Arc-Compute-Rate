@@ -4,7 +4,7 @@ export default function Loading() {
     <div aria-busy="true" aria-label="setting type">
       <div className="skel-caption" />
       <div className="skel skel-line" style={{ maxWidth: 68 * 7, marginTop: 8 }} />
-      <div className="lab" style={{ marginTop: 32 }}>
+      <div className="lab skel-gap">
         <div>
           <div className="skel skel-line" style={{ maxWidth: 140 }} />
           <div className="skel" style={{ height: 40, maxWidth: 280, marginTop: 12 }} />

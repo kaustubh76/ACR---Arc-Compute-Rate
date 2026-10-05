@@ -336,18 +336,25 @@ export function OperatorConsole() {
           <span className="label">
             <Ed x="What this would do" p="What would happen" />
           </span>
-          <table className="sheet" style={{ marginTop: 8 }}>
-            <tbody>
-              {Object.entries(preview).map(([k, v]) => (
-                <tr key={k}>
-                  <td className="muted mono" style={{ width: 200 }}>
-                    {k}
-                  </td>
-                  <td className="mono">{String(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* `.table-scroll`, and no forced first-column width. The value
+              column renders whatever the dry run returned, which for a payee
+              is a 42-character address: 200 forced + 12 padding + ~328 of
+              nowrap address is 540px inside a panel that is 283px wide on a
+              phone, and neither `html` nor `body` sets `overflow-x: hidden`,
+              so that was a horizontal scroll of the whole page. The keys are
+              field names and none reaches 100px, so the 200 bought nothing. */}
+          <div className="table-scroll" style={{ marginTop: 8 }}>
+            <table className="sheet">
+              <tbody>
+                {Object.entries(preview).map(([k, v]) => (
+                  <tr key={k}>
+                    <td className="muted mono">{k}</td>
+                    <td className="mono">{String(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 

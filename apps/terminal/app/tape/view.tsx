@@ -560,7 +560,7 @@ export function TapeView() {
                         <AddressChip address={r.seller} copy={false} label={nameOf(r.seller) ?? undefined} />
                         <HumanMark share={r.human_share} of="this payer" />
                       </td>
-                      <td className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                      <td className="mono" style={{ fontSize: 12.5 }}>
                         <SellsCell t={terms[r.seller.toLowerCase()]} />
                       </td>
                       <td
@@ -708,7 +708,7 @@ export function TapeView() {
                       <td>
                         <GradeChip rating={r} />
                       </td>
-                      <td className="mono" style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>
+                      <td className="mono" style={{ fontSize: 12.5 }}>
                         {/* Unit and unit price off the seller's latest fill. The
                             unit is what makes two prices comparable at all: $0.44
                             per 1k tokens and $0.0001 per query are not a spread,

@@ -5,8 +5,8 @@ export default function Loading() {
       <div className="skel-caption" />
       <div className="skel skel-line" style={{ maxWidth: 160, marginTop: 8 }} />
       <div className="skel" style={{ height: 64, maxWidth: 380, marginTop: 16 }} />
-      <div className="skel skel-chart" style={{ marginTop: 32 }} />
-      <div className="lab-counters" style={{ marginTop: 32 }}>
+      <div className="skel skel-chart skel-gap" />
+      <div className="lab-counters skel-gap">
         {[0, 1, 2, 3].map((i) => (
           <div key={i}>
             <div className="skel skel-num" style={{ height: 30, maxWidth: 110 }} />
@@ -14,7 +14,7 @@ export default function Loading() {
           </div>
         ))}
       </div>
-      <div className="skel skel-row" style={{ marginTop: 32 }} />
+      <div className="skel skel-row skel-gap" />
       <div className="skel skel-row" />
     </div>
   );

@@ -907,7 +907,7 @@ export function PublicDesk({
           const bar = headroomBar(limits.max_sell, limits.max_buy);
           return (
             <div style={{ marginTop: 14, maxWidth: 420 }}>
-              <div className="reading" style={{ justifyContent: "space-between" }}>
+              <div className="reading reading-spread">
                 <span className="vermilion">
                   <Ed x={`SELL ${limits.max_sell}`} p={`SELL ${limits.max_sell}`} />
                 </span>

@@ -13,9 +13,9 @@ export default function Loading() {
           </div>
         ))}
       </div>
-      <div className="skel skel-line" style={{ maxWidth: 68 * 8, marginTop: 36 }} />
+      <div className="skel skel-line skel-gap" style={{ maxWidth: 68 * 8 }} />
       <div className="skel skel-line" style={{ maxWidth: 68 * 6 }} />
-      <div style={{ marginTop: 36 }}>
+      <div className="skel-gap">
         {[0, 1, 2].map((i) => (
           <div key={i} className="skel skel-row" />
         ))}

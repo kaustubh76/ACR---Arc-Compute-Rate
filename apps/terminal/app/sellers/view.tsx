@@ -416,28 +416,36 @@ export function SellersView({ initial }: { initial: Envelope<TerminalData> }) {
               {/* Block height and latency are the payload, not decoration: they
                   are what distinguishes a reading from a re-render of the card
                   above. Press twice and the block should move. */}
-              <table className="sheet" style={{ marginTop: 8 }}>
-                <tbody>
-                  <tr>
-                    <td className="muted mono" style={{ width: 190 }}>
-                      block
-                    </td>
-                    <td className="mono gold">{fmtInt(chainRead.block)}</td>
-                  </tr>
-                  <tr>
-                    <td className="muted mono">sellerCount()</td>
-                    <td className="mono">{fmtInt(chainRead.seller_count)}</td>
-                  </tr>
-                  <tr>
-                    <td className="muted mono">chain</td>
-                    <td className="mono">eip155:{chainRead.chain_id}</td>
-                  </tr>
-                  <tr>
-                    <td className="muted mono">took</td>
-                    <td className="mono">{fmtInt(chainRead.took_ms)} ms</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* Wrapped, and the first column unforced. `width: 190` was set
+                  against a key column whose own widest string is
+                  `sellerCount()` at 13 characters — about 101px — so 89px of
+                  it was reserving space for nothing, and the row then measured
+                  296px inside a 283px panel with no scroll container to
+                  absorb it. Same shape as the preview table in
+                  OperatorConsole, and the only other table in the product
+                  that was missing `.table-scroll`. */}
+              <div className="table-scroll" style={{ marginTop: 8 }}>
+                <table className="sheet">
+                  <tbody>
+                    <tr>
+                      <td className="muted mono">block</td>
+                      <td className="mono gold">{fmtInt(chainRead.block)}</td>
+                    </tr>
+                    <tr>
+                      <td className="muted mono">sellerCount()</td>
+                      <td className="mono">{fmtInt(chainRead.seller_count)}</td>
+                    </tr>
+                    <tr>
+                      <td className="muted mono">chain</td>
+                      <td className="mono">eip155:{chainRead.chain_id}</td>
+                    </tr>
+                    <tr>
+                      <td className="muted mono">took</td>
+                      <td className="mono">{fmtInt(chainRead.took_ms)} ms</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
               <p className="muted" style={{ fontSize: 12.5, margin: "10px 0 0", maxWidth: 68 * 9 }}>
                 <Ed
                   x="Each record above is now a row you can open, showing the raw values the contract returned rather than our summary of them."

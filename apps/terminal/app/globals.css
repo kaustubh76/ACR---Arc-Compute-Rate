@@ -71,6 +71,14 @@
   --dur-2: 0.32s;
   --dur-3: 0.45s;
 
+  /* rhythm. The only length token in this file, and it earns its place: every
+     loading.tsx was standing in for `.section`'s gap with an inline 28, 32 or
+     36 — three values for one role, none of them written down anywhere — so a
+     route's content dropped 20 to 24px the moment the skeleton gave way to the
+     real view, on all twelve routes. A value a skeleton can name is a value it
+     cannot guess wrong. */
+  --section-gap: 56px;
+
   /* type */
   --display: var(--font-display), "Space Grotesk", "Helvetica Neue", sans-serif;
   --body: var(--font-body), "DM Sans", "Helvetica Neue", sans-serif;
@@ -556,7 +564,7 @@ a.chip:hover,
 
 /* ---------- sections ---------- */
 .section {
-  margin-top: 56px;
+  margin-top: var(--section-gap);
 }
 /* Deep links (/curve#desk) must clear the sticky masthead + chain strip,
    otherwise the section head they were aimed at lands underneath it. */
@@ -2803,6 +2811,14 @@ html[data-edition-turn] .plain-only {
   text-align: left;
   white-space: normal;
   animation: toast-in var(--dur-2) var(--ease-expo);
+  /* How far Term.tsx had to pull this back on screen. `translate`, the
+     independent property, NOT `transform`: `toast-in` animates
+     `transform: translateY(14px) -> none`, so a transform here would be
+     overridden for the animation's duration and then snap into place. The
+     independent properties compose with `transform` instead, so the footnote
+     slides up and sits shifted in one motion. It also takes part in no
+     layout, so measuring after setting it cannot start a reflow loop. */
+  translate: var(--term-shift, 0px) 0px;
 }
 .term-pop b {
   display: block;
@@ -2822,7 +2838,14 @@ html[data-edition-turn] .plain-only {
 .primer-rail {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  /* 18px, matching `.hero` — the other `repeat(3, 1fr)` on this page, which in
+     the plain edition sits directly below this rail. Measured, the 20px this
+     used to carry put the two grids' column dividers 1.33px and 0.67px apart:
+     not a misalignment anybody can see, so this is housekeeping rather than a
+     fix, and it is here only because one value for one job costs nothing.
+     The BREAKPOINTS stay different on purpose — six beats want the 2-up step
+     at 900px, three rate blocks would only orphan one. */
+  gap: 18px;
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
   padding: 20px 0;
@@ -3066,4 +3089,38 @@ table.sheet td.wrap-left {
   display: block;
   width: 100%;
   max-width: 360px;
+}
+
+/* `.reading` is a one-line readout: `height: 20px`, `nowrap`, right-aligned,
+   and `overflow: hidden`. That is right for a chart's caption and wrong for a
+   three-up row. On the public desk it holds SELL / what the book can fill /
+   BUY, which measure 332px inside the 327px a .section has at 375px — and
+   because the class hides its overflow rather than scrolling it, the
+   consequence was a silently clipped BUY figure, which a reader misreads
+   rather than misses. It worsens by about 8px per extra digit the API returns.
+
+   A modifier, not a change to `.reading`: `FuturesDesk` and `.desk-spark`
+   use the class as intended, and `.desk-spark .reading` already releases the
+   height, which is the precedent for doing it here. Equal specificity to
+   `.reading`, so this must stay BELOW it in the file — only source order
+   decides between them. */
+.reading-spread {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  height: auto;
+  overflow: visible;
+  row-gap: 4px;
+}
+
+/* The skeletons' inter-block gap, from the same token the real page uses, so
+   the two cannot drift apart again.
+
+   It has to be declared down here. `.skel-line` and `.skel-row` set their
+   spacing with the SHORTHAND `margin: 6px 0` / `8px 0`, further up the file
+   than `.section` — so `className="section"` on a skeleton block loses to them
+   at equal specificity and silently does nothing, which is how this fix was
+   first written and would have shipped looking correct. Only source order
+   settles it. Do not tidy this upwards. */
+.skel-gap {
+  margin-top: var(--section-gap);
 }
