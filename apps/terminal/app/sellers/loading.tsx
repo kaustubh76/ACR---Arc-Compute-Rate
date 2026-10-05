@@ -4,8 +4,8 @@ export default function Loading() {
     <div aria-busy="true" aria-label="setting type">
       <div className="skel-caption" />
       <div className="skel skel-line" style={{ maxWidth: 68 * 8, marginTop: 8 }} />
-      <div className="skel" style={{ height: 150, marginTop: 32 }} />
-      <div style={{ marginTop: 36 }}>
+      <div className="skel skel-gap" style={{ height: 150 }} />
+      <div className="skel-gap">
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="skel skel-row" />
         ))}

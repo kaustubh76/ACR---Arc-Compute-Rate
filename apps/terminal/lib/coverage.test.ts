@@ -41,7 +41,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 63, // incl. the human gate section and its two endpoint rows
+  "app/developers/view.tsx": 80, // incl. the human gate section and the two operator rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
@@ -70,6 +70,14 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // same state the sellers comment above describes. Raised to actual; the
   // ledger's is now 23 because every section title speaks in both editions.
   "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
+  // The owner's page speaks to an owner, not an operator: every heading, every
+  // outcome chip and the savings caveat all carry both registers.
+  // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
+  // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
+  // how two of these floors were briefly set below actual.
+  "app/spend/view.tsx": 68, // the queue (even empty), the budgets, which chain, the six
+  "app/traction/view.tsx": 49, // every figure labelled in both registers
+  "components/spend/EscalationActions.tsx": 10, // the key, the buttons, the note, who signs
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,
@@ -111,6 +119,8 @@ const EXEMPT: Record<string, string> = {
   "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
   "app/ops/loading.tsx": "skeleton",
+  "app/spend/loading.tsx": "skeleton",
+  "app/traction/loading.tsx": "skeleton",
   "app/index/[id]/loading.tsx": "skeleton",
   "app/page.tsx": "metadata only — SEO stays expert",
   "app/attack/page.tsx": "metadata only",
@@ -121,6 +131,8 @@ const EXEMPT: Record<string, string> = {
   "app/sellers/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
+  "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
+  "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",
@@ -154,7 +166,36 @@ const ALL = [...tsxFiles(join(ROOT, "app")), ...tsxFiles(join(ROOT, "components"
   relative(ROOT, f),
 );
 
-test("ledger: every surface is either covered or exempt (with a reason)", () => {
+/* Structural elements this stylesheet only reaches through a class. There is
+   no bare `table`, `ul`, `ol` or `dl` element selector in globals.css — every
+   table rule is scoped to `table.sheet` — so one of these without a className
+   renders on UA defaults: ~1px cell padding, no row rules, disc bullets, a
+   40px inset nobody chose. Eleven tables and one list shipped that way on
+   /spend and /traction and passed typecheck, lint, build and this whole file. */
+const STRUCTURAL = ["table", "ul", "ol", "dl"] as const;
+
+/** Class tokens this file can prove are intended, from one .tsx source.
+ *
+ *  Deliberately narrow: `className="a b"` literals, and the STATIC text of a
+ *  `className={`a ${x}`}` template. It does NOT read strings nested inside
+ *  `${…}`, because they are not all class names — `phase === "error" ? …` in
+ *  EscalationActions.tsx would be read as a class called `error`, and a gate
+ *  that cries wolf gets deleted. A runtime-computed class is out of reach of
+ *  any source scan; that is the limit, and it is written down rather than
+ *  papered over. */
+function classTokens(src: string): string[] {
+  const out: string[] = [];
+  const push = (blob: string) => {
+    for (const t of blob.replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) {
+      if (/^[A-Za-z_][\w-]*$/.test(t)) out.push(t);
+    }
+  };
+  for (const m of src.matchAll(/className="([^"]*)"/g)) push(m[1]);
+  for (const m of src.matchAll(/className=\{`([^`]*)`\}/g)) push(m[1]);
+  return out;
+}
+
+test("ledger: every surface is covered or exempt, classed, and its classes exist", () => {
   const unlisted = ALL.filter((f) => !(f in REQUIRED_COVERAGE) && !(f in EXEMPT));
   assert.deepEqual(
     unlisted,
@@ -166,6 +207,43 @@ test("ledger: every surface is either covered or exempt (with a reason)", () => 
     (f) => !ALL.includes(f),
   );
   assert.deepEqual(gone, [], `ledger entries with no file: ${gone.join(", ")}`);
+
+  /* A surface is not accounted for just because it is listed. Nothing in this
+     repo read `className` until now, which is how `table`, `teal`,
+     `wallet-panel`, `.is-on` and `primer` each shipped green. Two halves: an
+     element that cannot be styled without a class must carry one, and a class
+     that is carried must exist. */
+  const bare: string[] = [];
+  const dangling: string[] = [];
+  const css = readFileSync(join(ROOT, "app", "globals.css"), "utf8");
+  /* A letter or underscore after the dot, so `0.14` in an rgba() and `13.5px`
+     in a font-size are not read as selectors. Prose in a comment ("see
+     td.wrap") lands in here too, which only ever makes this half MORE
+     permissive — it can never invent a failure. */
+  const defined = new Set([...css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+
+  for (const file of ALL) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    for (const el of STRUCTURAL) {
+      for (const m of src.matchAll(new RegExp(`<${el}(\\s[^>]*)?>`, "g"))) {
+        if ((m[1] ?? "").includes("className")) continue;
+        bare.push(`${file}:${src.slice(0, m.index).split("\n").length} <${el}>`);
+      }
+    }
+    for (const tok of classTokens(src)) {
+      if (!defined.has(tok)) dangling.push(`${file}: .${tok}`);
+    }
+  }
+  assert.deepEqual(
+    bare,
+    [],
+    `a <table>/<ul>/<ol>/<dl> with no className renders on browser defaults: ${bare.join(", ")}`,
+  );
+  assert.deepEqual(
+    dangling,
+    [],
+    `className with no rule in globals.css: ${dangling.join(", ")}`,
+  );
 });
 
 test("floors: every covered surface meets its minimum marker count", () => {

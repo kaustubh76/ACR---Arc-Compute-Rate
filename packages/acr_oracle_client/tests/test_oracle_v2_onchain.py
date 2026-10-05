@@ -12,6 +12,7 @@ Skipped (not failed) without a node, so the default `make test` stays hermetic.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,13 @@ from acr_core import ACRPrint
 from acr_oracle_client import OracleClient
 from acr_oracle_client.client import ORACLE_V2, PostPayload, print_domain
 
-RPC = "http://127.0.0.1:8545"
+#: Overridable, because this machine runs more than one project. A parallel
+#: session held 127.0.0.1:8545 with its own anvil for seven hours, and chain id
+#: cannot tell two anvils apart — both are 31337 — so a run against the wrong
+#: one looks exactly like a run against the right one, and deploys into whatever
+#: state the other session has built up. CI starts anvil on the default and is
+#: unaffected; a second chain just needs ACR_TEST_RPC.
+RPC = os.environ.get("ACR_TEST_RPC", "http://127.0.0.1:8545")
 ANVIL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 _OUT = Path(__file__).resolve().parents[3] / "contracts/out"
 ARTIFACT = _OUT / "ACROracleV2.sol/ACROracleV2.json"
@@ -69,7 +76,7 @@ def _print_at(ts: int, value: float = 0.5) -> ACRPrint:
 def test_v2_digest_parity_and_round_trip():
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     address = _deploy(w3, acct)
 

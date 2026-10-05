@@ -71,6 +71,14 @@
   --dur-2: 0.32s;
   --dur-3: 0.45s;
 
+  /* rhythm. The only length token in this file, and it earns its place: every
+     loading.tsx was standing in for `.section`'s gap with an inline 28, 32 or
+     36 — three values for one role, none of them written down anywhere — so a
+     route's content dropped 20 to 24px the moment the skeleton gave way to the
+     real view, on all twelve routes. A value a skeleton can name is a value it
+     cannot guess wrong. */
+  --section-gap: 56px;
+
   /* type */
   --display: var(--font-display), "Space Grotesk", "Helvetica Neue", sans-serif;
   --body: var(--font-body), "DM Sans", "Helvetica Neue", sans-serif;
@@ -556,7 +564,7 @@ a.chip:hover,
 
 /* ---------- sections ---------- */
 .section {
-  margin-top: 56px;
+  margin-top: var(--section-gap);
 }
 /* Deep links (/curve#desk) must clear the sticky masthead + chain strip,
    otherwise the section head they were aimed at lands underneath it. */
@@ -1466,6 +1474,17 @@ table.sheet.sheet-checks td:nth-child(3) {
   .sheet td.mono {
     white-space: normal;
     overflow-wrap: anywhere;
+  }
+  /* And the label column, for the same reason the line above exists. A
+     key/value sheet carries its label in the FIRST cell, which has no `.mono`
+     and so was not covered: on /spend those labels reach 61 characters
+     ("Money billed for things we could not find any record of using"), about a
+     400px column inside a 283px panel. Longhand, not `.sheet td:first-child`,
+     because a media query adds no specificity — the same lesson the
+     `sheet-checks` padding carries above. No `overflow-wrap`, so an address or
+     a hash still refuses to break mid-token; only multi-word prose wraps. */
+  table.sheet td:first-child {
+    white-space: normal;
   }
 }
 
@@ -2792,6 +2811,14 @@ html[data-edition-turn] .plain-only {
   text-align: left;
   white-space: normal;
   animation: toast-in var(--dur-2) var(--ease-expo);
+  /* How far Term.tsx had to pull this back on screen. `translate`, the
+     independent property, NOT `transform`: `toast-in` animates
+     `transform: translateY(14px) -> none`, so a transform here would be
+     overridden for the animation's duration and then snap into place. The
+     independent properties compose with `transform` instead, so the footnote
+     slides up and sits shifted in one motion. It also takes part in no
+     layout, so measuring after setting it cannot start a reflow loop. */
+  translate: var(--term-shift, 0px) 0px;
 }
 .term-pop b {
   display: block;
@@ -2811,7 +2838,14 @@ html[data-edition-turn] .plain-only {
 .primer-rail {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  /* 18px, matching `.hero` — the other `repeat(3, 1fr)` on this page, which in
+     the plain edition sits directly below this rail. Measured, the 20px this
+     used to carry put the two grids' column dividers 1.33px and 0.67px apart:
+     not a misalignment anybody can see, so this is housekeeping rather than a
+     fix, and it is here only because one value for one job costs nothing.
+     The BREAKPOINTS stay different on purpose — six beats want the 2-up step
+     at 900px, three rate blocks would only orphan one. */
+  gap: 18px;
   border-top: 1px solid var(--hairline);
   border-bottom: 1px solid var(--hairline);
   padding: 20px 0;
@@ -2915,4 +2949,178 @@ html[data-edition-turn] .plain-only {
 }
 .bridge-steps li {
   margin: 2px 0;
+}
+
+/* ---------- the operator surface: /spend and /traction ----------
+   These two pages shipped across fourteen commits that added no CSS at all, so
+   eleven of their tables were bare `<table>` elements. Nothing in this file
+   styles a bare table — every rule above is scoped to `table.sheet` — so they
+   rendered on UA defaults: ~1px cell padding, no row rules, headers centred
+   instead of sitting over their columns, the first column inset from the panel
+   edge that its own `.standfirst` sits flush against, and figures without
+   tabular-nums. Giving them `.sheet` is the fix; what follows is the three
+   things `.sheet` alone does not say. */
+
+/* A rule is a sentence, and `table.sheet td` is nowrap and right-aligned. On
+   the decision table the last column carries `d.rule` plus its notes, so
+   without this it scrolls sideways rather than wrapping — the same failure
+   `td.wrap` and the `.sheet-checks` stacking above were written to prevent.
+   Left, because a column of sentences you read down must share a left edge. */
+table.sheet.sheet-rules td:last-child {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 26ch;
+}
+/* The header goes with its column. Without this the `Rule` caption stays
+   right-aligned from `table.sheet th` above a column that is now left-aligned,
+   which is a header not sitting over the thing it names — the defect this
+   section exists to remove, reintroduced one row higher. */
+table.sheet.sheet-rules th:last-child {
+  text-align: left;
+}
+
+/* A heading inside the figures, for when a table holds two kinds of row that
+   must not be read as one list: money that moved beside money that was only
+   measured, or a total beside the rows that sum to it. `th[scope=rowgroup]`
+   rather than a styled `td`, so the grouping is announced and not merely seen.
+   It inherits the eyebrow type from `table.sheet th` and overrides the
+   right-alignment that is right for a column header and wrong for a banner. */
+table.sheet tr.sheet-group th {
+  text-align: left;
+  padding: 20px 0 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+table.sheet tbody tr.sheet-group:first-child th {
+  padding-top: 0;
+}
+/* Not a row you can act on, so it does not light up under the pointer. */
+table.sheet tbody tr.sheet-group:hover {
+  background: transparent;
+}
+
+/* A row that is part of the row above it rather than its sibling — the four
+   arrival tiers under the count they sum to. The rail is continuous down the
+   group because each cell draws its own segment, which is what makes four
+   indented rows read as one breakdown instead of four more entries. 16px, the
+   same indent `.fact` already uses: this file has enough one-off horizontal
+   values without a new one. */
+table.sheet tr.sheet-sub td:first-child {
+  /* An inset shadow, not a `border-left`. The table is `border-collapse:
+     collapse`, so a border on these cells is drawn at the COLUMN edge and
+     shifts the whole first column — every other row included — 1px off the
+     panel edge it is supposed to be flush with (measured). A shadow draws the
+     same 1px rail and takes part in no layout at all. */
+  box-shadow: inset 1px 0 0 var(--hairline);
+  padding-left: 16px;
+}
+
+/* The audit findings. The only bare `<ul>` in the product, so it was carrying
+   UA disc bullets and a 40px inset nobody chose, inside a design system that
+   sets `list-style: none` everywhere else. Same rail as `.sheet-sub` above, so
+   a finding reads as belonging to the check table it follows. */
+.findings {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+  color: var(--ether-70);
+}
+.findings li {
+  border-left: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  padding: 10px 0 10px 16px;
+}
+.findings li:last-child {
+  border-bottom: 0;
+}
+
+/* The per-business table on /traction is fifteen columns wide. `.table-scroll`
+   keeps it from breaking the page, but scrolling it carries the business name
+   out of view, so the figures you are reading stop belonging to anybody — the
+   same loss-of-the-first-column failure the comments above describe twice.
+   Stacking fifteen columns is not legible, so pin the name instead. `--ledger`
+   is the panel's own base colour, opaque, so rows do not show through it. */
+@media (max-width: 900px) {
+  table.sheet.sheet-wide th:first-child,
+  table.sheet.sheet-wide td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--ledger);
+    padding-right: 12px;
+  }
+  /* Release the rule column's floor, the same release `.sheet-checks` makes at
+     this width. 26ch is about 203px of the 283px a panel has on a phone, so
+     keeping it holds the whole decision table wide for the sake of a minimum
+     that only earns its keep on a desktop. */
+  table.sheet.sheet-rules td:last-child {
+    min-width: 0;
+  }
+}
+
+/* A spanning cell that is NOT the first column. Most `colSpan` cells in this
+   file are the only cell in their row, so `td:first-child` already left-aligns
+   them; this one sits after a category and explains it, and right-aligning an
+   explanation to the far edge of the figures it is not part of puts it as far
+   from its own subject as the table allows. `.wrap` gets the wrapping, this
+   gets the edge. */
+table.sheet td.wrap-left {
+  text-align: left;
+}
+
+/* The escalation form, which is the one control on the operator surface a
+   person actually has to use. Two borrowed classes were doing jobs they do not
+   do. It wrapped itself in `panel-pad`, which its parent in app/spend/view.tsx
+   already supplies, so every field sat 44px inside the panel while the heading
+   that explains them sat at 22px — a step mid-panel that nobody chose. And
+   `.label` sets type but not display, so each <label> stayed inline and ran
+   into its own input. A field stack needs its caption above its control. */
+.escalation-form {
+  margin-top: 16px;
+}
+.escalation-form label {
+  display: block;
+  margin: 16px 0 6px;
+}
+.escalation-form label:first-child {
+  margin-top: 0;
+}
+.escalation-form input {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* `.reading` is a one-line readout: `height: 20px`, `nowrap`, right-aligned,
+   and `overflow: hidden`. That is right for a chart's caption and wrong for a
+   three-up row. On the public desk it holds SELL / what the book can fill /
+   BUY, which measure 332px inside the 327px a .section has at 375px — and
+   because the class hides its overflow rather than scrolling it, the
+   consequence was a silently clipped BUY figure, which a reader misreads
+   rather than misses. It worsens by about 8px per extra digit the API returns.
+
+   A modifier, not a change to `.reading`: `FuturesDesk` and `.desk-spark`
+   use the class as intended, and `.desk-spark .reading` already releases the
+   height, which is the precedent for doing it here. Equal specificity to
+   `.reading`, so this must stay BELOW it in the file — only source order
+   decides between them. */
+.reading-spread {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  height: auto;
+  overflow: visible;
+  row-gap: 4px;
+}
+
+/* The skeletons' inter-block gap, from the same token the real page uses, so
+   the two cannot drift apart again.
+
+   It has to be declared down here. `.skel-line` and `.skel-row` set their
+   spacing with the SHORTHAND `margin: 6px 0` / `8px 0`, further up the file
+   than `.section` — so `className="section"` on a skeleton block loses to them
+   at equal specificity and silently does nothing, which is how this fix was
+   first written and would have shipped looking correct. Only source order
+   settles it. Do not tidy this upwards. */
+.skel-gap {
+  margin-top: var(--section-gap);
 }

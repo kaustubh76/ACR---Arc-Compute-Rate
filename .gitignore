@@ -47,6 +47,9 @@ ETHGlobal_Online.md
 # itself is public; the plan to win it is not.
 Tameion_MachineTCA_Operator_Plan.md
 Agoranomos_Tameion_Board.excalidraw
+# The private implementation record: the same competition framing plus the
+# unshipped items and the blocked list. docs/TAMEION.md is the public one.
+TAMEION_IMPLEMENTATION.md
 # Orphan scratch canvas. scripts/gen_architecture.py writes the TRACKED
 # acr_architecture.excalidraw; nothing reads this one.
 ACR_MachineTCA_Architecture_FULL.excalidraw

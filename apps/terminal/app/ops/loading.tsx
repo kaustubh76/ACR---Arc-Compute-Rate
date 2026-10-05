@@ -5,7 +5,7 @@ export default function Loading() {
       <div className="skel-caption" />
       <div className="skel skel-line" style={{ maxWidth: 68 * 8, marginTop: 8 }} />
       {[0, 1, 2].map((s) => (
-        <div key={s} style={{ marginTop: 36 }}>
+        <div className="skel-gap" key={s}>
           <div className="skel skel-line" style={{ maxWidth: 180 }} />
           {[0, 1, 2].map((i) => (
             <div key={i} className="skel skel-row" />

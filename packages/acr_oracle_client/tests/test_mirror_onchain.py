@@ -13,6 +13,7 @@ a real chain rather than a mock, because the guard that enforces it is a
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -21,7 +22,13 @@ from acr_core import Service
 from acr_oracle_client import MirrorClient, settlement_id
 from acr_oracle_client.signer import LocalKeySigner
 
-RPC = "http://127.0.0.1:8545"
+#: Overridable, because this machine runs more than one project. A parallel
+#: session held 127.0.0.1:8545 with its own anvil for seven hours, and chain id
+#: cannot tell two anvils apart — both are 31337 — so a run against the wrong
+#: one looks exactly like a run against the right one, and deploys into whatever
+#: state the other session has built up. CI starts anvil on the default and is
+#: unaffected; a second chain just needs ACR_TEST_RPC.
+RPC = os.environ.get("ACR_TEST_RPC", "http://127.0.0.1:8545")
 ANVIL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 _OUT = Path(__file__).resolve().parents[3] / "contracts/out"
 ARTIFACT = _OUT / "ReceiptMirror.sol/ReceiptMirror.json"
@@ -68,7 +75,7 @@ def _client(address: str) -> MirrorClient:
 def test_mirror_round_trip_and_the_arrival_anchor_survives_finalize():
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     address = _deploy(w3, acct)
     client = _client(address)
@@ -107,7 +114,7 @@ def test_a_signature_from_an_unauthorized_signer_is_refused_on_chain():
     """The security model, against the real `ecrecover` rather than a stub."""
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     address = _deploy(w3, acct)
     impostor = MirrorClient(

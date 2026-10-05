@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -42,6 +42,14 @@ help:
 	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
 	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
 	@echo "  make tape-audit      measure what REAL Arc settlement flow yields as an index"
+	@echo ""
+	@echo "  the spend operator (apps for businesses — pays their machine bills):"
+	@echo "  make operator-run    BUSINESS=slug [LIVE=1] — decide and pay one business's bills"
+	@echo "  make ledger          BUSINESS=slug — their decisions as a beancount file that balances"
+	@echo "  make verify-operator probe the deployed operator surfaces end to end"
+	@echo "  make sandbox-decisions       regenerate the demo fixtures by running the ladder"
+	@echo "  make archive-decisions       fold production's decisions into the committed archive"
+	@echo "  make archive-decisions-check exit 1 if production holds rows the archive does not"
 	@echo ""
 	@echo "  buyer agent (apps/agent — the machine side of the marketplace):"
 	@echo "  make agent           offline demo: discover the catalog, pay the dev gate"
@@ -100,7 +108,7 @@ eval-gate:
 	uv run python scripts/eval.py --hours 12 --check --index ACR-GPU
 	uv run python scripts/eval.py --hours 12 --check --index ACR-DATA
 
-ci: lint test eval-gate golden-check anchors-check openapi-doc-check
+ci: lint test eval-gate golden-check anchors-check openapi-doc-check sandbox-decisions-check
 
 build-contracts:
 	cd contracts && forge build
@@ -184,6 +192,71 @@ deploy-mirror:
 	@echo "  ReceiptMirror live — the subgraph's settlement tape."
 	@echo "  Set ACR_RECEIPT_MIRROR_ADDRESS in .env + on the Render seller, then put"
 	@echo "  the address AND this deploy's block number into graph/subgraph.yaml."
+
+# Prove the deployed operator surfaces: the business list, one Spend Statement
+# and its beancount ledger — and the honesty properties, not just the status
+# codes. VERIFY_TERMINAL_URL retargets it at a local next dev.
+verify-operator:
+	uv run python scripts/verify_operator.py
+
+# One business's decisions as a beancount file. Prior Art #01 names beancount as
+# "a ledger an agent can write to" and says it has never been connected to money
+# that actually moves; this is that connection, and every transaction in it sums
+# to zero. BUSINESS is a registry slug or a treasury address.
+ledger:
+	@test -n "$(BUSINESS)" || { echo "BUSINESS not set — e.g. make ledger BUSINESS=acr-fleet"; exit 1; }
+	uv run python -c "import sys; from index_api.businesses import resolve; from index_api.ledger_export import to_beancount; from index_api.statement import read_decisions; b=resolve('$(BUSINESS)'); sys.exit('no business registered as $(BUSINESS)') if b is None else sys.stdout.write(to_beancount(read_decisions(business=b.slug), b.slug))"
+
+# Fold the operator's live decisions into the committed archive, for exactly the
+# reason x402-capture exists: production has no persistent disk, so every
+# decision made since the last deploy lives on a volume the next deploy erases.
+# Without this the traction page quietly reverts to the rows that ship in the
+# image — a smaller number, not a broken page, which is the failure shape nobody
+# investigates. Run it BEFORE a redeploy, then commit the archive.
+# The sandbox's decision fixtures, DERIVED rather than typed. One of the six was
+# hand-written to describe a decision the ladder cannot reach (a 140 USDC bill
+# escalating on the per-payment limit, when an unpriceable bill meets the
+# unbenchmarked ceiling first), and it rendered in the escalation queue — which
+# cannot be shown at all without a sandbox. `--check` is in `make ci`.
+sandbox-decisions:
+	uv run python scripts/gen_sandbox_decisions.py
+
+sandbox-decisions-check:
+	uv run python scripts/gen_sandbox_decisions.py --check
+
+archive-decisions:
+	uv run python scripts/archive_decisions.py
+
+# The preflight form: exits 1 when production holds decisions the archive does
+# not, so a redeploy can refuse to throw them away.
+archive-decisions-check:
+	uv run python scripts/archive_decisions.py --check
+
+# Run the spend operator for one business. Dry run unless LIVE=1, and --live is
+# refused for a business with no PolicyWallet rather than doing a dry run under
+# the wrong name.
+operator-run:
+	@test -n "$(BUSINESS)" || { echo "BUSINESS not set — e.g. make operator-run BUSINESS=acr-fleet"; exit 1; }
+	uv run python scripts/operator_run.py --business $(BUSINESS) $(if $(LIVE),--live,)
+
+# One business's spending authority. ONE WALLET PER BUSINESS: a shared wallet with
+# per-business categories would put one business's budget one wrong `isAgent` entry
+# away from another's agent. A deploy costs about a cent on Arc.
+# The deploy authorizes no agent and sets no budget, so a fresh wallet can hold
+# money and spend none of it — that is the safe resting state. ACR_POLICY_AGENT
+# authorizes the operator at deploy time; a budget is always a separate call.
+deploy-policy-dry:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
+	@cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
+
+deploy-policy:
+	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
+	@echo "cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
+	@cd contracts && forge script script/DeployPolicyWallet.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
+	@echo ""
+	@echo "  PolicyWallet live — it owns nothing until you fund it, and permits"
+	@echo "  nothing until setAgent + setBudget run. Set ACR_POLICY_WALLET_ADDRESS."
 
 # The human-grouping mirror. Records WINDOW-ROTATED CLUSTER IDS, never a World ID
 # nullifier — see contracts/src/HumanIdMirror.sol for why rotation prevents

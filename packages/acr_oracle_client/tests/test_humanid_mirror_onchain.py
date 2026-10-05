@@ -15,13 +15,20 @@ reimplementation of it, because agreeing with ourselves proves nothing.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 from acr_oracle_client.humanid import HumanIdMirrorClient, cluster_id, salt_commitment
 from acr_oracle_client.signer import LocalKeySigner
 
-RPC = "http://127.0.0.1:8545"
+#: Overridable, because this machine runs more than one project. A parallel
+#: session held 127.0.0.1:8545 with its own anvil for seven hours, and chain id
+#: cannot tell two anvils apart — both are 31337 — so a run against the wrong
+#: one looks exactly like a run against the right one, and deploys into whatever
+#: state the other session has built up. CI starts anvil on the default and is
+#: unaffected; a second chain just needs ACR_TEST_RPC.
+RPC = os.environ.get("ACR_TEST_RPC", "http://127.0.0.1:8545")
 ANVIL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 _OUT = Path(__file__).resolve().parents[3] / "contracts/out"
 ARTIFACT = _OUT / "HumanIdMirror.sol/HumanIdMirror.json"
@@ -71,7 +78,7 @@ def _client(address: str, key: str = ANVIL_KEY) -> HumanIdMirrorClient:
 def test_a_resolution_round_trips_and_a_repeat_is_a_no_op():
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     client = _client(_deploy(w3, acct))
     assert client.configured()
@@ -95,7 +102,7 @@ def test_a_resolution_round_trips_and_a_repeat_is_a_no_op():
 def test_a_fleet_shares_one_cluster():
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     client = _client(_deploy(w3, acct))
     window = client.chain_window()
@@ -111,7 +118,7 @@ def test_provenance_cannot_be_laundered_from_sandbox_to_verified():
     """Against the real `require`, not a stub that would only agree with itself."""
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     client = _client(_deploy(w3, acct))
     window = client.chain_window()
@@ -134,7 +141,7 @@ def test_our_digest_is_the_contracts_digest():
     """
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     address = _deploy(w3, acct)
     window = _client(address).chain_window()
@@ -152,7 +159,7 @@ def test_a_wrong_salt_is_caught_before_it_writes_anything():
     read "no humans" while every transaction succeeded. Loud beats silent."""
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     client = _client(_deploy(w3, acct))
     assert client.salt_matches(SALT) is True
@@ -171,7 +178,7 @@ def test_an_unauthorized_signer_is_caught_before_anything_is_signed():
     """
     conn = _anvil()
     if conn is None:
-        pytest.skip("anvil not reachable at 127.0.0.1:8545")
+        pytest.skip(f"anvil not reachable at {RPC}")
     w3, acct = conn
     address = _deploy(w3, acct)
 

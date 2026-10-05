@@ -145,6 +145,13 @@ class ACRSettings(BaseSettings):
     #: this there is no settlement event on Arc at all and TCA has no basis.
     #: Empty → the mirror keeper stands down rather than writing nowhere.
     receipt_mirror_address: str = ""
+    #: Deployed ``PolicyWallet`` for THIS business — the contract that holds its
+    #: USDC and decides what its agent may move. One wallet per business, so this
+    #: is the operator's own; another business's wallet is passed to
+    #: ``PolicyClient`` explicitly rather than read from here.
+    #: Empty → the operator spends nothing and escalates everything, which is a
+    #: working state and the correct one for an unconfigured host.
+    policy_wallet_address: str = ""
     #: Private key the oracle-poster signs prints with (EIP-712) and relays.
     #: Empty → the in-service poster stays offline (logs the payload only).
     poster_private_key: str = ""
@@ -154,6 +161,20 @@ class ACRSettings(BaseSettings):
     #: `build_role_signer("reader")` refuses to fall back to it. Empty → a caller
     #: mints no card and goes anonymous, which is a working state.
     reader_private_key: str = ""
+    #: Private key the `owner` role signs with — the escalation authority, and
+    #: nothing else.
+    #:
+    #: SEPARATE BECAUSE THE CONTRACT REQUIRES IT TO BE. `PolicyWallet.spendAsOwner`
+    #: is the path a human takes to settle what the agent would not, and both the
+    #: contract and `PolicyClient` refuse it when the owner is also the agent —
+    #: an approval signed by the thing being approved is not an approval. With
+    #: only `poster_private_key` to fall back on, both roles resolved to one
+    #: address and the escalation queue could never be cleared: the configuration
+    #: could not express the two parties the design is built on.
+    #:
+    #: Empty → the owner role falls back as before, which is correct for a
+    #: deployment with no escalations and no PolicyWallet.
+    owner_private_key: str = ""
 
     # --- Arc network (verified testnet facts) ---
     #: Arc testnet chain id. Arc makes USDC a native system contract that is

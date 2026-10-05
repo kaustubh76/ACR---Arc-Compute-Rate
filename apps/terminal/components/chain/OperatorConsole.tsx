@@ -63,6 +63,19 @@ const FIELDS: Record<string, Array<{ name: string; label: string; kind: "number"
     { name: "paused", label: "paused (true|false)", kind: "text" },
     { name: "confirm", label: 'type "pause" to confirm', kind: "text" },
   ],
+  // The escalation inbox. /spend has a per-row control for an owner; these rows
+  // exist so the console is not listing two actions whose forms it cannot fill.
+  // Neither takes an amount or a payee: the press reads those from the decision
+  // the agent recorded, so there is no field here that can redirect a payment.
+  "operator/approve": [
+    { name: "business", label: "business (slug)", kind: "text" },
+    { name: "obligation_id", label: "obligation", kind: "text" },
+  ],
+  "operator/reject": [
+    { name: "business", label: "business (slug)", kind: "text" },
+    { name: "obligation_id", label: "obligation", kind: "text" },
+    { name: "note", label: "reason", kind: "text" },
+  ],
 };
 
 /** Which cap in the catalogue governs which action's USDC field. The press
@@ -323,26 +336,33 @@ export function OperatorConsole() {
           <span className="label">
             <Ed x="What this would do" p="What would happen" />
           </span>
-          <table className="sheet" style={{ marginTop: 8 }}>
-            <tbody>
-              {Object.entries(preview).map(([k, v]) => (
-                <tr key={k}>
-                  <td className="muted mono" style={{ width: 200 }}>
-                    {k}
-                  </td>
-                  <td className="mono">{String(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* `.table-scroll`, and no forced first-column width. The value
+              column renders whatever the dry run returned, which for a payee
+              is a 42-character address: 200 forced + 12 padding + ~328 of
+              nowrap address is 540px inside a panel that is 283px wide on a
+              phone, and neither `html` nor `body` sets `overflow-x: hidden`,
+              so that was a horizontal scroll of the whole page. The keys are
+              field names and none reaches 100px, so the 200 bought nothing. */}
+          <div className="table-scroll" style={{ marginTop: 8 }}>
+            <table className="sheet">
+              <tbody>
+                {Object.entries(preview).map(([k, v]) => (
+                  <tr key={k}>
+                    <td className="muted mono">{k}</td>
+                    <td className="mono">{String(v)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
 
       {note && (
-          <p className="muted vermilion" role="alert">
-            {note}
-          </p>
-        )}
+        <p className="muted vermilion" role="alert">
+          {note}
+        </p>
+      )}
 
       {/* Every attempt, including the refused ones. A console that recorded
           only what worked would be missing exactly the entries an operator

@@ -34,6 +34,7 @@ from acr_core import (
     testnet_surfaces_enabled,
 )
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from . import armor, graph_proxy, memory, ratelimit
@@ -57,6 +58,7 @@ from .humanid import (
 )
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
+from .statement import build_statement
 from .store import PrintStore
 from .tca import RATING_WINDOW_DAYS, human_tca, payer_tca, seller_rating
 from .x402 import (
@@ -308,9 +310,25 @@ async def _warm_chain(stop: asyncio.Event) -> None:
     # the venue, so it must not be gated on them. Moving `_run_mirror` out of the
     # `futures.configured` branch below was not enough: this outer guard would
     # still have returned first on a mirror-only deployment.
-    from acr_core import testnet_surfaces_enabled as _gs
-
-    mirror_configured = bool(_gs().receipt_mirror_address)
+    # THIS LINE KILLED THE WHOLE LOOP FOR FOUR WEEKS.
+    #
+    # It read `bool(_gs().receipt_mirror_address)`, where `_gs` was an alias for
+    # `testnet_surfaces_enabled` — a function that takes a required `settings`
+    # argument and returns a BOOL. So the call raised TypeError on the way in,
+    # before `while not stop.is_set()`, and since `_warm_chain` is an
+    # `asyncio.create_task` whose exception nobody awaits until shutdown, the
+    # task died at every boot in silence.
+    #
+    # The alias reads like it was meant to be `get_settings`, and `settings` is
+    # already in scope two lines above — so the import was never needed at all.
+    #
+    # What was off for four weeks: the self-ping that keeps a free instance
+    # awake, the oracle cache warming, the settlement mirror, the venue keeper's
+    # heartbeat and roll checks, and the memory guard that stops a 512 MiB tier
+    # from OOM-killing the process. The visible symptom was `checked_at: null`
+    # for all three keeper chores on a sixty-second loop — which is what finding
+    # this started from. Landed 2026-09-05 in b8649bb.
+    mirror_configured = bool(settings.receipt_mirror_address)
     if not (reader.configured or futures.configured or mirror_configured or SELF_URL):
         return
     while not stop.is_set():
@@ -323,22 +341,49 @@ async def _warm_chain(stop: asyncio.Event) -> None:
         try:
             # First, because it is the one that keeps everything else running.
             await _touch_self()
+            # EACH CHORE IN ITS OWN try/except, not just the keeper's.
+            #
+            # These two reads used to sit bare inside the outer handler, ahead of
+            # everything after them — so ONE throttled Arc read skipped the
+            # mirror, the memory guard and the keeper for that tick, every tick,
+            # and the only trace was a line in the server log. `_run_keeper`
+            # already carried this reasoning ("the caller's handler would also
+            # catch this, but then a keeper failure would skip the rest of that
+            # tick") and the reads above it never got it.
+            #
+            # Not hypothetical: the deployed press reports `checked_at: null` for
+            # all three keeper chores after ten minutes of uptime on a
+            # sixty-second loop, with `keeper.enabled: true`. The recording code
+            # dates from 2026-09-05, so the image is not too old to have it —
+            # which leaves a read above it throwing, or the outer guard. Arc
+            # answers 429, and this is the shape that turns a throttle into a
+            # silently dead chore.
             if reader.configured:
-                await asyncio.to_thread(reader.read_all, use_cache=False)
-                # Cheap while it matters, free once it doesn't: this returns
-                # immediately as soon as provenance is populated. Guard on the
-                # global rather than get_poster(), which would lazily build a
-                # THROWAWAY poster if this tick beat _background's set_poster()
-                # — we'd hydrate an instance nothing else can see.
-                if _poster is not None:
-                    await _rehydrate_provenance(_poster)
-                    await _post_if_overdue(store, _poster, reader, settings)
+                try:
+                    await asyncio.to_thread(reader.read_all, use_cache=False)
+                    # Cheap while it matters, free once it doesn't: this returns
+                    # immediately as soon as provenance is populated. Guard on
+                    # the global rather than get_poster(), which would lazily
+                    # build a THROWAWAY poster if this tick beat _background's
+                    # set_poster() — we'd hydrate an instance nothing else can
+                    # see.
+                    if _poster is not None:
+                        await _rehydrate_provenance(_poster)
+                        await _post_if_overdue(store, _poster, reader, settings)
+                except Exception:  # pragma: no cover - a chore must never cost a beat
+                    log.warning("warm: the oracle read failed", exc_info=True)
             if futures.configured:
-                await asyncio.to_thread(futures.read_all, use_cache=False)
-                # The tape pages back several hours over a throttled RPC, so it
-                # is the most expensive read the desk serves — and it sits on
-                # /futures, the endpoint the venue's liveness is judged by.
-                await asyncio.to_thread(futures.recent_trades, use_cache=False)
+                try:
+                    await asyncio.to_thread(futures.read_all, use_cache=False)
+                    # The tape pages back several hours over a throttled RPC, so
+                    # it is the most expensive read the desk serves — and it sits
+                    # on /futures, the endpoint the venue's liveness is judged by.
+                    await asyncio.to_thread(futures.recent_trades, use_cache=False)
+                except Exception:  # pragma: no cover - a chore must never cost a beat
+                    log.warning("warm: the venue read failed", exc_info=True)
+                # OUTSIDE that handler: the keeper's chores are cooldown-driven
+                # and do not need the reads to have landed. A throttled tape must
+                # not stop a settlement.
                 await _run_keeper(futures)
             # OUTSIDE the futures guard, deliberately. Mirroring settlements has
             # no venue dependency, and a deployment with no ACR_FUTURES_ADDRESS
@@ -349,6 +394,41 @@ async def _warm_chain(stop: asyncio.Event) -> None:
             await asyncio.to_thread(memory.guard)
         except Exception:  # pragma: no cover - keep the loop alive
             log.exception("chain cache warm failed")
+
+
+async def _operator_loop(stop: asyncio.Event) -> None:
+    """The spend operator, on its own timer, when it is armed.
+
+    ITS OWN TASK AND NOT A CHORE ON THE WARM LOOP, deliberately. `_warm_chain`
+    runs `reader.read_all` and `futures.read_all` bare inside one `try`, ahead
+    of everything after them, so a single throttled Arc read skips the rest of
+    that tick — the hazard `_run_keeper` was isolated to avoid and the two reads
+    above it still have. A loop that pays bills must not be downstream of
+    somebody else's RPC luck.
+
+    Off unless `ACR_OPERATOR_AUTORUN` says otherwise, so a checkout, a laptop
+    and CI all do nothing. `operator_keeper` holds the cooldown, the lock and
+    the kill switch; this is only the clock.
+    """
+    from . import operator_keeper
+
+    while not stop.is_set():
+        # The interval FIRST, so arming the loop never means a payment during
+        # boot — the one moment the process is least able to report what it did.
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=operator_keeper.sleep_s())
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        if not operator_keeper.enabled():
+            continue
+        try:
+            verdict = await asyncio.to_thread(operator_keeper.tick_once)
+            if verdict:
+                log.info("operator: %s", verdict)
+        except Exception:  # pragma: no cover - a chore must never cost a beat
+            log.exception("operator tick failed")
 
 
 #: The systems-ledger snapshot, recomputed on its own slow timer. None until
@@ -538,6 +618,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_background(stop)),
         asyncio.create_task(_warm_chain(stop)),
         asyncio.create_task(_ops_loop(stop)),
+        asyncio.create_task(_operator_loop(stop)),
     ]
     try:
         yield
@@ -717,7 +798,24 @@ def health() -> dict:
         # Is anything still minding the book? Pure module-state read — no chain
         # calls, no credentials — so it cannot slow the cheapest probe we have.
         "keeper": _keeper_status(),
+        # The autonomous spender's standing, beside the venue's. An operator
+        # asking "is anything paying our bills?" should not have to read a log
+        # to find out, and "off" is a legitimate answer that must be visible
+        # rather than inferred from silence.
+        "operator": _operator_status(),
     }
+
+
+def _operator_status() -> dict:
+    """The spend operator's standing, with the same containment as the keeper's:
+    /health is the probe everything leans on, so an import that blew up here
+    must not take the liveness check down with it."""
+    try:
+        from . import operator_keeper
+
+        return operator_keeper.status()
+    except Exception:  # pragma: no cover - health must answer regardless
+        return {"mode": "unknown"}
 
 
 def _keeper_status() -> dict:
@@ -1301,6 +1399,258 @@ def tca(
     """
     _meter_agent(request, agent)
     return payer_tca(_require_address(payer, "payer"), days=days)
+
+
+def _policy_for(business):
+    """A ``PolicyClient`` pointed at ONE business's wallet.
+
+    Built per request rather than cached: the wallet address comes from the
+    registry, and a cached client would keep serving a business whose wallet was
+    rotated. Returns None when the client cannot be built at all, so the
+    statement reports "measured, not spent for" instead of failing the page.
+    """
+    if not business.policy_wallet:
+        return None
+    try:
+        from acr_oracle_client.policy import PolicyClient
+
+        return PolicyClient(wallet_address=business.policy_wallet)
+    except Exception as exc:  # pragma: no cover - env dependent
+        log.warning("statement: no policy client for %s (%s)", business.slug, exc)
+        return None
+
+
+@app.get("/operator/businesses")
+def operator_businesses(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """Who the operator runs for, and the traction numbers derived from it.
+
+    Derived, never maintained: the counts come from the registry itself, so the
+    number on this page cannot drift from the list beside it. That matters more
+    than usual here, because these are the figures a reviewer checks.
+
+    Mainnet and testnet are reported separately and there is no field that adds
+    them. An unconsented business appears under a pseudonym and still counts:
+    dropping it would understate real usage, naming it would use somebody's
+    identity without asking.
+    """
+    _meter_agent(request, agent)
+    from .businesses import counts, load
+
+    registry = load()
+    return {
+        "businesses": [b.as_public_dict() for b in registry],
+        "counts": counts(registry),
+    }
+
+
+@app.get("/operator/traction")
+def operator_traction(
+    request: Request,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """The traction numbers, computed from the rows that justify them.
+
+    Canteen's form asks how many businesses are onboarded, how much the agent
+    moved, and what problems it solves; their FAQ adds that a synthetic dataset
+    does not count. So nothing here is maintained by hand — the figures are
+    derived at request time from the registry and the decision log, which is the
+    only arrangement where a number cannot drift from the rows beside it.
+
+    `moved_usdc` is what the operator actually paid out and is kept apart from
+    `priced_usdc`, what it assessed. Mainnet and testnet are never summed. Every
+    business carries links to its own ledger and statement so the arithmetic is
+    checkable rather than asserted.
+    """
+    _meter_agent(request, agent)
+    from .ledger_audit import load_tape
+    from .traction import build_traction
+
+    # The tape is the other side of the money: a treasury appearing as the
+    # SELLER on a settlement is a treasury that was paid, which is the half of
+    # "total USDC received and paid out" that did not exist until now.
+    return build_traction(tape=load_tape())
+
+
+@app.get("/operator/ledger/{business}", response_class=PlainTextResponse)
+def operator_ledger(
+    business: str,
+    request: Request,
+    days: int = 90,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> str:
+    """The business's decisions as a beancount file, served as plain text.
+
+    Prior Art #01 names beancount as "a ledger an agent can write to and a human
+    can read", and says it has never been connected to money that actually
+    moves. This is that connection: a real double-entry file whose every
+    transaction sums to zero, annotated with the rule that produced it, what we
+    independently metered, the par it was checked against and the transaction
+    hash — the three things *Agents and Ledgers* says a balanced ledger cannot
+    check on its own.
+
+    `text/plain` rather than JSON because the consumer is beancount, or a person
+    reading it. Ungated, like the statement: an accountant should not need a key
+    to check our arithmetic.
+    """
+    _meter_agent(request, agent)
+    from .businesses import resolve
+    from .ledger_export import to_beancount
+    from .statement import read_decisions
+
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    since = time.time() - max(1, min(365, int(days))) * 86_400
+    rows = read_decisions(business=b.slug, since=since)
+    return to_beancount(rows, b.slug)
+
+
+def _confirm_tx(business):
+    """Does the chain corroborate a transaction we recorded as a payment?
+
+    Returns a callable answering True / False / None. `None` is load-bearing:
+    an unreachable node, a pruned history or a wallet we cannot even locate are
+    all "could not tell", and reporting those as phantoms would cry wolf on
+    every blip until nobody read the audit at all.
+
+    Corroboration is deliberately narrow — the receipt exists, it succeeded, and
+    it was sent TO this business's wallet. A receipt alone is not enough: the
+    whole failure being checked for is a transaction that succeeded and did
+    nothing, and the one thing it cannot do is have gone to a contract that is
+    not there.
+    """
+    if not business.policy_wallet:
+        return None
+    try:
+        from acr_oracle_client.policy import PolicyClient
+        from web3.exceptions import TransactionNotFound
+
+        client = PolicyClient(wallet_address=business.policy_wallet)
+        if client.wallet_status() != "ok":
+            # The wallet itself is absent on this chain, so nothing sent to it
+            # can be corroborated and nothing can be denied either.
+            return lambda _tx: None
+        w3 = client.web3()
+        if w3 is None:
+            return None
+    except Exception as exc:  # pragma: no cover - env dependent
+        log.warning("audit: no chain to corroborate against (%s)", exc)
+        return None
+
+    wallet = str(business.policy_wallet).lower()
+
+    def confirm(tx: str):
+        try:
+            rcpt = w3.eth.get_transaction_receipt(tx)
+        except TransactionNotFound:
+            # THE NODE ANSWERED, AND ITS ANSWER WAS NO. Different from a node
+            # that could not be reached, and collapsing the two was the bug in
+            # the first version of this: a fabricated hash read as "could not
+            # tell", so the audit reported clean against a planted phantom.
+            #
+            # Safe on Arc specifically: finality is deterministic and there are
+            # no reorgs, so a settled transaction is permanent and a node that
+            # does not have it never saw it. The caveat is history pruning —
+            # against a pruned node an old payment would read as denied. The
+            # press reads a full node; if that changes, this goes back to None.
+            return False
+        except Exception:
+            return None
+        if rcpt is None:
+            return None
+        if int(getattr(rcpt, "status", 0)) != 1:
+            return False
+        to = str(getattr(rcpt, "to", "") or "").lower()
+        return to == wallet
+
+    return confirm
+
+
+@app.get("/operator/audit/{business}")
+def operator_audit(
+    business: str,
+    request: Request,
+    days: int = 90,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """The six errors a trial balance cannot see, searched for by name.
+
+    *Agents and Ledgers* — the analysis this hackathon hands every team — argues
+    that double entry's one built-in check is nearly worthless against an agent:
+    "nearly every mistake an LLM can make with money passes it." It names six,
+    and says the controls that catch them live OUTSIDE the ledger.
+
+    `/operator/ledger/{business}` serves the balanced file. This serves the part
+    the file cannot do for itself, and none of these checks reads the ledger
+    alone: omission compares our decisions against the sellers' own settlement
+    tape, commission asks whether the payee ever served this business, principle
+    asks the registry rather than the exporter.
+
+    Ungated for the same reason as the statement and the ledger: an accountant
+    should not need a key to check our arithmetic, and a reviewer should not
+    need one to check whether we checked.
+    """
+    _meter_agent(request, agent)
+    from .businesses import resolve
+    from .ledger_audit import audit, load_tape
+    from .statement import read_decisions
+
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    window = max(1, min(365, int(days)))
+    since = time.time() - window * 86_400
+    out = audit(
+        read_decisions(business=b.slug, since=since),
+        load_tape(),
+        treasury=b.treasury,
+        slug=b.slug,
+        categories=b.categories,
+        # The chain's opinion of the payments we claim. `None` for "could not
+        # tell" so a sleeping node is never reported as a phantom.
+        confirm=_confirm_tx(b),
+    )
+    out["business"] = b.slug
+    out["period_days"] = window
+    return out
+
+
+@app.get("/operator/statement/{business}")
+def operator_statement(
+    business: str,
+    request: Request,
+    days: int = 7,
+    limit: int | None = None,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """What the owner reads: what the agent decided, and what is waiting on them.
+
+    Ungated like the other per-payer surfaces — a business should not have to
+    pay to read its own statement, and a reviewer should not have to pay to
+    check ours.
+
+    ``business`` is a registry slug or a treasury address; a URL will carry
+    either. 404 rather than an empty statement for an unknown one: an empty
+    statement reads as "this business has spent nothing", which is a different
+    and much more flattering claim than "we have never heard of them".
+
+    USDC savings here come from observed quotes. The index appears only as
+    `market_context`, in basis points — see `statement.py` for why that
+    separation is load-bearing.
+    """
+    _meter_agent(request, agent)
+    st = build_statement(
+        business, days=days, limit=limit, tca_fn=payer_tca, policy_for=_policy_for
+    )
+    if st is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no business registered as {business!r}",
+        )
+    return st
 
 
 @app.get("/rating/{seller}")

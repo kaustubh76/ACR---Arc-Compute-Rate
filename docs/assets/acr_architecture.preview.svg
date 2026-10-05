@@ -245,9 +245,10 @@
 <text x="1188" y="1379.4" font-size="11" fill="#1e1e1e">durable receipts_live.jsonl (in image) · /revenue rounded 6dp</text>
 <text x="1653" y="1325.5" font-size="15" fill="#9c36b5">ACR TERMINAL (Next.js · 'Arc Dawn')</text>
 <text x="1653" y="1348.2" font-size="13" fill="#1e1e1e">editorial 'The Fixing' · /curve /exchange /companion</text>
-<text x="1653" y="1361.2" font-size="13" fill="#1e1e1e">PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor</text>
-<text x="1653" y="1374.2" font-size="13" fill="#1e1e1e">ChainFactsStrip · OracleProvenance · FinalityBadge</text>
-<text x="1653" y="1387.2" font-size="13" fill="#1e1e1e">SWR live polling · apps/terminal</text>
+<text x="1653" y="1361.2" font-size="13" fill="#1e1e1e">/spend /traction · operator statement · beancount + audit</text>
+<text x="1653" y="1374.2" font-size="13" fill="#1e1e1e">PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor</text>
+<text x="1653" y="1387.2" font-size="13" fill="#1e1e1e">ChainFactsStrip · OracleProvenance · FinalityBadge</text>
+<text x="1653" y="1400.2" font-size="13" fill="#1e1e1e">SWR live polling · apps/terminal</text>
 <text x="718" y="1655.5" font-size="15" fill="#9c36b5">K · AGENTIC ECONOMY (demand side · the loop closes)</text>
 <text x="738" y="1705.5" font-size="15" fill="#9c36b5">AGENT MARKETPLACE</text>
 <text x="738" y="1728.2" font-size="13" fill="#1e1e1e">/marketplace/catalog — Bazaar-shaped listings</text>
@@ -280,7 +281,7 @@
 <text x="73" y="1408.2" font-size="13" fill="#1e1e1e">runs the priced attack through real clean()</text>
 <text x="73" y="1421.2" font-size="13" fill="#1e1e1e">→ the bound is attainable, not loose</text>
 <text x="2238" y="1615.5" font-size="15" fill="#495057">H · VERIFICATION</text>
-<text x="2253" y="1665.5" font-size="15" fill="#495057">TESTS · 761 py + 176 forge + 210 terminal + 35 agent</text>
+<text x="2253" y="1665.5" font-size="15" fill="#495057">TESTS · 1204 py + 217 forge + 210 terminal + 35 agent</text>
 <text x="2253" y="1686.4" font-size="11" fill="#1e1e1e">6 CI jobs: python · contracts · agent · terminal · subgraph · mcp</text>
 <text x="2253" y="1697.4" font-size="11" fill="#1e1e1e">anvil-gated on-chain integration · eval gate</text>
 <text x="2253" y="1708.4" font-size="11" fill="#1e1e1e">workflows: heartbeat · lifecycle · recover · keepalive · x402-buy</text>
@@ -303,7 +304,7 @@
 <text x="2853" y="731.3" font-size="12" fill="#1e1e1e">real x402 settled via Circle Gateway · durable receipts</text>
 <text x="2853" y="743.3" font-size="12" fill="#1e1e1e">attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP</text>
 <text x="2853" y="755.3" font-size="12" fill="#1e1e1e">100% Foundry invariants passing</text>
-<text x="2853" y="767.3" font-size="12" fill="#1e1e1e">761 py · 176 forge · 210 terminal · 35 agent — green</text>
+<text x="2853" y="767.3" font-size="12" fill="#1e1e1e">1204 py · 217 forge · 210 terminal · 35 agent — green</text>
 <text x="2858" y="1115.5" font-size="15" fill="#f08c00">PLAIN ENGLISH  ·  read the jargon</text>
 <text x="2864" y="1141.9" font-size="11" fill="#1e1e1e">latent price — the real price you can't see; ACR estimates it</text>
 <text x="2864" y="1152.9" font-size="11" fill="#1e1e1e">benchmark / rate — the official number contracts settle on (SOFR)</text>
