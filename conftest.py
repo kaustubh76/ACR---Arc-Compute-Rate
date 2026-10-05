@@ -10,6 +10,8 @@ test sets it explicitly via ``monkeypatch.setenv`` + ``reset_settings()``.
 from __future__ import annotations
 
 import os
+import pathlib
+import tempfile
 
 # Single-threaded BLAS, set before numpy is imported anywhere.
 #
@@ -34,4 +36,26 @@ def pytest_configure(config) -> None:  # noqa: ARG001 - pytest hook signature
     ACRSettings.model_config["env_file"] = None
     for key in [k for k in os.environ if k.startswith("ACR_")]:
         del os.environ[key]
+
+    # THE SUITE USED TO WRITE PAYMENTS INTO THE PRODUCTION LEDGER.
+    #
+    # `operator.LOG_PATH` is read from this variable AT IMPORT, defaulting to
+    # `data/operator_decisions.jsonl` — which is the path `render.yaml` points
+    # the deploy at, and one of the three files `statement.read_decisions`
+    # reads. `operator_keeper._pass` calls `run_obligation` without `log_path`,
+    # so the keeper's tests fell through to that default and appended their
+    # fixtures: 8 rows of `paid_usdc: 0.5` carrying `tx: 0x` + "ee" * 32 — four
+    # USDC of payments that never happened, with a fabricated transaction hash,
+    # in the file the operator's own surfaces serve. Exactly what
+    # `ledger_audit._phantom` exists to catch, arriving from our own tests.
+    # Nothing structural hid them; they sat under `business: "payer"` and the
+    # slug filter happened not to ask.
+    #
+    # Set rather than stripped, and set HERE because `pytest_configure` runs
+    # before collection and therefore before the module-level read. A tmp path
+    # per run, so one suite cannot read another's rows either.
+    os.environ["ACR_OPERATOR_LOG_PATH"] = str(
+        pathlib.Path(tempfile.gettempdir())
+        / f"acr-test-operator-decisions-{os.getpid()}.jsonl"
+    )
     reset_settings()
