@@ -151,9 +151,10 @@ open.
 Stated here because a reviewer will check: the loop runs on **Arc testnet**,
 where the fleet's real settlement history gives the meter genuine consumption to
 count, and those settlements predate the window. The budget contract is now
-deployed and funded, so the operator spends: a live run paid five obligations,
-rerouted three, and escalated the one bill at or above the per-payment limit for
-its owner to settle. It is **test USDC**, reported as test USDC — mainnet and
+deployed and funded, so the operator spends: a live run paid five obligations on
+its own authority, rerouted three, and escalated the one bill at or above the
+per-payment limit — which the owner then settled, so the log carries six
+payments and five of them are the agent's. It is **test USDC**, reported as test USDC — mainnet and
 testnet totals are never summed, and what was *paid* is kept apart from what was
 *assessed*.
 

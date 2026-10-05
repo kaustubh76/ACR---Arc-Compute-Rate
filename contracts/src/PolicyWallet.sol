@@ -38,9 +38,18 @@ interface IERC20 {
 ///         keccak of the operator's own decision record — what was billed, what
 ///         the meter independently counted, the par it was checked against, the
 ///         rule that fired. The chain therefore holds a commitment to the
-///         reasoning BEFORE the money moves, which is what makes the off-chain
-///         ledger replayable rather than merely stored: a record that disagrees
+///         reasoning BEFORE the money moves, which makes the off-chain ledger
+///         TAMPER-EVIDENT rather than merely stored: a record that disagrees
 ///         with its own hash is a record that was edited afterwards.
+///
+///         This used to say "replayable", and that was the wrong word. The
+///         hash proves a row is the row that was committed to; it does not
+///         make the row sufficient to re-derive. Replay needs the decision's
+///         INPUTS on the record — the thresholds, the par's denomination and
+///         seller count, the screen's gate — and the first nineteen rows this
+///         wallet paid predate those fields, so none of them replays. Rows
+///         written since do. Tamper-evidence is what this contract gives;
+///         replay is a property of the record's own completeness.
 ///
 /// @dev    Mirrors `ReceiptMirror` / `FeedAccessAttestor` idioms on purpose —
 ///         same domain separator construction, same public digest view, same
