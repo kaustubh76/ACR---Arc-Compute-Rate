@@ -277,7 +277,23 @@ services:
       # (one eip155:5042, one eip155:5042002) run as chain 5042 counts
       # exactly the mainnet row, so the filter is selective rather than
       # simply dropping everything. digest sha256:606fbfef5548…
-      url: docker.io/kaushtubh02/acr-api:2026-09-30
+      # 2026-10-05: the spend operator. The 09-30 image predates it entirely —
+      # 44 endpoints, none of them /operator/* — which is why every judge-facing
+      # link in docs/TAMEION.md answered 404 or nothing at all. Verified in THIS
+      # image before pinning it, by running it rather than trusting the build:
+      #   docker run -p 8099:8000 …:2026-10-05-0844
+      #   /openapi.json      -> 49 endpoints, 5 of them /operator/*
+      #   /operator/traction -> businesses 1 · decisions 19 (18 decided,
+      #                         1 escalated) · testnet moved 0.154363 USDC ·
+      #                         autonomy 17 by agent / 1 by owner
+      # which is the committed archive exactly. Worth recording that `docker
+      # history` on this tag shows NONE of the COPY or `uv sync` layers and
+      # `docker images` reports 352MB against the 09-30 pin's 1.55GB — buildkit
+      # emitted an attestation manifest, so history does not resolve the
+      # platform image. The size looked like a broken build and was not; the
+      # running container is the only answer that settles it.
+      # digest sha256:5956e08623de…
+      url: docker.io/kaushtubh02/acr-api:2026-10-05-0844
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
