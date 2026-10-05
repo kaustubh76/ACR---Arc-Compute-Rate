@@ -576,7 +576,15 @@ def test_the_driver_catches_an_overbilling_vendor_end_to_end(tmp_path):
 
 def test_the_driver_runs_without_a_wallet_at_all(tmp_path):
     """No policy means no budget check — the price and meter decisions still
-    stand, which is what a business evaluating the operator sees first."""
+    stand, which is what a business evaluating the operator sees first.
+
+    AND THE RECORD SAYS SO. This test used to assert the intent and never read
+    the sentence, while `_pay_rule` ended every `pay` line ", inside budget"
+    unconditionally. So this exact path — and every `dry` keeper tick, which
+    passes `policy=None` — wrote a row claiming a budget check that had not
+    run. Asserted here rather than in a test of its own, so the suite count
+    the claims audit gates does not move.
+    """
     d = run_obligation(
         _ob(vendor_quantity=1_000.0),
         receipts=RECEIPTS,
@@ -587,6 +595,9 @@ def test_the_driver_runs_without_a_wallet_at_all(tmp_path):
     )
     assert d.intent == PAY
     assert d.par_usdc == pytest.approx(1.0)
+    assert d.per_tx_limit_usdc is None and d.remaining_usdc is None
+    assert "inside budget" not in d.rule
+    assert "no budget was consulted" in d.rule
 
 
 def test_every_driver_outcome_is_written_down(tmp_path):

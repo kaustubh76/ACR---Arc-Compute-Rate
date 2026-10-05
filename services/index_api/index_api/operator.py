@@ -1242,12 +1242,27 @@ def _pay_rule(
     passing a different threshold got the verdict computed on their value and
     the sentence computed on 25.0 — the number and the prose disagreeing about
     the same decision, which is the one thing a record must never do.
+
+    AND IT DOES NOT CLAIM A BUDGET IT NEVER READ. Both sentences used to end
+    ", inside budget" unconditionally. But check 8 only runs when a per-payment
+    limit or a period remainder was supplied, and `operator_keeper._pass`
+    passes `policy=None` in `dry` mode — so every cleared bill on the scheduled
+    path, and every business with no wallet, was recorded asserting a budget
+    check that had not happened. `d` was an unused parameter at the time, which
+    is the tell: the one object carrying the answer was in scope and ignored.
     """
+    # `None` on both is exactly the condition check 8 skips on, so it is the
+    # honest test for "a budget was consulted".
+    budget = (
+        ", inside budget"
+        if d.per_tx_limit_usdc is not None or d.remaining_usdc is not None
+        else ", and no budget was consulted"
+    )
     if verdict and verdict.get("benchmarked"):
         bp = verdict["over_par_bp"]
         where = "at par" if abs(bp) < material_bp else f"{bp:+.0f} bp against par"
-        return f"{where} on {verdict['sellers']} observed sellers, inside budget"
-    return "unbenchmarked but under the ceiling, inside budget"
+        return f"{where} on {verdict['sellers']} observed sellers{budget}"
+    return f"unbenchmarked but under the ceiling{budget}"
 
 
 # --- the driver ------------------------------------------------------------
