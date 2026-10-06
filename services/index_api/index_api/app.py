@@ -47,20 +47,11 @@ from .agentgate import (
 )
 from .armor import SCREEN_CAP, SCREEN_CAP_REPLY, get_screen, screen_is_live
 from .fleet import fleet_summary, listing_for
-from .humanid import (
-    AgentKitVerifier,
-    HumanProof,
-    HumanProofRequired,
-    HumanVerifier,
-    get_verifier,
-    require_human,
-    stray_world_credentials,
-)
 from .onchain import get_futures, get_reader
 from .poster import OraclePoster
 from .statement import build_statement
 from .store import PrintStore
-from .tca import RATING_WINDOW_DAYS, human_tca, payer_tca, seller_rating
+from .tca import payer_tca, seller_rating
 from .x402 import (
     PAY_TO,
     CircleFacilitator,
@@ -648,16 +639,6 @@ if _cors:
     )
 
 
-@app.exception_handler(HumanProofRequired)
-async def _human_proof_required_handler(request, exc: HumanProofRequired):
-    """Render the 401 challenge: the nonce to sign and what to sign it for.
-
-    401, not 403 — the caller is unauthenticated rather than forbidden, and
-    `WWW-Authenticate` is how a client is told what to present.
-    """
-    from fastapi.responses import JSONResponse
-
-    return JSONResponse(status_code=exc.status_code, content=exc.body, headers=exc.headers)
 
 
 @app.exception_handler(PaymentRequired)
@@ -720,9 +701,6 @@ def root() -> dict:
         },
         "gated_endpoints": GATED_ENDPOINTS,
         "marketplace": {"catalog": "/marketplace/catalog", "receipts": "/marketplace/receipts"},
-        # Not in `gated_endpoints`: that list means "x402 paid", and this one is
-        # gated by a human proof rather than by money.
-        "human": {"tca": "/tca/human", "info": "/humanid/info"},
         # Gated by neither money nor a proof. Says WHERE the screen applies, not
         # merely that one exists: for as long as this key claimed the screen "sits
         # on agent-to-agent traffic", it sat on nothing at all.
@@ -1195,33 +1173,6 @@ def graph_operations(
     }
 
 
-@app.get("/humanid/info")
-def humanid_info(verifier: HumanVerifier = Depends(get_verifier)) -> dict:
-    """The human-proof gate, described dynamically (ungated).
-
-    Reports the backend honestly, including that demo identities are Sandbox
-    ones rather than Orb-verified people — the limit of what "verified human"
-    means in this deployment, stated where a reader will actually see it.
-    """
-    s = get_settings()
-    return {
-        "backend": "agentkit" if isinstance(verifier, AgentKitVerifier) else "dev",
-        # WHICH roster the proof is checked against. "agentkit" alone read as a
-        # World Chain lookup; with the fixture roster it is the demo wallets only.
-        "agentbook": verifier.book().source if isinstance(verifier, AgentKitVerifier) else None,
-        "sandbox": s.humanid_sandbox,
-        "app_id": s.humanid_app_id or None,
-        "proof_header": "HUMAN-PROOF",
-        "rotation_window_days": RATING_WINDOW_DAYS,
-        # None when there is nothing to compare against; False is a
-        # misconfiguration that would otherwise read as "this human never traded".
-        "salt_matches_commitment": verifier.salt_ok(),
-        "verified_proofs": verifier.verified,
-        # Names only, never values. A credential under a name nothing reads is
-        # discarded in silence, so the operator sees "unset" while looking at
-        # the value in their own .env — worth surfacing where they will look.
-        "unrecognised_env": stray_world_credentials(),
-    }
 
 
 @app.get("/agent/info")
@@ -1346,31 +1297,6 @@ def armor_info(request: Request) -> dict:
     }
 
 
-# REGISTERED BEFORE `/tca/{payer}` ON PURPOSE. FastAPI matches in declaration
-# order, so with the parametrized route first this path would bind `payer` to the
-# literal string "human" and quietly return a TCA for a wallet that cannot exist.
-@app.get("/tca/human")
-def tca_human(
-    request: Request,
-    days: int = 7,
-    proof: HumanProof = Depends(require_human),
-) -> dict:
-    """This human's purchases, unioned across every wallet resolved to them.
-
-    The proof is not what makes this free — `/tca/{payer}` is ungated too. It is
-    what makes the aggregation safe to offer: without it this endpoint would take
-    a cluster id, and anyone passing one could enumerate a stranger's whole
-    wallet fleet. There is no request shape here that returns someone else's.
-    """
-    # Per-human, not per-IP: a shared proxy makes an IP-keyed limit a global one.
-    # The nullifier is hashed rather than used raw — `ratelimit.py` keeps bearer
-    # credentials out of its key table, and this is the more sensitive one.
-    # `verified`: `require_human` has already checked this proof cryptographically,
-    # which is the same fact that excuses a carded agent from the shared host
-    # ceiling — a proven person behind a busy proxy should not be throttled
-    # because strangers share their egress IP.
-    ratelimit.check(request, "humanid", ratelimit.session_ident(proof.nullifier), verified=True)
-    return human_tca(proof.cluster, proof.window, days=days)
 
 
 _EVM_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -2033,7 +1959,6 @@ def build_terminal_payload(store: PrintStore, reader, poster=None, fac=None) -> 
             # human-denominated bound rests on — and until now no surface named
             # it, so a reader could not tell the identity layer was on chain at
             # all rather than a claim in our own files.
-            "humanid_address": settings.humanid_mirror_address or None,
             "gate": "circle" if isinstance(fac, CircleFacilitator) else "dev",
             "tape_source": settings.tape_source,
             "signer": signer_addr,

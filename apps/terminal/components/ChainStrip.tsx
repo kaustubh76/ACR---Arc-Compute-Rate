@@ -1,12 +1,11 @@
 "use client";
 
 import { chainFacts, isMainnet } from "@/lib/chain";
-import { RATING_WINDOW_DAYS } from "@/lib/humans";
 import { deskTier, formatOi } from "@/lib/futuresBook";
 import { ageWords, editionLabel, publishedAt } from "@/lib/format";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
-import { useFutures, useHealth, useHumanId } from "@/lib/useLive";
+import { useFutures, useHealth } from "@/lib/useLive";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
 
@@ -101,9 +100,6 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
      are different facts and a benchmark that renders them alike has started
      lying about its own security. Same reason the keeper chip stays off when
      health is unread rather than declaring the keeper dead. */
-  const humanEnv = useHumanId();
-  const humans = humanEnv?.live ? humanEnv.data.humans : null;
-  const humansTruncated = Boolean(humanEnv?.data?.truncated);
 
   const parts: React.ReactNode[] = [];
   const tier = TIER_CHIP[conn.state];
@@ -192,65 +188,6 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
     );
   }
 
-  /* Resolved is not securing, and the chip says which one it means.
-
-     A human who registered a wallet with World and never traded contributes no
-     observation to the tape, so the manipulation bound cannot be denominated in
-     them. Calling that "secured by 2" would be W7's fatal headline in a quieter
-     register, and it would contradict /tape, which counts humans who actually
-     traded with a seller. Two words, one number, and they always agree. */
-  if (humans && humans.n > 0) {
-    const securing = humans.traded > 0;
-    const shown = securing ? humans.traded : humans.n;
-    const sim = humans.allSandbox;
-    parts.push(
-      <span
-        key="humans"
-        className={`chip ${sim ? "chip-sim" : "chip-teal"}`}
-        title={
-          plain
-            ? `${humans.n} real people have linked their accounts this week and ${humans.traded} of them have bought anything. ${sim ? "All of them are test accounts, not checked people." : ""}`
-            : `${humans.n} resolved this ${RATING_WINDOW_DAYS}d rotation window, ${humans.traded} trading. A resolved human secures the print only once they settle.${sim ? " All Sandbox identities." : ""}`
-        }
-      >
-        {sim ? null : <span className="dot breathe" aria-hidden />}
-        {securing ? (
-          <Ed x="verified humans" p="real people behind it" />
-        ) : (
-          <Ed x="humans resolved" p="people signed up" />
-        )}{" "}
-        · {shown}
-        {humansTruncated ? "+" : ""}
-      </span>,
-    );
-  } else if (humans && humans.staleWindow !== null) {
-    /* THE THIRD STATE, which used to render as nothing at all.
-
-       A cluster id is minted per rotation window, so every resolution expires
-       after seven days. When the window rolls, no cluster matches, `n` is 0, and
-       the branch above simply does not fire — so the human layer vanished from
-       the dateline and no surface said why. That is an absence standing in for
-       an operator action, which is the one substitution this whole feature
-       exists to refuse.
-
-       Gold, not teal: this is the same "something has stopped" register the
-       keeper chip uses when its heartbeat goes quiet, and no breathing dot,
-       because a pulse over a stale count is worse than no pulse at all. */
-    const behind = humans.window - humans.staleWindow;
-    parts.push(
-      <span
-        key="humans-stale"
-        className="chip chip-gold"
-        title={
-          plain
-            ? `The list of who is a real person was last worked out ${behind} week(s) ago and needs redoing. It is not that nobody is verified.`
-            : `Resolutions are from window ${humans.staleWindow}; the current rotation window is ${humans.window}. Re-run resolve_humans.py — this is a stale resolver, not an empty tape.`
-        }
-      >
-        <Ed x="human count out of date" p="the people count is out of date" />
-      </span>,
-    );
-  }
 
   return (
     <div className="container">

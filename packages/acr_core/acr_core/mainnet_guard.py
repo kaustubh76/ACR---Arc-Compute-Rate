@@ -58,14 +58,18 @@ def violations(settings: ACRSettings) -> list[str]:
         out.append("ACR_X402_FACILITATOR_URL is not a URL: the paywall would have no facilitator")
     if not settings.x402_pay_to.strip().startswith("0x"):
         out.append("ACR_X402_PAY_TO is not an address: paid prints would be paid to nobody")
-    human = settings.humanid_mode.strip().lower()
-    if human != "agentkit":
-        out.append(
-            f"ACR_HUMANID_MODE={human or '<unset>'!r}: mainnet requires 'agentkit' explicitly — "
-            "the dev verifier grants the human tier to anyone who asks"
-        )
-    if not settings.humanid_app_id.strip():
-        out.append("ACR_HUMANID_APP_ID is unset: a proof scoped to no app authorizes nothing")
+    # The two HumanID checks that stood here are gone with the World
+    # integration. They were right while the product claimed a human-denominated
+    # bound: a proof scoped to no app authorizes nothing, and the dev verifier
+    # grants the human tier to anyone who asks. Neither is a risk once nothing
+    # reads a proof — and a guard that refuses to boot over a feature the
+    # product no longer has is a guard that gets deleted in a hurry by somebody
+    # with a deadline, which is how fail-open guards are born.
+    #
+    # `ACROracleV2.Print.humanAdjustedBound` stays in the deployed contract and
+    # is posted as 0, which that field documents as "not computed". It is in the
+    # EIP-712 typehash, so removing it would mean redeploying the oracle and
+    # orphaning every print already signed against it.
     rpc = settings.arc_rpc_url.strip()
     if not rpc.startswith("https://") or "127.0.0.1" in rpc or "localhost" in rpc:
         out.append("ACR_ARC_RPC_URL is not a mainnet https endpoint (the public one is "

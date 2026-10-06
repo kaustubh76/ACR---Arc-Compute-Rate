@@ -1,8 +1,7 @@
-import { currentWindow } from "@/lib/humans";
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
 import type { Envelope } from "@/lib/types";
-import { humanShareInWindow, sellerTerms, sellersFromSettlements, recentForPayer } from "@/lib/tape";
+import { sellerTerms, sellersFromSettlements, recentForPayer } from "@/lib/tape";
 import type {
   GraphTransport,
   SellerRating,
@@ -104,14 +103,8 @@ export async function GET(request: Request) {
      subgraph does not have and now returns nothing at all. Either way the
      numbers come from the same indexed tape, and `slippageBp` is still the
      mapping's, computed against an arrival snapshot. */
-  // The primary path carries per-window rollups, so the human share is read off the
-  // window the CHAIN is in — the same clock /api/humanid uses and for the same
-  // reason: a host clock near a 7-day boundary would look in a window nobody has
-  // settled in yet and report every seller as human-free.
-  const chainNow = rawMeta?._meta?.block?.timestamp;
-  const window = currentWindow(Number(chainNow ?? Date.now() / 1000));
   const sellers: TapeSeller[] = sellersRes?.sellers?.length
-    ? sellersRes.sellers.map((s) => ({ ...s, humanShare: humanShareInWindow(s.windows, window) }))
+    ? sellersRes.sellers
     : sellersFromSettlements(settlements);
 
   /* The control group, counted rather than asserted. ACRFutures fills at

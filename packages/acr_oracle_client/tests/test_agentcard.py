@@ -2,7 +2,7 @@
 
 There is no contract to check the encoding against — the domain names none, which
 is the point — so these tests stand in for the `resolutionDigest` cross-check
-`humanid.py` gets for free. An encoding mistake recovers to a stranger, and the
+a contract cross-check gets for free. An encoding mistake recovers to a stranger, and the
 only symptom downstream is a 401 on a call that should have worked.
 """
 
@@ -55,11 +55,11 @@ def test_the_domain_names_no_contract():
     assert d == {"name": CARD_DOMAIN_NAME, "version": "1", "chainId": CHAIN}
 
 
-def test_the_domain_does_not_collide_with_the_four_that_exist():
-    from acr_oracle_client import client, humanid, mirror, registry
+def test_the_domain_does_not_collide_with_the_three_that_exist():
+    from acr_oracle_client import client, mirror, registry
 
     taken = set()
-    for mod in (client, humanid, mirror, registry):
+    for mod in (client, mirror, registry):
         taken |= {
             line.split('"')[3]
             for line in open(mod.__file__).read().splitlines()

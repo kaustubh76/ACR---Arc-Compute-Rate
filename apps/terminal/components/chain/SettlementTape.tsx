@@ -55,11 +55,10 @@ export function SettlementTape({
       <span className="amt">${r.amount_usdc.toFixed(6)}</span>
       <TxLink txRef={r.tx_ref} explorer={explorer} />
       <span className="muted">{r.scheme}</span>
-      {/* The tier the buyer's card earned, on the receipt itself. Gold for a
-          purchase the chain ties to a person, teal for a signed key; nothing for
-          anonymous or for rows older than the gate, which look identical and are
-          not the same fact. */}
-      {r.tier === "human" ? (
+      {/* The tier the buyer's card earned, on the receipt itself. Teal for a
+          signed key; nothing for anonymous or for rows older than the gate,
+          which look identical and are not the same fact. */}
+      {false ? (
         <span className="chip chip-gold" title={plain ? "bought by a wallet traced to a real person" : "settled under the human tier: the payer's card named a cluster HumanIdMirror confirms"}>
           <Ed x="human" p="person" />
         </span>

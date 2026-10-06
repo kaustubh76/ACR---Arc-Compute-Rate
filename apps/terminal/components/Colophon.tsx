@@ -2,7 +2,7 @@
 
 import { useConnection } from "@/lib/useConnection";
 import { blockedCount, screenState, screenedCount } from "@/lib/gate";
-import { useGate, useHumanId } from "@/lib/useLive";
+import { useGate } from "@/lib/useLive";
 import { chainFacts, deployedContracts, isMainnet } from "@/lib/chain";
 import { ArcHorizon } from "./ArcHorizon";
 import { ContractRegister } from "./chain/ContractRegister";
@@ -45,12 +45,6 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
   const env = conn.env;
   const rows = deployedContracts(env.data.chain, env.data.oracle);
   const onMainnet = isMainnet(chainFacts(env.data.chain));
-  /* What "verified" means in THIS deployment, read from the press rather than
-     stated from a constant. The gate is an environment variable: a footer that
-     named it from a literal would keep claiming one backend after an operator
-     switched to another, and the whole point of this line is that a reader does
-     not have to take the README's word for what a verified human is here. */
-  const info = useHumanId()?.data?.info ?? null;
   /* And what guards the AGENT side, on the same principle. The screen's own
      docstring says a screen that fell back to its offline floor and a screen
      inspecting nothing look identical from outside, which is the whole argument
@@ -141,44 +135,6 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             </span>
           )}
         </p>
-
-        {/* The identity line. Rendered only when the press answers, because a
-            footer that asserted a gate it could not read would be stating the
-            one thing this line exists to let a reader check. */}
-        {info && (
-          <p className="mono muted" style={{ margin: "6px 0 0" }}>
-            <Ed x="Identity gate" p="Who counts as a person" /> ·{" "}
-            {/* Numbers and the backend name stay outside <Ed>: proper nouns are
-                identical in both editions, and a dual-rendered number is a
-                number rendered twice. */}
-            {info.backend} · {info.rotation_window_days}d{" "}
-            <Ed x="rotation" p="before the grouping changes" /> ·{" "}
-            {info.sandbox ? (
-              <Ed
-                x="Sandbox identities, not Orb-verified people"
-                p="test accounts, not checked real people"
-              />
-            ) : (
-              <Ed x="Orb-verified" p="checked real people" />
-            )}
-            {/* A false salt is not a warning, it is a silent zero: every cluster
-                id derives to something the tape never wrote, so every human comes
-                back with an empty union that reads exactly like "this person has
-                never traded". Loud, in the one place an operator will look. */}
-            {info.salt_matches_commitment === false && (
-              <>
-                {" · "}
-                <b className="vermilion">
-                  <Ed
-                    x="SALT MISMATCH: every human resolves to nothing"
-                    p="setup error: nobody will be matched to their accounts"
-                  />
-                </b>
-              </>
-            )}
-          </p>
-        )}
-
         {/* The agent line. Rendered only when the gate answers, for the same
             reason the identity line above is: a footer asserting a screen it
             could not read would be claiming the one thing a reader came here to
@@ -188,15 +144,6 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
             <Ed x="Agent gate" p="Who counts as a robot" /> · {gate.agent.audience} ·{" "}
             {gate.agent.cards_verified}{" "}
             <Ed x="cards verified" p="ID cards checked" />
-            {/* The human tier is the one this gate exists to grant, so its count
-                rides beside the cards: "14 cards, 3 of them a person" is the
-                sentence; "14 cards" alone hides whether the binding ever fired. */}
-            {gate.agent.human_tier_granted > 0 && (
-              <>
-                {", "}
-                {gate.agent.human_tier_granted} <Ed x="reached the human tier" p="traced to a real person" />
-              </>
-            )}
             {" · "}
             {screen === "live" ? (
               <>
@@ -222,20 +169,6 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
                 x="offline pattern floor only, not Model Armor"
                 p="only a basic word check, not the full filter"
               />
-            )}
-            {/* A gate that cannot check a human claim and one granting the tier to
-                anyone who asks look the same from outside. Said plainly, where an
-                operator will actually look, exactly as the salt mismatch is. */}
-            {gate.agent.human_binding_verifiable === false && (
-              <>
-                {" · "}
-                <b className="vermilion">
-                  <Ed
-                    x="human tier unverifiable: no mirror to check claims against"
-                    p="cannot confirm a real person behind any robot right now"
-                  />
-                </b>
-              </>
             )}
           </p>
         )}

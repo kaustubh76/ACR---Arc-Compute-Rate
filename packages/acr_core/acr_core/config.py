@@ -259,53 +259,11 @@ class ACRSettings(BaseSettings):
     #: the shared testnet GatewayWallet (all Gateway testnet chains, incl. Arc).
     x402_gateway_wallet: str = ""  # empty → the chain profile's GatewayWallet
 
-    # --- World / AgentKit human proofs (empty verifier url → dev-mode gate) ---
-    #: Verifier selection, mirroring `x402_mode`: "auto" (AgentKit iff the URL and
-    #: app id look real), "dev" (force the mock verifier — demo loops and tests),
-    #: or "agentkit" (force the real one; fails closed if unconfigured).
-    humanid_mode: str = "auto"
-    #: AgentKit proof-verification endpoint. Empty → the dev verifier.
-    humanid_verifier_url: str = ""
-    #: The World Developer Portal app a proof must be scoped to. A proof minted
-    #: for another app must not authorize anything here.
-    humanid_app_id: str = ""
-    #: THE LINKABILITY SECRET. `clusterId = keccak256(nullifier ‖ salt ‖ window)`,
-    #: so anyone holding this and a nullifier can confirm which wallets are that
-    #: human's. Never log it, never return it, never let it reach `forge` (script
-    #: arguments land in contracts/broadcast/, which is committed). Must hash to
-    #: the deployed HumanIdMirror's immutable SALT_COMMITMENT — `humanid.py`
-    #: checks that and says so on /health, because a mismatched salt derives
-    #: cluster ids that match nothing and reads exactly like "this human has
-    #: never traded".
-    humanid_salt: str = ""
-    #: Demo identities come from the World ID Sandbox, not from Orb-verified
-    #: users. Surfaced on /humanid/info so nobody has to take the README's word
-    #: for what "verified human" means in this deployment.
-    humanid_sandbox: bool = True
-    #: keccak256 of the salt above — the value HumanIdMirror was deployed with.
-    #: Set both and a mismatch is caught before it can produce a silent zero.
-    humanid_salt_commitment: str = ""
-    #: Deployed HumanIdMirror (make deploy-humanid). Empty → the resolver stands
-    #: down instead of writing nowhere, and no wallet is ever human-backed.
-    humanid_mirror_address: str = ""
-
-    # --- World Chain (read-only) ---
-    #: AgentBook lives on World Chain, not Arc, so it needs its own endpoint —
-    #: this is the first reader in the codebase that points at a second chain.
-    #: Empty → the fixture AgentBook, which is what the demo runs on until
-    #: Sandbox access exists.
-    world_rpc_url: str = ""
-    agentbook_address: str = ""
-    #: Which AgentBook to read: "auto" (the real one iff an endpoint or address
-    #: is named), "fixture" (the demo roster), or "worldchain" (the live
-    #: contract, which needs no configuration — address and RPC are constants).
-    agentbook_mode: str = "auto"
-
     # --- Model Armor: the screen on agent-to-agent traffic ------------------
     #: Which screen to run: "auto" (gcp iff project+template+credentials are all
     #: set, else local), "local" (deterministic, offline), "gcp" (force the real
     #: one and fail closed if unconfigured), or "off" (no screening, stated
-    #: rather than silent). Mirrors `x402_mode` and `humanid_mode` so an operator
+    #: rather than silent). Mirrors `x402_mode` so an operator
     #: learns one vocabulary.
     armor_mode: str = "auto"
     armor_project_id: str = ""

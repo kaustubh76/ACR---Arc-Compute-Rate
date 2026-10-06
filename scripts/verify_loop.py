@@ -81,31 +81,7 @@ def main() -> int:
     check(r3.get("verdict") == "unscreened" and (r3.get("screened_delta") in (0, None)),
           f"the same injection with no card never reached Google: {r3.get('verdict')} (+{r3.get('screened_delta')})")
 
-    print("\n3 · a person, not a wallet: the fleet, then the solo human")
-    st, f = call("/api/humanid/prove", {"as": "fleet"})
-    f = f if isinstance(f, dict) else {}
-    fb = f.get("body") or {}
-    check(f.get("status") == 200, f"the fleet's proof is verified ({f.get('status')}: {f.get('note') or ''})")
-    check((fb.get("human") or {}).get("wallet_count") == 3, f"one person, {(fb.get('human') or {}).get('wallet_count')} wallets")
-    check(bool(fb.get("available")) and (fb.get("purchases") or 0) > 0, f"one bill across them: {fb.get('purchases')} purchases")
-    check(f.get("replay_status") == 401, f"the nonce is spent on replay ({f.get('replay_status')})")
-    st, s_ = call("/api/humanid/prove", {"as": "solo"})
-    s_ = s_ if isinstance(s_, dict) else {}
-    sb = s_.get("body") or {}
-    check(s_.get("status") == 200 and (sb.get("human") or {}).get("wallet_count") == 1,
-          f"the solo human: one wallet ({(sb.get('human') or {}).get('wallet_count')})")
-    st, bad = call("/api/humanid/prove", {"as": "0xdeadbeef"})
-    check(st == 400, f"a visitor's own key is refused at the door ({st})")
-
-    print("\n4 · this window's people, as the chain records them")
-    st, c = call("/api/humanid/clusters")
-    c = c if isinstance(c, dict) else {}
-    d = c.get("data") or {}
-    mine = [x for x in d.get("clusters", []) if x.get("window") == d.get("window")]
-    check(c.get("live") is True, "the clusters route read the tape")
-    check(len(mine) >= 1, f"{len(mine)} cluster(s) resolved for window {d.get('window')}, {sum(len(x.get('wallets', [])) for x in mine)} wallet(s)")
-
-    print("\n5 · the page's own guard")
+    print("\n3 · the page's own guard")
     st, t = call("/api/screen", {"text": "", "carded": True})
     check(st == 400, f"empty text is refused ({st})")
 

@@ -15,7 +15,6 @@ around by wash flow.
 from __future__ import annotations
 
 import math
-import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -31,7 +30,6 @@ from scipy.stats import norm
 from .bound import ManipulationBound, manipulation_bound
 from .cleaning import CleaningResult, clean
 from .hedonic import HedonicModel, adjust_prices
-from .human_caps import human_bound
 from .observation_model import ObservationModel, SmoothResult
 from .robust import RobustEstimate, estimate
 from .robustness import RobustnessDiagnostics, compute_robustness
@@ -229,26 +227,6 @@ def estimate_index(
     # ⑦b The same bound, denominated in PEOPLE rather than wallets.
     #
     # Only meaningful once some flow is resolved to verified humans, and it is
-    # published as a LOWER bound because C_human rests on a floor in
-    # anchors/_basket/C-HUMAN.json rather than a citable rate. None — never 0,
-    # never the wallet bound — when it cannot be computed: ACROracleV2 reads 0
-    # as "not computed", and defaulting to the wallet bound would claim
-    # identities are as cheap to buy as wallets, which is false.
-    try:
-        hb = human_bound(
-            adjusted,
-            kept_weights,
-            alpha=settings.trim_alpha,
-            fee_bps=settings.usdc_fee_bps,
-            fee_flat=settings.usdc_fee_flat,
-            raw_total=raw_total,
-            wallet_cost_per_bp=mb.cost_per_bp,
-        )
-    except (FileNotFoundError, ValueError) as exc:  # pragma: no cover - config
-        warnings.warn(f"human bound unavailable ({exc}) — publishing without it",
-                      RuntimeWarning, stacklevel=2)
-        hb = None
-
     # Per-print robustness diagnostics (methodology §4, measured).
     node_comm = {n: i for i, c in enumerate(cr.communities) for n in c}
     comm_ids = [node_comm.get(e.seller, -1) for e in kept_events]
@@ -265,8 +243,19 @@ def estimate_index(
         ci_lo=ci_lo,
         ci_hi=ci_hi,
         attack_cost_per_bp=mb.cost_per_bp,
-        human_adjusted_bound=None if hb is None else hb.cost_usdc,
-        humans_required=None if hb is None else hb.humans_required,
+        # NOT COMPUTED, which is what `ACROracleV2.Print.humanAdjustedBound`
+        # documents 0 as meaning. The human-denominated bound went with the
+        # World integration: it rested on an unsourced $10-per-person floor in
+        # `anchors/_basket/C-HUMAN.json` and resolved to one verified human on
+        # the live tape, so it was a number with the shape of a measurement and
+        # the content of an assumption.
+        #
+        # The FIELD stays. It is in the deployed contract's Print struct and in
+        # its EIP-712 typehash, so removing it would mean redeploying the oracle
+        # and orphaning every print already signed against it. `None` here
+        # becomes 0 on chain, which is the off-switch the contract was given.
+        human_adjusted_bound=None,
+        humans_required=None,
         n_obs=len(kept_events),
         trim_alpha=settings.trim_alpha,
     )

@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts recompute futures-roll futures-settle futures-withdraw futures-collateralize verify-live verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -14,7 +14,7 @@ help:
 	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
-	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
+	@echo "  make     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
@@ -258,30 +258,6 @@ deploy-policy:
 	@echo "  PolicyWallet live — it owns nothing until you fund it, and permits"
 	@echo "  nothing until setAgent + setBudget run. Set ACR_POLICY_WALLET_ADDRESS."
 
-# The human-grouping mirror. Records WINDOW-ROTATED CLUSTER IDS, never a World ID
-# nullifier — see contracts/src/HumanIdMirror.sol for why rotation prevents
-# cross-service correlation but not within-tape fleet linkage.
-# ACR_HUMANID_SALT_COMMITMENT is keccak256(salt) and is REQUIRED. Never pass the
-# salt itself: constructor args land in contracts/broadcast/, which is committed.
-deploy-humanid-dry:
-	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
-	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
-	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key ***"
-	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY)
-
-deploy-humanid:
-	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first"; exit 1; }
-	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set — export keccak256(salt), NOT the salt"; exit 1; }
-	@echo "cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key *** --broadcast"
-	@cd contracts && forge script script/DeployHumanIdMirror.s.sol --rpc-url $(ACR_ARC_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast
-	@echo ""
-	@echo "  HumanIdMirror live — the tape's record of who is one human."
-	@echo "  Set ACR_HUMANID_MIRROR_ADDRESS in .env + on the Render seller, then put"
-	@echo "  the address AND this deploy's block number into graph/subgraph.yaml"
-	@echo "  and redeploy the subgraph with a NEW VERSION (it re-indexes)."
-	@echo "  Then 'make resolve-humans' BEFORE generating any further tape:"
-	@echo "  Settlement.human is stamped at finalize and cannot be revised."
-
 verify-testnet:
 	uv run python scripts/verify_deploy.py
 
@@ -327,8 +303,6 @@ define mainnet_preflight
 	@test -n "$(ACR_MAINNET_RPC_URL)" || { echo "ACR_MAINNET_RPC_URL not set (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_MAINNET_USDC)" || { echo "ACR_MAINNET_USDC not set: the USDC address is NOT defaulted on mainnet (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
 	@test -n "$(ACR_DEPLOY_ACCOUNT)$(DEPLOYER_PRIVATE_KEY)" || { echo "no deploy signer: set ACR_DEPLOY_ACCOUNT=<keystore name> (cast wallet import <name> --interactive) or DEPLOYER_PRIVATE_KEY"; exit 1; }
-	@test -n "$(ACR_HUMANID_SALT_COMMITMENT)" || { echo "ACR_HUMANID_SALT_COMMITMENT not set: HumanIdMirror is deployed WITH its commitment (docs/MAINNET_RUNBOOK.md step 1)"; exit 1; }
-	@test -n "$(ACR_PRESS_SIGNER)" || { echo "ACR_PRESS_SIGNER not set: the press custody wallet that will sign prints; the deploy key is retired as a signer in the same broadcast (docs/MAINNET_RUNBOOK.md)"; exit 1; }
 	@got=$$(cast chain-id --rpc-url $(ACR_MAINNET_RPC_URL)); test "$$got" = "$(ACR_MAINNET_CHAIN_ID)" || { echo "RPC answers chain id $$got, expected $(ACR_MAINNET_CHAIN_ID) — wrong network, refusing"; exit 1; }
 	@echo "  chain id $(ACR_MAINNET_CHAIN_ID) confirmed at $(ACR_MAINNET_RPC_URL)"
 endef
@@ -348,7 +322,7 @@ deploy-mainnet:
 	  echo ""; echo "▸ broadcast $$s"; \
 	  (cd contracts && ACR_USDC_ADDRESS=$(ACR_MAINNET_USDC) forge script script/$$s --rpc-url $(ACR_MAINNET_RPC_URL) $(deploy_signer) --broadcast) || exit 1; \
 	done
-	@echo ""; echo "  now follow docs/MAINNET_RUNBOOK.md from step 3 (addresses -> render.yaml mainnet profile -> subgraph -> resolve-humans)."
+	@echo ""; echo "  now follow docs/MAINNET_RUNBOOK.md from step 3 (addresses -> render.yaml mainnet profile -> subgraph ->)."
 
 # Prove the DEPLOYED product is live — every pillar, one exit code. Read-only
 # and safe against production: no writes, no faucet drips, no Circle users.
@@ -462,14 +436,6 @@ recompute:
 mirror-receipts:
 	uv run python scripts/mirror_receipts.py $(ARGS)
 
-resolve-humans:
-	uv run python scripts/resolve_humans.py $(ARGS)
-
-# A judge-runnable human proof: challenge -> CAIP-122 signature with a demo
-# buyer's (public-by-construction) key -> one TCA across every wallet that human
-# owns -> the nonce is spent. Against production by default; ARGS=--api ... for local.
-prove-human:
-	uv run python scripts/prove_human.py $(ARGS)
 
 attest-once:
 	uv run python scripts/attest_once.py

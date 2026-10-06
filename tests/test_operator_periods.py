@@ -445,7 +445,7 @@ def test_the_channel_is_part_of_what_was_hashed():
 
 def test_a_policy_client_that_cannot_say_does_not_block_the_payment():
     """A reporting field must never be able to stop money that cleared policy."""
-    from index_api.operator import PAY, run_obligation
+    from index_api.operator import run_obligation
 
     class _Mute:
         def signer_kinds(self):
@@ -457,8 +457,21 @@ def test_a_policy_client_that_cannot_say_does_not_block_the_payment():
         def spend(self, *_a, **_k):
             return "0x" + "ee" * 32
 
+    class _Loud(_Mute):
+        def signer_kinds(self):
+            return {"agent": "circle", "owner": "local"}
+
     ob = _obligations(_Biz(), [_receipt(100.0)], {}, {})[0]
-    d = run_obligation(ob, receipts=[_receipt(100.0)], catalog={},
-                       policy=_Mute(), dry_run=True, log_path="/dev/null")
+    kw = dict(receipts=[_receipt(100.0)], catalog={}, dry_run=True, log_path="/dev/null")
+    d = run_obligation(ob, policy=_Mute(), **kw)
     assert d.paid_via == ""
-    assert d.intent == PAY, "and the decision still stands"
+    # THE CLAIM IS THAT THE FIELD CANNOT MOVE THE DECISION, which is stronger
+    # than asserting a particular intent and does not go stale when the ladder
+    # legitimately changes its mind about this bill. It did: the fixture's
+    # prices are fleet-scale, and a bill at 0.1 $/1k-tokens from a vendor who is
+    # not one of ours is now priced against the real market, where it is 250x
+    # the going rate. That is the right answer to a different question.
+    loud = run_obligation(ob, policy=_Loud(), **kw)
+    assert d.intent == loud.intent, "a reporting field changed the decision"
+    assert d.rule == loud.rule
+    assert loud.paid_via == "circle"

@@ -51,9 +51,7 @@ from acr_oracle_client.signer import LocalKeySigner
 signer = LocalKeySigner("0x<your 32-byte key>")
 card = mint(signer.address, name="my-agent", role="reader",
             audience="${audience}", ttl_s=300)            # <= ${ttl}s or the gate refuses
-# Optional: claim the human cluster HumanIdMirror records for this wallet THIS window.
-# A claim the chain cannot confirm is a 401, not a downgrade.
-#   card = mint(..., human_cluster="0x<64 hex>")
+# humanCluster stays in the signed struct and is unread; pass the zero word.
 header = encode_header(card, sign_card(card, signer, ${chain}))
 
 import urllib.request

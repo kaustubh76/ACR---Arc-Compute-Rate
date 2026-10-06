@@ -141,10 +141,8 @@ test("the freshness window matches the contract it copies", () => {
   // And the register agrees with the committed bundle: every address the snapshot
   // carries is one the register would name, in the order the paper explains
   // itself. The expectation is DERIVED from the bundle rather than written out,
-  // because the hardcoded list encoded an accident of one snapshot: the testnet
-  // bundle predated HumanIdMirror, so `humanid` was absent, and the first mainnet
-  // bundle — which carries the address — failed a test that had frozen that
-  // absence into a rule. Omit-don't-zero is the rule; which rows exist is data.
+  // because a hardcoded list encodes an accident of one snapshot.
+  // Omit-don't-zero is the rule; which rows exist is data.
   const chain = bundle.chain;
   const keys = deployedContracts(chain, bundle.oracle).map((r) => r.key);
   const expected = [
@@ -152,33 +150,11 @@ test("the freshness window matches the contract it copies", () => {
     "futures",
     "registry",
     "attestor",
-    ...(chain?.humanid_address ? ["humanid"] : []),
     "usdc",
     "gateway",
   ];
   assert.deepEqual(keys, expected);
 
-  /* 4. HumanIdMirror takes its place when the payload carries it.
-
-        Asserted on a payload that HAS the address rather than on the bundle
-        that does not: the bundle check above passes whether or not this row
-        exists, so on its own it would have let the identity layer stay
-        unnamed — the exact silence the row was added to end. Order matters
-        because the register is the order the paper explains itself in: the
-        rate, the venue, the record, the right, then who is behind it. */
-  const withHuman = deployedContracts({
-    ...(chain as NonNullable<typeof chain>),
-    humanid_address: "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5",
-  });
-  assert.deepEqual(
-    withHuman.map((r) => r.key),
-    ["oracle", "futures", "registry", "attestor", "humanid", "usdc", "gateway"],
-  );
-  assert.match(
-    withHuman.find((r) => r.key === "humanid")!.href,
-    /\/address\/0x7f41faA3/,
-    "HumanIdMirror should link to its address page",
-  );
 
   /* The endpoint register, and the two halves it was split into.
      Paths live in lib/endpoints.ts so the table and the probe's allowlist

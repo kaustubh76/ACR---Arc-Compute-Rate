@@ -48,14 +48,18 @@ def test_testnet_defaults_are_not_a_violation():
 def test_mainnet_defaults_are_refused_with_every_reason_listed():
     """One pass, every violation — a deploy should not fix them one boot at a time."""
     bad = violations(_s(arc_chain_id=MAINNET_CHAIN_ID))
-    # x402 mode, facilitator not a URL, facilitator not mainnet's, pay-to, humanid
-    # mode, app id, CORS, RPC (defaults to localhost)
-    assert len(bad) == 8
+    # x402 mode, facilitator not a URL, facilitator not mainnet's, pay-to, CORS,
+    # RPC (defaults to localhost). Was eight: the two HumanID gates went with
+    # the World integration.
+    assert len(bad) == 6
     with pytest.raises(MainnetGuardError) as e:
         assert_mainnet_ready(_s(arc_chain_id=MAINNET_CHAIN_ID))
     for needle in ("ACR_X402_MODE", "ACR_X402_FACILITATOR_URL", "ACR_X402_PAY_TO",
-                   "ACR_HUMANID_MODE", "ACR_HUMANID_APP_ID", "ACR_CORS_ORIGINS"):
+                   "ACR_CORS_ORIGINS"):
         assert needle in str(e.value)
+    assert "HUMANID" not in str(e.value), (
+        "the guard still refuses to boot over a feature this product no longer has"
+    )
 
 
 def test_a_fully_configured_mainnet_passes():
@@ -73,18 +77,11 @@ def test_x402_auto_or_dev_is_refused_on_mainnet(mode):
     assert len(bad) == 1 and "ACR_X402_MODE" in bad[0] and "FREE dev gate" in bad[0]
 
 
-@pytest.mark.parametrize("mode", ["auto", "dev", ""])
-def test_humanid_auto_or_dev_is_refused_on_mainnet(mode):
-    """The dev verifier grants the human tier to anyone who asks."""
-    bad = violations(_s(**{**MAINNET_OK, "humanid_mode": mode}))
-    assert len(bad) == 1 and "ACR_HUMANID_MODE" in bad[0]
-
-
 def test_an_explicit_mode_with_no_backend_is_still_refused():
     """`circle` with no facilitator would fail closed at request time — but a
     paywall that answers 500 is not a product either. Catch it at boot."""
-    bad = violations(_s(**{**MAINNET_OK, "x402_facilitator_url": "", "humanid_app_id": ""}))
-    assert {b.split(" ")[0] for b in bad} == {"ACR_X402_FACILITATOR_URL", "ACR_HUMANID_APP_ID"}
+    bad = violations(_s(**{**MAINNET_OK, "x402_facilitator_url": ""}))
+    assert {b.split(" ")[0] for b in bad} == {"ACR_X402_FACILITATOR_URL"}
 
 
 def test_wildcard_cors_is_refused_on_mainnet():

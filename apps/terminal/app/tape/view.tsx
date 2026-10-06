@@ -182,24 +182,6 @@ function RerouteEvidence({
   );
 }
 
-function HumanMark({ share, of }: { share: number | null | undefined; of: "this payer" | "the window" }) {
-  if (share == null || share <= 0) return null;
-  // The two tables divide by different things — one payer's fills above, every
-  // fill this rotation window below — so the same chip can read 100% and 64% for
-  // one seller. The title names the denominator rather than letting a reader
-  // hover both and conclude one of them is wrong.
-  const scope = of === "this payer" ? "this payer's fills with the seller" : "the seller's fills this rotation window";
-  return (
-    <span
-      className="chip chip-sim"
-      style={{ marginLeft: 6 }}
-      title={`${(share * 100).toFixed(0)}% of ${scope} came from wallets the chain resolves to a verified person`}
-    >
-      <Ed x="human" p="real person" />
-    </span>
-  );
-}
-
 function HumanCell({ rating }: { rating: SellerRating | undefined }) {
   const cell = humanCell(rating);
   if (cell.kind === "unmeasured") {
@@ -558,7 +540,6 @@ export function TapeView() {
                     <tr key={r.seller}>
                       <td>
                         <AddressChip address={r.seller} copy={false} label={nameOf(r.seller) ?? undefined} />
-                        <HumanMark share={r.human_share} of="this payer" />
                       </td>
                       <td className="mono" style={{ fontSize: 12.5 }}>
                         <SellsCell t={terms[r.seller.toLowerCase()]} />
@@ -703,7 +684,6 @@ export function TapeView() {
                     <tr key={s.id}>
                       <td>
                         <AddressChip address={s.id} copy={false} label={nameOf(s.id) ?? undefined} />
-                        <HumanMark share={s.humanShare} of="the window" />
                       </td>
                       <td>
                         <GradeChip rating={r} />
