@@ -1180,10 +1180,65 @@ def decide(
                 )
         elif verdict["verdict"] == "over_par":
             cheaper = verdict["best_seller"]
+            # A MARKET REFERENCE IS NOT A PAYEE. The anchor basket names models
+            # — `openai/gpt-4o-mini` — because that is what a reader can check,
+            # and nothing here can send USDC to one. Writing it into
+            # `reroute_to` would record a routing the wallet cannot execute, and
+            # `applyReroute` downstream would be handed a string to pay.
+            #
+            # Tested on the SOURCE, not the shape of the address: `_payable_to`
+            # answers "is there a counterparty at all" and deliberately accepts
+            # a named vendor, so it says yes to `openai/gpt-4o-mini`. The
+            # narrower question — can USDC reach it — is answered by where the
+            # price came from.
+            #
+            # The FINDING is still real and still the agent's to report: the
+            # bill is materially above the published market rate for its own
+            # unit, among sellers of its own model class. What is NOT the
+            # agent's is what to do about it with no alternative it can act on —
+            # RFB 4's "know which decisions are not its to make", arriving for
+            # once on a priced bill rather than merely a large one.
+            if cheaper and verdict.get("best_source") == "market":
+                # AND THE QUESTION CHANGES WITH THE COMPARISON. Everywhere else
+                # the verdict keys off `saving_bp`, measured against the
+                # CHEAPEST offer, because that is money genuinely available
+                # somewhere we can send it. Against a market basket nothing is
+                # available anywhere — so the only meaningful question is
+                # whether the bill is above the going RATE, which is
+                # `over_par_bp` against the median.
+                #
+                # Measured, which is why this is here: a bill priced at exactly
+                # the market median still escalated, because gpt-4o-mini is
+                # cheaper than gpt-4.1-mini. Both are mid-class and the basket
+                # medians them on purpose; demanding the cheapest row is
+                # demanding a different model, not a better price.
+                over_bp = verdict.get("over_par_bp") or 0.0
+                if over_bp >= material_bp:
+                    d.intent, d.escalated = ESCALATE, True
+                    d.recommended_intent = REFUSE
+                    d.rule = (
+                        f"{over_bp:.0f} bp above the going market rate of "
+                        f"{verdict['par_usdc']:g} across {verdict['sellers']} published "
+                        f"prices, and the cheaper ones are references rather than "
+                        f"addresses we can pay"
+                    )
+                    return d
+                # At or under the going rate. The cheaper row is noted and not
+                # acted on, because acting on it is not available.
+                d.notes.append(
+                    f"at or under the going market rate; {verdict['best_usdc']:g} is "
+                    f"published by {cheaper}, which is not an address we can pay"
+                )
+            # `elif`, NOT a second `if`. Falling out of the market branch used to
+            # drop straight into the reroute below, so a bill priced exactly at
+            # the going rate was rerouted to `openai/gpt-4o-mini` — the one
+            # outcome the branch above exists to make impossible. The market
+            # case is handled in full or not at all.
+            #
             # A cheaper seller who is the vendor itself is not a reroute; `par`
             # already excludes the biller, so reaching here means a real third
             # party is offering it for less.
-            if cheaper and cheaper.lower() != ob.vendor.lower():
+            elif cheaper and cheaper.lower() != ob.vendor.lower():
                 d.intent, d.reroute_to = REROUTE, cheaper
                 # Measured against the CHEAPEST offer, not the median, because
                 # that is the comparison the decision was made on. Saying "over
@@ -1197,13 +1252,19 @@ def decide(
                     f"{verdict['saving_usdc']:g} USDC"
                 )
                 return d
-            d.intent, d.escalated = ESCALATE, True
-            d.recommended_intent = REFUSE
-            d.rule = (
-                f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
-                "and that seller is the one billing us"
-            )
-            return d
+            else:
+                # EXPLICIT, because this used to be reached by falling out of
+                # the two branches above and that is how the market case ended
+                # up here: priced at exactly the going rate, nothing to reroute
+                # to, and escalated with a sentence about the biller that was
+                # not true of it. An `else` cannot be fallen into by accident.
+                d.intent, d.escalated = ESCALATE, True
+                d.recommended_intent = REFUSE
+                d.rule = (
+                    f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
+                    "and that seller is the one billing us"
+                )
+                return d
 
     # 7 — the timing. Paying early costs the cash; paying late costs the
     # discount. Only one of those is recoverable, so the discount wins when it
@@ -1415,6 +1476,8 @@ def run_obligation(
     drift the moment anything else spends from the same wallet.
     """
     from .par import (
+        is_first_party,
+        market_basket,
         par_from_quotes,
         quotes_by_unit,
         quotes_from_catalog,
@@ -1462,12 +1525,38 @@ def run_obligation(
         # The unit is the market. Per-unit prices make two sellers of the same
         # kind of service comparable at last, which per-call prices never were:
         # a 500-token call and a 2,000-token one are not the same purchase.
-        par = par_from_quotes(
-            ob.unit,
-            quotes_by_unit(receipts, ob.unit),
-            exclude_seller=ob.vendor,
-            denomination="unit",
-        )
+        #
+        # WHICH MARKET, THOUGH. Two price populations exist for the same unit
+        # and they are two orders of magnitude apart, so medianing them together
+        # would produce exactly the incomparable number this module's docstring
+        # refuses:
+        #
+        #   the fleet      sellers this deployment operates, priced from
+        #                  `IndexSpec.reference_level` — which `anchors/GAP.md`
+        #                  measures 20x to 1250x above real market prices.
+        #   the market     real published list prices, fetched from their own
+        #                  sources with a URL per row, in `anchors/`.
+        #
+        # The BILL decides. A fleet seller's invoice is like-for-like against
+        # fleet quotes, both pinned to the same scale, and that comparison is
+        # sound inside the loop. Any other vendor is a real invoice, and the
+        # market basket is the only reference that can price it — which is the
+        # whole of RFB 3's "what the market is actually paying".
+        basket = market_basket(ob.unit, now=t)
+        if is_first_party(ob.vendor) or not basket.usable:
+            par = par_from_quotes(
+                ob.unit,
+                quotes_by_unit(receipts, ob.unit),
+                exclude_seller=ob.vendor,
+                denomination="unit",
+            )
+        else:
+            par = par_from_quotes(
+                ob.unit,
+                list(basket.quotes),
+                exclude_seller=ob.vendor,
+                denomination="unit",
+            )
     else:
         quotes = quotes_from_catalog(catalog, ob.resource) + quotes_from_receipts(
             receipts, ob.resource

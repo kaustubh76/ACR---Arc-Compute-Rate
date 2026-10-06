@@ -18,9 +18,9 @@ scale-invariant — measured, by re-anchoring ACR-INF 667x and watching
 
 | index | reference | market anchor | gap | rows | spread | as of |
 |---|---|---|---|---|---|---|
-| `ACR-INF` | 0.5 $/1k tokens | 0.00043125 | **1159x** | 6/10 | 2.7x | 2026-09-06 |
-| `ACR-GPU` | 0.011 $/GPU-sec | 0.000552778 | **20x** | 4/4 | 3.4x | 2026-09-06 |
-| `ACR-DATA` | 0.002 $/MB | 9e-05 | **22x** | 3/3 | 1.4x | 2026-09-06 |
+| `ACR-INF` | 0.5 $/1k tokens | 0.0004 | **1250x** | 5/10 | 2.7x | 2026-10-06 |
+| `ACR-GPU` | 0.011 $/GPU-sec | 0.000552778 | **20x** | 4/4 | 3.4x | 2026-10-06 |
+| `ACR-DATA` | 0.002 $/MB | 9e-05 | **22x** | 3/3 | 1.4x | 2026-10-06 |
 
 ## Why the gap is not one number
 
@@ -40,12 +40,11 @@ ACR-INF estimates the constant-quality price of a MID-class seller at 250ms (acr
 |---|---|---|
 | GPT-4o mini | 0.0002625 | [data[id=openai/gpt-4o-mini].pricing](https://openrouter.ai/api/v1/models) |
 | GPT-4.1 mini | 0.0007 | [data[id=openai/gpt-4.1-mini].pricing](https://openrouter.ai/api/v1/models) |
-| Claude 3 Haiku | 0.0005 | [data[id=anthropic/claude-3-haiku].pricing](https://openrouter.ai/api/v1/models) |
 | Llama 3.1 70B | 0.0004 | [data[id=meta-llama/llama-3.1-70b-instruct].pricing](https://openrouter.ai/api/v1/models) |
-| DeepSeek Chat | 0.0004625 | [data[id=deepseek/deepseek-chat].pricing](https://openrouter.ai/api/v1/models) |
+| DeepSeek Chat | 0.000450225 | [data[id=deepseek/deepseek-chat].pricing](https://openrouter.ai/api/v1/models) |
 | Qwen 2.5 72B | 0.00037 | [data[id=qwen/qwen-2.5-72b-instruct].pricing](https://openrouter.ai/api/v1/models) |
 
-Requested but absent on this date: `anthropic/claude-3.5-haiku`, `google/gemini-flash-1.5`, `google/gemini-2.0-flash-001`, `mistralai/mistral-small`. A basket that shrinks silently re-medians a different population.
+Requested but absent on this date: `anthropic/claude-3-haiku`, `anthropic/claude-3.5-haiku`, `google/gemini-flash-1.5`, `google/gemini-2.0-flash-001`, `mistralai/mistral-small`. A basket that shrinks silently re-medians a different population.
 
 ### ACR-GPU — $/GPU-sec
 

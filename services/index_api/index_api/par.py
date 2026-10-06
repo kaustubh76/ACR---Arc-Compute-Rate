@@ -3,7 +3,7 @@
 THIS MODULE EXISTS BECAUSE THE INDEX CANNOT PRICE A REAL INVOICE.
 
 ``anchors/GAP.md`` records this project's index reference levels sitting 20x to
-1159x away from real market prices, and says plainly that they are not being
+1250x away from real market prices, and says plainly that they are not being
 changed: they seed the simulator, the fleet's quotes and the tape's price pin,
 so moving them would break comparability with every print already on chain.
 
@@ -43,13 +43,41 @@ cross resources can do it deliberately rather than by accident.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 from acr_core.mathutils import weighted_median
 
+from .fleet import FLEET
+
 log = logging.getLogger("index_api.par")
+
+#: The market baskets `scripts/anchors.py --fetch` writes. Same idiom as
+#: `acr_estimator.human_caps._BASKET`, and the Dockerfile copies `anchors/` into
+#: the image (line 23) for exactly this kind of read — the C-HUMAN bound once
+#: reported 0 in production because an earlier image did not.
+_ANCHOR_DIR = Path(__file__).resolve().parents[3] / "anchors"
+
+#: How stale a basket may be before it stops being a price. `anchors.py` calls
+#: `--fetch` "network; manual, never CI", so nothing refreshes these on a timer
+#: and a quarter-old basket pricing a live invoice would be a number pretending
+#: to be an observation. A list price does not move daily, so thirty days is
+#: generous rather than tight — the point is that the staleness has a name.
+ANCHOR_MAX_AGE_S = float(os.environ.get("ACR_ANCHOR_MAX_AGE_S", str(30 * 86_400)))
+
+#: Every seller this deployment operates, by address. `Quote.first_party` is
+#: resolved against it, and `graph/schema.graphql` already states the standard
+#: this exists to meet: "a benchmark that counted one silently would be claiming
+#: security it does not have. A reader discounts it from the tape itself,
+#: without having to trust the operator."
+FLEET_SELLERS = frozenset(
+    (listing.seller or "").lower() for listing in FLEET.values() if listing.seller
+)
 
 #: One offer is not a market. Below this many INDEPENDENT sellers the answer is
 #: "unbenchmarked" with a reason, never a comparison of a price to itself.
@@ -76,6 +104,18 @@ class Quote:
     #: The index unit the quantity is in, when the listing declares it.
     unit: str = ""
     quantity: float = 0.0
+    #: Is this seller one of OURS? `graph/schema.graphql` states the standard
+    #: this meets: "a benchmark that counted one silently would be claiming
+    #: security it does not have. A reader discounts it from the tape itself,
+    #: without having to trust the operator." The tape has carried that
+    #: disclosure since the beginning; the operator's benchmark did not, and
+    #: measured against the live decision archive it mattered — 6 of the 7
+    #: vendors this operator has ever billed are in `fleet.FLEET`.
+    #:
+    #: Nothing is EXCLUDED on the strength of it. The schema's rule is
+    #: disclosure, not removal, and filtering would leave most bills with no
+    #: benchmark at all — a worse answer than a disclosed one.
+    first_party: bool = False
 
     @property
     def unit_price(self) -> float | None:
@@ -113,7 +153,23 @@ class Par:
     par_usdc: float | None = None
     best_usdc: float | None = None
     best_seller: str = ""
+    #: WHERE the cheapest price came from — `catalog` · `challenge` · `fill` ·
+    #: `market`. The caller needs it because only some of those name somebody
+    #: the wallet can pay: a market row names a model (`openai/gpt-4o-mini`),
+    #: which is exactly what makes it checkable and exactly what makes it
+    #: unroutable. Carried as the source rather than inferred from the string's
+    #: shape, because `_payable_to` answers "is there a counterparty" and this
+    #: is the narrower "can USDC reach it".
+    best_source: str = ""
     sellers: int = 0
+    #: How many of those sellers are OURS. A count beside a count, never a
+    #: share: a ratio over a denominator of four is a number pretending to be a
+    #: measurement, and `/traction` already refuses rates for the same reason.
+    #:
+    #: It is the difference between "at par against 4 observed sellers" and "at
+    #: par against 4 observed sellers, all four on our own fleet" — and on this
+    #: deployment today it is the second.
+    first_party_sellers: int = 0
     basis: str = ""
     quotes: tuple[Quote, ...] = field(default_factory=tuple)
 
@@ -126,13 +182,140 @@ class Par:
             "par_usdc": self.par_usdc,
             "best_usdc": self.best_usdc,
             "best_seller": self.best_seller,
+            "best_source": self.best_source,
             "sellers": self.sellers,
+            "first_party_sellers": self.first_party_sellers,
             "basis": self.basis,
             "quotes": [
-                {"seller": q.seller, "price_usdc": q.price_usdc, "source": q.source}
+                {
+                    "seller": q.seller,
+                    "price_usdc": q.price_usdc,
+                    "source": q.source,
+                    "first_party": q.first_party,
+                }
                 for q in self.quotes
             ],
         }
+
+
+@dataclass(frozen=True)
+class Basket:
+    """A dated set of real third-party prices for one unit, and its provenance.
+
+    `par.py` opens by saying the index cannot price a real invoice. This is the
+    other half of that sentence: the prices that CAN. `scripts/anchors.py
+    --fetch` already pulls them — real list prices, each row carrying its own
+    source URL and retrieval time — and until now they were used only to
+    generate `anchors/GAP.md`.
+
+    The provenance travels with the prices rather than beside them, because
+    every refusal in this module is a named one and "the basket was stale" and
+    "there is no basket" are different facts an owner would act on differently.
+    """
+
+    unit: str
+    index_id: str = ""
+    quotes: tuple[Quote, ...] = ()
+    #: Unix seconds the basket was fetched; 0.0 when there is none.
+    fetched_at: float = 0.0
+    #: What the basket HAS and what it ASKED FOR. Two counts, because
+    #: `GAP.md` says it in those words: "a basket that shrinks silently
+    #: re-medians a different population." Today ACR-INF holds 5 of 10.
+    rows: int = 0
+    requested: int = 0
+    #: "" when usable, else `ABSENT` · `STALE` · `NO_ROWS` — named the way
+    #: `Par.reason` is, so a surface can say which absence it is.
+    status: str = "ABSENT"
+
+    @property
+    def usable(self) -> bool:
+        return bool(self.quotes) and not self.status
+
+
+def market_basket(
+    unit: str,
+    now: float | None = None,
+    anchor_dir: Path | None = None,
+) -> Basket:
+    """Real third-party prices for one unit, from `anchors/`.
+
+    Keyed on the UNIT and matched against each basket's own `unit` field rather
+    than through an index-id lookup. The unit is already what decides which
+    market was consulted everywhere else in this module, and a second mapping
+    from unit to index would be a second thing to keep in step.
+
+    Returns a `Basket` rather than a bare list, unlike its `quotes_from_*`
+    siblings, because those are pure readers over data handed to them and this
+    one does I/O against a dated file. What it found, how old it is and how much
+    of it is missing are part of the answer.
+    """
+    t = time.time() if now is None else now
+    root = anchor_dir or _ANCHOR_DIR
+    want = (unit or "").strip()
+    if not want or not root.exists():
+        return Basket(unit=want)
+
+    for child in sorted(root.iterdir()):
+        # `_basket/` holds the SELECTION RULES, not measurements; the dated
+        # per-index files beside it are the observations.
+        if not child.is_dir() or child.name.startswith("_"):
+            continue
+        files = sorted(child.glob("*.json"))
+        if not files:
+            continue
+        try:
+            doc = json.loads(files[-1].read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 — an unreadable basket is not a crash
+            log.warning("par: anchor basket %s unreadable (%s)", files[-1].name, exc)
+            continue
+        if (doc.get("unit") or "").strip() != want:
+            continue
+
+        index_id = str(doc.get("index_id") or child.name)
+        rows = [r for r in (doc.get("rows") or []) if isinstance(r, dict)]
+        requested = len(rows) + len(doc.get("missing") or [])
+        try:
+            fetched = datetime.fromisoformat(str(doc.get("fetched_at"))).timestamp()
+        except ValueError:
+            fetched = 0.0
+
+        # STALE IS NOT ABSENT, and neither is a silent price. `--fetch` is
+        # manual by design, so an old basket is the expected failure here.
+        if fetched and t - fetched > ANCHOR_MAX_AGE_S:
+            return Basket(unit=want, index_id=index_id, fetched_at=fetched,
+                          rows=len(rows), requested=requested, status="STALE")
+
+        quotes = tuple(
+            Quote(
+                # The model id, not an address: these sellers are not on a
+                # chain, and `openai/gpt-4o-mini` is what a reader can check.
+                seller=str(r.get("id") or r.get("label") or ""),
+                price_usdc=float(r["price_usd_per_unit"]),
+                source="market",
+                unit=want,
+                at=fetched,
+                first_party=False,
+            )
+            for r in rows
+            if isinstance(r.get("price_usd_per_unit"), (int, float))
+            and float(r["price_usd_per_unit"]) > 0
+        )
+        return Basket(
+            unit=want, index_id=index_id, quotes=quotes, fetched_at=fetched,
+            rows=len(rows), requested=requested,
+            status="" if quotes else "NO_ROWS",
+        )
+    return Basket(unit=want)
+
+
+def is_first_party(seller: str | None) -> bool:
+    """Is this seller one this deployment operates?
+
+    Address comparison, lowercased, against `fleet.FLEET`. A market-basket
+    quote names a model (`openai/gpt-4o-mini`) rather than an address and can
+    never match, which is correct: it is not ours.
+    """
+    return (seller or "").strip().lower() in FLEET_SELLERS
 
 
 def _dedupe_by_seller(quotes: list[Quote]) -> list[Quote]:
@@ -189,6 +372,7 @@ def par_from_quotes(
             available=False,
             reason="ONE_SELLER" if len(uniq) == 1 else "NO_QUOTES",
             sellers=len(uniq),
+            first_party_sellers=sum(1 for q in uniq if q.first_party),
             quotes=tuple(uniq),
             denomination=denomination,
         )
@@ -217,7 +401,9 @@ def par_from_quotes(
         par_usdc=par,
         best_usdc=cheapest.price_usdc,
         best_seller=cheapest.seller,
+        best_source=cheapest.source,
         sellers=len(uniq),
+        first_party_sellers=sum(1 for q in uniq if q.first_party),
         basis=" + ".join(sources),
         quotes=tuple(uniq),
     )
@@ -288,6 +474,7 @@ def assess(
         "par_usdc": par.par_usdc,
         "best_usdc": par.best_usdc,
         "best_seller": par.best_seller,
+        "best_source": par.best_source,
         "over_par_usdc": over_par_usdc,
         "over_par_bp": over_par_bp,
         # Recoverable, because somebody is offering it at that price.
@@ -348,6 +535,7 @@ def quotes_from_catalog(catalog: dict, resource: str) -> list[Quote]:
         out.append(
             Quote(
                 seller=pay_to,
+                first_party=is_first_party(pay_to),
                 price_usdc=price,
                 source="catalog",
                 resource=resource,
@@ -389,6 +577,7 @@ def quotes_by_unit(receipts: list[dict], unit: str) -> list[Quote]:
         out.append(
             Quote(
                 seller=str(r.get("seller") or ""),
+                first_party=is_first_party(str(r.get("seller") or "")),
                 price_usdc=float(amount) / float(qty),
                 source="fill",
                 resource=str(r.get("resource") or ""),
@@ -417,6 +606,7 @@ def quotes_from_receipts(receipts: list[dict], resource: str) -> list[Quote]:
         out.append(
             Quote(
                 seller=str(r.get("seller") or ""),
+                first_party=is_first_party(str(r.get("seller") or "")),
                 price_usdc=float(amount),
                 source="fill",
                 resource=resource,

@@ -28,7 +28,7 @@ import type {
    Savings are USDC and come from a reroute, where another seller was named at
    a lower price for the same service. The index appears only as market
    context, in basis points, because `anchors/GAP.md` records its reference
-   level 20x to 1159x off real market prices: the bp is scale-invariant and the
+   level 20x to 1250x off real market prices: the bp is scale-invariant and the
    dollars would not be. Collapsing the two into one "total saved" is the one
    edit this page must never take.
 

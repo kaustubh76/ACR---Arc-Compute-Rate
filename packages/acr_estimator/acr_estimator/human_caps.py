@@ -74,7 +74,7 @@ def load_cost_per_human(path: Path | None = None) -> tuple[float, str, bool]:
     """`(usd_per_human, status, is_lower_bound)` from the anchor basket.
 
     Read from `anchors/`, never a constant here. `reference_level` is the reason:
-    it called itself nominal, nobody re-derived it, and it was 20-1159x off. A
+    it called itself nominal, nobody re-derived it, and it was 20-1250x off. A
     number that scales an entire published bound belongs where it can be audited
     and where `--check` goes red if somebody edits it without re-anchoring.
     """

@@ -9,7 +9,7 @@ play and only one of them may be denominated in dollars:
 
   MARKET CONTEXT, in basis points only, comes from ``payer_tca``, which measures
   against the ACR arrival print. ``anchors/GAP.md`` records that print's
-  reference level sitting 20x to 1159x off real market prices, so its bp figures
+  reference level sitting 20x to 1250x off real market prices, so its bp figures
   are meaningful (they are exactly scale-invariant — GAP.md re-anchored ACR-INF
   667x without the error moving) while its **USDC** figures are not.
 

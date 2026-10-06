@@ -12,7 +12,7 @@ IT CHECKS THE HONESTY PROPERTIES, not just the status codes, because a 200 on a
 page that quietly says the wrong thing is the failure that matters here:
 
   * the statement never carries `overpaid_usdc` — the index's dollar figure,
-    which `anchors/GAP.md` puts 20x to 1159x off market and which would read as
+    which `anchors/GAP.md` puts 20x to 1250x off market and which would read as
     money on an owner's page;
   * the traction payload reports mainnet and testnet apart, with no field
     adding them;
@@ -206,7 +206,7 @@ def main() -> int:
         raw = json.loads(body) or {}
         st = raw.get("data") if isinstance(raw.get("data"), dict) else raw
         check("overpaid_usdc" not in blob,
-              "the index's dollar figure is absent (anchors/GAP.md puts it 20-1159x off market)")
+              "the index's dollar figure is absent (anchors/GAP.md puts it 20-1250x off market)")
         ctx = st.get("market_context") or {}
         if ctx.get("available"):
             check("bp only" in str(ctx.get("basis", "")),

@@ -8,7 +8,7 @@ not.
 
 The claim this file exists to defend over HTTP is the same one `statement.py`
 enforces internally: `payer_tca`'s `overpaid_usdc` is a real number about a
-synthetic scale (`anchors/GAP.md` puts the index reference level 20x to 1159x
+synthetic scale (`anchors/GAP.md` puts the index reference level 20x to 1250x
 off market), so it must never reach an owner's page. Asserting it inside the
 builder is not enough — the route is what the world reads.
 """
@@ -261,7 +261,7 @@ def test_the_audit_window_is_clamped(registry):
 
 def test_the_audit_does_not_leak_the_index_dollar_figure(registry):
     """The same rule as the statement: `anchors/GAP.md` puts the index reference
-    level 20x to 1159x off market, so its dollar figure never reaches a page."""
+    level 20x to 1250x off market, so its dollar figure never reaches a page."""
     registry([ACME])
     assert "overpaid_usdc" not in client.get("/operator/audit/acme").text
 

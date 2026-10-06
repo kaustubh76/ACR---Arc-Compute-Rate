@@ -79,6 +79,17 @@ export const ENDPOINTS: EndpointRow[] = [
   // the query text lives server-side, so a caller names an operation rather
   // than sending GraphQL, and the read key is never exposed.
   { method: "GET", path: "/tca/{payer}", gate: "public", family: "market", run: null, why: "address" },
+  /* Runnable, unlike its neighbours, because every parameter is a literal a
+     probe can supply — and because the one thing worth demonstrating here is
+     that a stranger's bill gets a real answer with no onboarding at all. The
+     unit is percent-encoded: `$` and `/` are both significant in a query. */
+  {
+    method: "GET",
+    path: "/par",
+    gate: "public",
+    family: "market",
+    run: "/par?unit=%24%2F1k%20tokens&billed_usdc=0.02&quantity=10",
+  },
   /* Free like the rest of the marketplace reads, so `gate` is honestly "public":
      that field names the PAYMENT gate and nothing is charged here. What stands
      in front of it is a proof of personhood, which is why it needs a fifth

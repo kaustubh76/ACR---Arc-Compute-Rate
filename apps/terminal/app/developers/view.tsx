@@ -67,6 +67,7 @@ const DESC: Record<string, React.ReactNode> = {
   "/marketplace/catalog": <Ed x="Machine-readable listings (Bazaar-shaped)" p="The shop's listings, in a shape robots can read" />,
   "/marketplace/receipts": <Ed x="The settlement tape · recent receipts" p="The receipt roll · who paid for what" />,
   "/terminal/data": <Ed x="The human terminal feed (this site)" p="Everything this website shows, as data" />,
+  "/par": <Ed x="Price one bill against what the market is actually paying" p="See if a bill is more than the going rate" />,
   "/tca/{payer}": <Ed x="What one wallet paid, against the rate it could have seen" p="What one wallet paid, next to the fair rate at the time" />,
   "/rating/{seller}": <Ed x="A seller's grade, its parts, and how much of the scoring it covers" p="A seller's score, what went into it, and how complete it is" />,
   "/operator/traction": <Ed x="Every traction figure, computed from the rows that justify it" p="How much the money agent is really doing, counted from the records" />,

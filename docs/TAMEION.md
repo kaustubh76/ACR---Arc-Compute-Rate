@@ -330,7 +330,7 @@ flow that earned it would be the same overclaim one step further on.
 
 **PAR is observed quotes, never the published index.**
 [`anchors/GAP.md`](../anchors/GAP.md) records this project's own index reference
-levels sitting 20× to 1159× away from real market prices, deliberately frozen
+levels sitting 20× to 1250× away from real market prices, deliberately frozen
 because they seed the simulator and the tape's price pin. Measuring a real
 vendor's bill against that print reads as a ~9,990 bp discount on an invoice
 that is in fact above the going rate. So the benchmark is built from prices we

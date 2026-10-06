@@ -2,7 +2,7 @@
 
 The headline test is ``test_the_indexs_dollar_figure_never_reaches_the_owner``.
 ``payer_tca`` returns ``overpaid_usdc``, derived from slippage against the ACR
-arrival print, whose reference level ``anchors/GAP.md`` records as 20x to 1159x
+arrival print, whose reference level ``anchors/GAP.md`` records as 20x to 1250x
 off real market prices. The bp figures from that call are scale-invariant and
 fine; the USDC one is a real number about a synthetic scale, and on an owner's
 page it would read as money.

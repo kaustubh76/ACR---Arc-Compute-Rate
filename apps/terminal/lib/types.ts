@@ -901,7 +901,7 @@ export interface SpendLiquidity {
  *
  *  `market_context` is in BASIS POINTS ONLY and carries its own note. The
  *  index's USDC figure is deliberately absent upstream: `anchors/GAP.md`
- *  records its reference level 20x to 1159x off real market prices, so the bp
+ *  records its reference level 20x to 1250x off real market prices, so the bp
  *  is scale-invariant and the dollars are not. Every USDC saving here comes
  *  from a reroute, where another seller was named at a lower price. */
 export interface Statement {

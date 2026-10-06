@@ -732,3 +732,134 @@ def test_screening_required_turns_an_outage_into_an_escalation(monkeypatch):
     )
     assert d.intent == ESCALATE
     assert "counterparty unknown" in d.rule
+
+
+# --- which market a bill is judged against ---------------------------------
+#
+# Two price populations exist for one unit and they sit two orders of magnitude
+# apart: the fleet this deployment operates, priced off `IndexSpec.reference_level`
+# which `anchors/GAP.md` measures 20x to 1250x above market, and the real
+# published prices in `anchors/`. Medianing them together would produce exactly
+# the incomparable number `par.py` exists to refuse.
+
+UNIT = "$/1k tokens"
+#: THREE rows, not two, and the reason is `par.py`'s documented quirk:
+#: `weighted_median` is the 50% quantile, so on an even sample it returns the
+#: LOWER middle price — with two rows the median IS the cheapest, `par == best`,
+#: and the at-the-rate case this fixture exists to exercise can never arise.
+MARKET_ROWS = [
+    {"id": "a/cheap", "price_usd_per_unit": 0.0002, "quality": {"model_class": "mid"}},
+    {"id": "b/mid", "price_usd_per_unit": 0.0004, "quality": {"model_class": "mid"}},
+    {"id": "c/dear", "price_usd_per_unit": 0.0006, "quality": {"model_class": "mid"}},
+]
+
+
+def _anchors(tmp_path):
+    d = tmp_path / "anchors" / "ACR-INF"
+    # `exist_ok`, because the two-populations test prices twice under one
+    # tmp_path and the basket is the same both times.
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "2026-10-06.json").write_text(json.dumps({
+        "index_id": "ACR-INF", "unit": UNIT,
+        "fetched_at": "2026-10-06T00:00:00+00:00",
+        "rows": MARKET_ROWS, "missing": [],
+    }))
+    return tmp_path / "anchors"
+
+
+#: Fleet-scale fills for the same unit — three sellers around 0.5, which is
+#: `reference_level` and roughly 1250x the market rows above.
+FLEET_FILLS = [
+    {"seller": OTHER, "unit": UNIT, "quantity": 10.0, "amount_usdc": 4.8,
+     "resource": RES, "settled_at": NOW - 100},
+    {"seller": THIRD, "unit": UNIT, "quantity": 10.0, "amount_usdc": 5.2,
+     "resource": RES, "settled_at": NOW - 100},
+]
+
+
+def _priced(tmp_path, vendor, billed, monkeypatch):
+    import index_api.par as par_mod
+
+    monkeypatch.setattr(par_mod, "_ANCHOR_DIR", _anchors(tmp_path))
+    ob = _ob(vendor=vendor, billed_usdc=billed, unit=UNIT, vendor_quantity=10.0)
+    return run_obligation(
+        ob, receipts=FLEET_FILLS, catalog={}, commitment=False,
+        metered_quantity=10.0, now=NOW, log_path=str(tmp_path / "d.jsonl"),
+    )
+
+
+def test_our_own_seller_is_judged_against_our_own_fleet(tmp_path, monkeypatch):
+    """Like-for-like. A fleet bill and the fleet's quotes are pinned to the same
+    scale, so that comparison is sound inside the loop — and it is the only one
+    that is. Benchmarking it against real market prices would report every
+    settlement this project has ever made as a ~100,000 bp overpay."""
+    from index_api.par import FLEET_SELLERS
+
+    ours = sorted(FLEET_SELLERS)[0]
+    d = _priced(tmp_path, ours, 5.2, monkeypatch)
+    assert d.par_usdc is not None and d.par_usdc > 0.1, (
+        f"a fleet bill was priced against the market basket: par={d.par_usdc}"
+    )
+    assert d.par_sellers == 2
+
+
+def test_a_real_vendor_is_judged_against_real_published_prices(tmp_path, monkeypatch):
+    """RFB 3's "what the market is actually paying", and the reason `par.py`
+    exists: before the basket a real invoice had no benchmark at this scale at
+    all, and measuring it against the index read as roughly -9,990 bp."""
+    d = _priced(tmp_path, "0x" + "9a" * 20, 0.002 * 10, monkeypatch)
+    assert d.par_usdc is not None and d.par_usdc < 0.001, (
+        f"a real invoice was priced against our own fleet: par={d.par_usdc}"
+    )
+    assert d.par_sellers == 3
+
+
+def test_the_two_populations_never_land_in_one_median(tmp_path, monkeypatch):
+    """The failure this split exists to prevent. One median over both would sit
+    between 0.0006 and 4.8 — a number describing no market that exists."""
+    from index_api.par import FLEET_SELLERS
+
+    ours = _priced(tmp_path, sorted(FLEET_SELLERS)[0], 5.2, monkeypatch)
+    theirs = _priced(tmp_path, "0x" + "9a" * 20, 0.002 * 10, monkeypatch)
+    assert ours.par_sellers == 2 and theirs.par_sellers == 3, (
+        f"the two did not read different populations: {ours.par_sellers} vs {theirs.par_sellers}"
+    )
+    assert ours.par_usdc / theirs.par_usdc > 100, (
+        "the two pars are not two populations apart, so something merged them"
+    )
+
+
+def test_a_market_reference_is_never_recorded_as_a_reroute(tmp_path, monkeypatch):
+    """`openai/gpt-4o-mini` is a price a reader can check and an address nobody
+    can pay. Writing it into `reroute_to` would record a routing the wallet
+    cannot execute, and `applyReroute` would be handed a string to send USDC to."""
+    d = _priced(tmp_path, "0x" + "9a" * 20, 0.002 * 10, monkeypatch)
+    assert d.intent == ESCALATE and d.escalated is True
+    assert d.recommended_intent == REFUSE
+    assert d.reroute_to == "", f"a market reference became a payee: {d.reroute_to!r}"
+    assert "addresses we can pay" in d.rule
+    # And the rule quotes the RATE, not the cheapest row — against a basket
+    # nothing is routable, so "something cheaper exists" is not the question.
+    assert "going market rate" in d.rule
+    assert d.over_par_bp and d.over_par_bp > 0
+
+
+def test_a_bill_at_the_going_market_rate_is_not_escalated(tmp_path, monkeypatch):
+    """The bug this split fixes, measured on the real basket before it was.
+
+    Everywhere else the verdict keys off the CHEAPEST offer, because that is
+    money genuinely available somewhere we can send it. Against a market basket
+    nothing is available anywhere, so a bill priced at exactly the median was
+    escalated for being dearer than `a/cheap` — which is a different model, not
+    a better price. The basket medians mid-class rows on purpose.
+    """
+    # Median of the three rows is 0.0004; the cheapest is 0.0002. Bill at the
+    # median exactly: 5000 bp above `best`, 0 bp above the rate.
+    d = _priced(tmp_path, "0x" + "9a" * 20, 0.0004 * 10, monkeypatch)
+    # Not `!= ESCALATE`, which is what this asserted first and which PASSED on a
+    # broken implementation: falling out of the market branch dropped into the
+    # reroute below, so the bill was routed to `a/cheap` — a model id the wallet
+    # cannot pay. Assert the outcome, not the absence of one outcome.
+    assert d.intent == PAY, f"a bill at the going rate was not paid: {d.intent} — {d.rule}"
+    assert d.reroute_to == "", f"a market reference became a payee: {d.reroute_to!r}"
+    assert any("going market rate" in n for n in d.notes), d.notes
