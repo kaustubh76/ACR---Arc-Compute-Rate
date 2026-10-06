@@ -73,7 +73,7 @@ def _seller_day(**over) -> dict:
     row = {
         "day": 20660, "volume": "1000000", "bmVolume": "1000000",
         "wSlipTenthBp": "1000000000",  # 1000 tenth-bp × 1e6 volume == 100 bp
-        "humanVolume": "0", "synthVolume": "1000000", "realVolume": "0",
+        "synthVolume": "1000000", "realVolume": "0",
         "n": 25, "nAll": 25, "nStale": 0,
         "b0": 0, "b1": 0, "b2": 0, "b3": 0, "b4": 25, "b5": 0, "b6": 0,
     }
@@ -159,9 +159,9 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
         }],
         "settlements": [
             {"seller": {"id": SELLER}, "amount": "1000000",
-             "slippageTenthBp": "1880", "synthetic": True, "human": True, "index": "ACR-INF"},
+             "slippageTenthBp": "1880", "synthetic": True, "index": "ACR-INF"},
             {"seller": {"id": OTHER}, "amount": "1000000",
-             "slippageTenthBp": "-120", "synthetic": True, "human": False, "index": "ACR-INF"},
+             "slippageTenthBp": "-120", "synthetic": True, "index": "ACR-INF"},
         ],
     })
     r = tca_mod.payer_tca(PAYER)
@@ -170,10 +170,6 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
     assert r["by_seller"][0]["seller"] == SELLER  # worst first
     assert r["by_seller"][0]["vw_slippage_bp"] == pytest.approx(188.0)
     assert r["by_seller"][-1]["vw_slippage_bp"] == pytest.approx(-12.0)
-    # The human share rides beside the synthetic share, per seller, same shape.
-    # It is what lets the tape page mark a seller's row as human-backed.
-    assert r["by_seller"][0]["human_share"] == 1.0
-    assert r["by_seller"][-1]["human_share"] == 0.0
 
 
 def test_the_reroute_names_both_sides_and_calls_itself_a_suggestion(monkeypatch):
@@ -285,15 +281,14 @@ def test_the_breakdown_and_the_headline_cover_the_same_window(monkeypatch):
     v = captured["variables"]
     assert int(v["sinceTs"]) == v["since"] * 86400, "one cutoff, two spellings"
     assert v["since"] == tca_mod._day_now() - 7
-    # The human card takes the same two variables, by the same rule.
-    assert "settledAt_gte: $sinceTs" in tca_mod._HUMAN_DAYS
 
 
 def test_no_query_asks_the_graph_for_more_than_its_hard_ceiling():
     """The Graph refuses `first` above 1000 with a GraphQL error, which the client
-    reports as "the subgraph did not answer". `_HUMAN_DAYS` asked for 2000, so the
-    one endpoint a verified human proof gates answered every proof with an outage.
-    Pinned for every query string in the module."""
+    reports as "the subgraph did not answer". That is not hypothetical: a query in
+    this module once asked for 2000, so the one endpoint it served answered every
+    request with an outage message. That query is gone, the ceiling is not, and
+    this walks every query string in the module rather than naming one."""
     import re
 
     for name, text in vars(tca_mod).items():

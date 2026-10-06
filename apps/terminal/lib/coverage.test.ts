@@ -37,11 +37,11 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
-  "app/tape/view.tsx": 65, // 43 -> 66: the Sells column in both tables, seller names, and the edition-aware slippage titles
+  "app/tape/view.tsx": 64, // 65 -> 64: the People column went with the World integration
   // Both of these carried floors well under their actual counts, which is the
   // state the sellers comment below describes as a floor that has stopped
   // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 79, // incl. the two operator rows; was 80 with the human gate section
+  "app/developers/view.tsx": 77, // 79 -> 77: the unreachable human tier captions went with World
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,

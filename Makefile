@@ -14,7 +14,6 @@ help:
 	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
-	@echo "  make     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"

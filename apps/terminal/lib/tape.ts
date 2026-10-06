@@ -138,10 +138,6 @@ export interface TcaSellerRow {
   volume_share: number | null;
   n: number;
   synthetic_share: number | null;
-  /** Share of this seller's volume paid by wallets HumanIdMirror resolves to a
-   *  person in the window each settlement landed in. Same shape and the same
-   *  fold as `synthetic_share`; `null` is "no volume", never "nobody". */
-  human_share?: number | null;
 }
 
 export interface TcaCard {
@@ -181,29 +177,17 @@ export interface TapeSeller {
   latestAttestation: TapeAttestation | null;
   /** Present only on the settlement-derived directory. */
   syntheticShare?: number | null;
-  humanShare?: number | null;
-  /** Per-window rollups from the `sellers` operation. `humanVolume` is the part of
-   *  `volume` paid by wallets resolved to a person IN THAT WINDOW — which is why
-   *  the share must be read off the current window, not summed across them. */
+  /** Per-window rollups from the `sellers` operation. Distinct counts are not
+   *  associative, so they live per rotation window rather than being summed out
+   *  of the daily `SellerDay` rollups. Carried for API parity — `POST /graph/query`
+   *  exposes the same selection to an agent — and not read by this app. */
   windows?: SellerWindow[];
 }
 
 export interface SellerWindow {
   window: string | number;
   volume: Big;
-  humanVolume: Big;
   distinctPayers?: number;
-  distinctHumans?: number;
-}
-
-/** The human share of a seller's volume for ONE window, or null when that window
- *  has no volume. Null, not zero: a seller nobody bought from this week has not
- *  been measured, and "not measured" must not render as "no humans". */
-export function humanShareInWindow(windows: SellerWindow[] | undefined, window: number): number | null {
-  const w = (windows ?? []).find((x) => Number(x.window) === window);
-  if (!w) return null;
-  const vol = Number(w.volume) || 0;
-  return vol > 0 ? (Number(w.humanVolume) || 0) / vol : null;
 }
 
 export interface TapeMeta {
@@ -239,7 +223,6 @@ export interface TapeRecentRow {
   seller: string;
   settledAt: number;
   amountUsdc: number;
-  human: boolean;
 }
 
 export interface TapeData {
@@ -261,34 +244,6 @@ export interface TapeData {
   terms?: Record<string, SellerTerms>;
 }
 
-/** The `human_depth` rating component — who traded here, counted in PEOPLE.
- *
- * Three states, and collapsing any two of them is the bug this models around:
- *
- *   absent            no resolved human has traded with this seller yet. The
- *                     press omits the key entirely (`elif win_humans > 0`), so
- *                     `undefined` here means "not measured", never "zero people".
- *   available: false  a window longer than the 7-day rotation was asked for, and
- *                     human counts cannot be summed across windows. Carries why.
- *   available: true   measured, for ONE rotation window.
- *
- * `sandbox_humans` rides along for the same reason `synthetic_share` does: a
- * count that cannot be discounted gets read as more than it is, and every demo
- * identity here is a World ID Sandbox identity rather than an Orb-verified
- * person. */
-export interface HumanDepth {
-  available: boolean;
-  reason?: string;
-  score?: number | null;
-  distinct_humans?: number;
-  distinct_payers?: number;
-  sandbox_humans?: number;
-  sandbox_share?: number | null;
-  human_volume_share?: number | null;
-  window?: number;
-  window_days?: number;
-}
-
 export interface SellerRating {
   available: boolean;
   reason?: string;
@@ -301,48 +256,10 @@ export interface SellerRating {
   volume_usdc?: number;
   synthetic_share?: number | null;
   histogram?: BucketRow;
-  /** Per-component detail. Only `human_depth` is read here; the rest exist. */
-  components?: { human_depth?: HumanDepth };
-}
-
-/** What a cell should SAY about human depth, as a decision rather than a render.
- *
- * MEASURED AGAINST THE LIVE PRESS, not assumed from reading the branch. The key
- * is ALWAYS present — `tca.py` has an `else` that reports
- * `available:false, "no human resolutions on the tape for this window"` — so a
- * model built on "absent means nobody" would have had a state that never fires
- * and a label that was wrong about the one that does. What actually varies is
- * whether a count exists, and the press's own reason says why when it does not:
- *
- *   count       available, and at least one resolved person bought here
- *   unmeasured  everything else, carrying the press's reason verbatim
- *
- * Two states, because that is how many there are. The reason is never synthesised
- * here: "nobody has bought here yet" and "this window cannot be summed" are the
- * press's distinctions to draw, and inventing our own phrasing for them is how a
- * surface starts disagreeing with the service behind it. */
-export type HumanCell =
-  | { kind: "unmeasured"; note: string }
-  | { kind: "count"; humans: number; payers: number | null; allSandbox: boolean };
-
-const NOT_MEASURED = "no verified-person count for this seller";
-
-export function humanCell(rating: SellerRating | undefined): HumanCell {
-  const hd = rating?.components?.human_depth;
-  if (hd == null) return { kind: "unmeasured", note: NOT_MEASURED };
-  if (!hd.available) return { kind: "unmeasured", note: hd.reason ?? NOT_MEASURED };
-  const humans = Number(hd.distinct_humans ?? 0);
-  // A present-but-zero count is still not a count. Rendering "0 people" would
-  // claim we looked and found nobody, which is a different fact from the press
-  // declining to measure.
-  if (!Number.isFinite(humans) || humans <= 0) {
-    return { kind: "unmeasured", note: hd.reason ?? NOT_MEASURED };
-  }
-  const sandbox = Number(hd.sandbox_humans ?? 0);
-  const payers = Number.isFinite(Number(hd.distinct_payers))
-    ? Number(hd.distinct_payers)
-    : null;
-  return { kind: "count", humans, payers, allSandbox: humans > 0 && sandbox === humans };
+  /** Per-component detail. The press scores fairness, cleanliness and
+   *  attestation freshness; nothing here reads the breakdown, so it is typed as
+   *  opaque rather than as a shape this file would have to keep in step. */
+  components?: Record<string, unknown>;
 }
 
 /** One row of the `settlements` operation — the tape at its finest grain. */
@@ -355,10 +272,6 @@ export interface TapeSettlement {
   synthetic: boolean;
   /** Unix seconds, from the mirror. Optional: an older index answer may lack it. */
   settledAt?: Big;
-  /** Stamped at finalize by the subgraph (mirror.ts) — true when the payer had a
-   *  cluster for the window the settlement landed in. Optional because an older
-   *  index answer may predate the field; absent reads as false, never as true. */
-  human?: boolean;
   /** The index the mirror recorded it under — `ACR-INF`, or `ACR-QUERY` for the
    *  press's own paid endpoints. Optional: an older answer may lack it. */
   index?: string;
@@ -377,9 +290,9 @@ export interface TapeSettlement {
  *
  *  This is the FOURTH copy of a table whose source of truth is
  *  `packages/acr_core/acr_core/indices.py` (`unit=` on each index). tape.test.ts
- *  reads the first three off that file and asserts they match, the way
- *  RATING_WINDOW_S is pinned to HumanIdMirror.sol — a unit that drifted here would
- *  label a seller's price in the wrong denomination under a live block number.
+ *  reads the first three off that file and asserts they match — a unit that
+ *  drifted here would label a seller's price in the wrong denomination under a
+ *  live block number.
  *  `ACR-QUERY` is the press's own: one paid query, so `$/query`. */
 export const UNIT_BY_INDEX: Record<string, string> = {
   "ACR-INF": "$/1k tokens",
@@ -465,19 +378,18 @@ export function sellerLabel(
 export function sellersFromSettlements(rows: TapeSettlement[]): (TapeSeller & { vw_slippage_bp: number | null })[] {
   const acc = new Map<
     string,
-    { vol: number; bmVol: number; weighted: number; n: number; payers: Set<string>; synth: number; human: number }
+    { vol: number; bmVol: number; weighted: number; n: number; payers: Set<string>; synth: number }
   >();
   for (const r of rows ?? []) {
     const id = r?.seller?.id;
     if (!id) continue;
     const amount = Number(r.amount) || 0;
     const e =
-      acc.get(id) ?? { vol: 0, bmVol: 0, weighted: 0, n: 0, payers: new Set<string>(), synth: 0, human: 0 };
+      acc.get(id) ?? { vol: 0, bmVol: 0, weighted: 0, n: 0, payers: new Set<string>(), synth: 0 };
     e.vol += amount;
     e.n += 1;
     if (r.payer?.id) e.payers.add(r.payer.id);
     if (r.synthetic) e.synth += amount;
-    if (r.human) e.human += amount;
     if (r.benchmarked && r.slippageBp !== null && r.slippageBp !== undefined) {
       e.bmVol += amount;
       e.weighted += amount * Number(r.slippageBp);
@@ -496,7 +408,6 @@ export function sellersFromSettlements(rows: TapeSettlement[]): (TapeSeller & { 
     // reduction — hence not bpFromWeighted.
     vw_slippage_bp: e.bmVol > 0 ? e.weighted / e.bmVol : null,
     syntheticShare: e.vol > 0 ? e.synth / e.vol : null,
-    humanShare: e.vol > 0 ? e.human / e.vol : null,
   }));
 }
 
@@ -526,7 +437,6 @@ export function recentForPayer(rows: TapeSettlement[], payer: string | null, n =
       seller: r.seller!.id.toLowerCase(),
       settledAt: Number(r.settledAt),
       amountUsdc: usdc6(r.amount) ?? 0,
-      human: Boolean(r.human),
     }))
     .sort((a, b) => b.settledAt - a.settledAt)
     .slice(0, n);

@@ -1759,7 +1759,6 @@
     "registry_address": "0x13CF727d1D25283d58Efe7647dCf30e9cE255096",
     "futures_address": "0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b",
     "attestor_address": "0xB9508caD4A5C367C3a62B6767C4837a607EaA490",
-    "humanid_address": "0x7134622a01Add334eA306dDa5A5877b418a940B5",
     "gate": "dev",
     "tape_source": "sim",
     "signer": "0x1547B0d3C334F264D28B087566B512AB5CD85379",

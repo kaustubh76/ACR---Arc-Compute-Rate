@@ -30,17 +30,15 @@ interface ProbeResult {
   /** Only /agent/whoami answers with one. Parsed server-side so the page does not
    *  read it back out of a truncated preview string. */
   tier?: string;
-  /** What the budget is keyed on: `agent-key` or `human-cluster`. */
+  /** What the budget is keyed on, as the gate reports it. */
   ident_kind?: string;
-  /** The gate's reason when a human claim stayed `carded`. */
-  human_note?: string;
   /** Whether a card was sent at all — so a 401 reads as "card refused". */
   carded?: boolean;
 }
 
-/** The three ways to run /agent/whoami, and the key each result is stored under.
- *  Three slots rather than one, so a reader can see anonymous, carded and human
- *  side by side — the comparison IS the demonstration. */
+/** The two ways to run /agent/whoami, and the key each result is stored under.
+ *  Two slots rather than one, so a reader can see anonymous and carded side by
+ *  side — the comparison IS the demonstration. */
 type CardSlot = "" | "#card";
 
 const TIER_CHIP: Record<string, string> = { anonymous: "chip chip-sim", carded: "chip chip-teal" };
@@ -540,7 +538,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                               )}
                             </td>
                           </tr>
-                          {(["", "#card", "#human"] as CardSlot[]).map((slot) => {
+                          {(["", "#card"] as CardSlot[]).map((slot) => {
                             const o = slot === "" ? out : probeOut[e.path + slot];
                             if (!o) return null;
                             return (
@@ -561,8 +559,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                           {o.truncated ? " · preview" : ""}
                                         </span>
                                         {/* The tier, as a badge, because this row exists to make the
-                                            three tiers visible next to each other. The sentence after
-                                            it is the one the human tier was built to say. */}
+                                            tiers visible next to each other rather than described. */}
                                         {o.carded && o.status === 401 ? (
                                           <>
                                             {" "}
@@ -581,17 +578,9 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                             {o.ident_kind ? <span className="muted mono"> · {o.ident_kind}</span> : null}{" "}
                                             <span className="muted">
                                               {/* Captions follow the TIER the gate granted, not the button
-                                                  pressed: a human claim the chain could not confirm comes
-                                                  back `carded`, and the gate's own reason is the sentence
-                                                  to show, not the one we hoped to. */}
-                                              {o.tier === "human" ? (
-                                                <Ed x="a wallet the chain ties to a person: one budget for every wallet they own" p="a wallet the chain knows belongs to a person, so it shares one allowance with their other wallets" />
-                                              ) : o.tier === "carded" && o.human_note ? (
-                                                <>
-                                                  <Ed x="the key is yours; the human claim was declined: " p="the ID card is real, but the real-person claim was turned down: " />
-                                                  {o.human_note}
-                                                </>
-                                              ) : o.tier === "carded" ? (
+                                                  pressed — the gate is the authority on what it granted,
+                                                  and anything else here would be the caption we hoped for. */}
+                                              {o.tier === "carded" ? (
                                                 <Ed x="signed in this tab, with a key that dies with it" p="an ID card made right here, thrown away after" />
                                               ) : o.tier === "anonymous" ? (
                                                 <Ed x="no card, so the shared ceiling" p="no ID card, so the limit everyone shares" />

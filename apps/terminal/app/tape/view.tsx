@@ -12,7 +12,6 @@ import {
   bucketTotal,
   byWorstFirst,
   followedReroute,
-  humanCell,
   usdc6,
 } from "@/lib/tape";
 import type { SellerRating, SellerTerms, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
@@ -110,17 +109,6 @@ function PayerField({
   );
 }
 
-/** How many PEOPLE bought here, when that is a thing we know.
- *
- *  `humanCell` decides, this only renders. The split exists because "0 people"
- *  and "we did not count" are different facts, and a ternary inside a table cell
- *  is where they quietly become one. The dash carries the press's own reason as
- *  its title rather than a phrasing invented here. */
-/** The page's one chip style, reused: a seller whose volume is partly paid by
- *  wallets the chain ties to a person. Rendered only when the share is above zero,
- *  because zero here means "not measured", never "nobody" (same rule `humanCell`
- *  keeps). The share rides in the title rather than the cell: this is a classifier
- *  tag, like `sim`, not a new column. */
 /** The evidence under the suggestion: the payer's newest purchases, with the
  *  suggested seller and the one to leave marked, and ONE sentence chosen from the
  *  data. "The buyer acted on its own bill" is the claim the whole loop rests on,
@@ -179,36 +167,6 @@ function RerouteEvidence({
         })}
       </div>
     </div>
-  );
-}
-
-function HumanCell({ rating }: { rating: SellerRating | undefined }) {
-  const cell = humanCell(rating);
-  if (cell.kind === "unmeasured") {
-    return (
-      <span className="muted" title={cell.note}>
-        —
-      </span>
-    );
-  }
-  return (
-    <span>
-      <span className="mono num">
-        {cell.humans}
-        {cell.payers != null ? (
-          <span className="muted">/{cell.payers}</span>
-        ) : null}
-      </span>
-      {cell.allSandbox ? (
-        <span
-          className="chip chip-sim"
-          style={{ marginLeft: 6 }}
-          title="Every one of these is a World ID Sandbox identity, not an Orb-verified person."
-        >
-          sim
-        </span>
-      ) : null}
-    </span>
   );
 }
 
@@ -530,9 +488,6 @@ export function TapeView() {
                     <th style={{ textAlign: "right" }}>
                       <Ed x="Ours" p="Our own money" />
                     </th>
-                    <th style={{ textAlign: "right" }}>
-                      <Ed x="People" p="Verified people" />
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,9 +519,6 @@ export function TapeView() {
                         {r.synthetic_share === null
                           ? "…"
                           : `${(r.synthetic_share * 100).toFixed(0)}%`}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <HumanCell rating={ratings[r.seller.toLowerCase()]} />
                       </td>
                     </tr>
                   ))}

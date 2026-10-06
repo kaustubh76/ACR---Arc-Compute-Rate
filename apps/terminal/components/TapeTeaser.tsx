@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Ed } from "./Ed";
 import { Term } from "./Term";
-import { bp, followedReroute, humanCell, type TcaCard } from "@/lib/tape";
+import { bp, followedReroute, type TcaCard } from "@/lib/tape";
 import { useTape } from "@/lib/useLive";
 
 /* The tape, on the landing page. Sibling of FuturesTeaser, same shape: a head
@@ -36,11 +36,6 @@ export function TapeTeaser() {
   const live = Boolean(tape?.live);
   const recent = data?.recent ?? [];
   const followed = followedReroute(recent, tca.reroute);
-  // People, not wallets: the most any one seller was bought from by distinct
-  // verified humans this week. A count the tape measures, or nothing.
-  const cells = Object.values(data?.ratings ?? {}).map(humanCell);
-  const humans = cells.reduce((m, c) => (c.kind === "count" ? Math.max(m, c.humans) : m), 0);
-  const allSandbox = cells.every((c) => c.kind !== "count" || c.allSandbox);
 
   return (
     <section className="section">
@@ -93,17 +88,6 @@ export function TapeTeaser() {
         {followed === "followed" ? (
           <span className="chip chip-teal">
             <Ed x="the buyer followed it" p="the robot switched" />
-          </span>
-        ) : null}
-        {humans > 0 ? (
-          <span className="mono">
-            <b style={{ color: "var(--gold)" }}>{humans}</b>{" "}
-            <span className="muted">
-              <Ed
-                x={allSandbox ? "verified people behind one seller · sandbox" : "verified people behind one seller"}
-                p={allSandbox ? "real people behind one seller · test accounts" : "real people behind one seller"}
-              />
-            </span>
           </span>
         ) : null}
       </div>

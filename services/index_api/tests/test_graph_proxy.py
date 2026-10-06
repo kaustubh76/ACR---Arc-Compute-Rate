@@ -79,9 +79,26 @@ def test_an_unset_subgraph_says_so_rather_than_returning_empty_data():
     assert out["available"] is False and "unset" in out["reason"]
 
 
-def test_the_tape_read_carries_the_human_stamp():
-    """`Settlement.human` is the field the whole human-depth component rests on, and
-    the public tape read selected every row field EXCEPT it. A reader of the proxy
-    saw `None`, and `None` is how a gate that should have read `true` reported
-    `false` on 2026-09-12. Pinned so it cannot fall out again."""
-    assert " human " in graph_proxy.OPERATIONS["settlements"].replace("\n", " ")
+def test_the_tape_read_selects_every_column_its_readers_use():
+    """A selection set that quietly loses a column does not fail — it returns
+    `None`, which is indistinguishable from a real zero or false. That is not
+    hypothetical here: `Settlement.human` fell out of this very query and a gate
+    that should have read `true` reported `false` on 2026-09-12.
+
+    That field is gone with the World integration, but the hazard it taught is
+    not, so the guard now pins the columns the tape still renders. `tca.py` and
+    `apps/terminal/lib/tape.ts` both key off these names; losing one would show
+    up as a blank cell rather than an error."""
+    q = graph_proxy.OPERATIONS["settlements"].replace("\n", " ")
+    for field in (
+        "amount",
+        "quantity",
+        "unitPrice",
+        "benchmarked",
+        "slippageBp",
+        "arrivalValue",
+        "staleArrival",
+        "synthetic",
+        "settledAt",
+    ):
+        assert f" {field} " in q, f"the tape read stopped selecting {field}"

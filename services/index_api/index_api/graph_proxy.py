@@ -40,7 +40,7 @@ OPERATIONS: dict[str, str] = {
         settlements(orderBy: settledAt, orderDirection: desc, first: $first) {
           id index payer { id } seller { id } amount quantity unitPrice
           benchmarked unbenchmarkedReason slippageBp arrivalValue arrivalAgeSeconds
-          staleArrival synthetic human settledAt mirrorLagSeconds
+          staleArrival synthetic settledAt mirrorLagSeconds
         }
       }
     """,
@@ -59,20 +59,12 @@ OPERATIONS: dict[str, str] = {
         }
       }
     """,
-    "humans": """
-      query Humans($first: Int!) {
-        humanClusters(orderBy: walletCount, orderDirection: desc, first: $first) {
-          id window sandbox walletCount firstSeen
-          wallets { id totalVolume settlementCount }
-        }
-      }
-    """,
     "sellers": """
       query Sellers($first: Int!) {
         sellers(orderBy: totalVolume, orderDirection: desc, first: $first) {
           id totalVolume benchmarkedVolume settlementCount distinctPayers
           latestAttestation { modelClass latencySloMs blockTime }
-          windows { window distinctPayers distinctHumans volume humanVolume }
+          windows { window distinctPayers volume }
         }
       }
     """,

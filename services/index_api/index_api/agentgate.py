@@ -56,7 +56,6 @@ CHALLENGE_HEADER = "AGENT-CARD-REQUIRED"
 
 TIER_ANON = "anonymous"
 TIER_CARDED = "carded"
-TIER_HUMAN = "human"
 
 
 class AgentCardRequired(HTTPException):
@@ -219,8 +218,7 @@ class AgentGate:
             "roles": list(ROLES),
             "max_ttl_seconds": MAX_TTL_S,
             "clock_skew_seconds": CLOCK_SKEW_S,
-            "tiers": [TIER_ANON, TIER_CARDED, TIER_HUMAN],
-            # Whether the human tier is REACHABLE here. A gate that cannot check
+            "tiers": [TIER_ANON, TIER_CARDED],
             "cards_verified": self.verified,
         }
 

@@ -16,10 +16,13 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY packages/ packages/
 COPY services/ services/
-# The human-denominated bound's basket (anchors/_basket/C-HUMAN.json). Without it
-# `human_caps` raises FileNotFoundError, the pipeline swallows that into None, and
-# every ACROracleV2 print is posted with humanAdjustedBound = 0 — which is what
-# production did for a month while the same code computed ~$10 locally.
+# The reference levels and the market baskets (anchors/). `par.market_basket`
+# reads them at request time and `anchors-check` gates them, so a cheap way to
+# ship a broken image is to leave this out: the basket then reports ABSENT, every
+# bill falls back to fleet quotes, and nothing errors. The failure is a quieter
+# benchmark, not a crash — which is exactly how it went unnoticed once before,
+# when an image without this directory posted a bound of 0 for a month while the
+# same code computed a real figure locally.
 COPY anchors/ anchors/
 
 # `--extra circle` pulls the Circle Developer-Controlled Wallets SDK so the oracle

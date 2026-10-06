@@ -16,9 +16,10 @@ import { privateKeyToAddress } from "viem/accounts";
  * that package throws under plain Node, which would put the derivation beyond
  * the reach of `npm test`, and the CI assertion is the most valuable thing in
  * this file. registryCodec.ts sits in the same position for the same reason.
- * The protection is instead: only app/api/registry/keys/route.ts imports this,
- * the view imports its payload type from lib/types.ts, and the build check
- * greps .next/static for @noble/curves.
+ * The protection is instead: every importer is a server route or a test — the
+ * claim used to name app/api/registry/keys/route.ts as the only one and had
+ * already drifted — and the build check greps .next/static for @noble/curves,
+ * which is the check that actually holds rather than the sentence.
  *
  * The derived private keys never leave this function. They are testnet-only,
  * hold nothing, and are already public — the labels and the derivation are both
