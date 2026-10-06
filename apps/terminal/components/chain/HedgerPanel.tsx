@@ -19,8 +19,8 @@
  * own `.section-head` directly beneath ANOTHER `.section-head` in the page —
  * two hairlines and two gold accent bars, 56px apart, for one subject — while
  * its own two-address sub-part sat inside a `.panel`, so the part had a card
- * and the whole did not. It IS the card now, and app/exchange/view.tsx gives it
- * a bare `.section` wrapper exactly as it already does for WalletPanel.
+ * and the whole did not. It IS the card now, and ShopFloor gives it a bare
+ * `.section` wrapper exactly as it already does for WalletPanel.
  *
  * Built from the house vocabulary rather than its own: `.lab-counters` for the
  * headline figures (the shape a panel uses for figures), `.provenance-row`

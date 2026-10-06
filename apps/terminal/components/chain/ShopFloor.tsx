@@ -82,7 +82,25 @@ function salesFor(resource: string, receipts: MarketReceipt[] | undefined): Mark
   return (receipts ?? []).filter((r) => r.resource && pathOf(r.resource) === path);
 }
 
-export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
+/* The shop floor: listings, the receipts tape, the house buyer and the hedger.
+ *
+ * This was `/exchange`, a top-level route reachable from the masthead and from
+ * NOWHERE else in the app — no page linked to it. It now sits under /curve,
+ * below the desk, because the order reads: you read a price, then you buy at it.
+ *
+ * MOUNTED ONLY WHEN OPENED, and that is not cosmetic. Between them these
+ * sections poll /marketplace/receipts every 5s and /api/circle/balances every
+ * 12s; /curve already polls /api/futures every 4s. `<details>` HIDES without
+ * unmounting, so putting this behind one would have run every ticker for every
+ * reader of the curve page, against a press on a free tier. The parent renders
+ * it on open instead, so a closed disclosure costs nothing.
+ *
+ * It still calls `useTerminal(initial)` rather than taking `env` as a prop: SWR
+ * dedupes on the key, so the second call is free and the sections keep their own
+ * per-envelope `live` flags, which is what lets each one be honest about its own
+ * freshness rather than inheriting the page's.
+ */
+export function ShopFloor({ initial }: { initial: Envelope<TerminalData> }) {
   const env = useTerminal(initial);
   const catalog = useCatalog();
   const { tape } = useMarketReceipts();
@@ -851,8 +869,13 @@ export function ExchangeView({ initial }: { initial: Envelope<TerminalData> }) {
 
       {/* The loop this page argues for, actually closed. Everything above is a
           machine BUYING the print; this is the machine that then trades a real
-          on-chain future on what it read. useHedger shares its SWR key with
-          /curve, so mounting it here costs no extra request.
+          on-chain future on what it read.
+
+          This comment used to claim `useHedger` shared its SWR key with /curve,
+          "so mounting it here costs no extra request". That was false: /curve
+          never called useHedger — it was moved OFF that page in 2026-08-07. The
+          mount needs no such excuse. It is one request on a section a reader
+          opened deliberately.
 
           One head, not two. HedgerPanel carries its own `.section-head` inside
           its card — the WalletPanel mount 200 lines up is built the same way —

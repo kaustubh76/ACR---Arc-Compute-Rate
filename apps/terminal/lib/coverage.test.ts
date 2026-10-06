@@ -29,8 +29,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // the sellers/developers comments below call a floor that stopped holding.
   "app/index/[id]/view.tsx": 30,
   "app/attack/view.tsx": 10,
-  "app/curve/view.tsx": 5,
-  "app/exchange/view.tsx": 12,
+  "app/curve/view.tsx": 16, // 5 -> 16: measured, plus the shop-floor disclosure
   // Was 8 against an actual 15 — a floor that had stopped holding anything,
   // which is part of why this page's attestation copy rotted unnoticed.
   // The tape: every figure is a measurement of how well an agent traded, so
@@ -94,6 +93,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // dual-renders, and the "what would answer this" line has three backends.
   "components/chain/AgentCardSnippet.tsx": 12,
   "components/chain/McpSnippet.tsx": 7,
+  // The shop floor, folded in from the old /exchange route. Rendered only when
+  // its disclosure is open, so a reader of /curve does not pay for its tickers.
+  "components/chain/ShopFloor.tsx": 42,
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,
@@ -113,7 +115,6 @@ const EXEMPT: Record<string, string> = {
   "app/loading.tsx": "skeleton vocabulary is edition-neutral by design",
   "app/attack/loading.tsx": "skeleton",
   "app/curve/loading.tsx": "skeleton",
-  "app/exchange/loading.tsx": "skeleton",
   "app/tape/loading.tsx": "skeleton",
   "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
@@ -126,7 +127,6 @@ const EXEMPT: Record<string, string> = {
   "app/loop/page.tsx": "metadata only",
   "app/loop/loading.tsx": "skeleton",
   "app/curve/page.tsx": "metadata only",
-  "app/exchange/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",

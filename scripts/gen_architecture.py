@@ -326,7 +326,7 @@ def build() -> None:
           "verify+settle · exact · x402Version 2 · fail-closed",
           "durable receipts_live.jsonl (in image) · /revenue rounded 6dp"], PURPLE, body_size=11)
     card("e_term", 1660, 1302, 510, 190, "ACR TERMINAL (Next.js · 'Arc Dawn')",
-         ["editorial 'The Fixing' · /curve /exchange /companion", "/spend /traction · operator statement · beancount + audit",
+         ["editorial 'The Fixing' · /curve /companion /developers", "/spend /traction · operator statement · beancount + audit",
           "PublicDesk · FuturesDesk · FuturesTape · QuoteCorridor",
           "ChainFactsStrip · OracleProvenance · FinalityBadge", "SWR live polling · apps/terminal"], PURPLE)
 

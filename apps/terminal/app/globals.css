@@ -2933,7 +2933,7 @@ html[data-edition-turn] .plain-only {
 }
 
 /* WalletFunding: the one-next-step row under a wallet (developers console,
-   /exchange listing). Steps are the bridge's progress, one line each. */
+   shop-floor listing). Steps are the bridge's progress, one line each. */
 .wallet-funding select {
   font: inherit;
   padding: 2px 6px;
