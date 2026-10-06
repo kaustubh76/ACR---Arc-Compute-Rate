@@ -98,7 +98,7 @@ _GATEWAY_REF = re.compile(
 
 GATED = ["/prints/ACR-INF", "/curve/ACR-INF", "/vol/ACR-INF", "/seller-scores/ACR-INF"]
 UNGATED = ["/onchain/ACR-INF", "/marketplace/catalog", "/revenue", "/x402/info"]
-ROUTES = ["/", "/curve", "/developers", "/sellers"]
+ROUTES = ["/", "/curve", "/developers"]
 
 _failures: list[str] = []
 _warnings: list[str] = []

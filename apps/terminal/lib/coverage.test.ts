@@ -33,7 +33,6 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/exchange/view.tsx": 12,
   // Was 8 against an actual 15 — a floor that had stopped holding anything,
   // which is part of why this page's attestation copy rotted unnoticed.
-  "app/sellers/view.tsx": 44,
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
@@ -83,6 +82,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
   "components/chain/ContractRegister.tsx": 9, // seven glosses, the custody note, the sim tape line
+  // The chain-read proof, re-homed off /sellers when that page went: the
+  // button, its explanation, and the two labels on the result.
+  "components/chain/RegistryProof.tsx": 4,
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,
@@ -112,7 +114,6 @@ const EXEMPT: Record<string, string> = {
   "app/attack/loading.tsx": "skeleton",
   "app/curve/loading.tsx": "skeleton",
   "app/exchange/loading.tsx": "skeleton",
-  "app/sellers/loading.tsx": "skeleton",
   "app/tape/loading.tsx": "skeleton",
   "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
@@ -126,7 +127,6 @@ const EXEMPT: Record<string, string> = {
   "app/loop/loading.tsx": "skeleton",
   "app/curve/page.tsx": "metadata only",
   "app/exchange/page.tsx": "metadata only",
-  "app/sellers/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",

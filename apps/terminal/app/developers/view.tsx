@@ -8,6 +8,7 @@ import { McpSnippet } from "@/components/chain/McpSnippet";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
 import { ContractRegister } from "@/components/chain/ContractRegister";
+import { RegistryProof } from "@/components/chain/RegistryProof";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
@@ -314,6 +315,10 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           </a>
         </div>
         <ContractRegister chain={env.data.chain} oracleFallback={env.data.oracle} />
+        {/* Re-homed from /sellers when that page was removed. The register above
+            states these addresses; this one asks the chain whether we are still
+            talking to it. */}
+        <RegistryProof />
       </section>
 
       <section className="section">

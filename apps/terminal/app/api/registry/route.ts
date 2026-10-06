@@ -5,7 +5,7 @@ import { freshHeaders, readStatus } from "@/lib/readResult";
 
 /* GET /api/registry — the chain's own answer, on demand.
  *
- * Every other number on /sellers reaches the page through the Python press.
+ * Every other address on /developers reaches the page through the Python press.
  * This one does not: it is what the reader gets when they press "read it from
  * the chain", and its whole product is that the answer is fresh and stamped
  * with a block height. So it is deliberately NOT memoized and NOT cached on

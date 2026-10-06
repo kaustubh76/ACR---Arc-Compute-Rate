@@ -25,7 +25,7 @@ test("the freshness window matches the contract it copies", () => {
   );
 
   /* Same discipline, worse bug. AttestationRegistry documents its own uint8
-     encodings in the struct, and /sellers now prints those codes beside the
+     encodings in the struct, and the register prints those codes beside the
      names it maps them to. Reorder the Solidity and NOTHING breaks: no throw,
      no empty, just "gpu" where the chain said "inference" — under a live block
      number that makes it look checked. Bind the tables to their source.
@@ -54,7 +54,7 @@ test("the freshness window matches the contract it copies", () => {
   assert.equal(schemaFromBytes32("0x" + "00".repeat(32)), "");
 
   /* The seller-key derivation, end to end and offline.
-     /sellers rebuilds all four addresses from the labels below and ticks them
+     the tape rebuilds all four addresses from the labels below and ticks them
      against the registry. Get the labels or the prefix wrong and it does not
      throw: it derives four perfectly valid addresses that are in no registry,
      turns every tick into a cross, and the page reads as though the sellers had

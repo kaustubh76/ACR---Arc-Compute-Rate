@@ -3,7 +3,7 @@ import { privateKeyToAddress } from "viem/accounts";
 
 /* Reproducing the four demo sellers' addresses from the labels in this repo.
  *
- * /sellers used to CLAIM this in a sentence: "each key is sha256 of a label in
+ * The removed /sellers page used to CLAIM this in a sentence: "each key is sha256 of a label in
  * demo_sellers.py, so anyone holding this repo can reproduce all four
  * addresses." A sentence is not a proof, and that whole disclosure was three
  * paragraphs of English under a card of real numbers. This module performs the
