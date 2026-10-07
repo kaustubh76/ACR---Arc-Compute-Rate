@@ -8,6 +8,8 @@
   "rule": {
     "aggregate": "median",
     "trim": 0.0,
+    "min_priced": 3,
+    "min_priced_note": "How many rows must actually carry a price. A ratchet, like the anchor's own `ceiling`: the basket has thinned before, ACR-INF going from 6 to 5 priced of 10 requested with no signal anywhere, and `par.Basket.usable` sends a stranger's bill to the FLEET scale once a basket stops being usable \u2014 a scale anchors/GAP.md puts 20x to 1250x off market. Lower it deliberately in a commit, or fix the fetch.",
     "unit_conversion": "usd_per_gb / 1000",
     "note": "Decimal GB, as sold and as billed."
   },

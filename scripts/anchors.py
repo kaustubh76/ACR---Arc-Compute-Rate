@@ -19,12 +19,23 @@ derives size, so every bp-denominated quality metric is exactly scale-invariant.
 
 **What --check asserts is that the gap is DECLARED, not that it is small.** A
 test that fails on a 1000x gap is red forever and teaches its operator to ignore
-it. So it checks three things that can each go wrong silently: that every index
+it. So it checks five things that can each go wrong silently: that every index
 has an anchor at all; that the `reference_level` the anchor was measured against
 is still the one in `indices.py` (this goes red the moment someone edits that
-file without re-anchoring); and that the declared ratio recomputes from the
-file's own rows. The size of the gap is held by a ratchet — widening fails,
-narrowing is re-blessed by lowering the ceiling.
+file without re-anchoring); that the declared ratio recomputes from the file's
+own rows; that enough of the basket actually PRICED; and that the anchor is not
+old enough for `/par` to stop trusting it. The size of the gap is held by a
+ratchet — widening fails, narrowing is re-blessed by lowering the ceiling.
+
+The last two were added after the first three stayed green through a real
+regression. ACR-INF had lost five of its ten rows — every Anthropic, Google and
+Mistral model in the basket — and the gap was still declared and still
+recomputed, because both of those are properties of the rows that remain. What
+makes coverage and age load-bearing rather than tidy is `par.Basket.usable`:
+when a basket is unusable or stale, `/par` prices a stranger's bill against the
+FLEET's own quotes instead, a scale this file's own GAP.md puts 20x to 1250x off
+market. The failure is not a missing number. It is a confident wrong one, on the
+endpoint whose entire claim is that it compares you to somebody else.
 """
 
 from __future__ import annotations
@@ -40,7 +51,18 @@ from pathlib import Path
 
 from acr_core import ALL_INDEX_IDS, spec_for
 
+# The two numbers the SERVING path uses, imported rather than restated. `par`
+# decides what counts as a market and when a basket stops being a price; a
+# second copy of either here would be free to drift from the one that acts.
+from index_api.par import ANCHOR_MAX_AGE_S, MIN_SELLERS
+
 ANCHOR_SCHEMA = "acr.anchor/1"
+#: How much of `ANCHOR_MAX_AGE_S` may elapse before `--check` goes red. Under 1
+#: on purpose: at the cliff itself `/par` has ALREADY begun pricing outsiders
+#: against our own fleet, so a gate that fires there reports a fortnight of
+#: wrong answers instead of preventing them. 0.8 of 30 days is about six days
+#: of warning.
+AGE_WARN_FRACTION = 0.8
 #: Bumped when the aggregation RULE changes, like POLICY_VERSION in cleaning.py.
 #: One idiom in this repo for "the rule moved", not two.
 TOOL_VERSION = 1
@@ -313,7 +335,104 @@ def check_anchors(indices=ALL_INDEX_IDS) -> list[str]:
         if declared is not None and ceiling is not None and declared > ceiling:
             fails.append(f"{index_id}: gap {declared:.1f} widened past its ceiling "
                          f"{ceiling} — re-anchor, or raise the ceiling deliberately")
+        fails += _check_coverage(index_id, doc)
+        fails += _check_age(index_id, doc)
     return fails
+
+
+def _check_coverage(index_id: str, doc: dict) -> list[str]:
+    """How much of the basket actually priced — which nothing asserted.
+
+    Measured 2026-10-07: ACR-INF carried 5 priced rows of 10 requested, down
+    from 6, and every one of the five that dropped out was an Anthropic, Google
+    or Mistral model. `--check` was green throughout. It checks that the gap is
+    DECLARED and that it RECOMPUTES, and both of those are true of a basket
+    that has quietly lost half its market.
+
+    This is not cosmetic, because of a coupling in the serving path:
+    `par.Basket.usable` requires an empty status, and `/par` hands a stranger's
+    bill to the FLEET's own quotes the moment the basket stops being usable. So
+    a thinning basket does not fail — it reprices an outsider's invoice against
+    ourselves, on a scale `anchors/GAP.md` puts 20x to 1250x off market. The
+    whole claim of that endpoint is that it benchmarks against observed
+    third-party prices.
+
+    Two thresholds, and they answer different questions. `min_priced` lives in
+    the basket's own `rule` block because a minimum coverage IS a selection
+    rule, and it ratchets exactly like `ceiling`. `MIN_SELLERS` is imported from
+    `par` rather than restated: it is the number below which that module refuses
+    to call anything benchmarked at all, and a basket under it is not a market.
+    """
+    agg = doc.get("aggregate") or {}
+    n = agg.get("n")
+    requested = agg.get("n_requested")
+    if not isinstance(n, int):
+        return [f"{index_id}: the anchor declares no row count — `aggregate.n` is "
+                f"{n!r}, so coverage cannot be checked and neither can the gap"]
+
+    out: list[str] = []
+    if n < MIN_SELLERS:
+        out.append(
+            f"{index_id}: {n} priced row(s) is below par.MIN_SELLERS ({MIN_SELLERS}); "
+            f"that is not a market, and /par would compare a price to itself"
+        )
+    floor = ((load_basket(index_id).get("rule") or {}).get("min_priced"))
+    if not isinstance(floor, int):
+        out.append(f"{index_id}: its basket declares no `rule.min_priced`, so the "
+                   f"coverage ratchet is not holding anything")
+    elif n < floor:
+        out.append(
+            f"{index_id}: {n} of {requested} rows priced, below the declared floor of "
+            f"{floor} — re-fetch, or lower `rule.min_priced` in "
+            f"anchors/_basket/{index_id}.json on purpose"
+        )
+    return out
+
+
+def _age_days(doc: dict) -> float:
+    """Days since the anchor was measured, or `inf` when it cannot be read.
+
+    Infinity rather than 0.0 on an unparseable date, because 0.0 is the value a
+    FRESH anchor has: a clock that reads "brand new" when it has in fact
+    stopped is the shape of `time.monotonic()` being boot-relative, and this
+    repo has already been bitten by a "never" that arrived as 0.0.
+    """
+    try:
+        fetched = datetime.fromisoformat(str(doc.get("fetched_at"))).timestamp()
+    except ValueError:
+        return float("inf")
+    return (datetime.now(UTC).timestamp() - fetched) / 86_400
+
+
+def _check_age(index_id: str, doc: dict) -> list[str]:
+    """Fail BEFORE the product starts rerouting, not after.
+
+    `par.ANCHOR_MAX_AGE_S` is the cliff: one second past it `market_basket`
+    returns status STALE, `usable` goes false, and `/par` silently switches a
+    stranger's bill onto the fleet scale. Nothing was watching that clock, and
+    `--fetch` is documented as "network; manual, never CI", so nothing refreshes
+    these on a timer either.
+
+    So the threshold here is a FRACTION of the cliff — red with about six days
+    of warning, which is the difference between a gate that tells you to
+    re-anchor and a gate that tells you the last fortnight of answers were
+    measured against the wrong market. Imported rather than restated: a second
+    copy of "30 days" would be free to drift from the one that does the work.
+    """
+    try:
+        fetched = datetime.fromisoformat(str(doc.get("fetched_at"))).timestamp()
+    except ValueError:
+        return [f"{index_id}: `fetched_at` is not a timestamp ({doc.get('fetched_at')!r}), "
+                f"so its staleness is unknowable"]
+    age = datetime.now(UTC).timestamp() - fetched
+    limit = AGE_WARN_FRACTION * ANCHOR_MAX_AGE_S
+    if age > limit:
+        return [
+            f"{index_id}: the anchor is {age / 86_400:.1f} days old and /par stops "
+            f"trusting it at {ANCHOR_MAX_AGE_S / 86_400:.0f} — re-fetch. Past that "
+            f"point a bill from outside the fleet is priced against the fleet."
+        ]
+    return []
 
 
 def render_gap_report(docs: list[dict]) -> str:
@@ -417,8 +536,15 @@ def main() -> int:
         return 1
     for index_id in ALL_INDEX_IDS:
         d = latest_anchor(index_id)
+        agg = d.get("aggregate") or {}
+        # Coverage and age are PRINTED, not merely passed, for the reason the
+        # C-HUMAN line below gives: a check whose success is silent cannot be
+        # told apart from a check that never ran. ACR-INF reads 5/10 today, and
+        # a reader should see that number rather than infer it from a tick.
         print(f"  ✓ {index_id:<9} gap {d['gap']['ratio']:.0f}x declared and reproducible "
-              f"(ceiling {d['ceiling']['ratio']}, as of {d['fetched_at'][:10]})")
+              f"(ceiling {d['ceiling']['ratio']}, as of {d['fetched_at'][:10]}); "
+              f"{agg.get('n')}/{agg.get('n_requested')} rows priced, "
+              f"{_age_days(d):.1f}d old of {ANCHOR_MAX_AGE_S / 86_400:.0f}d")
     # Printed explicitly. A check whose success is silent cannot be distinguished
     # from a check that never ran, and this one is not enumerated by the loop
     # above — which is exactly how it would come to not run.
