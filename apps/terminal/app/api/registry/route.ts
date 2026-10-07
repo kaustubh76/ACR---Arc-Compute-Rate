@@ -24,8 +24,12 @@ import { freshHeaders, readStatus } from "@/lib/readResult";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
-  const r = await readRegistry();
+export async function GET(req: Request) {
+  // `?records=1` asks for each attestation too. Off by default because the
+  // crawl costs ~2.8s of paced RPC and `took_ms` is a figure the button shows;
+  // see `readRegistry`'s own note.
+  const records = new URL(req.url).searchParams.get("records") === "1";
+  const r = await readRegistry({ records });
   if (r.ok) {
     return NextResponse.json(r.value, { status: 200, headers: freshHeaders() });
   }

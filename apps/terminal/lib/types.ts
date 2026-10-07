@@ -348,11 +348,20 @@ export interface RegistryDirectRead {
   chain_id: number;
   block: number;
   /** `sellerCount()` as returned, which may exceed `sellers.length` if the
-   *  crawl was capped — `truncated` says which. */
+   *  crawl was capped — `truncated` says which. Always present: it is one
+   *  `readContract`, not a crawl. */
   seller_count: number;
+  /** Only meaningful when the crawl ran; `false` on a summary read rather than
+   *  a claim that rows were cut off when none were requested. */
   truncated: boolean;
   took_ms: number;
-  sellers: RegistryOnchainRecord[];
+  /** ABSENT when the crawl was not requested, `[]` when it ran and the contract
+   *  holds nothing. Three states rather than two, and the distinction is the
+   *  same one `CatalogAttestation.sellers` documents: "we did not look" and
+   *  "we looked and found none" are opposite claims, and a renderer that
+   *  collapsed them would print "no attestations" for a read that never asked.
+   *  `GET /api/registry?records=1` is what asks. */
+  sellers?: RegistryOnchainRecord[];
 }
 
 export type AttackRunState = "idle" | "running" | "done" | "error";

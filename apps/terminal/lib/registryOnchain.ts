@@ -120,7 +120,23 @@ function client() {
  *  RPC are opposite claims, and `[]` for the second is the exact failure
  *  readResult.ts exists to foreclose.
  */
-export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
+/** The registry's own answer. `records: true` also crawls each attestation.
+ *
+ *  THE CRAWL IS OPT-IN, and the reason is the one number this read exists to
+ *  publish. `RegistryProof` on /developers renders four fields — block,
+ *  sellerCount, chain, took_ms — and its entire product is "press it twice and
+ *  the block moves, in N ms". The crawl is `sellerAt` + `getAttestation` per
+ *  seller, paced at RPC_GAP_MS to stay inside Arc's rate limit: with four
+ *  records that is eight extra paced round trips, about 2.8 seconds, added to a
+ *  figure the button DISPLAYS. So the button was advertising its own speed and
+ *  reporting a time inflated roughly fivefold by work nobody could see.
+ *
+ *  The records are not dropped — `GET /api/registry?records=1` still returns
+ *  them, and they are the substance a future surface would render. They are just
+ *  no longer charged to a reader who did not ask. */
+export async function readRegistry(
+  opts: { records?: boolean } = {},
+): Promise<Read<RegistryDirectRead>> {
   const address = registryAddress();
   if (!address) return unread("registry.address");
 
@@ -136,7 +152,8 @@ export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
     const total = Number.isFinite(count) && count >= 0 ? count : 0;
 
     const sellers: RegistryDirectRead["sellers"] = [];
-    for (let i = 0; i < Math.min(total, MAX_SELLERS); i++) {
+    const wanted = opts.records ? Math.min(total, MAX_SELLERS) : 0;
+    for (let i = 0; i < wanted; i++) {
       await sleep(RPC_GAP_MS);
       const who = (await c.readContract({
         address,
@@ -181,9 +198,14 @@ export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
       chain_id: CHAIN.chainId,
       block: Number(block),
       seller_count: total,
-      truncated: total > MAX_SELLERS,
+      // Only meaningful when the crawl ran. Reporting `true` on a summary read
+      // would claim rows were cut off when none were asked for.
+      truncated: opts.records ? total > MAX_SELLERS : false,
       took_ms: Date.now() - started,
-      sellers,
+      // UNDEFINED when the crawl was skipped, never `[]`. An empty array says
+      // "the chain holds no attestations", which is a different fact and the
+      // exact collapse `types.ts` warns about for the catalog's own copy.
+      sellers: opts.records ? sellers : undefined,
     });
   } catch {
     // No partial answer. A crawl that died halfway would otherwise report
