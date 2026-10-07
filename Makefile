@@ -16,6 +16,7 @@ help:
 	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
 	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
+	@echo "  make verify-drift    does the DEPLOYMENT serve what this checkout builds? both directions"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
 	@echo ""
@@ -369,6 +370,14 @@ verify-loop:
 # collection for a quick pass.
 verify-claims:
 	uv run python scripts/verify_claims.py
+
+# Does the DEPLOYMENT serve what this checkout builds? Both directions: a route
+# built and not served is an undeployed change (the product's own /operator/*
+# pages were empty in production for exactly this reason), and a route served
+# and not built is a stale image whose docs are about to go wrong. Read-only,
+# one GET per host, no credentials.
+verify-drift:
+	uv run python scripts/verify_deploy_drift.py
 
 # Fold the seller's real x402 settlements into the committed archive, so they
 # survive the next restart (production has no persistent disk). Run it right

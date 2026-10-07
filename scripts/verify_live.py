@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
 import sys
 import time
@@ -1195,6 +1196,48 @@ def verify_crons(w3) -> None:
             check(False, f"{wf}: could not read runs ({str(exc)[:40]})", warn_only=True)
 
 
+def verify_route_drift() -> None:
+    """Does this host serve what the repo builds? — `verify_deploy_drift.py`.
+
+    Every other check in this file asks whether the deployment WORKS. This one
+    asks whether it is the deployment this checkout describes, which is a
+    different question and the one nothing asked: on 2026-10-06 the mainnet image
+    served 44 routes against ~50 built, missing all five `/operator/*` and `/par`,
+    so the product's own two pages rendered "No businesses onboarded yet" for a
+    business that has nineteen decisions.
+
+    WARN rather than fail by default, for the same reason the cron checks do: a
+    deploy lagging a merge is somebody's scheduler, not our code being wrong. The
+    run that cares is `VERIFY_STRICT=1`, where `check` promotes it — which is the
+    run to use before claiming a surface is live.
+    """
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from verify_deploy_drift import deployed_paths, repo_paths
+
+    built = repo_paths()
+    served = deployed_paths(API)
+    if served is None:
+        check(True, "route drift: /openapi.json unreadable, so nothing to compare", warn_only=True)
+        return
+
+    repo_only = sorted(built - served)
+    deploy_only = sorted(served - built)
+    check(
+        not repo_only,
+        f"built {len(built)} · served {len(served)}"
+        + (f" · {len(repo_only)} BUILT BUT NOT SERVED: {', '.join(repo_only[:4])}"
+           f"{'…' if len(repo_only) > 4 else ''}" if repo_only else ""),
+        warn_only=True,
+    )
+    if deploy_only:
+        check(
+            False,
+            f"{len(deploy_only)} route(s) SERVED BUT NOT BUILT — a stale image: "
+            f"{', '.join(deploy_only[:4])}{'…' if len(deploy_only) > 4 else ''}",
+            warn_only=True,
+        )
+
+
 def main() -> None:
     sys.stdout.reconfigure(line_buffering=True)
     from acr_core import get_settings
@@ -1227,6 +1270,7 @@ def main() -> None:
     section(verify_terminal, live)
     section(verify_funding, w3, s)
     section(verify_crons, w3)
+    section(verify_route_drift)
 
     print()
     if _warnings:
