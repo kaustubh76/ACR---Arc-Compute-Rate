@@ -2,7 +2,7 @@
 
 The end-to-end live loop: a buyer agent with its own wallet discovers ACR's
 listings, pays sub-cent USDC nanopayments per query via x402, Circle Gateway
-settles them, and the receipts print on the Terminal's `/exchange` tape.
+settles them, and the receipts print on the Terminal's shop-floor tape, under `/curve`.
 
 Everything here is **live-mode only**. The credential-free demo needs none of
 it: `ACR_X402_MODE=dev make api` + `make agent`.
@@ -141,7 +141,7 @@ nor the image; the buyer's own local capture at `data/x402_receipts_live.jsonl` 
 what `make x402-capture` and `scripts/gen_snapshot.py` fold *from*, not something a
 reader can open. Run tallies on the free-tier ledger are ephemeral. Each line prints the Gateway settlement reference; the
 summary block totals payments and distinct settlements. Watch them land live on the Terminal's
-**Exchange** tape (`make terminal` → /exchange) and in
+**shop-floor** tape (`make terminal` → /curve → open the shop floor) and in
 `GET /marketplace/receipts`.
 
 For the judges: 60 payments × $0.0001 ≪ the $0.01/action ceiling. Gateway
@@ -154,7 +154,7 @@ Gateway posts batched on-chain transactions; the honest tx story is
 
 The Terminal itself can be the buyer — no separate `apps/agent` process. The
 Next.js server holds a funded key and originates real Circle Gateway payments
-when you click a button on **/exchange** or **/developers** (the "Wire" console).
+when you click a button on the **shop floor** or **/developers** (the "Wire" console).
 
 ```sh
 # The Terminal server (Node) needs the SAME kind of funded key as the agent:
@@ -164,7 +164,7 @@ make terminal                        # or: cd apps/terminal && npm run build && 
 ```
 
 Then:
-- **/exchange** → *Release the LIVE buyer — 3 real settlements* fires three real
+- **the shop floor** (`/curve`) → *Release the LIVE buyer — 3 real settlements* fires three real
   x402 exchanges; each gateway-ref prints on the tape, `/revenue` climbs, and the
   **Circle Gateway wallet** panel shows the buyer's deposit ticking down.
 - **/developers → The Wire** → in Circle mode the console shows the real 402

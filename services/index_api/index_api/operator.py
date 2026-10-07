@@ -22,6 +22,7 @@ that cannot be evaluated is a refusal rather than a pass. The order here is
     6  the price           at par, over par, cheaper elsewhere
     7  the timing          due now, or worth holding
     8  the budget          per-transaction limit, then the period cap
+    9  the cash            can the wallet cover what is already dated
 
 and it is not interchangeable. Pricing an invoice we never owed is wasted work;
 rerouting one that is a duplicate pays a stranger twice. The meter comes before
@@ -29,11 +30,17 @@ the price because a bill for work nobody did is not a pricing question — that 
 Prior Art #06's whole point, and the reason this agent is named after the
 official who kept the standard measure rather than after a bargain hunter.
 
-There are NINE, not the eight this list used to show: 4b arrived with the
-commitment register and was never added here. And a tenth outcome does not
-live in `decide()` at all — `run_obligation` escalates before reaching it when
-the business has no budget contract on chain, which is why that row carries
-none of the pricing or screening evidence the others do.
+There are TEN. The list showed eight for a long time because 4b arrived with
+the commitment register and was never added; 9 arrived with the balance read.
+Checks 8 and 9 look alike and are not: 8 is PERMISSION, `cap - spent` from the
+contract's own counters, and reads healthy on a wallet holding nothing; 9 is
+MONEY. Policy answers first, so a bill that breaches its own limit names that
+limit rather than blaming the balance.
+
+And an eleventh outcome does not live in `decide()` at all — `run_obligation`
+escalates before reaching it when the business has no budget contract on chain,
+which is why that row carries none of the pricing or screening evidence the
+others do.
 
 REFUSE, NEVER CLAMP, and never silently. Every outcome carries a ``rule``: one
 line naming the check that fired. ``PolicyWallet`` stores the hash of this whole
@@ -51,6 +58,9 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 
 from .counterparty import UNKNOWN, CounterpartyVerdict
+from .liquidity import HORIZON_S as LIQUIDITY_HORIZON_S
+from .liquidity import Liquidity
+from .liquidity import short_by as liquidity_short_by
 from .par import MATERIAL_BP, Par, assess
 
 log = logging.getLogger("index_api.operator")
@@ -291,6 +301,13 @@ class ObligationDecision:
     #: The authority the decision cleared against, read from the contract.
     remaining_usdc: float | None = None
     per_tx_limit_usdc: float | None = None
+    #: What the cash check saw, so the record carries the picture it was judged
+    #: against rather than only the verdict. `None` throughout when no balance
+    #: was read — which the rule's own note also says, because a reader
+    #: scanning fields should not have to infer it from three nulls.
+    held_usdc: float | None = None
+    due_usdc: float | None = None
+    liquidity_horizon_s: float | None = None
     #: The four thresholds. Three come from the environment at import, so
     #: without them a reviewer cannot recover them from the repo either.
     meter_tolerance: float | None = None
@@ -474,11 +491,33 @@ def replay(row: dict) -> ObligationDecision:
         if v is not None:
             kw[threshold] = v
 
+    # The cash picture, rebuilt from the record rather than re-read. A replay
+    # that went back to the chain would get TODAY's balance and reach a verdict
+    # the original could not have — which is the mistake `par.quotes` is left
+    # out for, in reverse. `held_usdc` absent means no balance was read then,
+    # and `Liquidity(None, …)` is exactly how the rung sees that.
+    #
+    # Deliberately not the obligation set: the recorded `due_usdc` IS what the
+    # other bills summed to at the time, and that sum is unrecoverable from one
+    # row. Rebuilding the picture from its two numbers is the most a single
+    # record can honestly support.
+    liq = None
+    if num("held_usdc") is not None or num("due_usdc") is not None:
+        liq = Liquidity(
+            held_usdc=num("held_usdc"),
+            due_usdc=num("due_usdc") or 0.0,
+            due_count=0,
+            soonest_at=None,
+            undated=0,
+            horizon_s=num("liquidity_horizon_s") or LIQUIDITY_HORIZON_S,
+        )
+
     return decide(
         ob,
         par=par,
         screen=screen,
         metered_quantity=num("metered_quantity"),
+        liquidity=liq,
         settled_refs=set(),
         remaining_usdc=num("remaining_usdc"),
         per_tx_limit_usdc=num("per_tx_limit_usdc"),
@@ -910,6 +949,10 @@ def decide(
     #: `par` and `screen` rather than loaded, so `decide` stays pure and a test
     #: can put a known agreement in front of it.
     commitment=None,
+    #: What the wallet holds against what is dated, if anybody measured it.
+    #: Injected like `par`, `screen` and `commitment` — the balance is a chain
+    #: read and the obligations are the caller's set, and `decide` is pure.
+    liquidity=None,
     settled_refs: set[str] | None = None,
     remaining_usdc: float | None = None,
     per_tx_limit_usdc: float | None = None,
@@ -944,6 +987,9 @@ def decide(
         early_pay_discount=ob.early_pay_discount,
         remaining_usdc=remaining_usdc,
         per_tx_limit_usdc=per_tx_limit_usdc,
+        held_usdc=getattr(liquidity, "held_usdc", None),
+        due_usdc=getattr(liquidity, "due_usdc", None),
+        liquidity_horizon_s=getattr(liquidity, "horizon_s", None),
         meter_tolerance=meter_tolerance,
         unbenchmarked_max_usdc=unbenchmarked_max_usdc,
         pay_window_s=pay_window_s,
@@ -1134,10 +1180,65 @@ def decide(
                 )
         elif verdict["verdict"] == "over_par":
             cheaper = verdict["best_seller"]
+            # A MARKET REFERENCE IS NOT A PAYEE. The anchor basket names models
+            # — `openai/gpt-4o-mini` — because that is what a reader can check,
+            # and nothing here can send USDC to one. Writing it into
+            # `reroute_to` would record a routing the wallet cannot execute, and
+            # `applyReroute` downstream would be handed a string to pay.
+            #
+            # Tested on the SOURCE, not the shape of the address: `_payable_to`
+            # answers "is there a counterparty at all" and deliberately accepts
+            # a named vendor, so it says yes to `openai/gpt-4o-mini`. The
+            # narrower question — can USDC reach it — is answered by where the
+            # price came from.
+            #
+            # The FINDING is still real and still the agent's to report: the
+            # bill is materially above the published market rate for its own
+            # unit, among sellers of its own model class. What is NOT the
+            # agent's is what to do about it with no alternative it can act on —
+            # RFB 4's "know which decisions are not its to make", arriving for
+            # once on a priced bill rather than merely a large one.
+            if cheaper and verdict.get("best_source") == "market":
+                # AND THE QUESTION CHANGES WITH THE COMPARISON. Everywhere else
+                # the verdict keys off `saving_bp`, measured against the
+                # CHEAPEST offer, because that is money genuinely available
+                # somewhere we can send it. Against a market basket nothing is
+                # available anywhere — so the only meaningful question is
+                # whether the bill is above the going RATE, which is
+                # `over_par_bp` against the median.
+                #
+                # Measured, which is why this is here: a bill priced at exactly
+                # the market median still escalated, because gpt-4o-mini is
+                # cheaper than gpt-4.1-mini. Both are mid-class and the basket
+                # medians them on purpose; demanding the cheapest row is
+                # demanding a different model, not a better price.
+                over_bp = verdict.get("over_par_bp") or 0.0
+                if over_bp >= material_bp:
+                    d.intent, d.escalated = ESCALATE, True
+                    d.recommended_intent = REFUSE
+                    d.rule = (
+                        f"{over_bp:.0f} bp above the going market rate of "
+                        f"{verdict['par_usdc']:g} across {verdict['sellers']} published "
+                        f"prices, and the cheaper ones are references rather than "
+                        f"addresses we can pay"
+                    )
+                    return d
+                # At or under the going rate. The cheaper row is noted and not
+                # acted on, because acting on it is not available.
+                d.notes.append(
+                    f"at or under the going market rate; {verdict['best_usdc']:g} is "
+                    f"published by {cheaper}, which is not an address we can pay"
+                )
+            # `elif`, NOT a second `if`. Falling out of the market branch used to
+            # drop straight into the reroute below, so a bill priced exactly at
+            # the going rate was rerouted to `openai/gpt-4o-mini` — the one
+            # outcome the branch above exists to make impossible. The market
+            # case is handled in full or not at all.
+            #
             # A cheaper seller who is the vendor itself is not a reroute; `par`
             # already excludes the biller, so reaching here means a real third
             # party is offering it for less.
-            if cheaper and cheaper.lower() != ob.vendor.lower():
+            elif cheaper and cheaper.lower() != ob.vendor.lower():
                 d.intent, d.reroute_to = REROUTE, cheaper
                 # Measured against the CHEAPEST offer, not the median, because
                 # that is the comparison the decision was made on. Saying "over
@@ -1151,13 +1252,19 @@ def decide(
                     f"{verdict['saving_usdc']:g} USDC"
                 )
                 return d
-            d.intent, d.escalated = ESCALATE, True
-            d.recommended_intent = REFUSE
-            d.rule = (
-                f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
-                "and that seller is the one billing us"
-            )
-            return d
+            else:
+                # EXPLICIT, because this used to be reached by falling out of
+                # the two branches above and that is how the market case ended
+                # up here: priced at exactly the going rate, nothing to reroute
+                # to, and escalated with a sentence about the biller that was
+                # not true of it. An `else` cannot be fallen into by accident.
+                d.intent, d.escalated = ESCALATE, True
+                d.recommended_intent = REFUSE
+                d.rule = (
+                    f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
+                    "and that seller is the one billing us"
+                )
+                return d
 
     # 7 — the timing. Paying early costs the cash; paying late costs the
     # discount. Only one of those is recoverable, so the discount wins when it
@@ -1196,6 +1303,62 @@ def decide(
             f"in {ob.category} this period"
         )
         return d
+
+    # 9 — the cash. AFTER the budget, because a bill that breaches its own
+    # limit should say so rather than blame the balance; and because the two are
+    # genuinely different questions, with different answers on a Monday morning.
+    # A budget is permission (`cap - spent`, from the contract's counters) and
+    # reads healthy on an empty wallet. This is money.
+    #
+    # Not a duplicate of check 7. That rung is the CALENDAR — "not due for N
+    # days, so the cash is worth more here" — and it holds a bill we can afford
+    # and need not pay yet. This one holds a bill we cannot afford to pay
+    # without stranding something dated sooner.
+    if liquidity is not None and liquidity.measured:
+        short = liquidity_short_by(liquidity, ob.billed_usdc)
+        if short > 0:
+            d.intent, d.escalated = ESCALATE, True
+            # The same shape as the period cap above, and the same reason: the
+            # bill may be perfectly sound and the owner may fund the wallet.
+            # Waiting is the honest recommendation when the only thing missing
+            # is money.
+            d.recommended_intent = HOLD
+            # TWO SITUATIONS, and one sentence for each. A single phrasing
+            # blamed the dated queue in both, and in the sharper of the two
+            # that queue can be EMPTY: a wallet holding 0.5 against a 10 USDC
+            # bill reports "0 dated in the next 30 days, so paying 10 would
+            # leave 9.5 short", which is arithmetically true and names the
+            # wrong cause. The bill is simply larger than the balance and the
+            # transfer would revert; nothing is waiting behind it.
+            if liquidity.held_usdc < ob.billed_usdc:
+                d.rule = (
+                    f"the wallet holds {liquidity.held_usdc:g} USDC and this bill is "
+                    f"{ob.billed_usdc:g}, so the payment would revert on chain"
+                )
+            else:
+                d.rule = (
+                    f"not enough to cover what is due: {liquidity.held_usdc:g} USDC held "
+                    f"against {liquidity.due_usdc:g} dated in the next "
+                    f"{int(liquidity.horizon_s / 86_400)} days, so paying "
+                    f"{ob.billed_usdc:g} would leave {short:g} short"
+                )
+            return d
+    else:
+        # Said rather than skipped. Check 4 leaves "no counterparty screen was
+        # offered" for exactly this reason, and check 3's silent guard is the
+        # asymmetry this file's own docstring now admits to: an absent check
+        # that leaves no trace is indistinguishable from a check that passed.
+        #
+        # `else`, NOT `elif liquidity is None`, which is what this said first
+        # and which left no note on the one path it was written for. The keeper
+        # and the CLI always pass a `Liquidity`; a wallet that would not answer
+        # makes it `Liquidity(held_usdc=None, …)`, which is not `None`. So in
+        # production — the only place a chain read can actually fail — the
+        # branch that explains the silence was unreachable, and a `pay` written
+        # with no balance read looked exactly like one written with a healthy
+        # balance. `None` happens only when `decide` is called without the
+        # argument at all, which is tests and the sandbox generator.
+        d.notes.append("no balance was read, so nothing checked this against cash")
 
     d.intent = PAY
     d.rule = _pay_rule(d, verdict, material_bp)
@@ -1242,12 +1405,27 @@ def _pay_rule(
     passing a different threshold got the verdict computed on their value and
     the sentence computed on 25.0 — the number and the prose disagreeing about
     the same decision, which is the one thing a record must never do.
+
+    AND IT DOES NOT CLAIM A BUDGET IT NEVER READ. Both sentences used to end
+    ", inside budget" unconditionally. But check 8 only runs when a per-payment
+    limit or a period remainder was supplied, and `operator_keeper._pass`
+    passes `policy=None` in `dry` mode — so every cleared bill on the scheduled
+    path, and every business with no wallet, was recorded asserting a budget
+    check that had not happened. `d` was an unused parameter at the time, which
+    is the tell: the one object carrying the answer was in scope and ignored.
     """
+    # `None` on both is exactly the condition check 8 skips on, so it is the
+    # honest test for "a budget was consulted".
+    budget = (
+        ", inside budget"
+        if d.per_tx_limit_usdc is not None or d.remaining_usdc is not None
+        else ", and no budget was consulted"
+    )
     if verdict and verdict.get("benchmarked"):
         bp = verdict["over_par_bp"]
         where = "at par" if abs(bp) < material_bp else f"{bp:+.0f} bp against par"
-        return f"{where} on {verdict['sellers']} observed sellers, inside budget"
-    return "unbenchmarked but under the ceiling, inside budget"
+        return f"{where} on {verdict['sellers']} observed sellers{budget}"
+    return f"unbenchmarked but under the ceiling{budget}"
 
 
 # --- the driver ------------------------------------------------------------
@@ -1272,6 +1450,10 @@ def run_obligation(
     #: only the meter we happened to build first. Keeps the tri-state: ``None``
     #: means "we could not check", ``0.0`` means "we checked and it was zero".
     metered_quantity: float | None = None,
+    #: The cash picture for this pass. Supplied rather than read here, because
+    #: `due_usdc` is a sum over the OTHER obligations and this function sees
+    #: one — so only the caller holding the set can answer it.
+    liquidity=None,
     settled_refs: set[str] | None = None,
     since: float = 0.0,
     now: float | None = None,
@@ -1294,6 +1476,8 @@ def run_obligation(
     drift the moment anything else spends from the same wallet.
     """
     from .par import (
+        is_first_party,
+        market_basket,
         par_from_quotes,
         quotes_by_unit,
         quotes_from_catalog,
@@ -1341,12 +1525,38 @@ def run_obligation(
         # The unit is the market. Per-unit prices make two sellers of the same
         # kind of service comparable at last, which per-call prices never were:
         # a 500-token call and a 2,000-token one are not the same purchase.
-        par = par_from_quotes(
-            ob.unit,
-            quotes_by_unit(receipts, ob.unit),
-            exclude_seller=ob.vendor,
-            denomination="unit",
-        )
+        #
+        # WHICH MARKET, THOUGH. Two price populations exist for the same unit
+        # and they are two orders of magnitude apart, so medianing them together
+        # would produce exactly the incomparable number this module's docstring
+        # refuses:
+        #
+        #   the fleet      sellers this deployment operates, priced from
+        #                  `IndexSpec.reference_level` — which `anchors/GAP.md`
+        #                  measures 20x to 1250x above real market prices.
+        #   the market     real published list prices, fetched from their own
+        #                  sources with a URL per row, in `anchors/`.
+        #
+        # The BILL decides. A fleet seller's invoice is like-for-like against
+        # fleet quotes, both pinned to the same scale, and that comparison is
+        # sound inside the loop. Any other vendor is a real invoice, and the
+        # market basket is the only reference that can price it — which is the
+        # whole of RFB 3's "what the market is actually paying".
+        basket = market_basket(ob.unit, now=t)
+        if is_first_party(ob.vendor) or not basket.usable:
+            par = par_from_quotes(
+                ob.unit,
+                quotes_by_unit(receipts, ob.unit),
+                exclude_seller=ob.vendor,
+                denomination="unit",
+            )
+        else:
+            par = par_from_quotes(
+                ob.unit,
+                list(basket.quotes),
+                exclude_seller=ob.vendor,
+                denomination="unit",
+            )
     else:
         quotes = quotes_from_catalog(catalog, ob.resource) + quotes_from_receipts(
             receipts, ob.resource
@@ -1396,6 +1606,7 @@ def run_obligation(
         screen=verdict,
         metered_quantity=metered,
         commitment=agreement,
+        liquidity=liquidity,
         settled_refs=settled_refs,
         remaining_usdc=remaining,
         per_tx_limit_usdc=per_tx,

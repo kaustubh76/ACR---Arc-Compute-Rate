@@ -9,7 +9,7 @@ play and only one of them may be denominated in dollars:
 
   MARKET CONTEXT, in basis points only, comes from ``payer_tca``, which measures
   against the ACR arrival print. ``anchors/GAP.md`` records that print's
-  reference level sitting 20x to 1159x off real market prices, so its bp figures
+  reference level sitting 20x to 1250x off real market prices, so its bp figures
   are meaningful (they are exactly scale-invariant — GAP.md re-anchored ACR-INF
   667x without the error moving) while its **USDC** figures are not.
 
@@ -34,6 +34,7 @@ from pathlib import Path
 
 from .businesses import Business, resolve
 from .counterparty import FLAGGED, UNKNOWN
+from .liquidity import assess as liquidity_assess
 from .operator import ESCALATE, HOLD, LOG_PATH, PAY, REFUSE, REROUTE
 
 log = logging.getLogger("index_api.statement")
@@ -484,6 +485,52 @@ def pending_escalations(decisions: list[dict]) -> list[dict]:
     return out
 
 
+def _liquidity(business: Business, policy_for, escalations: list[dict], t: float) -> dict:
+    """What the wallet holds, against what is dated and waiting on the owner.
+
+    A BUDGET IS NOT CASH, and the statement showed only the budget. `cap -
+    spent` comes from the contract's counters and reads healthy on a wallet
+    holding nothing — so an owner could read a full remaining allowance beside
+    an escalation queue the wallet could not actually settle. RFB 4 asks the
+    agent to decide "whether there is enough liquidity to cover what is due";
+    this is the same question put to the person.
+
+    WHAT IS SUMMED, exactly: the escalated bills on this statement that carry a
+    due date, inside the liquidity horizon. Not every obligation in the world —
+    the statement is built from the decision log, so these are the bills the
+    agent has already seen and handed over. Escalations without a due date are
+    counted apart for the same reason the ladder does it: "we do not know when
+    this is due" is not "it is due later".
+
+    Degrades the way `_budgets` below does, and for the reason it gives: a
+    statement whose decisions are all in hand must not fail because one
+    optional chain read did. `held_usdc` is None when unreadable, never 0.0,
+    and `reason` says which.
+    """
+    picture = liquidity_assess(None, escalations, t)
+    out = picture.as_dict()
+    out["reason"] = ""
+    if policy_for is None or not business.policy_wallet:
+        # Not an error: a business with no wallet is being measured, not spent
+        # for. The caller's sibling `spends` key already says so, so this does
+        # not repeat it — it just declines to invent a balance.
+        out["reason"] = "no wallet, so there is no balance to read"
+        return out
+    client = policy_for(business)
+    if client is None or not hasattr(client, "balance_usdc"):
+        out["reason"] = "no policy client, so the balance is unknown rather than zero"
+        return out
+    try:
+        held = client.balance_usdc()
+    except Exception as exc:  # pragma: no cover - env dependent
+        log.warning("statement: balance unreadable (%s)", exc)
+        held = None
+    if held is None:
+        out["reason"] = "the chain could not be reached, so this is unknown rather than empty"
+        return out
+    return {**liquidity_assess(held, escalations, t).as_dict(), "reason": ""}
+
+
 def _budgets(business: Business, policy_for) -> list[dict]:
     """Each category's live budget, read from the contract.
 
@@ -603,6 +650,9 @@ def build_statement(
         "as_of": t,
         "spend": summary,
         "budgets": _budgets(b, policy_for),
+        # Beside the budgets, because permission and money are different
+        # questions and the page showed only the first.
+        "liquidity": _liquidity(b, policy_for, escalations, t),
         "spends": bool(b.policy_wallet),
         # What the owner has to act on. First, because it is the only part of
         # the statement that is waiting on them.

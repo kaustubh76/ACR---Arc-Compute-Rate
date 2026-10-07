@@ -75,7 +75,7 @@
      loading.tsx was standing in for `.section`'s gap with an inline 28, 32 or
      36 — three values for one role, none of them written down anywhere — so a
      route's content dropped 20 to 24px the moment the skeleton gave way to the
-     real view, on all twelve routes. A value a skeleton can name is a value it
+     real view, on all eleven routes. A value a skeleton can name is a value it
      cannot guess wrong. */
   --section-gap: 56px;
 
@@ -1074,22 +1074,6 @@ table.sheet .row-link:focus-visible {
   background: rgba(27, 49, 88, 0.4);
 }
 
-/* inline hairline bar (seller clean-share) */
-.share-bar {
-  display: inline-block;
-  width: 96px;
-  height: 6px;
-  background: rgba(172, 198, 233, 0.08);
-  border-radius: 999px;
-  vertical-align: middle;
-  overflow: hidden;
-}
-.share-bar i {
-  display: block;
-  height: 100%;
-  background: var(--gold);
-  border-radius: 999px;
-}
 
 /* ---------- buttons & controls ---------- */
 .btn {
@@ -2933,7 +2917,7 @@ html[data-edition-turn] .plain-only {
 }
 
 /* WalletFunding: the one-next-step row under a wallet (developers console,
-   /exchange listing). Steps are the bridge's progress, one line each. */
+   shop-floor listing). Steps are the bridge's progress, one line each. */
 .wallet-funding select {
   font: inherit;
   padding: 2px 6px;
@@ -3121,6 +3105,21 @@ table.sheet td.wrap-left {
    at equal specificity and silently does nothing, which is how this fix was
    first written and would have shipped looking correct. Only source order
    settles it. Do not tidy this upwards. */
+/* A LABEL LINE UNDER A FIGURE IS PROSE, and `table.sheet td` is nowrap.
+   A long one — a benchmark's refusal, a screening service's reason — widened
+   its whole column instead of wrapping: "one seller, so no benchmark" grew the
+   par column by 380px, and "no independent seller to compare against" is
+   longer still. The FIGURE above it keeps nowrap, because a number broken
+   across two lines stops being a number.
+
+   `margin-left: auto` keeps the wrapped box against the right edge, with the
+   figure it annotates, instead of spanning a column it does not belong to. */
+table.sheet td.mono .label {
+  white-space: normal;
+  max-width: 32ch;
+  margin-left: auto;
+}
+
 .skel-gap {
   margin-top: var(--section-gap);
 }

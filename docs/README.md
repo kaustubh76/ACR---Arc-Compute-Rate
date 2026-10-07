@@ -1,6 +1,8 @@
 # ACR documentation — an index
 
-Twelve documents, three groups: what the number *is*, how to *use* it, how to *run* it.
+Three groups: what the number *is*, how to *use* it, how to *run* it. This line said
+"Twelve documents" for long enough to be wrong by three — in the same paragraph that
+explains why a count rots. The invariant below is the claim worth making; the number was not.
 Read the root [README](../README.md) first — it is the shortest complete answer to
 *what is ACR* — then come here for depth.
 
@@ -13,6 +15,15 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 ```
 
 ---
+
+## The product — what it does for a business
+
+| Doc | Why |
+|---|---|
+| **[TAMEION.md](TAMEION.md)** | The spend operator: an agent holds a business's USDC inside an on-chain budget, meters what was consumed, benchmarks every price, screens the counterparty, pays what clears policy and escalates the rest. The four decisions worth arguing with, and what is live on which chain. **Read this if you want to know what ACR is FOR**; the rest of this index is how it works. |
+
+This sat under "Run it — operating the system", between two runbooks, which said
+something true about how the repo grew and nothing true about what it is for.
 
 ## Start here — what the number is
 
@@ -44,7 +55,6 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 |---|---|
 | [TESTNET_RUNBOOK.md](TESTNET_RUNBOOK.md) | The ordered `[OPERATOR]` / `[AUTOMATED]` sequence to bring the whole system up on Arc testnet. |
 | [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md) | Arc mainnet (`eip155:5042`): one deploy broadcast with custody, the config diff for each host, and the launch-day checklist in order. |
-| [TAMEION.md](TAMEION.md) | The Tameion spend operator: the delta, what is live, and the four decisions worth arguing with. |
 | [COMMUNITY-TEST.md](COMMUNITY-TEST.md) | For a tester with a browser wallet: the five steps from "see the rate" to a receipt on Arc mainnet, what to report, and the limits stated up front. |
 | [DEPLOY.md](DEPLOY.md) | The cloud pair — Render (API) and Vercel (Terminal). Merging does not deploy the API: Render pulls a prebuilt image. |
 | [GRAPH-RUNBOOK.md](GRAPH-RUNBOOK.md) | The five ordered steps to bring the `acr-tape` subgraph up on Studio. Two of them are **not recoverable if done out of order**. |

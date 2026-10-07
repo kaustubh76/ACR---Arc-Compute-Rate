@@ -8,15 +8,26 @@ ACR is a reference rate for machine compute. The Tameion build puts a **spend
 operator** on top of it: an agent that holds a business's USDC inside an
 on-chain budget it cannot exceed, meters what was actually consumed, checks
 every price against what other sellers are really charging, screens the
-counterparty, pays what clears policy, escalates what is not its call, and
-writes a double-entry ledger a human can open.
+counterparty, weighs what the wallet actually holds against what is already
+dated, pays what clears policy, escalates what is not its call, and writes a
+double-entry ledger a human can open.
 
-**Where the pages are.** `/spend` and `/traction` exist in `apps/terminal` and are reachable from
-the masthead, but **the terminal is not deployed yet** — it is built for Arc mainnet and correctly
-refuses a testnet press, which is the guard that exists because a resumed testnet seller once served
-testnet data under a mainnet masthead. Until the mainnet press is woken, the honest live surface is
-the API above, and these tables link to what actually answers. Run the pages locally with
-`make api` and `make terminal`.
+**Where the pages are, stated exactly, because three documents used to disagree.**
+The terminal **is** deployed — <https://arc-compute-rate.vercel.app> answers 200, and so do
+`/spend` and `/traction`. What those two pages show in production is *nothing*, and the reason is a
+host split rather than a bug:
+
+| | |
+|---|---|
+| the operator's data | lives on the **testnet** API, `acr-api-1fto` (chain `5042002`), which serves all five `/operator/*` routes. Every link in the tables below points there |
+| the terminal | is built for Arc **mainnet** and refuses a press reporting a different chain id (`lib/apiBase.ts` `chainMismatch`). That guard exists because a resumed testnet seller once served live testnet data under a mainnet masthead |
+| the **mainnet** API | serves **44 routes and none of them is `/operator/*`** — the running image predates them. Measured 2026-10-07; `make verify-drift` reports it |
+
+So `/spend` reads "No businesses onboarded yet" on a product that has one business and nineteen
+decisions. The copy is honest about what it can see; what it can see is the wrong host. **One
+redeploy of the mainnet API closes this**, and nothing else has to change. Until then the API links
+below are the live surface, and `make api && make terminal` renders the pages locally against
+whichever press you point `ACR_API` at.
 
 ## The claim we are not making
 
@@ -130,13 +141,22 @@ own tape rather than asserted, so it stops being zero the moment the fleet is
 paid — and the function is tested against a treasury that *is* paid, which is
 what makes today's zero a measurement instead of an absence.
 
-`settled_on_time` is 0 **of 0**, because no obligation carries a due date:
-nothing in the real inputs supplies one, and deriving a plausible-looking one
-would be inventing exactly the data this product refuses to invent. `autonomy()`
-will not count a bill with no due date as punctual. The alternative turns "we do
-not know when this was due" into evidence of promptness, and a perfect on-time
-rate over an empty denominator is the single most flattering number available on
-a traction page.
+`settled_on_time` is 0 **of 0**, because no obligation on the real tape carries a
+due date. The cause is narrower than this document used to claim, and worth
+naming exactly: it is not that nothing *can* supply one. `obligations_for` reads
+x402 settlements, which have no due date by construction — a payment that already
+happened cannot be late. The feeder that does supply one,
+`obligations_from_entitlements`, reads a committed register of vendor invoices,
+and **no real customer has sent us one**. The register exists now and the ladder
+reaches check 7 through it, but its only rows are `sandbox`, which
+[`businesses.py`](../services/index_api/index_api/businesses.py) excludes from
+every figure on this page. So the denominator moves when a business hands over an
+invoice export, not when we write more code.
+
+`autonomy()` will not count a bill with no due date as punctual. The alternative
+turns "we do not know when this was due" into evidence of promptness, and a
+perfect on-time rate over an empty denominator is the single most flattering
+number available on a traction page.
 
 `alerts_raised` is 0 because every counterparty put to a screen came back clear.
 The field is named **screened** and not *monitored* on purpose: the screen runs
@@ -167,11 +187,24 @@ narrower, and one line of it was not true until recently.
 **The payment channel is now on the record.** Circle's developer-controlled
 wallet and a raw local key build *identical* calldata, so no reader of the
 chain, the log or the ledger could tell which one paid — and five payments on
-Arc testnet went out from a raw EOA. Every decision now carries `paid_via`
-(`circle` · `local`), set before the record is hashed, so the commitment says
-which channel was authorised. `/ops` reports it per business and warns on a raw
-key. That is the same argument `screen_backend` won: a verdict without its
-source is a claim without a basis.
+Arc testnet went out from a raw EOA. Every decision written **from now on**
+carries `paid_via` (`circle` · `local`), set before the record is hashed, so the
+commitment says which channel was authorised. `/ops` reports it per business and
+warns on a raw key. That is the same argument `screen_backend` won: a verdict
+without its source is a claim without a basis.
+
+**"From now on" is doing real work in that sentence.** The field was added after
+those payments were made, and the archive is immutable by design — so **none of
+the nineteen rows** `/operator/traction` serves today carries `paid_via`, and
+nor do they carry `screen_backend`, `commitment_verdict`, `held_usdc`, `due_usdc`
+or `discrepancy_usdc`. The sandbox and local logs carry all of them. Two
+consequences worth stating rather than discovering: `held_back_usdc` and
+`overbilled_usdc` are 0.0 on the real business because the fields they sum are
+absent, not because nothing was held back; and `verify_operator.py`'s check that
+no decision records a screen backend of `"off"` **passes by omission**, because
+the archive records no backend at all. Re-running the ladder over the same
+inputs would produce rows at the current schema, which is the fix — rewriting the
+archive in place would not be.
 
 **Two limits, stated rather than papered over.** The owner's leg is a raw key by
 construction: `ACR_OWNER_PRIVATE_KEY` wins over a Circle owner wallet in
@@ -231,6 +264,54 @@ bought, which is why the ledger refuses to book it as income. One is a
 counterfactual. The other is defensible against the bank statement, and they
 must never be added together.
 
+## A budget is permission; cash is money
+
+The operator spent most of this build checking every bill against a **budget**:
+`cap - spent`, read from `PolicyWallet`'s own counters and enforced on chain.
+That is the right check and it answers the wrong question. A budget is
+permission. It reads 988 of 1,000 remaining on a wallet holding 2 USDC, the
+payment then reverts on chain, and an owner could read a healthy allowance
+beside an escalation queue the wallet could not possibly settle.
+
+RFB 4's list of what the agent decides opens with *"whether there is enough
+liquidity to cover what is due, and what is due next"*, so the ladder gained a
+rung — check 9, after the budget — and the statement gained a section. Three
+things about it are deliberate:
+
+- **It reads the ERC-20 view, at six decimals.** On Arc, USDC is the native gas
+  token at 18 decimals *and* an ERC-20 at `0x3600…` at 6. `PolicyWallet` holds
+  and `transfer`s the ERC-20, so that is the pile `spend` can actually move;
+  `eth_getBalance` would answer confidently about a different one.
+  [`PolicyWallet.sol`](../contracts/src/PolicyWallet.sol)'s own comment states
+  the stakes: *"Mixing them is a 1e12 error that looks like a fat finger."* The
+  token address comes from the wallet's `usdc()` getter rather than from
+  configuration, so the figure cannot drift from what `spend` transfers.
+- **A read that failed is not an empty wallet.** `held_usdc` is `null` when the
+  chain could not be reached, never `0.0`, and the statement prints the reason.
+  An unfunded wallet and an unreachable node are different things to do on a
+  Monday morning, and a confident zero would escalate every bill in the queue
+  on the strength of an RPC that happened to time out. So this check fails
+  **open**, which the counterparty screen deliberately does not — and the
+  asymmetry is the point. A screen that cannot answer is withholding
+  information about *this* payee, which is a reason to stop that payment. A
+  balance that cannot be read is no information about any of them, and
+  stopping on it would halt the whole queue the moment a node wobbled.
+- **A bill with no due date is counted apart, never folded in.** *"We do not
+  know when this is due"* is not *"it is due later"*, and adding it to the
+  dated total would make the figure look more precise while covering less. The
+  count of undated bills is printed beside the total so the number can say what
+  it does not include.
+
+The outcome is `escalate` with a recommendation of `hold`, not `refuse`: the
+bill may be perfectly sound and the owner may fund the wallet, so waiting is
+the honest advice when the only thing missing is money. Refusing would record a
+judgement about an invoice on the strength of our own bank balance.
+
+**What this is not.** It is not the forecast described in the next section.
+There is no burn rate here, no runway in days and no yield figure — it is what
+is held *now* against what is dated *now*, inside a thirty-day window. Calling
+it a forecast would be the overstatement this file keeps refusing.
+
 ## Idle cash: what it would take, and what we did not build
 
 RFB 1 asks for an agent that puts idle reserves to work. Prior Art #02 is the
@@ -264,8 +345,11 @@ worse than saying so.
 behind a human approval with a two-day lead time. The part that is actually
 ours, and the part most treasury bots guess at, is the **forecast**: how much is
 provably idle past the longest committed outflow. We already hold what that
-needs — the obligations, their windows, and now the agreements they were made
-under — and none of it requires USYC. If the allowlist lands, the yield leg is
+needs — the obligations, their windows, the agreements they were made under, and
+now the balance itself — and none of it requires USYC. The section above is the
+first half of that measurement and stops short of the second on purpose: what
+is held against what is dated is a reading, and *how much is provably idle* is a
+claim about the future. If the allowlist lands, the yield leg is
 small. If it does not, the forecast is still worth having and still honest,
 because it reports a number without asserting a rate.
 
@@ -278,7 +362,7 @@ flow that earned it would be the same overclaim one step further on.
 
 **PAR is observed quotes, never the published index.**
 [`anchors/GAP.md`](../anchors/GAP.md) records this project's own index reference
-levels sitting 20× to 1159× away from real market prices, deliberately frozen
+levels sitting 20× to 1250× away from real market prices, deliberately frozen
 because they seed the simulator and the tape's price pin. Measuring a real
 vendor's bill against that print reads as a ~9,990 bp discount on an invoice
 that is in fact above the going rate. So the benchmark is built from prices we

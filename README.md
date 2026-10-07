@@ -100,7 +100,7 @@ when the settlement arrives (mirror lag 5 s), which is why it survived the API r
 the in-memory receipt counter underneath it — the chain is the record, `/revenue` is only a counter.
 
 **Two numbers on the deployed service are not the ones to quote**, and they are the same number
-twice: `/revenue` **and** `/marketplace/receipts` — the settlement tape `/exchange` renders — both
+twice: `/revenue` **and** `/marketplace/receipts` — the settlement tape the shop floor renders, under `/curve` — both
 report `112 paid queries / $0.333477`, because both read a facilitator ring rehydrated from a
 committed archive of Arc *testnet* settlements. The truth is 3 settlements and $0.00461. The chain
 filter is committed here and in the image pushed as `2026-09-30`, which is not the one running;
@@ -135,14 +135,23 @@ Full detail in [`docs/TAMEION.md`](docs/TAMEION.md).
 
 An agent that holds a business's USDC inside an on-chain budget it cannot
 exceed, meters what was actually consumed, checks every price against what other
-sellers are really charging, screens the counterparty, pays what clears policy,
-escalates what is not its call, and writes a double-entry ledger a human can
-open.
+sellers are really charging, screens the counterparty, weighs what the wallet
+actually holds against what is already dated, pays what clears policy, escalates
+what is not its call, and writes a double-entry ledger a human can open.
+
+A budget is permission, not money: `cap - spent` reads healthy on an empty
+wallet, and the payment then reverts on chain. So the ladder gained check 9,
+the cash, which reads what the wallet actually holds against what is already
+dated. It reads the ERC-20 view at six decimals, because on Arc the same USDC
+is also the native gas token at eighteen, and
+[`PolicyWallet.sol`](contracts/src/PolicyWallet.sol) calls mixing the two *"a
+1e12 error that looks like a fat finger"*. A balance it could not read is
+`null`, never `0.0`. It is a reading, not a forecast.
 
 | | |
 |---|---|
-| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. The `/traction` page renders it; the terminal is not deployed yet, so the API is the live surface |
-| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, same caveat |
+| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. Served from the **testnet** API (chain `5042002`) — the `/traction` page renders it, but only against a press that carries the operator, and the mainnet image does not yet (`make verify-drift`) |
+| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
 | **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
 | **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
@@ -280,7 +289,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **1204 py** · **217 forge** · **210 terminal** · **58 matchstick** · glossary **564/564** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **1295 py** · **217 forge** · **210 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
 
 ---
 

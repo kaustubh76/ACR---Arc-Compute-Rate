@@ -21,10 +21,9 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   ["/companion", "Companion", "Start Here"],
   ["/attack", "Attack Lab", "Try to Cheat It"],
   ["/curve", "Curve", "Future Prices"],
-  ["/exchange", "Exchange", "The Shop Floor"],
-  ["/sellers", "Registry", "Sellers"],
-  // The tape sits after the sellers it grades: a reader meets the sellers, then
-  // asks what buying from them actually cost.
+  // The tape used to sit after a seller registry that no longer exists. It
+  // stays here because the order still reads: a reader meets a price, then asks
+  // what buying at it actually cost. Seller grades live on the tape itself.
   ["/tape", "The Tape", "Receipts"],
   // The loop after the tape: a reader sees what buying cost, then drives the
   // decision the cost produces.

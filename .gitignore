@@ -53,3 +53,9 @@ TAMEION_IMPLEMENTATION.md
 # Orphan scratch canvas. scripts/gen_architecture.py writes the TRACKED
 # acr_architecture.excalidraw; nothing reads this one.
 ACR_MachineTCA_Architecture_FULL.excalidraw
+# The working register: ground state, market sizing, competitor analysis and a
+# named outreach target list. Same rule as the entries above — the submission is
+# public, the plan behind it is not. It also carries the defect register, which
+# is honest internal engineering and not a thing to hand a reviewer out of
+# context.
+ACR_REGISTER.md

@@ -39,6 +39,7 @@ COMMON = set(
     timestamps single canonical rail complete observation selection born dollars gas token known
     listed service discover load bearing math deployment cut lines class buckets paper never
     adoption study microstructure estimator trimmed out registry sellers index partners derived
+    developers
     own bots publish weekly quoting mission control trading freeze monday polish rehearse twice
     one estimand machine services jargon this input inputs positions later has feeds pays buyer
     printing product baseline unleash swings wildly burns counter contaminated shapes threat

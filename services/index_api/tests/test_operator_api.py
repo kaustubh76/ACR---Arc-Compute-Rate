@@ -8,7 +8,7 @@ not.
 
 The claim this file exists to defend over HTTP is the same one `statement.py`
 enforces internally: `payer_tca`'s `overpaid_usdc` is a real number about a
-synthetic scale (`anchors/GAP.md` puts the index reference level 20x to 1159x
+synthetic scale (`anchors/GAP.md` puts the index reference level 20x to 1250x
 off market), so it must never reach an owner's page. Asserting it inside the
 builder is not enough — the route is what the world reads.
 """
@@ -139,6 +139,20 @@ def test_a_business_with_no_wallet_reports_that_it_cannot_spend(registry):
     assert body["budgets"] == []
 
 
+def test_the_cash_block_crosses_the_wire_and_is_null_rather_than_zero(registry):
+    """A budget and a balance are different questions, and the route carries
+    both. `held_usdc` must arrive as JSON `null` from a business with no wallet:
+    serialised as 0.0 it would read as an empty wallet over HTTP, which is the
+    one thing the figure exists to distinguish."""
+    registry([ACME])
+    liq = client.get("/operator/statement/acme").json()["liquidity"]
+    assert liq["held_usdc"] is None
+    assert liq["covers_due"] is None
+    assert liq["due_usdc"] == 0
+    assert liq["horizon_days"] == 30.0
+    assert "no wallet" in liq["reason"]
+
+
 def test_the_period_is_clamped_rather_than_taken_on_trust(registry):
     """A window nobody asked for is a slow query somebody can ask for
     repeatedly. The route accepts the parameter; it does not have to honour an
@@ -247,7 +261,7 @@ def test_the_audit_window_is_clamped(registry):
 
 def test_the_audit_does_not_leak_the_index_dollar_figure(registry):
     """The same rule as the statement: `anchors/GAP.md` puts the index reference
-    level 20x to 1159x off market, so its dollar figure never reaches a page."""
+    level 20x to 1250x off market, so its dollar figure never reaches a page."""
     registry([ACME])
     assert "overpaid_usdc" not in client.get("/operator/audit/acme").text
 

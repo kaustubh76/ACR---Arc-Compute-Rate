@@ -4,7 +4,7 @@
  * `npm test` runs only lib/*.test.ts, so a decision that lives inside a route
  * handler is a decision nobody can assert on. The uint8 tables below ARE that
  * decision, and they are the one thing here that rots in silence — reorder the
- * Solidity enum and nothing throws, nothing goes empty, and /sellers quietly
+ * Solidity enum and nothing throws, nothing goes empty, and the page quietly
  * prints "gpu" where the chain said "inference", under a fresh block number
  * that makes it look checked. The house splits this way twice already
  * (onchainCodec/onchain, futuresCodec/futuresOnchain).

@@ -3,6 +3,13 @@
 help:
 	@echo "ACR — The Arc Compute Rate"
 	@echo ""
+	@echo "  THE PRODUCT — a spend operator that pays a business's machine bills:"
+	@echo "  make operator-run    BUSINESS=slug [LIVE=1] — price, meter, screen, decide, pay"
+	@echo "  make ledger          BUSINESS=slug — those decisions as beancount that balances"
+	@echo "  make verify-operator probe the deployed operator surfaces end to end"
+	@echo "  make verify-drift    does the DEPLOYMENT serve what this checkout builds?"
+	@echo ""
+	@echo "  the benchmark it prices against, and the tools that build and prove it:"
 	@echo "  make setup           install python + node + foundry deps"
 	@echo "  make test            run everything (python + contracts + agent + terminal)"
 	@echo "  make pipeline        run the estimator on simulated exhaust (live prints)"
@@ -13,7 +20,7 @@ help:
 	@echo "  make snapshot        regenerate the Terminal's bundled snapshot"
 	@echo "  make openapi-doc     render docs/acr-openapi.md (+pdf) from app.openapi(); -check fails when stale"
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
-	@echo "  make demo-full       the whole product: run_demo, then demo-agent, then the claim audit"
+	@echo "  make demo-full       every demo in order: run_demo, demo-agent, then the claim audit"
 	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
@@ -42,11 +49,6 @@ help:
 	@echo "  make desk-e2e        drive the real browser PIN ceremony end to end (PLAYWRIGHT_DIR=…)"
 	@echo "  make desk-evidence   confirm that run on-chain (USER_ID=… adds Circle's fee ledger)"
 	@echo "  make tape-audit      measure what REAL Arc settlement flow yields as an index"
-	@echo ""
-	@echo "  the spend operator (apps for businesses — pays their machine bills):"
-	@echo "  make operator-run    BUSINESS=slug [LIVE=1] — decide and pay one business's bills"
-	@echo "  make ledger          BUSINESS=slug — their decisions as a beancount file that balances"
-	@echo "  make verify-operator probe the deployed operator surfaces end to end"
 	@echo "  make sandbox-decisions       regenerate the demo fixtures by running the ladder"
 	@echo "  make archive-decisions       fold production's decisions into the committed archive"
 	@echo "  make archive-decisions-check exit 1 if production holds rows the archive does not"
@@ -369,6 +371,14 @@ verify-loop:
 # collection for a quick pass.
 verify-claims:
 	uv run python scripts/verify_claims.py
+
+# Does the DEPLOYMENT serve what this checkout builds? Both directions: a route
+# built and not served is an undeployed change (the product's own /operator/*
+# pages were empty in production for exactly this reason), and a route served
+# and not built is a stale image whose docs are about to go wrong. Read-only,
+# one GET per host, no credentials.
+verify-drift:
+	uv run python scripts/verify_deploy_drift.py
 
 # Fold the seller's real x402 settlements into the committed archive, so they
 # survive the next restart (production has no persistent disk). Run it right

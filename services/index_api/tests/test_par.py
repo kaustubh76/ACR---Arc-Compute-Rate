@@ -9,12 +9,18 @@ recoverable.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from index_api.par import (
+    ANCHOR_MAX_AGE_S,
+    FLEET_SELLERS,
     MATERIAL_BP,
     Par,
     Quote,
     assess,
+    is_first_party,
+    market_basket,
     par_from_quotes,
     price_from_accepts,
     quotes_from_catalog,
@@ -221,3 +227,118 @@ def test_the_even_sample_median_is_the_lower_of_the_two_middle_prices():
     assert out["over_par_usdc"] == pytest.approx(0.0)
     assert out["saving_usdc"] == pytest.approx(0.0)
     assert out["verdict"] == "at_par", "not over_par, despite the downward median"
+
+
+# --- the market basket: real prices, and what they are allowed to do -------
+
+UNIT = "$/1k tokens"
+
+
+def _basket_dir(tmp_path, rows, fetched="2026-10-06T00:00:00+00:00", missing=()):
+    """An anchors/ tree with one dated basket, shaped like the real thing."""
+    d = tmp_path / "ACR-INF"
+    d.mkdir(parents=True)
+    (d / "2026-10-06.json").write_text(json.dumps({
+        "index_id": "ACR-INF", "unit": UNIT, "fetched_at": fetched,
+        "rows": rows, "missing": list(missing),
+    }))
+    # `_basket/` holds the selection RULES, not observations. It must be skipped.
+    (tmp_path / "_basket").mkdir()
+    (tmp_path / "_basket" / "ACR-INF.json").write_text('{"unit": "$/1k tokens"}')
+    return tmp_path
+
+
+def _row(model: str, price: float) -> dict:
+    return {"id": model, "label": model, "price_usd_per_unit": price,
+            "quality": {"model_class": "mid"},
+            "source": {"kind": "http", "url": "https://example.test/models"}}
+
+
+def test_the_shipped_basket_is_real_prices_and_none_of_them_are_ours():
+    """Against `anchors/` as committed, not a fixture.
+
+    This is the claim RFB 3's "what the market is actually paying" rests on, so
+    it is checked against the file a reviewer would open. Every row is a third
+    party by construction — a market basket names a model, and a model is not
+    an address this deployment holds a key for.
+    """
+    b = market_basket(UNIT)
+    assert b.status == "" and b.quotes, f"no usable basket: {b.status}"
+    assert b.index_id == "ACR-INF"
+    assert all(q.source == "market" for q in b.quotes)
+    assert not any(q.first_party for q in b.quotes)
+    # And the rows it HASN'T got are reported, because a basket that shrinks
+    # silently re-medians a different population — GAP.md's own words.
+    assert b.requested >= b.rows > 0
+
+
+def test_a_basket_reports_what_it_is_missing(tmp_path):
+    root = _basket_dir(tmp_path, [_row("a/one", 0.0004), _row("b/two", 0.0006)],
+                       missing=["c/three", "d/four"])
+    b = market_basket(UNIT, anchor_dir=root)
+    assert (b.rows, b.requested) == (2, 4)
+
+
+def test_a_stale_basket_is_a_named_refusal_and_never_a_price(tmp_path):
+    """`--fetch` is manual by design, so an old basket is the expected failure.
+    A price nobody refreshed is still a number, which is what makes it
+    dangerous: it would price a live invoice against a market that has moved."""
+    root = _basket_dir(tmp_path, [_row("a/one", 0.0004)],
+                       fetched="2026-01-01T00:00:00+00:00")
+    b = market_basket(UNIT, anchor_dir=root, now=1_790_000_000.0)
+    assert b.status == "STALE"
+    assert b.quotes == (), "a stale basket must not hand back a price"
+    assert b.usable is False
+    # …and the same file, read inside the window, is fine.
+    fresh = market_basket(UNIT, anchor_dir=root, now=1_767_225_600.0 + ANCHOR_MAX_AGE_S / 2)
+    assert fresh.status == "" and len(fresh.quotes) == 1
+
+
+def test_a_unit_with_no_basket_says_absent_rather_than_empty(tmp_path):
+    root = _basket_dir(tmp_path, [_row("a/one", 0.0004)])
+    b = market_basket("$/furlong", anchor_dir=root)
+    assert b.status == "ABSENT" and b.quotes == ()
+
+
+def test_the_selection_rules_directory_is_not_read_as_observations(tmp_path):
+    """`anchors/_basket/` holds the aggregation rule per index and carries a
+    `unit`, so a reader that globbed every directory would match it and return
+    a basket with no rows."""
+    root = _basket_dir(tmp_path, [_row("a/one", 0.0004)])
+    assert market_basket(UNIT, anchor_dir=root).index_id == "ACR-INF"
+
+
+# --- whose prices are these -----------------------------------------------
+
+def test_first_party_is_resolved_against_the_fleet_this_deployment_runs():
+    assert FLEET_SELLERS, "the fleet registry is empty, so the disclosure is vacuous"
+    ours = sorted(FLEET_SELLERS)[0]
+    assert is_first_party(ours) is True
+    assert is_first_party(ours.upper()) is True, "an address is not case-sensitive"
+    assert is_first_party("0x" + "9a" * 20) is False
+    assert is_first_party("openai/gpt-4o-mini") is False
+    assert is_first_party("") is False
+
+
+def test_a_par_says_how_many_of_its_sellers_are_ours():
+    """The standard `graph/schema.graphql` already states: a benchmark that
+    counts its own seller silently is claiming security it has not got."""
+    ours = sorted(FLEET_SELLERS)[0]
+    par = par_from_quotes(RES, [
+        _q(ours, 1.0, first_party=True),
+        _q(B, 1.2),
+        _q(C, 1.4),
+    ])
+    assert par.sellers == 3
+    assert par.first_party_sellers == 1
+    assert par.as_dict()["first_party_sellers"] == 1
+
+
+def test_the_best_quote_carries_where_it_came_from():
+    """A caller cannot tell a payable seller from a price reference by looking
+    at the string, so the source travels with the figure."""
+    par = par_from_quotes(RES, [_q("openai/gpt-4o-mini", 0.0002, source="market"),
+                                _q(B, 0.0009, source="market")])
+    assert par.best_seller == "openai/gpt-4o-mini"
+    assert par.best_source == "market"
+    assert assess(0.01, par)["best_source"] == "market"

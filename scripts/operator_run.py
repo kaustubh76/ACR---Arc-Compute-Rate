@@ -42,9 +42,11 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import time
 from collections import defaultdict
 
 from acr_core import get_settings
+from index_api import entitlements as entitlements_register
 from index_api.businesses import resolve
 from index_api.marketplace import build_catalog
 from index_api.operator import (
@@ -192,15 +194,31 @@ def main() -> int:
     # Pairing them here rather than tracking two lists is what makes it
     # impossible to run a bill past the meter by accident — the meter check is
     # skipped by a `None` guard, so its absence leaves no trace in the record.
+    # BOTH SOURCES, ADDED — the way `operator_keeper` does it (`pairs +=`).
+    #
+    # This used to be an either/or: naming `--entitlements` replaced the tape
+    # entirely, and omitting it hid the register. So the autonomous path and the
+    # CLI a person runs to check it disagreed about what was owed, and the
+    # register — which only the keeper read — was invisible to the one command
+    # anybody would use to verify it. A business has both a settlement tape and
+    # vendor invoices; this docstring calls the second one "THE SECOND SOURCE",
+    # which is additive by its own wording.
+    pairs = [(ob, None) for ob in _obligations(b, receipts, catalog, paid_through)]
+    source = f"{len(receipts)} settlement(s) in the archive"
+
     if args.entitlements:
         rows = _read_entitlements(args.entitlements)
         if rows is None:
             return 2
-        pairs = obligations_from_entitlements(b, rows, paid_through)
-        source = f"{args.entitlements}: {len(rows)} bill(s) a vendor sent us"
+        where = args.entitlements
     else:
-        pairs = [(ob, None) for ob in _obligations(b, receipts, catalog, paid_through)]
-        source = f"{len(receipts)} settlement(s) in the archive"
+        # The committed register, keyed per business, exactly as the keeper reads
+        # it. Absent or empty is a normal state, not an error.
+        rows = list(entitlements_register.for_business(b.slug))
+        where = "the committed register"
+    if rows:
+        pairs += obligations_from_entitlements(b, rows, paid_through)
+        source += f" + {len(rows)} bill(s) from {where}"
     if args.limit:
         pairs = pairs[: args.limit]
     obligations = [ob for ob, _ in pairs]
@@ -228,6 +246,25 @@ def main() -> int:
         )
     print(f"mode       : {'LIVE' if args.live else 'dry run'}\n")
 
+    # ONE CASH PICTURE FOR THE PASS, not one per bill. `due_usdc` is a sum over
+    # the obligations in hand, so it has to be computed where the set is. And
+    # re-reading the balance per bill would be N chain calls saying the same
+    # thing, while letting two decisions in one pass be judged against two
+    # different balances — which no reviewer could reconstruct afterwards from
+    # a log that records one number per row.
+    from index_api.liquidity import assess as assess_liquidity
+
+    liq = assess_liquidity(
+        policy.balance_usdc() if policy is not None else None,
+        [ob for ob, _ in pairs],
+        time.time(),
+    )
+    print(
+        f"cash       : {'not measured' if liq.held_usdc is None else f'{liq.held_usdc:g} USDC held'}"
+        f" · {liq.due_usdc:g} dated in {int(liq.horizon_s / 86_400)}d"
+        f"{f' · {liq.undated} undated' if liq.undated else ''}"
+    )
+
     tally: dict[str, int] = defaultdict(int)
     for ob, metered in pairs:
         d = run_obligation(
@@ -236,6 +273,7 @@ def main() -> int:
             catalog=catalog,
             policy=policy,
             metered_quantity=metered,
+            liquidity=liq,
             settled_refs=already,
             # The same window the bill was built from. `since` defaulted to 0.0
             # and was never passed, so the meter counted from the epoch — which

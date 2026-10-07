@@ -6,12 +6,11 @@ import { CHAIN } from "./chain";
 import { bundleSection } from "./api";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, nameFor, schemaFromBytes32 } from "./registryCodec";
 import { ok, unread, type Read } from "./readResult";
-import { deriveDemoSellers } from "./sellerKeys";
-import type { RegistryDirectRead, SellerKeyEvidence } from "./types";
+import type { RegistryDirectRead } from "./types";
 
 /* Reading `AttestationRegistry` straight off Arc, on demand.
  *
- * Every other number on /sellers arrives via the Python press, which means a
+ * Every other number on the page arrives via the Python press, which means a
  * reader has to take the card's "4 sellers attested" on our word. This is the
  * one path that does not: the reader presses a button, we ask Arc, and the
  * answer comes back stamped with the block height it was read at. That is the
@@ -28,18 +27,6 @@ import type { RegistryDirectRead, SellerKeyEvidence } from "./types";
  *  packages/acr_oracle_client/acr_oracle_client/registry.py — same fragments,
  *  same tuple order. Only the reads: nothing here can write. */
 const REGISTRY_ABI = [
-  {
-    // The per-seller SIGNATURE nonce, consumed by `attestWithSig` on each
-    // filing. Not the account nonce, and the difference is the whole point of
-    // the evidence table on /sellers: this counts the signed records filed for
-    // a seller (1 or 2 on the live registry) while `eth_getTransactionCount` on
-    // the same address reads 0. Somebody else paid every one of those fees.
-    type: "function",
-    name: "nonces",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
   {
     type: "function",
     name: "sellerCount",
@@ -121,7 +108,23 @@ function client() {
  *  RPC are opposite claims, and `[]` for the second is the exact failure
  *  readResult.ts exists to foreclose.
  */
-export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
+/** The registry's own answer. `records: true` also crawls each attestation.
+ *
+ *  THE CRAWL IS OPT-IN, and the reason is the one number this read exists to
+ *  publish. `RegistryProof` on /developers renders four fields — block,
+ *  sellerCount, chain, took_ms — and its entire product is "press it twice and
+ *  the block moves, in N ms". The crawl is `sellerAt` + `getAttestation` per
+ *  seller, paced at RPC_GAP_MS to stay inside Arc's rate limit: with four
+ *  records that is eight extra paced round trips, about 2.8 seconds, added to a
+ *  figure the button DISPLAYS. So the button was advertising its own speed and
+ *  reporting a time inflated roughly fivefold by work nobody could see.
+ *
+ *  The records are not dropped — `GET /api/registry?records=1` still returns
+ *  them, and they are the substance a future surface would render. They are just
+ *  no longer charged to a reader who did not ask. */
+export async function readRegistry(
+  opts: { records?: boolean } = {},
+): Promise<Read<RegistryDirectRead>> {
   const address = registryAddress();
   if (!address) return unread("registry.address");
 
@@ -137,7 +140,8 @@ export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
     const total = Number.isFinite(count) && count >= 0 ? count : 0;
 
     const sellers: RegistryDirectRead["sellers"] = [];
-    for (let i = 0; i < Math.min(total, MAX_SELLERS); i++) {
+    const wanted = opts.records ? Math.min(total, MAX_SELLERS) : 0;
+    for (let i = 0; i < wanted; i++) {
       await sleep(RPC_GAP_MS);
       const who = (await c.readContract({
         address,
@@ -182,78 +186,19 @@ export async function readRegistry(): Promise<Read<RegistryDirectRead>> {
       chain_id: CHAIN.chainId,
       block: Number(block),
       seller_count: total,
-      truncated: total > MAX_SELLERS,
+      // Only meaningful when the crawl ran. Reporting `true` on a summary read
+      // would claim rows were cut off when none were asked for.
+      truncated: opts.records ? total > MAX_SELLERS : false,
       took_ms: Date.now() - started,
-      sellers,
+      // UNDEFINED when the crawl was skipped, never `[]`. An empty array says
+      // "the chain holds no attestations", which is a different fact and the
+      // exact collapse `types.ts` warns about for the catalog's own copy.
+      sellers: opts.records ? sellers : undefined,
     });
   } catch {
     // No partial answer. A crawl that died halfway would otherwise report
     // "2 records" under a real block number, which reads as the registry
     // having shrunk rather than as a read that did not finish.
     return unread("registry.read");
-  }
-}
-
-/** The four demo sellers, derived from this repo and then looked up on Arc.
- *
- *  This is the second, smaller press on /sellers, and it is deliberately its
- *  own action rather than extra columns on `readRegistry`. Nine paced calls is
- *  roughly another four seconds, and the main "read it from the chain" button
- *  should not get 40% slower for every reader to serve a disclosure most of
- *  them never open.
- *
- *  Unlike `readRegistry`, a dead RPC is NOT total failure here: the derivation
- *  is pure and offline, so the addresses still stand and only the two counts go
- *  null. That is why this returns `ok(...)` with `chain_unread: true` instead of
- *  `unread(...)` — refusing to answer would throw away a real result. The one
- *  thing that must not happen downstream is a null rendered as 0.
- */
-export async function readSellerKeyEvidence(): Promise<Read<SellerKeyEvidence>> {
-  const address = registryAddress();
-  if (!address) return unread("registry.address");
-
-  const started = Date.now();
-  let derived;
-  try {
-    derived = deriveDemoSellers();
-  } catch {
-    // secp256k1 refused a derived key. Impossible for the four committed
-    // labels (CI asserts their addresses), so this can only mean the labels
-    // changed — which is a broken build, not a transient chain problem.
-    return unread("registry.derive");
-  }
-
-  const base = {
-    registry: address,
-    chain_id: CHAIN.chainId,
-    took_ms: 0,
-    sellers: derived.map((d) => ({ label: d.label, address: d.address, txs: null, filed: null })),
-  };
-
-  const c = client();
-  try {
-    // Block first, same reason as readRegistry: the stamp must not be newer
-    // than the counts it describes.
-    const block = Number(await c.getBlockNumber());
-    const sellers = [];
-    for (const d of derived) {
-      await sleep(RPC_GAP_MS);
-      const txs = await c.getTransactionCount({ address: d.address });
-      await sleep(RPC_GAP_MS);
-      const filed = await c.readContract({
-        address,
-        abi: REGISTRY_ABI,
-        functionName: "nonces",
-        args: [d.address],
-      });
-      sellers.push({ label: d.label, address: d.address, txs: Number(txs), filed: Number(filed) });
-    }
-    return ok({ ...base, block, chain_unread: false, took_ms: Date.now() - started, sellers });
-  } catch {
-    // Half a crawl is worse than none for the counts: four addresses where two
-    // say 0 and two say nothing reads as a disagreement between sellers rather
-    // than as one read that stopped. So the chain leg is all-or-nothing, and
-    // the derivation survives it.
-    return ok({ ...base, block: null, chain_unread: true, took_ms: Date.now() - started });
   }
 }

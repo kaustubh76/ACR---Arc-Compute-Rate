@@ -231,7 +231,7 @@ per-row citations in `anchors/`):
 
 | index | reference | market anchor | gap |
 |---|---|---|---|
-| ACR-INF | 0.50 $/1k tokens | 0.000431 | **1159×** |
+| ACR-INF | 0.50 $/1k tokens | 0.0004 | **1250×** |
 | ACR-GPU | 0.011 $/GPU-sec | 0.000553 ($1.99/GPU-hr) | **20×** |
 | ACR-DATA | 0.002 $/MB | 0.00009 ($0.09/GB) | **22×** |
 

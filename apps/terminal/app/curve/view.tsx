@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { QuoteCorridor } from "@/components/charts/QuoteCorridor";
 import { FuturesDesk } from "@/components/chain/FuturesDesk";
 import { FuturesMarkChart } from "@/components/charts/FuturesMarkChart";
@@ -16,6 +18,7 @@ import { useDeskAddress } from "@/lib/useDeskAddress";
 import { contractNotional } from "@/lib/futuresBook";
 import { fmtPrice, heroFigure, money, serviceName } from "@/lib/format";
 import type { Envelope, TerminalData } from "@/lib/types";
+import { ShopFloor } from "@/components/chain/ShopFloor";
 
 /* Curve data is maker quotes the oracle does NOT publish — there is no
    honest direct-read overlay. Off the live tier the page says exactly what
@@ -49,6 +52,8 @@ function tierBanner(
 
 export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
   const conn = useConnection(initial);
+  // The shop floor's tickers must not run for a reader who never opened it.
+  const [floorOpen, setFloorOpen] = useState(false);
   const env = conn.env;
   const plain = useEdition() === "plain";
   const prints = Object.values(env.data.prints).filter((p) => p.curve?.length);
@@ -211,11 +216,39 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
         />
       </div>
 
-      {/* The hedger used to sit here too. It belongs on the Shop Floor: what it
-          shows is commerce — what it PAID for data, its receipts, its two
-          wallets — while this page is the term structure. Two mounts also meant
-          the same panel introduced itself twice to anyone walking the demo
-          path. It lives on /exchange now, next to the buyer it argues with. */}
+      {/* THE SHOP FLOOR, folded in from /exchange.
+          The hedger was moved OFF this page on 2026-08-07, for a good reason:
+          it shows commerce — what it PAID for data, its receipts, its two
+          wallets — while this page is the term structure, and two mounts meant
+          the same panel introduced itself twice on the demo path. That reason
+          was about having two pages. There is one now, so the double mount it
+          guarded against cannot happen, and the panel comes back here with the
+          buyer it argues with.
+
+          Below the desk, never above it: `#desk` has six inbound links and the
+          comment above says a reader arriving on a cold press must land on the
+          desk itself. Roughly 900 lines inserted higher up is exactly that
+          failure.
+
+          Rendered on open rather than hidden with CSS — see ShopFloor's own
+          note. A closed disclosure must not start its tickers. */}
+      <details
+        className="disclosure"
+        onToggle={(e) => setFloorOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>
+          <Ed
+            x="The shop floor · listings, receipts, and the buyer that closes the loop"
+            p="The shop · what is for sale, what sold, and the robot that buys"
+          />
+        </summary>
+        {/* `.disclosure-body` carries the shared 4px/24px padding
+            (globals.css) and every other disclosure in the app uses it; the
+            fold shipped without it. */}
+        <div className="disclosure-body">
+          {floorOpen ? <ShopFloor initial={initial} /> : null}
+        </div>
+      </details>
 
       <section className="section">
         <div className="section-head">

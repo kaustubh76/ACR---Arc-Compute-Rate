@@ -1401,6 +1401,125 @@ def tca(
     return payer_tca(_require_address(payer, "payer"), days=days)
 
 
+#: The units a bill can be priced in — the three the index registry declares,
+#: and nothing else. A typo must not come back as "no market for that", because
+#: `_require_address` records the same lesson one route up: a caller's mistake
+#: reported as our outage is the one confusion a provenance surface must never
+#: produce.
+_PRICEABLE_UNITS = tuple(spec_for(i).unit for i in ALL_INDEX_IDS)
+
+#: Stands in for a payee when a caller is only asking about a price. The ladder
+#: refuses at check 2 without one ("a payee, and an amount"), which is correct
+#: for a payment and useless for a price check — so a price check supplies a
+#: placeholder and the response says `vendor_supplied: false`. Deliberately not
+#: a fleet address, so the bill is priced against the market like any other
+#: stranger's invoice.
+_NO_VENDOR = "0x" + "11" * 20
+
+
+@app.get("/par")
+def price_check(
+    request: Request,
+    unit: str,
+    billed_usdc: float,
+    quantity: float,
+    vendor: str = "",
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """Price one bill against what the market is actually paying.
+
+    THE FIRST PUBLIC SURFACE FOR `par.py`, which until now was reachable only by
+    being in `businesses.json`. A benchmark nobody can check for free is a
+    benchmark nobody checks — the same sentence `/tca/{payer}` is ungated for,
+    and this is the pre-trade half of that post-trade answer.
+
+    Ungated for one bill. `POST /par/batch` is where a ledger goes, and that one
+    is paid: a person checking an invoice should not meet a paywall, and an
+    agent pricing a hundred should.
+
+    WHICH MARKET depends on the vendor, and the rule is `operator.py`'s, not a
+    second one invented here: a seller this deployment operates is judged
+    like-for-like against fleet quotes, both pinned to the same scale, and
+    anybody else is a real invoice that only the market basket can price.
+    `anchors/GAP.md` is why — the reference levels sit 20x to 1250x off real
+    prices, so a real bill measured against them reads as a ~9,990 bp discount.
+
+    What this does NOT check is named rather than implied. There is no meter, no
+    counterparty screen, no agreement, no budget and no balance for a caller who
+    has onboarded nothing, and `decide` leaves a note for each.
+    """
+    from .operator import Obligation, decide
+    from .par import assess as par_assess
+    from .par import (
+        is_first_party,
+        market_basket,
+        par_from_quotes,
+        quotes_by_unit,
+    )
+
+    _meter_agent(request, agent)
+    if unit not in _PRICEABLE_UNITS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unit must be one of {list(_PRICEABLE_UNITS)}, got {unit!r}",
+        )
+    if not (billed_usdc > 0) or not (quantity > 0):
+        raise HTTPException(
+            status_code=422,
+            detail="billed_usdc and quantity must both be positive",
+        )
+    payee = _require_address(vendor, "vendor") if vendor else _NO_VENDOR
+
+    basket = market_basket(unit)
+    if is_first_party(payee) or not basket.usable:
+        from .marketplace import build_receipts
+
+        quotes = quotes_by_unit(build_receipts(get_facilitator()).get("receipts") or [], unit)
+        against = "fleet"
+    else:
+        quotes = list(basket.quotes)
+        against = "market"
+    par = par_from_quotes(unit, quotes, exclude_seller=payee, denomination="unit")
+    verdict = par_assess(billed_usdc, par, quantity=quantity)
+
+    ob = Obligation(
+        obligation_id="price-check", vendor=payee, billed_usdc=billed_usdc,
+        category="infra", unit=unit, vendor_quantity=quantity,
+    )
+    d = decide(ob, par=par, metered_quantity=quantity, commitment=None)
+
+    return {
+        "unit": unit,
+        "billed_usdc": billed_usdc,
+        "quantity": quantity,
+        "vendor": vendor or None,
+        "vendor_supplied": bool(vendor),
+        # WHOSE prices answered. `graph/schema.graphql` states the standard:
+        # "a benchmark that counted one silently would be claiming security it
+        # does not have."
+        "benchmarked_against": against,
+        "basket": {
+            "index_id": basket.index_id,
+            "status": basket.status or "ok",
+            "fetched_at": basket.fetched_at,
+            "rows": basket.rows,
+            "requested": basket.requested,
+        },
+        # HOW FAR OVER THE GOING RATE, which is the question a caller is asking
+        # and is NOT what `verdict.verdict` answers. That field reads "over_par"
+        # whenever material money is available at the CHEAPEST row — the right
+        # test when the cheaper seller is an address we can pay, and misleading
+        # here, where a bill priced at exactly the market median would come back
+        # labelled over par because one mid-class model is cheaper than another.
+        # The engine keeps its semantics; the public surface states the rate.
+        "over_rate_bp": verdict.get("over_par_bp"),
+        "par": par.as_dict(),
+        "verdict": verdict,
+        "would": {"intent": d.intent, "rule": d.rule, "notes": d.notes,
+                  "recommended_intent": d.recommended_intent},
+    }
+
+
 def _policy_for(business):
     """A ``PolicyClient`` pointed at ONE business's wallet.
 
@@ -2016,9 +2135,22 @@ async def demo_attack_start(req: AttackStartRequest | None = None) -> dict:
 
 @app.get("/demo/attack/status")
 def demo_attack_status() -> dict:
+    """The run's state, PLUS whether a run can be started here at all.
+
+    Ungated on purpose — a reader should be able to see a finished run's chart on
+    any network. But `/demo/attack/start` is gated to testnet, and the two
+    together used to lie: this route answered 200 on mainnet, the Terminal read
+    that as "the lab is live", rendered a teal `press live` chip and armed the
+    button, and a visitor who pressed it got a 404. Measured on production
+    2026-10-07: status 200, start 404.
+
+    `available` is the server answering the question the page was guessing at.
+    The gate is the authority on what the gate will accept, and a client that
+    infers it from a chain id would be a second copy of the rule.
+    """
     from . import demo
 
-    return demo.status()
+    return {**demo.status(), "available": testnet_surfaces_enabled(get_settings())}
 
 
 class BuyerStartRequest(BaseModel):

@@ -4,7 +4,7 @@ The machine side of the marketplace: an agent that **discovers** ACR's listings
 (`GET /marketplace/catalog`), **holds a wallet**, and **pays per query** via
 x402 — Circle Nanopayments on Arc testnet in live mode, the DevFacilitator mock
 gate offline. Every paid query lands in the public settlement ledger
-(`GET /marketplace/receipts`) and on the Terminal's `/exchange` tape.
+(`GET /marketplace/receipts`) and on the Terminal's shop-floor tape, under `/curve`.
 
 ## Offline demo (no credentials, no chain)
 

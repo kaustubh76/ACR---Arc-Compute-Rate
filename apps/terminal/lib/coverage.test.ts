@@ -29,18 +29,14 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // the sellers/developers comments below call a floor that stopped holding.
   "app/index/[id]/view.tsx": 32,
   "app/attack/view.tsx": 10,
-  "app/curve/view.tsx": 5,
-  "app/exchange/view.tsx": 12,
-  // Was 8 against an actual 15 — a floor that had stopped holding anything,
-  // which is part of why this page's attestation copy rotted unnoticed.
-  "app/sellers/view.tsx": 44,
+  "app/curve/view.tsx": 16, // 5 -> 16: measured, plus the shop-floor disclosure
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
-  "app/tape/view.tsx": 66, // 43 -> 66: the Sells column in both tables, seller names, and the edition-aware slippage titles
-  // Both of these carried floors well under their actual counts, which is the
-  // state the sellers comment below describes as a floor that has stopped
-  // holding anything. Raised to actual as part of the register extraction.
+  "app/tape/view.tsx": 66, // the Sells column, seller names, the slippage titles, and the People column
+  // This carried a floor well under its actual count, which is the state the
+  // comment below describes as a floor that has stopped holding anything.
+  // Raised to actual as part of the register extraction.
   "app/developers/view.tsx": 80, // incl. the human gate section and the two operator rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
@@ -66,8 +62,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
-  // Both of these sat at 10 against an actual 13 — three markers of slack, the
-  // same state the sellers comment above describes. Raised to actual; the
+  // This sat at 10 against an actual 13 — three markers of slack, which is a
+  // floor holding nothing. (The comment this used to point at belonged to
+  // app/sellers/view.tsx and went with that page.) Raised to actual; the
   // ledger's is now 23 because every section title speaks in both editions.
   "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
   // The owner's page speaks to an owner, not an operator: every heading, every
@@ -84,6 +81,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
   "components/chain/ContractRegister.tsx": 10, // seven glosses, the custody note, the sim tape line
+  // The chain-read proof, re-homed off /sellers when that page went: the
+  // button, its explanation, and the two labels on the result.
+  "components/chain/RegistryProof.tsx": 4,
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,
@@ -94,6 +94,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/HumanProof.tsx": 16,
   "components/chain/AgentCardSnippet.tsx": 12,
   "components/chain/McpSnippet.tsx": 7,
+  // The shop floor, folded in from the old /exchange route. Rendered only when
+  // its disclosure is open, so a reader of /curve does not pay for its tickers.
+  "components/chain/ShopFloor.tsx": 42,
   "components/chain/SettlementTape.tsx": 3,
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,
@@ -113,8 +116,6 @@ const EXEMPT: Record<string, string> = {
   "app/loading.tsx": "skeleton vocabulary is edition-neutral by design",
   "app/attack/loading.tsx": "skeleton",
   "app/curve/loading.tsx": "skeleton",
-  "app/exchange/loading.tsx": "skeleton",
-  "app/sellers/loading.tsx": "skeleton",
   "app/tape/loading.tsx": "skeleton",
   "app/tape/page.tsx": "metadata only — the client hook owns the tape, like /ops",
   "app/developers/loading.tsx": "skeleton",
@@ -127,8 +128,6 @@ const EXEMPT: Record<string, string> = {
   "app/loop/page.tsx": "metadata only",
   "app/loop/loading.tsx": "skeleton",
   "app/curve/page.tsx": "metadata only",
-  "app/exchange/page.tsx": "metadata only",
-  "app/sellers/page.tsx": "metadata only",
   "app/developers/page.tsx": "metadata only",
   "app/ops/page.tsx": "metadata only",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",

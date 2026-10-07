@@ -106,11 +106,157 @@ def test_an_unconfigured_client_reports_itself_and_refuses_to_spend():
 
 def test_reads_are_none_rather_than_a_guess_when_there_is_no_chain():
     """A budget this client cannot see must not read as a budget of zero: zero is
-    a real answer that would make every payment look over-budget."""
+    a real answer that would make every payment look over-budget.
+
+    The balance is the same claim and the sharper one. `budget()` returning 0
+    makes a payment look forbidden, which stops the agent; `balance_usdc()`
+    returning 0 makes the WALLET look empty, which escalates every bill to a
+    person on the strength of an RPC that happened to time out.
+    """
     c = _client(agent_signer=None, owner_signer=None)
     assert c.budget("infra") is None
     assert c.approval_nonce() is None
     assert c.paused() is None
+    assert c.balance_usdc() is None
+
+
+# --- the balance, and the 1e12 trap ---------------------------------------
+
+class _Fn:
+    """One contract function that answers a fixed value."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def call(self):
+        return self._value
+
+
+class _Functions:
+    def __init__(self, token: str, raw: int):
+        self._token, self._raw = token, raw
+        self.asked: list[str] = []
+
+    def usdc(self):
+        return _Fn(self._token)
+
+    def balanceOf(self, account):  # noqa: N802 — the ERC-20 spelling
+        self.asked.append(account)
+        return _Fn(self._raw)
+
+
+class _Contract:
+    def __init__(self, fns):
+        self.functions = fns
+
+
+class _Eth:
+    def __init__(self, fns):
+        self._fns = fns
+        self.addresses: list[str] = []
+
+    def contract(self, address=None, abi=None):
+        self.addresses.append(address)
+        return _Contract(self._fns)
+
+
+class _W3:
+    """Just enough web3 to answer two view calls and nothing else."""
+
+    def __init__(self, token: str, raw: int):
+        self.eth = _Eth(_Functions(token, raw))
+
+    @staticmethod
+    def to_checksum_address(a):
+        # The REAL normaliser, not a passthrough. `_contract()` checksums via
+        # web3 directly while `balance_usdc` goes through `w3`, and a fake that
+        # returned the string unchanged would make the two disagree in the test
+        # and nowhere else — hiding exactly the mismatch a reader would look
+        # here to rule out.
+        from web3 import Web3
+
+        return Web3.to_checksum_address(a)
+
+
+TOKEN = "0x3600000000000000000000000000000000000000"
+
+
+def _reader(raw_units: int) -> PolicyClient:
+    c = PolicyClient(
+        rpc_url="http://127.0.0.1:1",
+        wallet_address="0x" + "cc" * 20,
+        agent_signer=object(),
+    )
+    c._w3 = _W3(TOKEN, raw_units)
+    return c
+
+
+def test_the_balance_is_the_six_decimal_erc20_view_and_not_the_native_eighteen():
+    """THE ONE NUMBER THAT MUST BE RIGHT.
+
+    On Arc, USDC is the native gas token at 18 decimals AND an ERC-20 at
+    `0x3600…` at 6. `PolicyWallet` holds and `transfer`s the ERC-20, so that is
+    the pile `spend` can move; `eth_getBalance` would answer about the other
+    one. `PolicyWallet.sol`'s own comment states the stakes: "Mixing them is a
+    1e12 error that looks like a fat finger."
+
+    A wallet holding 1.5 USDC reads 1.5. Read through the 18-decimal view the
+    same wallet would read 1,500,000, and every bill on earth would look
+    affordable.
+    """
+    assert _reader(1_500_000).balance_usdc() == pytest.approx(1.5)
+    assert _reader(1).balance_usdc() == pytest.approx(1 / USDC)
+    assert _reader(0).balance_usdc() == 0.0
+    # The guard sentence: 1.5 USDC must not read as a number in the millions.
+    assert _reader(1_500_000).balance_usdc() < 2.0
+
+
+def test_a_chain_that_refuses_gives_none_and_never_a_zero_balance():
+    """The branch that decides what an operator does on a Monday morning.
+
+    Zero is a real answer: it means the wallet is empty and every dated bill
+    should go to a person. A node that hung up means nothing of the kind, and
+    the two must not arrive at the ladder as the same float."""
+
+    class _Angry:
+        def __init__(self):
+            self.eth = self
+
+        def contract(self, address=None, abi=None):
+            raise RuntimeError("no contract at this address on this chain")
+
+        @staticmethod
+        def to_checksum_address(a):
+            from web3 import Web3
+
+            return Web3.to_checksum_address(a)
+
+    c = PolicyClient(
+        rpc_url="http://127.0.0.1:1",
+        wallet_address="0x" + "cc" * 20,
+        agent_signer=object(),
+    )
+    c._w3 = _Angry()
+    assert c.balance_usdc() is None
+
+
+def test_the_token_address_comes_from_the_wallet_not_from_configuration():
+    """The wallet names the token it can actually move, so the balance cannot
+    drift from what `spend` transfers — and no USDC address is hardcoded in this
+    client for an operator to get wrong on a second chain."""
+    from web3 import Web3
+
+    c = _reader(2_000_000)
+    wallet = Web3.to_checksum_address(c.wallet_address)
+    assert c.balance_usdc() == pytest.approx(2.0)
+    # Two contracts built: the wallet at its own address, then the token at the
+    # address the wallet named. TOKEN has no letters, so its checksum form is
+    # itself — which is why that address can be written as a plain literal here
+    # and still be the thing web3 would accept in production, where `usdc()`
+    # comes back already checksummed from the ABI decoder.
+    assert c._w3.eth.addresses == [wallet, TOKEN]
+    # And the balance asked about is the WALLET's, not the token's or ours.
+    assert c._w3.eth._fns.asked == [wallet]
 
 
 class _Sig:

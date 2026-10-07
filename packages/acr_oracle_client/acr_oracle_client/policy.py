@@ -409,6 +409,67 @@ class PolicyClient:
             "period_length": int(period_length),
         }
 
+    def balance_usdc(self) -> float | None:
+        """What the wallet actually HOLDS, as opposed to what it is allowed.
+
+        `budget()` above answers permission: `cap - spent`, from the contract's
+        own counters. It would report a healthy remainder on a wallet holding
+        nothing, and the payment would then revert on chain — so until this
+        method existed the operator had no way to tell "you may spend 900" from
+        "you have 900".
+
+        SIX DECIMALS, and the reason matters. `PolicyWallet` holds USDC as an
+        ERC-20 (`IERC20 public immutable usdc`) and moves it with `transfer`;
+        every amount in that contract is the 1e6 view. On Arc the SAME asset is
+        also the native gas token at 18 decimals, so `eth_getBalance` on this
+        address answers a different question about a different pile — and
+        `PolicyWallet.sol`'s own comment is blunt about the stakes: "Mixing them
+        is a 1e12 error that looks like a fat finger." Reading the ERC-20 view
+        also keeps cash in the same unit as `budget()`'s figures, which is what
+        makes the two comparable at all.
+
+        The token address comes from the WALLET, via its `usdc()` getter, not
+        from configuration. The wallet names the token it can actually move, so
+        this figure cannot drift from what `spend` transfers, and no USDC
+        address is hardcoded here.
+
+        `None` when it cannot be read, never 0.0. An unfunded wallet and an
+        unreachable node are different things to do on a Monday morning, and a
+        confident zero from a failed read is the kind of number the traction
+        page already refuses.
+        """
+        w3 = self._connect()
+        if not self.configured() or w3 is None:
+            return None
+        try:
+            token = self._contract().functions.usdc().call()
+            erc20 = w3.eth.contract(
+                address=token,
+                abi=[
+                    {
+                        "name": "balanceOf",
+                        "type": "function",
+                        "stateMutability": "view",
+                        "inputs": [{"name": "account", "type": "address"}],
+                        "outputs": [{"name": "", "type": "uint256"}],
+                    }
+                ],
+            )
+            raw = erc20.functions.balanceOf(
+                w3.to_checksum_address(self.wallet_address)
+            ).call()
+        except Exception as exc:
+            # LOGGED, unlike `budget()` above, and deliberately. A `None` budget
+            # renders as "no budget set on chain", which is a state an operator
+            # expects; a `None` balance renders as "not measured", which is a
+            # state they will want to fix and cannot diagnose from the page. The
+            # reason can be a node that is down, a wallet at an address with no
+            # contract, or a `usdc()` that is not there — three different
+            # mornings, and the surface can only say one of them.
+            log.warning("PolicyClient: balance unreadable (%s)", exc)
+            return None
+        return int(raw) / USDC
+
     def approval_nonce(self) -> int | None:
         if not self.configured() or self._connect() is None:
             return None

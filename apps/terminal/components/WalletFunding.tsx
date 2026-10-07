@@ -7,7 +7,7 @@
  * machine between those two facts: no USDC on Arc → bridge some in (CCTP, from
  * the wallet, inside this row); USDC but a short Gateway → deposit; enough →
  * the caller's buy button is live. Woven into whichever row owns the wallet
- * (the developers console, an /exchange listing); it is not a panel. */
+ * (the developers console, a shop-floor listing); it is not a panel. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Ed } from "@/components/Ed";

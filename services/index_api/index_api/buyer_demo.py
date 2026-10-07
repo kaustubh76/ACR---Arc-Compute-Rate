@@ -1,4 +1,9 @@
-"""The Exchange floor's "release the buyer" run — a real x402 loop, in-page.
+"""The shop floor's "release the buyer" run — a real x402 loop, in-page.
+
+The shop floor was the `/exchange` page until it folded into `/curve`; the ASGI
+base URL below still says `exchange.floor`, which is an internal hostname no
+request ever leaves the process with, and renaming it would churn a transport
+fixture for nothing.
 
 ``POST /demo/buyer/start`` claims the single-run slot and drives N paid
 queries through the app's OWN payment gate: bare request → 402 challenge

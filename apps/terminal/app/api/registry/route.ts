@@ -5,7 +5,7 @@ import { freshHeaders, readStatus } from "@/lib/readResult";
 
 /* GET /api/registry — the chain's own answer, on demand.
  *
- * Every other number on /sellers reaches the page through the Python press.
+ * Every other address on /developers reaches the page through the Python press.
  * This one does not: it is what the reader gets when they press "read it from
  * the chain", and its whole product is that the answer is fresh and stamped
  * with a block height. So it is deliberately NOT memoized and NOT cached on
@@ -24,8 +24,12 @@ import { freshHeaders, readStatus } from "@/lib/readResult";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
-  const r = await readRegistry();
+export async function GET(req: Request) {
+  // `?records=1` asks for each attestation too. Off by default because the
+  // crawl costs ~2.8s of paced RPC and `took_ms` is a figure the button shows;
+  // see `readRegistry`'s own note.
+  const records = new URL(req.url).searchParams.get("records") === "1";
+  const r = await readRegistry({ records });
   if (r.ok) {
     return NextResponse.json(r.value, { status: 200, headers: freshHeaders() });
   }

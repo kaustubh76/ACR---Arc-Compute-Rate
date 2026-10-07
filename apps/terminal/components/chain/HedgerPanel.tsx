@@ -19,11 +19,11 @@
  * own `.section-head` directly beneath ANOTHER `.section-head` in the page —
  * two hairlines and two gold accent bars, 56px apart, for one subject — while
  * its own two-address sub-part sat inside a `.panel`, so the part had a card
- * and the whole did not. It IS the card now, and app/exchange/view.tsx gives it
- * a bare `.section` wrapper exactly as it already does for WalletPanel.
+ * and the whole did not. It IS the card now, and ShopFloor gives it a bare
+ * `.section` wrapper exactly as it already does for WalletPanel.
  *
  * Built from the house vocabulary rather than its own: `.lab-counters` for the
- * headline figures (the shape /sellers uses inside a panel), `.provenance-row`
+ * headline figures (the shape a panel uses for figures), `.provenance-row`
  * for the identities, `table.sheet` for the fills. Three classes this file used
  * to name exist in NO stylesheet: `table` (the original "column looks out of
  * place"), and `teal`, which meant every BUY row rendered at the inherited body
@@ -248,7 +248,7 @@ export function HedgerPanel({
           grid collapsing to one at 640px, so five tiles stranded a half-width
           orphan on row three against a 1192px container. `.lab-counters` is a
           wrapping flex row: it reserves no empty cell at any width, and it is
-          the shape /sellers already uses for figures inside a card. */}
+          the shape this product uses for figures inside a card. */}
       <div className="lab-counters" style={{ marginTop: 20 }}>
         <div>
           <div className="counter-value gold" style={{ fontSize: 30 }}>

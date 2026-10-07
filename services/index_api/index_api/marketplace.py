@@ -270,8 +270,10 @@ def _read_attestation_summary(registry, settings) -> dict | None:
         # sellerCount + sellerAt/getAttestation per seller and this kept one
         # integer — the same miss the hedger's receipt ledger had. A count is an
         # assertion; the addresses are the only thing on this listing a buyer can
-        # check without us, and /sellers prints this number directly above 60
-        # simulated rows that are NOT these sellers. Zero extra RPC: same read,
+        # check without us. The page that printed this count directly above 60
+        # simulated rows that were NOT these sellers has since been removed, but
+        # the reason survives it: a count is still unverifiable and the addresses
+        # still are not. Zero extra RPC: same read,
         # already TTL-cached and warmed off-request by the background loop.
         #
         # Registry order (sellerAt(0..n-1)), deliberately not re-sorted: that is

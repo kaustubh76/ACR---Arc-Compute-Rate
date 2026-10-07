@@ -101,9 +101,11 @@ def test_catalog_attestation_block_from_registry():
     assert att["services"] == ["gpu", "inference"]
     assert att["latency_slo_ms"] == {"min": 250.0, "max": 500.0}
     # The rows behind the count. The summary used to keep only the scalar, so
-    # /sellers printed a "4" over sixty simulated rows that were not those four
-    # and had nothing to show instead. Pinned field by field: this is the wire a
-    # discovery crawler parses and the Terminal renders as clickable addresses.
+    # the removed /sellers page printed a "4" over sixty simulated rows that were
+    # not those four, with nothing to show instead. Pinned field by field: this is
+    # the wire a discovery crawler parses. Nothing in the Terminal renders these
+    # rows today — ShopFloor reads `sellers_attested` alone — so the crawler is
+    # now the whole audience, which is reason enough to keep the shape exact.
     assert att["sellers"] == [
         {
             "seller": "0xSellerA",
@@ -171,7 +173,8 @@ def test_receipts_ledger_shape_and_order():
 
     # --- the join between the catalog and the tape ---
     # PaymentReceipt has stamped the bought path for a while, but this builder
-    # dropped it, so /exchange could list thirteen resources and prove
+    # dropped it, so the shop floor (then /exchange) could list thirteen
+    # resources and prove
     # thirty-four settlements with nothing connecting the two. The rule is
     # "emit it when it exists, omit it when it does not": most archived rows
     # predate the stamp, and an empty string would attribute all of them to one

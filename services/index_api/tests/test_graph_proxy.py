@@ -85,3 +85,27 @@ def test_the_tape_read_carries_the_human_stamp():
     saw `None`, and `None` is how a gate that should have read `true` reported
     `false` on 2026-09-12. Pinned so it cannot fall out again."""
     assert " human " in graph_proxy.OPERATIONS["settlements"].replace("\n", " ")
+
+
+def test_the_tape_read_selects_every_column_its_readers_use():
+    """The generalised form of the test above, written while the human field was
+    briefly removed and kept afterwards.
+
+    A selection set that quietly loses a column does not fail — it returns
+    `None`, which is indistinguishable from a real zero or false. `Settlement.human`
+    is pinned by name above because it has a dated incident behind it; these are
+    the other columns `tca.py` and `apps/terminal/lib/tape.ts` key off, and losing
+    one of them would show up as a blank cell rather than as an error."""
+    q = graph_proxy.OPERATIONS["settlements"].replace("\n", " ")
+    for field in (
+        "amount",
+        "quantity",
+        "unitPrice",
+        "benchmarked",
+        "slippageBp",
+        "arrivalValue",
+        "staleArrival",
+        "synthetic",
+        "settledAt",
+    ):
+        assert f" {field} " in q, f"the tape read stopped selecting {field}"
