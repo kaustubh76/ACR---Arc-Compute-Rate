@@ -88,8 +88,10 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
           </a>
           {/* The operator's page, linked from the footer rather than the nav.
               A reader who wants to know whether the thing is actually running
-              deserves a route to the answer; they do not deserve an eighth
-              masthead item to read past on every page. */}
+              deserves a route to the answer; they do not deserve a TENTH
+              masthead item to read past on every page. (Nine now: it said
+              "eighth" when the nav was seven, and the nav has moved twice
+              since — /exchange and /sellers both came out of it.) */}
           <a
             className="chip colophon-act"
             href="/ops"

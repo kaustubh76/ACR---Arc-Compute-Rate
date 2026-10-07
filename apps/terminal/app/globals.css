@@ -75,7 +75,7 @@
      loading.tsx was standing in for `.section`'s gap with an inline 28, 32 or
      36 — three values for one role, none of them written down anywhere — so a
      route's content dropped 20 to 24px the moment the skeleton gave way to the
-     real view, on all twelve routes. A value a skeleton can name is a value it
+     real view, on all eleven routes. A value a skeleton can name is a value it
      cannot guess wrong. */
   --section-gap: 56px;
 
@@ -1074,22 +1074,6 @@ table.sheet .row-link:focus-visible {
   background: rgba(27, 49, 88, 0.4);
 }
 
-/* inline hairline bar (seller clean-share) */
-.share-bar {
-  display: inline-block;
-  width: 96px;
-  height: 6px;
-  background: rgba(172, 198, 233, 0.08);
-  border-radius: 999px;
-  vertical-align: middle;
-  overflow: hidden;
-}
-.share-bar i {
-  display: block;
-  height: 100%;
-  background: var(--gold);
-  border-radius: 999px;
-}
 
 /* ---------- buttons & controls ---------- */
 .btn {

@@ -100,7 +100,7 @@ when the settlement arrives (mirror lag 5 s), which is why it survived the API r
 the in-memory receipt counter underneath it — the chain is the record, `/revenue` is only a counter.
 
 **Two numbers on the deployed service are not the ones to quote**, and they are the same number
-twice: `/revenue` **and** `/marketplace/receipts` — the settlement tape `/exchange` renders — both
+twice: `/revenue` **and** `/marketplace/receipts` — the settlement tape the shop floor renders, under `/curve` — both
 report `112 paid queries / $0.333477`, because both read a facilitator ring rehydrated from a
 committed archive of Arc *testnet* settlements. The truth is 3 settlements and $0.00461. The chain
 filter is committed here and in the image pushed as `2026-09-30`, which is not the one running;

@@ -57,7 +57,7 @@ export function readHeaders(r: Read<unknown>): Record<string, string> {
  *  answer for up to forty seconds, and Arc mines a block every 0.51s, so a
  *  reader pressing "read it from the chain" twice was being shown a recording.
  *
- *  Both registry routes' comments already promised the opposite ("a second
+ *  The registry route's own comment already promised the opposite ("a second
  *  press must be able to report a later block, or the button is theatre"), so
  *  the header was contradicting the file it lived in. A press is a deliberate
  *  act, not a poll; paying one origin round trip for it is the deal.

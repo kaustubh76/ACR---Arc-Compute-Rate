@@ -44,7 +44,8 @@ def test_fallback_json_carries_every_bundle_section():
 
 
 def test_fallback_marketplace_section_is_usable():
-    """The offline exchange page renders from these — they must be non-empty
+    """The offline shop floor (under /curve, formerly /exchange) renders from
+    these — they must be non-empty
     and shaped like the live endpoints."""
     snapshot = json.loads(FALLBACK.read_text())
     market = snapshot["marketplace"]

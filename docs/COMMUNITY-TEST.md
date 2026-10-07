@@ -17,7 +17,7 @@ The five steps below are the whole revenue path; if any of them stops you, that 
 1. **See the rate.** Open the terminal. The dateline chip says **Arc mainnet** (plain edition:
    *real money*), and the fixing has a time. If the chip says *testnet*, you are on the wrong
    deployment.
-2. **Connect.** `/exchange` → open any listing → *connect your wallet to buy*. Your wallet asks
+2. **Connect.** `/curve` → open **the shop floor** → any listing → *connect your wallet to buy*. (It was its own `/exchange` page until 2026-10; that URL still redirects here.) Your wallet asks
    to add **Arc** (chain 5042, RPC `https://rpc.mainnet.arc.io`, explorer `https://explorer.arc.io`)
    and to switch to it. Approve both.
 3. **Fund.** Under the listing, a line shows *wallet … USDC · Gateway … USDC* and exactly one

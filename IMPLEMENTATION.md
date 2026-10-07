@@ -107,7 +107,7 @@ Prereqs: Python ≥3.11 + [uv], [Foundry] (`forge`), Node ≥20 + npm (the Circl
 - Terminal env vars: `ACR_API` / `NEXT_PUBLIC_ACR_API` point the Terminal at a
   seller API (server-side / browser-side respectively), and the server-only
   `ACR_BUYER_PRIVATE_KEY` (a funded EOA with an open Gateway deposit) enables
-  the **LIVE Circle buyer** on `/exchange` — real Gateway settlements from the
+  the **LIVE Circle buyer** on the shop floor (`/curve`, formerly its own `/exchange` page) — real Gateway settlements from the
   UI under a hard $0.01 cumulative cap.
 
 See `docs/methodology.md` for the estimator specification and

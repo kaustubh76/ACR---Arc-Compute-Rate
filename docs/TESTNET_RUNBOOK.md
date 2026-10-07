@@ -193,7 +193,7 @@ registry starts empty.
 The buyer agent needs its own funded EOA plus a Circle Gateway deposit
 (detail: [`docs/agent-runbook.md`](agent-runbook.md)). The Terminal can also
 be the buyer itself: its **LIVE buyer** (`ACR_BUYER_PRIVATE_KEY`, hard $0.01
-cap) originates real Gateway settlements from `/exchange` — see agent-runbook
+cap) originates real Gateway settlements from the shop floor under `/curve` — see agent-runbook
 §4b.
 
 1. **[OPERATOR]** `make circle-login EMAIL=you@example.com` — email-OTP,
@@ -214,7 +214,7 @@ cap) originates real Gateway settlements from `/exchange` — see agent-runbook
    parses it. Expect 12/12 PASS.
 6. **[AUTOMATED]** `make agent-live` — 60 discovery-driven paid queries,
    $0.01 cap.
-7. **CHECKPOINT** — the Terminal's `/exchange` tape fills with settlements;
+7. **CHECKPOINT** — the Terminal's shop-floor tape (under `/curve`) fills with settlements;
    receipts carry scheme `exact` and network **exactly** `eip155:5042002`.
 
 ## 5b. The Public Desk — a reader trades with their own wallet

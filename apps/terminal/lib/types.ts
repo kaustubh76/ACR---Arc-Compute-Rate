@@ -274,6 +274,15 @@ export interface HedgerReceipt {
 export interface TerminalData {
   prints: Record<string, PrintRow>;
   history?: Record<string, HistoryPoint[]>;
+  /** Per-index seller scores from `/seller-scores/{index_id}`.
+   *
+   *  NOTHING IN THIS APP RENDERS THIS. The /sellers page did, and it was removed;
+   *  seller grades live on /tape now, computed from the tape itself. The key is
+   *  kept rather than dropped because `tests/test_snapshot_bundle.py` asserts the
+   *  bundle carries it and the backend endpoint is real and documented on
+   *  /developers — so this is the press's shape, which the Terminal mirrors
+   *  whether or not it draws it. Said here so the next reader does not go looking
+   *  for the component. */
   sellers?: Record<string, SellerRow[]>;
   /** On-chain futures desks per index (absent/empty when no venue configured). */
   futures?: Record<string, FuturesDeskRow>;
@@ -466,8 +475,11 @@ export interface CatalogAttestation {
   /** The rows behind `sellers_attested`. OPTIONAL, and that is load-bearing:
    *  a bundle snapshotted before this field existed carries the count with no
    *  rows. `undefined` means "archived before we served them"; `[]` means "the
-   *  chain was read and holds nothing". Opposite claims, so the panel prints a
-   *  different sentence for each rather than collapsing them into "empty". */
+   *  chain was read and holds nothing". Opposite claims, and the distinction is
+   *  kept even though the panel that drew the two sentences went with /sellers:
+   *  ShopFloor reads only `sellers_attested`, so nothing renders these rows
+   *  today. Preserved because the catalog payload is the press's shape, not
+   *  ours, and `RegistryDirectRead.sellers` makes the same three-way call. */
   sellers?: CatalogAttestationRow[];
   services: string[];
   latency_slo_ms?: { min: number | null; max: number | null };

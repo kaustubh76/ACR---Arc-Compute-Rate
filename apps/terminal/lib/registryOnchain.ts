@@ -28,18 +28,6 @@ import type { RegistryDirectRead } from "./types";
  *  same tuple order. Only the reads: nothing here can write. */
 const REGISTRY_ABI = [
   {
-    // The per-seller SIGNATURE nonce, consumed by `attestWithSig` on each
-    // filing. Not the account nonce, and the difference is the whole point of
-    // this counts the signed records filed for
-    // a seller (1 or 2 on the live registry) while `eth_getTransactionCount` on
-    // the same address reads 0. Somebody else paid every one of those fees.
-    type: "function",
-    name: "nonces",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
     type: "function",
     name: "sellerCount",
     stateMutability: "view",

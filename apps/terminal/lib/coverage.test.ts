@@ -30,8 +30,6 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/index/[id]/view.tsx": 32,
   "app/attack/view.tsx": 10,
   "app/curve/view.tsx": 16, // 5 -> 16: measured, plus the shop-floor disclosure
-  // Was 8 against an actual 15 — a floor that had stopped holding anything,
-  // which is part of why this page's attestation copy rotted unnoticed.
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
@@ -64,8 +62,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
-  // Both of these sat at 10 against an actual 13 — three markers of slack, the
-  // same state the sellers comment above describes. Raised to actual; the
+  // This sat at 10 against an actual 13 — three markers of slack, which is a
+  // floor holding nothing. (The comment this used to point at belonged to
+  // app/sellers/view.tsx and went with that page.) Raised to actual; the
   // ledger's is now 23 because every section title speaks in both editions.
   "app/ops/view.tsx": 23, // the ledger reads for operators AND for readers
   // The owner's page speaks to an owner, not an operator: every heading, every
