@@ -116,6 +116,35 @@ class Quote:
     #: disclosure, not removal, and filtering would leave most bills with no
     #: benchmark at all — a worse answer than a disclosed one.
     first_party: bool = False
+    #: A human name for the seller, when the source has one: `GPT-4o mini`
+    #: beside `openai/gpt-4o-mini`. Empty for a chain address, which is already
+    #: its own name.
+    label: str = ""
+    #: WHERE A READER CAN GO AND CHECK THIS PRICE. The dated files under
+    #: `anchors/` have carried a `source.url` per row from the beginning — a
+    #: vendor's own pricing page, with the figure quoted and the date it was
+    #: read — and until now this class had no field to put it in, so
+    #: `market_basket` dropped it on the floor and `Par.as_dict` could not have
+    #: emitted it if it had wanted to. The URLs reached exactly one artifact,
+    #: the table in `anchors/GAP.md`, and never left the repository.
+    #:
+    #: That made every benchmark this product serves checkable in principle and
+    #: unopenable in fact. `/par` would answer a stranger `openai/gpt-4o-mini ·
+    #: 0.0002625 · market` and offer them nothing to click.
+    #:
+    #: Empty for a fleet quote, which has no published page: a settlement we
+    #: made is evidenced by the chain, not by a vendor's price list.
+    url: str = ""
+    #: HOW TO FIND THE NUMBER ONCE THE URL IS OPEN, which the URL alone does not
+    #: tell you. The two baskets need it for opposite reasons: a curated row
+    #: points at a vendor's pricing page and carries the figure as a human
+    #: quote ("H100 PCIe $1.99/hr"), while every ACR-INF row points at the SAME
+    #: 464-model API response and carries a path into it
+    #: ("data[id=openai/gpt-4o-mini].pricing"). Upstream those are two fields,
+    #: `quoted` and `json_path`; here they are one, because to a reader they
+    #: answer one question and a surface that showed both would show an empty
+    #: label on every row.
+    cite: str = ""
 
     @property
     def unit_price(self) -> float | None:
@@ -186,12 +215,22 @@ class Par:
             "sellers": self.sellers,
             "first_party_sellers": self.first_party_sellers,
             "basis": self.basis,
+            # `label` and `url` are emitted ALWAYS, as None rather than omitted
+            # when absent. A key that appears on some rows and not others makes
+            # every consumer write the same `in` check, and this dict is read by
+            # the /par response, the operator statement and the decision
+            # archive: a shape that varies by row is a shape three readers have
+            # to guess at. `None` is the same choice the route makes one level
+            # up with `"vendor": vendor or None`.
             "quotes": [
                 {
                     "seller": q.seller,
                     "price_usdc": q.price_usdc,
                     "source": q.source,
                     "first_party": q.first_party,
+                    "label": q.label or None,
+                    "url": q.url or None,
+                    "cite": q.cite or None,
                 }
                 for q in self.quotes
             ],
@@ -295,6 +334,22 @@ def market_basket(
                 unit=want,
                 at=fetched,
                 first_party=False,
+                # CARRIED NOW, DROPPED BEFORE. Every row in these files has
+                # always held `label` and `source.url` — the vendor's own
+                # pricing page, the figure quoted from it and the date it was
+                # read — and this comprehension kept three fields of six. The
+                # result was a benchmark a reader could verify only by cloning
+                # the repository and opening anchors/GAP.md by hand.
+                label=str(r.get("label") or ""),
+                url=str((r.get("source") or {}).get("url") or ""),
+                # `quoted` for a curated row, `json_path` for an http one —
+                # whichever this basket writes. Taken in that order because a
+                # human-readable quote beats a machine path when both exist.
+                cite=str(
+                    (r.get("source") or {}).get("quoted")
+                    or (r.get("source") or {}).get("json_path")
+                    or ""
+                ),
             )
             for r in rows
             if isinstance(r.get("price_usd_per_unit"), (int, float))
