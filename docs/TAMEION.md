@@ -131,13 +131,22 @@ own tape rather than asserted, so it stops being zero the moment the fleet is
 paid — and the function is tested against a treasury that *is* paid, which is
 what makes today's zero a measurement instead of an absence.
 
-`settled_on_time` is 0 **of 0**, because no obligation carries a due date:
-nothing in the real inputs supplies one, and deriving a plausible-looking one
-would be inventing exactly the data this product refuses to invent. `autonomy()`
-will not count a bill with no due date as punctual. The alternative turns "we do
-not know when this was due" into evidence of promptness, and a perfect on-time
-rate over an empty denominator is the single most flattering number available on
-a traction page.
+`settled_on_time` is 0 **of 0**, because no obligation on the real tape carries a
+due date. The cause is narrower than this document used to claim, and worth
+naming exactly: it is not that nothing *can* supply one. `obligations_for` reads
+x402 settlements, which have no due date by construction — a payment that already
+happened cannot be late. The feeder that does supply one,
+`obligations_from_entitlements`, reads a committed register of vendor invoices,
+and **no real customer has sent us one**. The register exists now and the ladder
+reaches check 7 through it, but its only rows are `sandbox`, which
+[`businesses.py`](../services/index_api/index_api/businesses.py) excludes from
+every figure on this page. So the denominator moves when a business hands over an
+invoice export, not when we write more code.
+
+`autonomy()` will not count a bill with no due date as punctual. The alternative
+turns "we do not know when this was due" into evidence of promptness, and a
+perfect on-time rate over an empty denominator is the single most flattering
+number available on a traction page.
 
 `alerts_raised` is 0 because every counterparty put to a screen came back clear.
 The field is named **screened** and not *monitored* on purpose: the screen runs
@@ -168,11 +177,24 @@ narrower, and one line of it was not true until recently.
 **The payment channel is now on the record.** Circle's developer-controlled
 wallet and a raw local key build *identical* calldata, so no reader of the
 chain, the log or the ledger could tell which one paid — and five payments on
-Arc testnet went out from a raw EOA. Every decision now carries `paid_via`
-(`circle` · `local`), set before the record is hashed, so the commitment says
-which channel was authorised. `/ops` reports it per business and warns on a raw
-key. That is the same argument `screen_backend` won: a verdict without its
-source is a claim without a basis.
+Arc testnet went out from a raw EOA. Every decision written **from now on**
+carries `paid_via` (`circle` · `local`), set before the record is hashed, so the
+commitment says which channel was authorised. `/ops` reports it per business and
+warns on a raw key. That is the same argument `screen_backend` won: a verdict
+without its source is a claim without a basis.
+
+**"From now on" is doing real work in that sentence.** The field was added after
+those payments were made, and the archive is immutable by design — so **none of
+the nineteen rows** `/operator/traction` serves today carries `paid_via`, and
+nor do they carry `screen_backend`, `commitment_verdict`, `held_usdc`, `due_usdc`
+or `discrepancy_usdc`. The sandbox and local logs carry all of them. Two
+consequences worth stating rather than discovering: `held_back_usdc` and
+`overbilled_usdc` are 0.0 on the real business because the fields they sum are
+absent, not because nothing was held back; and `verify_operator.py`'s check that
+no decision records a screen backend of `"off"` **passes by omission**, because
+the archive records no backend at all. Re-running the ladder over the same
+inputs would produce rows at the current schema, which is the fix — rewriting the
+archive in place would not be.
 
 **Two limits, stated rather than papered over.** The owner's leg is a raw key by
 construction: `ACR_OWNER_PRIVATE_KEY` wins over a Circle owner wallet in

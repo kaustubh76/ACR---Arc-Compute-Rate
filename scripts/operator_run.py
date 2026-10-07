@@ -46,6 +46,7 @@ import time
 from collections import defaultdict
 
 from acr_core import get_settings
+from index_api import entitlements as entitlements_register
 from index_api.businesses import resolve
 from index_api.marketplace import build_catalog
 from index_api.operator import (
@@ -193,15 +194,31 @@ def main() -> int:
     # Pairing them here rather than tracking two lists is what makes it
     # impossible to run a bill past the meter by accident — the meter check is
     # skipped by a `None` guard, so its absence leaves no trace in the record.
+    # BOTH SOURCES, ADDED — the way `operator_keeper` does it (`pairs +=`).
+    #
+    # This used to be an either/or: naming `--entitlements` replaced the tape
+    # entirely, and omitting it hid the register. So the autonomous path and the
+    # CLI a person runs to check it disagreed about what was owed, and the
+    # register — which only the keeper read — was invisible to the one command
+    # anybody would use to verify it. A business has both a settlement tape and
+    # vendor invoices; this docstring calls the second one "THE SECOND SOURCE",
+    # which is additive by its own wording.
+    pairs = [(ob, None) for ob in _obligations(b, receipts, catalog, paid_through)]
+    source = f"{len(receipts)} settlement(s) in the archive"
+
     if args.entitlements:
         rows = _read_entitlements(args.entitlements)
         if rows is None:
             return 2
-        pairs = obligations_from_entitlements(b, rows, paid_through)
-        source = f"{args.entitlements}: {len(rows)} bill(s) a vendor sent us"
+        where = args.entitlements
     else:
-        pairs = [(ob, None) for ob in _obligations(b, receipts, catalog, paid_through)]
-        source = f"{len(receipts)} settlement(s) in the archive"
+        # The committed register, keyed per business, exactly as the keeper reads
+        # it. Absent or empty is a normal state, not an error.
+        rows = list(entitlements_register.for_business(b.slug))
+        where = "the committed register"
+    if rows:
+        pairs += obligations_from_entitlements(b, rows, paid_through)
+        source += f" + {len(rows)} bill(s) from {where}"
     if args.limit:
         pairs = pairs[: args.limit]
     obligations = [ob for ob, _ in pairs]
