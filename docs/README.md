@@ -1,6 +1,8 @@
 # ACR documentation — an index
 
-Twelve documents, three groups: what the number *is*, how to *use* it, how to *run* it.
+Three groups: what the number *is*, how to *use* it, how to *run* it. This line said
+"Twelve documents" for long enough to be wrong by three — in the same paragraph that
+explains why a count rots. The invariant below is the claim worth making; the number was not.
 Read the root [README](../README.md) first — it is the shortest complete answer to
 *what is ACR* — then come here for depth.
 

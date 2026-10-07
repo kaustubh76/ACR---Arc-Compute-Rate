@@ -12,12 +12,22 @@ counterparty, weighs what the wallet actually holds against what is already
 dated, pays what clears policy, escalates what is not its call, and writes a
 double-entry ledger a human can open.
 
-**Where the pages are.** `/spend` and `/traction` exist in `apps/terminal` and are reachable from
-the masthead, but **the terminal is not deployed yet** — it is built for Arc mainnet and correctly
-refuses a testnet press, which is the guard that exists because a resumed testnet seller once served
-testnet data under a mainnet masthead. Until the mainnet press is woken, the honest live surface is
-the API above, and these tables link to what actually answers. Run the pages locally with
-`make api` and `make terminal`.
+**Where the pages are, stated exactly, because three documents used to disagree.**
+The terminal **is** deployed — <https://arc-compute-rate.vercel.app> answers 200, and so do
+`/spend` and `/traction`. What those two pages show in production is *nothing*, and the reason is a
+host split rather than a bug:
+
+| | |
+|---|---|
+| the operator's data | lives on the **testnet** API, `acr-api-1fto` (chain `5042002`), which serves all five `/operator/*` routes. Every link in the tables below points there |
+| the terminal | is built for Arc **mainnet** and refuses a press reporting a different chain id (`lib/apiBase.ts` `chainMismatch`). That guard exists because a resumed testnet seller once served live testnet data under a mainnet masthead |
+| the **mainnet** API | serves **44 routes and none of them is `/operator/*`** — the running image predates them. Measured 2026-10-07; `make verify-drift` reports it |
+
+So `/spend` reads "No businesses onboarded yet" on a product that has one business and nineteen
+decisions. The copy is honest about what it can see; what it can see is the wrong host. **One
+redeploy of the mainnet API closes this**, and nothing else has to change. Until then the API links
+below are the live surface, and `make api && make terminal` renders the pages locally against
+whichever press you point `ACR_API` at.
 
 ## The claim we are not making
 

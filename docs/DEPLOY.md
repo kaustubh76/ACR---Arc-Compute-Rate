@@ -20,8 +20,8 @@ reachable, running live Circle Arc-testnet execution.
 
 | Piece | Host | URL |
 |---|---|---|
-| Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — **LIVE** since 2026-09-27 (`gate: circle`, `signer: local`). On the **free** plan, so it sleeps: the first call takes ~20 s |
-| Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended by its owner since 2026-09-15 |
+| Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — **LIVE** since 2026-09-27 (`gate: circle`, `signer: local`). `plan: starter` in `render.yaml`, NOT free, and the comment there says why: a sleeping press stranded testnet collateral twice. **Its image predates the operator** — 44 routes, no `/operator/*` and no `/par` as of 2026-10-07 (`make verify-drift`) |
+| Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended 2026-09-15, **resumed 2026-10-01** and answering today (`chain_id: 5042002`). `plan: free`, so it sleeps: a cold start measured 25 s. This is the host that serves the operator |
 | Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
 
 The service is declared in [`render.yaml`](../render.yaml) at the repo root: a

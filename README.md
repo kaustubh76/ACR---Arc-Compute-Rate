@@ -150,8 +150,8 @@ is also the native gas token at eighteen, and
 
 | | |
 |---|---|
-| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. The `/traction` page renders it; the terminal is not deployed yet, so the API is the live surface |
-| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, same caveat |
+| **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. Served from the **testnet** API (chain `5042002`) — the `/traction` page renders it, but only against a press that carries the operator, and the mainnet image does not yet (`make verify-drift`) |
+| **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
 | **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
 | **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
