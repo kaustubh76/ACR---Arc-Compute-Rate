@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BUCKETS, MIN_RATED_N, UNIT_BY_INDEX, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, sellerLabel, sellerTerms, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
+import { BUCKETS, MIN_RATED_N, UNIT_BY_INDEX, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellerLabel, sellerTerms, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
 
 const REPO = join(__dirname, "..", "..", "..");
 
@@ -146,8 +146,9 @@ test("the seller directory can be grouped out of raw settlements", () => {
      brittle page — and that is not hypothetical, `sellers` gained a relation the
      deployed subgraph does not carry and returned nothing at all. */
   const rows = [
-    { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 1000, slippageBp: 600, benchmarked: true, synthetic: true },
-    { seller: { id: "0xa" }, payer: { id: "0xp2" }, amount: 3000, slippageBp: 200, benchmarked: true, synthetic: false },
+    { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 1000, slippageBp: 600, benchmarked: true, synthetic: true, human: false },
+    // One human-backed fill: the payer had a cluster for the window it landed in.
+    { seller: { id: "0xa" }, payer: { id: "0xp2" }, amount: 3000, slippageBp: 200, benchmarked: true, synthetic: false, human: true },
     // Unbenchmarked: counted in volume and in the fill count, but it must not
     // reach the weighted average — "we could not measure it" is not "0 bp".
     { seller: { id: "0xa" }, payer: { id: "0xp1" }, amount: 9000, slippageBp: null, benchmarked: false, synthetic: false },
@@ -164,6 +165,10 @@ test("the seller directory can be grouped out of raw settlements", () => {
   // this to 92 if it had been folded in as a zero.
   assert.equal(a.vw_slippage_bp, 300);
   assert.equal(a.syntheticShare, 1000 / 13_000);
+  // The same fold, for people: 3000 of 13_000 came from a wallet the chain ties
+  // to a person. A row with no `human` field at all folds as false, never true.
+  assert.equal(a.humanShare, 3000 / 13_000);
+  assert.equal(b.humanShare, 0);
 
   assert.equal(b.vw_slippage_bp, -800);
   assert.equal(b.distinctPayers, 1);
@@ -187,10 +192,111 @@ test("settlements with no seller are skipped, not grouped under undefined", () =
 });
 
 
+/* --- human depth: a count, or the press's reason for there not being one -----
+
+   Measured against the live press rather than inferred from the branch: the
+   `human_depth` key is ALWAYS present. tca.py has an `else` that reports
+   available:false with "no human resolutions on the tape for this window", so an
+   earlier version of this model had a third state for an absent key that never
+   fires, and the label on the state that DOES fire was wrong. */
+
+test("the live state today: a reason, carried verbatim, never a zero", () => {
+  // Exactly what /rating returns for every seller right now — the four demo
+  // wallets are resolved on chain but none has settled.
+  const cell = humanCell({
+    available: true,
+    components: {
+      human_depth: {
+        available: false,
+        reason: "no human resolutions on the tape for this window",
+      },
+    },
+  });
+  assert.deepEqual(cell, {
+    kind: "unmeasured",
+    note: "no human resolutions on the tape for this window",
+  });
+});
+
+test("an over-long window is the press's distinction to draw, not ours", () => {
+  const cell = humanCell({
+    available: true,
+    components: {
+      human_depth: { available: false, reason: "cannot be summed across windows" },
+    },
+  });
+  // The note is the upstream string untouched. Re-phrasing it here is how a
+  // surface starts disagreeing with the service behind it.
+  assert.equal(cell.kind === "unmeasured" && cell.note, "cannot be summed across windows");
+});
+
+test("a present-but-zero count is not a count", () => {
+  // "0 people" claims we looked and found nobody. Declining to measure is a
+  // different fact, and this is the cell where they would merge.
+  const cell = humanCell({
+    available: true,
+    components: { human_depth: { available: true, distinct_humans: 0, distinct_payers: 3 } },
+  });
+  assert.equal(cell.kind, "unmeasured");
+});
+
+test("no component at all still renders, with a stated fallback", () => {
+  assert.equal(humanCell(undefined).kind, "unmeasured");
+  assert.equal(humanCell({ available: true }).kind, "unmeasured");
+  assert.equal(humanCell({ available: true, components: {} }).kind, "unmeasured");
+});
+
+test("a real count carries its payers and whether every one is sandbox", () => {
+  assert.deepEqual(
+    humanCell({
+      available: true,
+      components: {
+        human_depth: { available: true, distinct_humans: 2, distinct_payers: 5, sandbox_humans: 2 },
+      },
+    }),
+    { kind: "count", humans: 2, payers: 5, allSandbox: true },
+  );
+
+  const mixed = humanCell({
+    available: true,
+    components: {
+      human_depth: { available: true, distinct_humans: 3, distinct_payers: 4, sandbox_humans: 1 },
+    },
+  });
+  assert.equal(mixed.kind === "count" && mixed.allSandbox, false);
+});
+
+test("a count with no payer figure is still a count, with payers null", () => {
+  assert.deepEqual(
+    humanCell({
+      available: true,
+      components: { human_depth: { available: true, distinct_humans: 1 } },
+    }),
+    { kind: "count", humans: 1, payers: null, allSandbox: false },
+  );
+});
+
+test("a seller's human share is read off ONE window, and an unmeasured window is null", () => {
+  /* `humanVolume` is per window because a cluster is minted per window. Summing
+     across windows would credit last week's people to this week's volume, and a
+     window with no volume is "not measured", which must not render as "no humans". */
+  const windows = [
+    { window: "2957", volume: 4000, humanVolume: 4000 },
+    { window: "2958", volume: 10_000, humanVolume: 2500 },
+    { window: "2959", volume: 0, humanVolume: 0 },
+  ];
+  assert.equal(humanShareInWindow(windows, 2958), 0.25);
+  assert.equal(humanShareInWindow(windows, 2957), 1);
+  assert.equal(humanShareInWindow(windows, 2959), null, "no volume yet is not measured");
+  assert.equal(humanShareInWindow(windows, 2960), null, "a window with no rollup at all");
+  assert.equal(humanShareInWindow(undefined, 2958), null);
+});
+
+
 test("the payer's newest purchases come off the settlements the route already holds", () => {
   const row = (payer: string, seller: string, at: number) => ({
     seller: { id: seller }, payer: { id: payer }, amount: "100000", slippageBp: "10",
-    benchmarked: true, synthetic: false, settledAt: String(at),
+    benchmarked: true, synthetic: false, human: true, settledAt: String(at),
   });
   const rows = [
     row("0xME", "0xA", 100), row("0xme", "0xB", 300), row("0xother", "0xA", 400),
@@ -199,12 +305,13 @@ test("the payer's newest purchases come off the settlements the route already ho
   const recent = recentForPayer(rows, "0xME", 2);
   assert.deepEqual(recent.map((r) => [r.seller, r.settledAt]), [["0xb", 300], ["0xc", 200]]);
   assert.equal(recent[0].amountUsdc, 0.1);
+  assert.equal(recent[0].human, true);
   assert.deepEqual(recentForPayer(rows, null), []);
 });
 
 test("whether the buyer acted is read off the newest purchase, never assumed", () => {
   const rr = { from: "0xWORST", to: "0xBEST" };
-  const at = (seller: string) => [{ seller, settledAt: 1, amountUsdc: 0.1 }];
+  const at = (seller: string) => [{ seller, settledAt: 1, amountUsdc: 0.1, human: false }];
   assert.equal(followedReroute(at("0xbest"), rr), "followed");
   assert.equal(followedReroute(at("0xworst"), rr), "ignored");
   assert.equal(followedReroute(at("0xelse"), rr), "elsewhere");
@@ -220,7 +327,7 @@ test("the unit table matches the index registry it copies", () => {
      packages/acr_core/acr_core/indices.py. A unit that drifted here would label a
      seller's price in the wrong denomination under a live block number — $0.44
      "per MB" instead of per 1k tokens — and nothing would throw. Same discipline
-     read the source off disk rather than restating it here. */
+     as RATING_WINDOW_S against HumanIdMirror.sol: read the source off disk. */
   const py = readFileSync(join(REPO, "packages", "acr_core", "acr_core", "indices.py"), "utf8");
   for (const [id, unit] of Object.entries(UNIT_BY_INDEX)) {
     if (id === "ACR-QUERY") continue; // the press's own; not an oracle index, by design

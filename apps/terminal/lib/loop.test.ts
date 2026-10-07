@@ -1,6 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LOOP_NODES, logFrac } from "./loop";
+import { RATING_WINDOW_S } from "./humans";
+import { LOOP_NODES, boundMultiple, logFrac, windowEndsInS } from "./loop";
+
+test("the window ends on the boundary, never in the past", () => {
+  const w = 2958;
+  const start = w * RATING_WINDOW_S;
+  assert.equal(windowEndsInS(start), RATING_WINDOW_S);
+  assert.equal(windowEndsInS(start + RATING_WINDOW_S - 1), 1);
+});
+
+test("the multiple is null whenever a side is missing or zero, because 0 means not computed", () => {
+  assert.equal(boundMultiple(10, 0.02), 500);
+  assert.equal(boundMultiple(0, 0.02), null);
+  assert.equal(boundMultiple(10, 0), null);
+  assert.equal(boundMultiple(null, 1), null);
+});
 
 test("the log scale clamps and ignores non-positive values", () => {
   assert.equal(logFrac(1, 1, 100), 0);

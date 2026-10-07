@@ -96,6 +96,7 @@ export const ENDPOINTS: EndpointRow[] = [
      `why` — a probe cannot mint one, and none of the four existing reasons is
      true of it. The register's own rule is that a row explaining itself wrongly
      is worse than one saying nothing. */
+  { method: "GET", path: "/tca/human", gate: "public", family: "market", run: null, why: "human" },
   { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, why: "address" },
   /* The owner-facing statement. `why: "address"` for the same reason as the two
      rows above: the path wants a business, and there is no sensible default to
@@ -128,7 +129,8 @@ export const ENDPOINTS: EndpointRow[] = [
 
   { method: "GET", path: "/revenue", gate: "public", family: "ops", run: "/revenue" },
   { method: "GET", path: "/x402/info", gate: "public", family: "ops", run: "/x402/info" },
-  // The agent gate, described by itself. Omitting
+  { method: "GET", path: "/humanid/info", gate: "public", family: "ops", run: "/humanid/info" },
+  // The agent gate, described by itself — the sibling of /humanid/info. Omitting
   // these three while listing that one was never defensible; it just went unseen.
   { method: "GET", path: "/agent/info", gate: "public", family: "ops", run: "/agent/info" },
   { method: "GET", path: "/agent/challenge", gate: "public", family: "ops", run: "/agent/challenge" },

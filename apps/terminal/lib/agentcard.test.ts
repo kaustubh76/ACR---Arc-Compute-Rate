@@ -15,6 +15,7 @@ import {
   DOMAIN_VERSION,
   MAX_TTL_S,
   ZERO32,
+  demoKey,
   mintCard,
   throwawayKey,
 } from "./agentcard";
@@ -28,6 +29,15 @@ function decode(header: string) {
     signature: `0x${string}`;
   };
 }
+
+test("the demo key derives to the wallet demo_humans.py names", async () => {
+  /* sha256("acr-buyer::acr-buyer-4") -> this address, resolved on HumanIdMirror for
+     window 2958 as the solo human. If this drifts, the "as a demo human" button
+     would mint a card for a wallet the chain has never heard of. */
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const key = await demoKey("acr-buyer-4");
+  assert.equal(privateKeyToAccount(key).address, "0x63C107e67527Af8aF56f427d8C5A5BDf2b2ad093");
+});
 
 test("a minted card recovers to the key that signed it", async () => {
   const { recoverTypedDataAddress } = await import("viem");

@@ -73,7 +73,7 @@ def _seller_day(**over) -> dict:
     row = {
         "day": 20660, "volume": "1000000", "bmVolume": "1000000",
         "wSlipTenthBp": "1000000000",  # 1000 tenth-bp × 1e6 volume == 100 bp
-        "synthVolume": "1000000", "realVolume": "0",
+        "humanVolume": "0", "synthVolume": "1000000", "realVolume": "0",
         "n": 25, "nAll": 25, "nStale": 0,
         "b0": 0, "b1": 0, "b2": 0, "b3": 0, "b4": 25, "b5": 0, "b6": 0,
     }
@@ -128,13 +128,67 @@ def test_unsupported_components_are_excluded_from_the_weight_not_scored_zero(mon
     _fake_graph(monkeypatch, {"sellerDays": [_seller_day()], "seller": {"id": SELLER}})
     r = tca_mod.seller_rating(SELLER)
     assert r["components"]["cleanliness"]["available"] is False
-    assert "human_depth" not in r["components"], (
-        "the human component outlived the World integration"
-    )
-    # Only fairness is supported here, so the grade rests on 50 of 100.
+    assert r["components"]["human_depth"]["available"] is False
+    # Only fairness is supported here, so the grade rests on 40 of 100.
     assert r["weight_covered_pct"] == WEIGHTS["fairness"]
-    # …and it is a real grade, not a zero dragged down by the missing 50.
+    # …and it is a real grade, not a zero dragged down by the missing 60.
     assert r["grade"] in {"A", "B", "C", "D"}
+
+
+def _seller_window(**over) -> dict:
+    win = {"window": 2951, "distinctPayers": 2, "distinctHumans": 1,
+           "volume": "1000000", "humanVolume": "500000"}
+    win.update(over)
+    return win
+
+
+def test_human_depth_counts_a_fleet_once(monkeypatch):
+    """Two wallets, one verified human. The component's whole reason to exist is
+    that those are different numbers — a seller that has met one person is not
+    one that has met two."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day(humanVolume="500000")],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(),
+    })
+    r = tca_mod.seller_rating(SELLER)
+    depth = r["components"]["human_depth"]
+    assert depth["available"] is True
+    assert depth["distinct_humans"] == 1
+    assert depth["distinct_payers"] == 2
+    assert depth["score"] == pytest.approx(0.5)
+    assert depth["human_volume_share"] == pytest.approx(0.5)
+    # The grade now rests on fairness AND human depth, and says so.
+    assert r["weight_covered_pct"] == WEIGHTS["fairness"] + WEIGHTS["human_depth"]
+
+
+def test_human_depth_is_refused_rather_than_blended_over_a_longer_window(monkeypatch):
+    """A cluster id is minted per rotation window, so distinct humans cannot be
+    summed across windows. Serving a 30d fairness beside a 7d human depth would
+    be one grade quietly built out of two different spans."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day()],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(),
+    })
+    r = tca_mod.seller_rating(SELLER, days=30)
+    depth = r["components"]["human_depth"]
+    assert depth["available"] is False
+    assert "rotation window" in depth["reason"]
+    assert r["weight_covered_pct"] == WEIGHTS["fairness"]
+
+
+def test_a_window_with_no_resolutions_is_unavailable_not_zero(monkeypatch):
+    """Nobody resolved is not the same fact as nobody human, and a seller must
+    not be marked down for the difference."""
+    _fake_graph(monkeypatch, {
+        "sellerDays": [_seller_day()],
+        "seller": {"id": SELLER},
+        "sellerWindow": _seller_window(distinctHumans=0, humanVolume="0"),
+    })
+    depth = tca_mod.seller_rating(SELLER)["components"]["human_depth"]
+    assert depth["available"] is False
+    assert "this window" in depth["reason"]
 
 
 def test_a_seller_paying_the_benchmark_exactly_grades_top(monkeypatch):
@@ -159,9 +213,9 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
         }],
         "settlements": [
             {"seller": {"id": SELLER}, "amount": "1000000",
-             "slippageTenthBp": "1880", "synthetic": True, "index": "ACR-INF"},
+             "slippageTenthBp": "1880", "synthetic": True, "human": True, "index": "ACR-INF"},
             {"seller": {"id": OTHER}, "amount": "1000000",
-             "slippageTenthBp": "-120", "synthetic": True, "index": "ACR-INF"},
+             "slippageTenthBp": "-120", "synthetic": True, "human": False, "index": "ACR-INF"},
         ],
     })
     r = tca_mod.payer_tca(PAYER)
@@ -170,6 +224,10 @@ def test_payer_tca_breaks_down_by_seller_and_ranks_worst_first(monkeypatch):
     assert r["by_seller"][0]["seller"] == SELLER  # worst first
     assert r["by_seller"][0]["vw_slippage_bp"] == pytest.approx(188.0)
     assert r["by_seller"][-1]["vw_slippage_bp"] == pytest.approx(-12.0)
+    # The human share rides beside the synthetic share, per seller, same shape.
+    # It is what lets the tape page mark a seller's row as human-backed.
+    assert r["by_seller"][0]["human_share"] == 1.0
+    assert r["by_seller"][-1]["human_share"] == 0.0
 
 
 def test_the_reroute_names_both_sides_and_calls_itself_a_suggestion(monkeypatch):
@@ -281,14 +339,15 @@ def test_the_breakdown_and_the_headline_cover_the_same_window(monkeypatch):
     v = captured["variables"]
     assert int(v["sinceTs"]) == v["since"] * 86400, "one cutoff, two spellings"
     assert v["since"] == tca_mod._day_now() - 7
+    # The human card takes the same two variables, by the same rule.
+    assert "settledAt_gte: $sinceTs" in tca_mod._HUMAN_DAYS
 
 
 def test_no_query_asks_the_graph_for_more_than_its_hard_ceiling():
     """The Graph refuses `first` above 1000 with a GraphQL error, which the client
-    reports as "the subgraph did not answer". That is not hypothetical: a query in
-    this module once asked for 2000, so the one endpoint it served answered every
-    request with an outage message. That query is gone, the ceiling is not, and
-    this walks every query string in the module rather than naming one."""
+    reports as "the subgraph did not answer". `_HUMAN_DAYS` asked for 2000, so the
+    one endpoint a verified human proof gates answered every proof with an outage.
+    Pinned for every query string in the module."""
     import re
 
     for name, text in vars(tca_mod).items():

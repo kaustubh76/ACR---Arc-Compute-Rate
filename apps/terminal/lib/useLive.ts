@@ -11,6 +11,7 @@
 import useSWR from "swr";
 
 import type { GateData } from "./gate";
+import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
 import type {
   AttackStatus,
@@ -180,7 +181,8 @@ export function useHealth() {
  *  reading. A 15s poll here would be load spent re-reading settings.
  *
  *  Returns the whole envelope because `live` carries the distinction that matters:
- *  "the press is down" and "there is no screen" must not render the same. */
+ *  "the press is down" and "there is no screen" must not render the same, which is
+ *  the same rule `useHumanId` exists to keep. */
 export function useGate() {
   const { data } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
     refreshInterval: 60_000,
@@ -199,6 +201,24 @@ export function useGateLive() {
     ...RETRY,
   });
   return { gate: data, refresh: mutate };
+}
+
+export function useClusters() {
+  const { data } = useSWR<Envelope<ClustersData | null>>("/api/humanid/clusters", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return data;
+}
+
+export function useHumanId() {
+  const { data } = useSWR<Envelope<HumanIdData>>("/api/humanid", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: false,
+    ...RETRY,
+  });
+  return data;
 }
 
 /** Direct viem reads against ACROracle via /api/onchain — the tier that keeps

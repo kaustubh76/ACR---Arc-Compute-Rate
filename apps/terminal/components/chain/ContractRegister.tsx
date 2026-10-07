@@ -44,6 +44,12 @@ const GLOSS: Record<RegisterEntry["key"], React.ReactNode> = {
       p="proof that a question was paid for, kept in public"
     />
   ),
+  humanid: (
+    <Ed
+      x="which wallets are one person · rotated, never the raw World ID"
+      p="which accounts belong to the same real person, checked by World"
+    />
+  ),
   usdc: (
     <Ed
       x="the dollars, and the gas the fees are charged in"

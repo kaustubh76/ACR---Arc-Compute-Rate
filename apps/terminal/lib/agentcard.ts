@@ -117,3 +117,18 @@ export async function mintCard(opts: MintOptions): Promise<MintedCard> {
   const header = btoa(JSON.stringify({ card, signature }));
   return { header, agent: account.address, expiresAt, claimsHuman: message.humanCluster !== ZERO32 };
 }
+
+/** The four demo humans' wallet labels, for the probe route's "as a demo human".
+ *  Keys derive from these labels exactly as `demo_humans.py` derives them —
+ *  `sha256("acr-buyer::" + label)` — which is public by construction. The probe
+ *  route derives on the SERVER so no key ever reaches a browser; the browser only
+ *  ever sees the resulting header. `acr-buyer-4` is the solo human: the one whose
+ *  wallet has the least at stake, and whose cluster is visibly different from the
+ *  fleet's three. */
+export const DEMO_HUMAN_LABEL = "acr-buyer-4";
+
+/** Derive a demo wallet's key from its label — server-side only. */
+export async function demoKey(label: string): Promise<`0x${string}`> {
+  const { sha256, toBytes } = await import("viem");
+  return sha256(toBytes(`acr-buyer::${label}`));
+}

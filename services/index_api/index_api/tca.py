@@ -24,6 +24,7 @@ import logging
 import time
 
 from acr_core import get_settings
+from acr_oracle_client.humanid import RATING_WINDOW_S, current_window
 from acr_tape import graph_query, record_chain_check, wrong_chain_reason
 
 log = logging.getLogger("index_api.tca")
@@ -32,15 +33,22 @@ log = logging.getLogger("index_api.tca")
 #: tape)" is an honest answer; a letter derived from nine fills is not.
 MIN_RATED_N = 20
 
+#: The human-cluster rotation period, re-exported from the one Python definition
+#: in `acr_oracle_client.humanid` — the resolver and this layer must agree to the
+#: second, and two constants that must match are one constant with extra steps.
+#: Pinned against the Solidity and AssemblyScript copies by
+#: tests/test_human_window_parity.py.
+RATING_WINDOW_DAYS = RATING_WINDOW_S // 86400
 
 #: Rating weights, per the published methodology. Components that no data
 #: supports yet are marked unavailable and their weight is EXCLUDED from the
 #: normalisation rather than silently scored zero — a seller must not be marked
 #: down for a signal ACR has not started collecting.
 WEIGHTS = {
-    "fairness": 50,
-    "cleanliness": 30,
-    "attestation_freshness": 20,
+    "fairness": 40,
+    "cleanliness": 25,
+    "human_depth": 20,
+    "attestation_freshness": 15,
 }
 
 # Two variables for one address, deliberately: `where:` filters a relation by
@@ -57,14 +65,17 @@ WEIGHTS = {
 # warning did not stop it shipping. `test_every_query_declares_the_variables_it_uses`
 # now asserts this statically for every query in this module.
 _SELLER_DAYS = """
-query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!) {
+query SellerDays($seller: Bytes!, $sellerId: ID!, $since: Int!, $windowId: ID!) {
   sellerDays(where: { seller: $seller, day_gte: $since }, orderBy: day, orderDirection: desc, first: 400) {
-    day volume bmVolume wSlipTenthBp synthVolume realVolume
+    day volume bmVolume wSlipTenthBp humanVolume synthVolume realVolume
     n nAll nStale b0 b1 b2 b3 b4 b5 b6
   }
   seller(id: $sellerId) {
     id distinctPayers totalVolume benchmarkedVolume settlementCount
     latestAttestation { modelClass latencySloMs timestamp blockTime }
+  }
+  sellerWindow(id: $windowId) {
+    window distinctPayers distinctHumans sandboxHumans volume humanVolume
   }
 }
 """
@@ -84,7 +95,35 @@ query PayerDays($payer: Bytes!, $since: Int!, $sinceTs: BigInt!) {
     where: { payer: $payer, benchmarked: true, settledAt_gte: $sinceTs }
     orderBy: settledAt orderDirection: desc first: 500
   ) {
-    seller { id } amount slippageTenthBp synthetic index
+    seller { id } amount slippageTenthBp synthetic human index
+  }
+}
+"""
+
+
+_HUMAN_CLUSTER = """
+query HumanCluster($cluster: ID!) {
+  humanCluster(id: $cluster) {
+    id window walletCount
+    wallets { id }
+  }
+}
+"""
+
+# `first: 1000` is The Graph's HARD ceiling. This query asked for 2000 and the
+# gateway refused it with a GraphQL error that `graph_query` reported as "the
+# subgraph did not answer" — so every verified human proof in production was met
+# with an outage message, and no test saw it because the tests stub the query.
+_HUMAN_DAYS = """
+query HumanDays($payers: [Bytes!]!, $since: Int!, $sinceTs: BigInt!) {
+  payerDays(where: { payer_in: $payers, day_gte: $since }, orderBy: day, orderDirection: desc, first: 800) {
+    day spent bmSpent wSlipTenthBp overpay n nAll
+  }
+  settlements(
+    where: { payer_in: $payers, benchmarked: true, settledAt_gte: $sinceTs }
+    orderBy: settledAt orderDirection: desc first: 1000
+  ) {
+    seller { id } amount slippageTenthBp synthetic human index
   }
 }
 """
@@ -162,6 +201,10 @@ def _reset_chain_verdict_for_tests() -> None:
     _chain_verdict.clear()
 
 
+def _window_now() -> int:
+    """The rotation window in progress — the bucket distinct-human counts live in."""
+    return current_window()
+
 
 def _day_now() -> int:
     return int(time.time()) // 86400
@@ -227,6 +270,7 @@ def seller_rating(seller: str, days: int = 7) -> dict:
             "seller": seller.lower(),
             "sellerId": seller.lower(),
             "since": _day_now() - days,
+            "windowId": f"{seller.lower()}-{_window_now()}",
         },
         key,
     )
@@ -239,6 +283,7 @@ def seller_rating(seller: str, days: int = 7) -> dict:
     bm_volume = sum(int(r["bmVolume"]) for r in rows)
     w_slip = sum(int(r["wSlipTenthBp"]) for r in rows)
     synth = sum(int(r["synthVolume"]) for r in rows)
+    human_volume = sum(int(r["humanVolume"]) for r in rows)
     n = sum(int(r["n"]) for r in rows)
     n_all = sum(int(r["nAll"]) for r in rows)
     buckets = [sum(int(r[f"b{i}"]) for r in rows) for i in range(7)]
@@ -246,6 +291,10 @@ def seller_rating(seller: str, days: int = 7) -> dict:
     vw = _vw_bp(w_slip, bm_volume)
     p50 = _p50_bp(buckets)
     synthetic_share = (synth / volume) if volume else None
+    # Volume IS summable across rotation windows even though distinct-human
+    # counts are not, so this stays answerable over any span the caller asks for
+    # — including the longer ones where `human_depth` has to decline.
+    human_share = (human_volume / volume) if volume else None
 
     components: dict[str, dict] = {}
 
@@ -268,6 +317,48 @@ def seller_rating(seller: str, days: int = 7) -> dict:
         "available": False,
         "reason": "no re-derived wash flags on the tape yet (needs policyHash on chain)",
     }
+
+    # Human depth — counted over ONE rotation window, never summed across them.
+    # A cluster id is minted per window, so the same human carries a different id
+    # in each: adding the counts up would multiply one person into several. That
+    # is also why a longer request is refused rather than served — blending a 30d
+    # fairness with a 7d human depth is a methodology smell wearing a number.
+    win = data.get("sellerWindow") or {}
+    win_humans = int(win.get("distinctHumans") or 0)
+    if days > RATING_WINDOW_DAYS:
+        components["human_depth"] = {
+            "available": False,
+            "reason": (
+                f"human depth is counted over one {RATING_WINDOW_DAYS}d rotation window "
+                f"and cannot be summed across windows; asked for {days}d"
+            ),
+        }
+    elif win_humans > 0:
+        win_payers = max(1, int(win.get("distinctPayers") or 1))
+        win_volume = int(win.get("volume") or 0)
+        win_human_volume = int(win.get("humanVolume") or 0)
+        win_sandbox = int(win.get("sandboxHumans") or 0)
+        components["human_depth"] = {
+            "available": True,
+            "score": round(min(1.0, win_humans / win_payers), 4),
+            "distinct_humans": win_humans,
+            "distinct_payers": win_payers,
+            # Every human count carries how much of it is demo, for the same
+            # reason every rating carries its synthetic share: a number that
+            # cannot be discounted invites being read as more than it is.
+            "sandbox_humans": win_sandbox,
+            "sandbox_share": round(win_sandbox / win_humans, 4) if win_humans else None,
+            "human_volume_share": (
+                round(win_human_volume / win_volume, 4) if win_volume else None
+            ),
+            "window": int(win.get("window") or _window_now()),
+            "window_days": RATING_WINDOW_DAYS,
+        }
+    else:
+        components["human_depth"] = {
+            "available": False,
+            "reason": "no human resolutions on the tape for this window",
+        }
 
     att = entity.get("latestAttestation")
     if att:
@@ -297,6 +388,7 @@ def seller_rating(seller: str, days: int = 7) -> dict:
         "n_all": n_all,
         "volume_usdc": volume / 1e6,
         "synthetic_share": None if synthetic_share is None else round(synthetic_share, 4),
+        "human_share": None if human_share is None else round(human_share, 4),
         "grade": _grade(score) if rated else "Unrated",
         # "Thin" is a claim about QUANTITY. A seller whose fills are all
         # unbenchmarked — the press selling $/query, where no arrival price exists
@@ -348,7 +440,7 @@ def payer_tca(payer: str, days: int = 7) -> dict:
 def _card(data: dict, days: int) -> dict:
     """Fold day rollups and settlements into the TCA shape both views return.
 
-    Shared by every surface that returns a TCA card, so a fleet is aggregated by
+    Shared by the per-wallet and per-human surfaces so a fleet is aggregated by
     exactly the same arithmetic as a single payer — and, more to the point, so
     the reroute sees the fleet as ONE book. Unioning several finished TCA cards
     afterwards would rank each wallet's sellers separately and could recommend a
@@ -368,12 +460,16 @@ def _card(data: dict, days: int) -> dict:
         amount = int(st["amount"])
         slip = int(st["slippageTenthBp"] or 0)
         e = per_seller.setdefault(
-            sid, {"seller": sid, "volume": 0, "weighted": 0, "n": 0, "synthetic": 0}
+            sid, {"seller": sid, "volume": 0, "weighted": 0, "n": 0, "synthetic": 0, "human": 0}
         )
         e["volume"] += amount
         e["weighted"] += amount * slip
         e["n"] += 1
         e["synthetic"] += amount if st.get("synthetic") else 0
+        # Stamped at finalize from HumanIdMirror for the window the settlement
+        # landed in (graph/src/mirror.ts). Folded per seller the same way the
+        # synthetic share is, so the two shares a row carries are the same shape.
+        e["human"] += amount if st.get("human") else 0
 
     breakdown = []
     for e in per_seller.values():
@@ -385,6 +481,7 @@ def _card(data: dict, days: int) -> dict:
             "volume_share": round(e["volume"] / spent, 4) if spent else None,
             "n": e["n"],
             "synthetic_share": round(e["synthetic"] / e["volume"], 4) if e["volume"] else None,
+            "human_share": round(e["human"] / e["volume"], 4) if e["volume"] else None,
         })
     breakdown.sort(key=lambda b: (b["vw_slippage_bp"] is None, -(b["vw_slippage_bp"] or 0)))
 
@@ -403,6 +500,44 @@ def _card(data: dict, days: int) -> dict:
     }
 
 
+def human_tca(cluster: str, window: int, days: int = 7) -> dict:
+    """One TCA across every wallet a verified human is resolved to.
+
+    Takes a CLUSTER, never a wallet list: the caller proved a nullifier and the
+    cluster was derived from it, so there is no request shape that asks for
+    somebody else's fleet. The wallet set is read from the public tape for the
+    duration of this query and is not returned — the caller already knows their
+    own wallets, and a response that enumerated them would hand a fleet to anyone
+    who later saw it.
+    """
+    url, key = _cfg()
+    if (why := _blocked(url, key)):
+        return _unavailable(why)
+    if days > RATING_WINDOW_DAYS:
+        # A cluster is minted per rotation window, so the wallet set behind it
+        # describes THIS window. Reaching further back would union today's fleet
+        # over a period it may not have been the fleet for.
+        return _unavailable(
+            f"a human's wallet set is resolved per {RATING_WINDOW_DAYS}d rotation "
+            f"window and cannot describe a longer one; asked for {days}d"
+        )
+
+    found = graph_query(url, _HUMAN_CLUSTER, {"cluster": cluster.lower()}, key)
+    if not found:
+        return _unavailable("the subgraph did not answer")
+    entity = found.get("humanCluster") or {}
+    wallets = [str(w["id"]) for w in (entity.get("wallets") or [])]
+    human = {"cluster": cluster, "window": window, "wallet_count": len(wallets)}
+    if not wallets:
+        # Distinguishable from "no trades": this human has no wallets on the tape
+        # for this window at all, which usually means the resolver has not run.
+        return {**_unavailable("no wallets are resolved to this human in this window"),
+                "human": human}
+
+    data = graph_query(url, _HUMAN_DAYS, {"payers": wallets, **_window_vars(days)}, key)
+    if not data:
+        return {**_unavailable("the subgraph did not answer"), "human": human}
+    return {**_card(data, days), "human": human}
 
 
 def _reroute(breakdown: list[dict]) -> dict | None:

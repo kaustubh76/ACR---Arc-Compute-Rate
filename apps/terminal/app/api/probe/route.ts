@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CARD_HEADER } from "@/lib/agentcard";
-import { baseState, sellerFetch } from "@/lib/api";
+import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
+import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
+import { chainFacts } from "@/lib/chain";
 import { RUNNABLE } from "@/lib/endpoints";
 
 /* POST /api/probe — call one free endpoint and report what came back.
@@ -22,13 +23,19 @@ import { RUNNABLE } from "@/lib/endpoints";
  * the register does not mark runnable cannot be reached through here even if
  * the press would serve it. Same discipline as app/api/console/route.ts.
  *
- * ONE OPTIONAL FIELD LETS A VISITOR FEEL THE AGENT GATE rather than read about it:
+ * TWO OPTIONAL FIELDS LET A VISITOR FEEL THE AGENT GATE rather than read about it:
  *
  *   agent_card   a card the visitor signed IN THEIR OWN TAB with a throwaway key.
  *                Forwarded upstream as AGENT-CARD, nothing else. The key never
  *                reaches this server; we only ever see the header.
+ *   as: "demo-human"   this route mints a card for one of the demo fleet's wallets
+ *                — key derived on the SERVER from a public label, exactly as
+ *                demo_humans.py derives it — claiming the cluster HumanIdMirror
+ *                records for it this window. No key ships to a browser. The point is
+ *                that a visitor can watch the gate reach the HUMAN tier, which their
+ *                own throwaway key never can: it is resolved to nobody.
  *
- * The allowlist is untouched by it. A card changes what the press SAYS about a
+ * The allowlist is untouched by either. A card changes what the press SAYS about a
  * call, never which calls can be made.
  */
 export const dynamic = "force-dynamic";
@@ -46,12 +53,14 @@ const MAX_CARD = 2048;
 export async function POST(req: NextRequest) {
   let path = "";
   let agentCard: string | undefined;
+  let asDemoHuman = false;
   try {
     const body = await req.json();
     path = String(body.path ?? "");
     if (typeof body.agent_card === "string" && body.agent_card.length <= MAX_CARD) {
       agentCard = body.agent_card;
     }
+    asDemoHuman = body.as === "demo-human";
   } catch {
     /* invalid JSON — rejected by the allowlist below */
   }
@@ -60,6 +69,17 @@ export async function POST(req: NextRequest) {
       { detail: `not runnable from here: ${path.slice(0, 80)}` },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
+  }
+
+  if (asDemoHuman) {
+    const minted = await demoHumanCard();
+    if (!minted) {
+      return NextResponse.json(
+        { path, detail: "the demo human is not resolved this window. Run `make resolve-humans` and try again" },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    agentCard = minted;
   }
 
   const started = Date.now();
@@ -108,17 +128,59 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** The whoami fields the page renders as prose rather than as JSON: `tier` picks
- *  the badge, `ident_kind` says what the budget is keyed on. Parsed here so the
- *  page does not have to read them back out of a truncated preview string. */
-function whoamiOf(text: string): { tier?: string; ident_kind?: string } {
+/** `tier` from a whoami body, or undefined for anything else. */
+/** The three whoami fields the page renders as prose rather than as JSON. `tier`
+ *  picks the badge; `ident_kind` says what the budget is keyed on; `human_note` is
+ *  the gate's own sentence for WHY a human claim did not reach the human tier —
+ *  the one line a developer actually needs when the badge says `carded` where they
+ *  expected `human`, and the one that was being dropped on this floor. */
+function whoamiOf(text: string): { tier?: string; ident_kind?: string; human_note?: string } {
   try {
-    const j = JSON.parse(text) as { tier?: unknown; ident_kind?: unknown };
+    const j = JSON.parse(text) as { tier?: unknown; ident_kind?: unknown; human_note?: unknown };
     const str = (v: unknown) => (typeof v === "string" ? v : undefined);
-    return { tier: str(j.tier), ident_kind: str(j.ident_kind) };
+    return { tier: str(j.tier), ident_kind: str(j.ident_kind), human_note: str(j.human_note) };
   } catch {
     return {};
   }
+}
+
+/** A card for the demo human, signed on the server with a key derived from a
+ *  public label. Null when that wallet has no cluster in the current window, which
+ *  is the honest answer after a rotation rather than a card the gate would refuse. */
+async function demoHumanCard(): Promise<string | null> {
+  const key = await demoKey(DEMO_HUMAN_LABEL);
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const wallet = privateKeyToAccount(key).address.toLowerCase();
+
+  // Ask the press which cluster the chain records for this wallet right now. The
+  // `humans` operation returns clusters with their wallets for the current window.
+  type Cluster = { id: string; window: string; payers?: Array<{ id: string } | string>; wallets?: Array<{ id: string } | string> };
+  const { data } = await postLiveMeta<{ available: boolean; data?: { humanClusters: Cluster[] } }>(
+    "/graph/query", { operation: "humans", variables: { first: 50 } }, TIMEOUT_MS,
+  );
+  const clusters = data?.data?.humanClusters ?? [];
+  const mine = clusters.find((c) =>
+    (c.payers ?? c.wallets ?? []).some((p) => (typeof p === "string" ? p : p.id).toLowerCase() === wallet),
+  );
+  if (!mine) return null;
+
+  // Audience and chain from the gate's own challenge, never hardcoded: the snippet
+  // on the page makes the same argument, and a demo that hardcoded what the gate
+  // accepts would keep working after the gate changed.
+  type Challenge = { audience?: string; chain_id?: number };
+  const challenge: Challenge = await sellerFetch("/agent/challenge", {
+    cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS),
+  }).then(({ res }) => res.json() as Promise<Challenge>).catch((): Challenge => ({}));
+
+  const minted = await mintCard({
+    privateKey: key,
+    chainId: Number(challenge.chain_id ?? chainFacts().chainId),
+    audience: String(challenge.audience ?? "acr-index-api"),
+    name: `acr-demo-human:${DEMO_HUMAN_LABEL}`,
+    role: "reader",
+    humanCluster: mine.id as `0x${string}`,
+  });
+  return minted.header;
 }
 
 function pretty(text: string): string {

@@ -134,6 +134,9 @@ export interface ChainFactsData {
   /** FeedAccessAttestor — null until deployed/configured, so the chip stays
    *  off rather than rendering a zero address. */
   attestor_address?: string | null;
+  /** HumanIdMirror — the identity layer's contract on Arc. Same rule as the
+   *  attestor: null until configured, and omitted rather than zero-addressed. */
+  humanid_address?: string | null;
   /** Circle's identifiers for this chain; absent on a payload from an older API. */
   circle_blockchain?: string | null;
   gateway_chain?: string | null;

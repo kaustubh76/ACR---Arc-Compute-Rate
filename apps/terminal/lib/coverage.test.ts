@@ -27,7 +27,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/view.tsx": 2, // hero copy lives in HomeHero; the primer mount is plain-only by CSS
   // Raised from 12 against an actual 32 — twenty markers of slack, the state
   // the sellers/developers comments below call a floor that stopped holding.
-  "app/index/[id]/view.tsx": 30,
+  "app/index/[id]/view.tsx": 32,
   "app/attack/view.tsx": 10,
   "app/curve/view.tsx": 16, // 5 -> 16: measured, plus the shop-floor disclosure
   // Was 8 against an actual 15 — a floor that had stopped holding anything,
@@ -35,16 +35,16 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
   // 40 -> 43: the grade-me field, the no-fills branch and the people column.
-  "app/tape/view.tsx": 64, // 65 -> 64: the People column went with the World integration
-  // Both of these carried floors well under their actual counts, which is the
-  // state the sellers comment below describes as a floor that has stopped
-  // holding anything. Raised to actual as part of the register extraction.
-  "app/developers/view.tsx": 77, // 79 -> 77: the unreachable human tier captions went with World
+  "app/tape/view.tsx": 66, // the Sells column, seller names, the slippage titles, and the People column
+  // This carried a floor well under its actual count, which is the state the
+  // comment below describes as a floor that has stopped holding anything.
+  // Raised to actual as part of the register extraction.
+  "app/developers/view.tsx": 80, // incl. the human gate section and the two operator rows
   "app/error.tsx": 3,
   "app/not-found.tsx": 3,
   "components/Masthead.tsx": 6,
-  "components/ChainStrip.tsx": 6, // incl. the network chip; was 9 with the two World chips
-  "components/Colophon.tsx": 13, // the identity line and salt warning went with World; this still holds
+  "components/ChainStrip.tsx": 9, // incl. the verified-humans chip, the stale-resolution chip and the network chip
+  "components/Colophon.tsx": 13, // incl. the identity line and the salt-mismatch warning
   "components/HomeHero.tsx": 5,
   "components/RateBlock.tsx": 4,
   "components/PrintsTable.tsx": 6,
@@ -53,8 +53,9 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/TapeTeaser.tsx": 3,
   "components/loop/LoopFlow.tsx": 10,
   "components/loop/Wake.tsx": 1,
-  "components/loop/TierColumns.tsx": 7,
+  "components/loop/TierColumns.tsx": 8,
   "components/loop/ScreenLab.tsx": 12,
+  "components/loop/PersonNotWallet.tsx": 14,
   "app/loop/view.tsx": 4,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
@@ -80,7 +81,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/ApiConsole.tsx": 8,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
-  "components/chain/ContractRegister.tsx": 9, // seven glosses, the custody note, the sim tape line
+  "components/chain/ContractRegister.tsx": 10, // seven glosses, the custody note, the sim tape line
   // The chain-read proof, re-homed off /sellers when that page went: the
   // button, its explanation, and the two labels on the result.
   "components/chain/RegistryProof.tsx": 4,
@@ -91,6 +92,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/FuturesTape.tsx": 3, // incl. the "you" chip on a reader's own fill
   // The 401 challenge, shown the way ApiConsole shows the 402: every label
   // dual-renders, and the "what would answer this" line has three backends.
+  "components/chain/HumanProof.tsx": 16,
   "components/chain/AgentCardSnippet.tsx": 12,
   "components/chain/McpSnippet.tsx": 7,
   // The shop floor, folded in from the old /exchange route. Rendered only when

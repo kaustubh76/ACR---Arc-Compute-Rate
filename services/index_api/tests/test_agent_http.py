@@ -141,6 +141,28 @@ def test_no_card_is_anonymous_and_is_told_how_to_stop_being_anonymous():
     assert body["challenge"] == "/agent/challenge"
 
 
+def test_a_confirmed_cluster_reaches_the_human_tier(human_gate):
+    r = client.get("/agent/whoami", headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["tier"] == "human"
+    assert body["claimed_human"] is True
+    assert body["human_note"] == ""
+    # The ident is the rate-limit key and is deliberately NOT echoed.
+    assert "ident" not in body and "cluster" not in body
+
+
+def test_an_unverifiable_mirror_declines_the_tier_and_says_so(unverifiable_gate):
+    """The third state. A gate that cannot check a claim must not grant it, and
+    must not report the refusal as though the claim were false."""
+    r = client.get("/agent/whoami", headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["tier"] == "carded"
+    assert body["claimed_human"] is True
+    assert "configured" in body["human_note"].lower()
+
+
 def test_the_signed_scope_is_reported_as_unenforced(human_gate):
     """`scopeHash` is in the signature and is checked against nothing. Saying so
     on the endpoint is what keeps it from becoming a field everyone assumes is
@@ -170,6 +192,50 @@ def test_a_header_that_is_not_a_card_is_401_with_something_readable(human_gate):
 
 
 # --- what the card is FOR ----------------------------------------------------
+
+
+def test_the_route_keys_the_limit_on_the_human_not_the_key(human_gate, monkeypatch):
+    """Two different keys, one human, one ident — observed at the call site the
+    route actually makes rather than inferred from `verify()`."""
+    seen: list[tuple[str, str | None]] = []
+    real = ratelimit.check
+
+    def _spy(request, endpoint, ident=None, **kw):
+        seen.append((endpoint, ident))
+        return real(request, endpoint, ident, **kw)
+
+    monkeypatch.setattr(ratelimit, "check", _spy)
+    for label in ("w1", "w2"):
+        r = client.post(
+            "/graph/query",
+            json={"operation": "meta", "variables": {}},
+            headers={"AGENT-CARD": _header(label, human_cluster=FLEET)},
+        )
+        assert r.status_code == 200
+    idents = {ident for endpoint, ident in seen if endpoint == "graph"}
+    assert idents == {FLEET.lower()}, "two keys of one human must share one ident"
+
+
+def test_ten_keys_of_one_human_buy_one_budget_over_http(human_gate, monkeypatch):
+    """THE point, end to end. A budget of two, spent by one wallet, is exhausted
+    for the OTHER wallet of the same person — while a stranger is unaffected."""
+    monkeypatch.setitem(ratelimit.DESK_BUDGETS, "graph", (2, 3600.0))
+    body = {"operation": "meta", "variables": {}}
+
+    for _ in range(2):
+        r = client.post("/graph/query", json=body,
+                        headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
+        assert r.status_code == 200
+
+    spent = client.post("/graph/query", json=body,
+                        headers={"AGENT-CARD": _header("w2", human_cluster=FLEET)})
+    assert spent.status_code == 429, "a second key of the same human must not buy a second budget"
+
+    # The control. Without it this test would also pass if the limiter had simply
+    # stopped letting anyone through.
+    other = client.post("/graph/query", json=body,
+                        headers={"AGENT-CARD": _header("stranger", human_cluster=SOLO)})
+    assert other.status_code == 200
 
 
 def test_a_carded_caller_escapes_the_shared_host_ceiling(human_gate, monkeypatch):
@@ -348,16 +414,16 @@ def test_a_forged_card_is_refused_before_any_payment_is_taken(path, human_gate, 
 
 
 def test_a_good_card_on_a_paid_route_is_counted(human_gate):
-    """The counter read 0 in production after a card-carrying
+    """The counter `human_tier_granted` read 0 in production after a human-claiming
     buyer bought twice, because the paid routes ignored the card. With the card read,
     a 402 challenge is still a 402 — but the gate has seen and counted the caller."""
     from index_api.agentgate import get_gate
 
     gate = get_gate()
-    before = gate.verified
+    before = gate.human_verified
     r = client.get("/prints", headers={"AGENT-CARD": _header("w1", human_cluster=FLEET)})
     assert r.status_code == 402, "no payment was sent, so the gate must still ask for one"
-    assert gate.verified == before + 1, "a card must be verified on a paid route"
+    assert gate.human_verified == before + 1, "the human claim must be verified on a paid route"
 
 
 def test_the_receipt_records_the_tier_the_card_earned(human_gate):
@@ -376,9 +442,7 @@ def test_the_receipt_records_the_tier_the_card_earned(human_gate):
         assert r.status_code == 200
         rows = client.get("/marketplace/receipts").json()["receipts"]
         # Newest first on the ledger.
-        # "human" is gone with the World integration: a card carrying a
-        # cluster now earns the carded tier like any other.
-        assert [row["tier"] for row in rows[:3]] == ["carded", "carded", "anonymous"]
+        assert [row["tier"] for row in rows[:3]] == ["human", "carded", "anonymous"]
     finally:
         reset_facilitator()
 

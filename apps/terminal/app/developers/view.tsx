@@ -5,6 +5,7 @@ import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
 import { AgentCardSnippet } from "@/components/chain/AgentCardSnippet";
 import { McpSnippet } from "@/components/chain/McpSnippet";
+import { HumanProof } from "@/components/chain/HumanProof";
 import { WebhookActivity } from "@/components/WebhookActivity";
 import { WalletPanel } from "@/components/chain/WalletPanel";
 import { ContractRegister } from "@/components/chain/ContractRegister";
@@ -31,18 +32,20 @@ interface ProbeResult {
   /** Only /agent/whoami answers with one. Parsed server-side so the page does not
    *  read it back out of a truncated preview string. */
   tier?: string;
-  /** What the budget is keyed on, as the gate reports it. */
+  /** What the budget is keyed on: `agent-key` or `human-cluster`. */
   ident_kind?: string;
+  /** The gate's reason when a human claim stayed `carded`. */
+  human_note?: string;
   /** Whether a card was sent at all — so a 401 reads as "card refused". */
   carded?: boolean;
 }
 
-/** The two ways to run /agent/whoami, and the key each result is stored under.
- *  Two slots rather than one, so a reader can see anonymous and carded side by
- *  side — the comparison IS the demonstration. */
-type CardSlot = "" | "#card";
+/** The three ways to run /agent/whoami, and the key each result is stored under.
+ *  Three slots rather than one, so a reader can see anonymous, carded and human
+ *  side by side — the comparison IS the demonstration. */
+type CardSlot = "" | "#card" | "#human";
 
-const TIER_CHIP: Record<string, string> = { anonymous: "chip chip-sim", carded: "chip chip-teal" };
+const TIER_CHIP: Record<string, string> = { anonymous: "chip chip-sim", carded: "chip chip-teal", human: "chip chip-gold" };
 
 /* What each route sells, keyed by the register's path.
  *
@@ -73,6 +76,8 @@ const DESC: Record<string, React.ReactNode> = {
   "/operator/ledger/{business}": <Ed x="One business's decisions as a double-entry ledger file" p="One business's money, as a file an accountant can open" />,
   "/operator/audit/{business}": <Ed x="The six errors a trial balance cannot see, searched for by name" p="The six money mistakes that still add up correctly, each one looked for" />,
   "/operator/statement/{business}": <Ed x="One business's spend · what the agent decided, and what awaits the owner" p="What the money agent did for one business, and what needs your approval" />,
+  "/tca/human": <Ed x="One bill across every wallet a verified human owns" p="One bill covering all the accounts that belong to the same person" />,
+  "/humanid/info": <Ed x="The human-proof gate, described by the service itself" p="How we check someone is a real person, in the service's own words" />,
   "/agent/info": <Ed x="The agent-card gate, described by the service itself" p="How we check which robot is calling, in the service's own words" />,
   "/agent/challenge": <Ed x="Everything an agent needs to mint a card: domain, roles, and the lifetime bound" p="The instructions a robot needs to make itself an ID card" />,
   "/agent/whoami": <Ed x="What the gate made of the card you presented, and which of the three tiers it reached" p="Who we think you are, and whether we could confirm a real person behind it" />,
@@ -293,6 +298,12 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
         }
       />
 
+      {/* The other gate. The console above shows the 402 before a cent moves;
+          this shows the 401 before a person is admitted. Same page, same move,
+          and they belong next to each other: the register two sections down now
+          carries a row whose only explanation is "needs a proof of personhood",
+          and this is where a reader finds out what that means. */}
+      <HumanProof />
       {/* The agent gate's sibling section: the same "ask it what it wants", and then
           the code to satisfy it, in three languages, derived from that answer. The
           snippets name the PUBLIC host because that is the one an agent would call;
@@ -512,6 +523,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                         title="Generate a throwaway key in this tab, sign a card with it, and present it"
                                       >
                                         {probing === e.path + "#card" ? "…" : "mint a card"}
+                                      </button>{" "}
+                                      <button
+                                        className="mini-btn"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          void probe(e.path, e.run!, "#human", { as: "demo-human" });
+                                        }}
+                                        disabled={probing !== null}
+                                        title="A card for one of the demo fleet's wallets, claiming the cluster the chain records for it"
+                                      >
+                                        {probing === e.path + "#human" ? "…" : "as a demo human"}
                                       </button>
                                     </>
                                   ) : null}
@@ -536,6 +558,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
                                   ) : e.why === "address" ? (
                                     <Ed x="needs a wallet in the path" p="needs a wallet address" />
+                                  ) : e.why === "human" ? (
+                                    <Ed x="needs a proof of personhood" p="needs proof you are a real person" />
                                   ) : (
                                     <Ed x="needs a session" p="needs a session" />
                                   )}
@@ -543,7 +567,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                               )}
                             </td>
                           </tr>
-                          {(["", "#card"] as CardSlot[]).map((slot) => {
+                          {(["", "#card", "#human"] as CardSlot[]).map((slot) => {
                             const o = slot === "" ? out : probeOut[e.path + slot];
                             if (!o) return null;
                             return (
@@ -564,7 +588,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                           {o.truncated ? " · preview" : ""}
                                         </span>
                                         {/* The tier, as a badge, because this row exists to make the
-                                            tiers visible next to each other rather than described. */}
+                                            three tiers visible next to each other. The sentence after
+                                            it is the one the human tier was built to say. */}
                                         {o.carded && o.status === 401 ? (
                                           <>
                                             {" "}
@@ -583,9 +608,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                             {o.ident_kind ? <span className="muted mono"> · {o.ident_kind}</span> : null}{" "}
                                             <span className="muted">
                                               {/* Captions follow the TIER the gate granted, not the button
-                                                  pressed — the gate is the authority on what it granted,
-                                                  and anything else here would be the caption we hoped for. */}
-                                              {o.tier === "carded" ? (
+                                                  pressed: a human claim the chain could not confirm comes
+                                                  back `carded`, and the gate's own reason is the sentence
+                                                  to show, not the one we hoped to. */}
+                                              {o.tier === "human" ? (
+                                                <Ed x="a wallet the chain ties to a person: one budget for every wallet they own" p="a wallet the chain knows belongs to a person, so it shares one allowance with their other wallets" />
+                                              ) : o.tier === "carded" && o.human_note ? (
+                                                <>
+                                                  <Ed x="the key is yours; the human claim was declined: " p="the ID card is real, but the real-person claim was turned down: " />
+                                                  {o.human_note}
+                                                </>
+                                              ) : o.tier === "carded" ? (
                                                 <Ed x="signed in this tab, with a key that dies with it" p="an ID card made right here, thrown away after" />
                                               ) : o.tier === "anonymous" ? (
                                                 <Ed x="no card, so the shared ceiling" p="no ID card, so the limit everyone shares" />

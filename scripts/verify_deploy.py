@@ -100,6 +100,7 @@ def _custody(w3, s, hard: bool) -> bool:
         ("futures venue", getattr(s, "futures_address", ""), False),
         ("feed-access attestor", getattr(s, "attestor_address", ""), False),
         ("receipt mirror", getattr(s, "receipt_mirror_address", ""), False),
+        ("human-id mirror", getattr(s, "humanid_mirror_address", ""), False),
     ]
     deployer = _deployer_address()
     signer_addr, _ = _resolve_signer_address(s)

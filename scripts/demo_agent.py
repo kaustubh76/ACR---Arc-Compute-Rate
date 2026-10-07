@@ -83,7 +83,7 @@ def _child_env() -> dict[str, str]:
     """
     keep = ("ACR_ARMOR_PROJECT_ID", "ACR_ARMOR_LOCATION", "ACR_ARMOR_TEMPLATE",
             "ACR_ARMOR_CREDENTIALS_FILE", "ACR_ARC_RPC_URL", "ACR_ARC_CHAIN_ID",
-            "ACR_SUBGRAPH_URL", "ACR_GRAPH_API_KEY")
+            "ACR_HUMANID_MIRROR_ADDRESS", "ACR_SUBGRAPH_URL", "ACR_GRAPH_API_KEY")
 
     from acr_core import get_settings
 
@@ -93,6 +93,7 @@ def _child_env() -> dict[str, str]:
         "ACR_ARMOR_TEMPLATE": s.armor_template,
         "ACR_ARMOR_CREDENTIALS_FILE": s.armor_credentials_file,
         "ACR_ARC_RPC_URL": s.arc_rpc_url, "ACR_ARC_CHAIN_ID": str(s.arc_chain_id),
+        "ACR_HUMANID_MIRROR_ADDRESS": s.humanid_mirror_address,
         "ACR_SUBGRAPH_URL": s.subgraph_url, "ACR_GRAPH_API_KEY": s.graph_api_key,
     }
 
@@ -236,9 +237,32 @@ def preflight(base: str) -> bool:
 def run(base: str) -> None:
     import hashlib
 
+    from acr_oracle_client.demo_humans import DEMO_HUMANS, DemoBuyer
+    from acr_oracle_client.humanid import HumanIdMirrorClient, current_window
     from acr_oracle_client.signer import LocalKeySigner
 
+    window = current_window()
+    mirror = HumanIdMirrorClient()
+
+    fleet = next((h for h in DEMO_HUMANS if len(h.buyers) > 1), DEMO_HUMANS[0])
+    solo = next((h for h in DEMO_HUMANS if len(h.buyers) == 1), DEMO_HUMANS[-1])
+
+    w1, w2 = DemoBuyer(fleet.buyers[0]).signer(), DemoBuyer(fleet.buyers[1]).signer()
+    stranger = DemoBuyer(solo.buyers[0]).signer()
     throwaway = LocalKeySigner("0x" + hashlib.sha256(b"acr-demo::throwaway").hexdigest())
+
+    def cluster_of(signer, w: int) -> str | None:
+        try:
+            got = mirror.cluster_of(signer.address, w)
+        except Exception:  # noqa: BLE001
+            return None
+        return ("0x" + bytes(got).hex()) if got else None
+
+    fleet_now = cluster_of(w1, window)
+    fleet_prev = cluster_of(w1, window - 1)
+    solo_now = cluster_of(stranger, window)
+
+    print(f"\nwindow {window} · fleet {str(fleet_now)[:14]}… · solo {str(solo_now)[:14]}…")
 
     print("\n1 · no card")
     st, b = _req(f"{base}/agent/whoami")
@@ -253,19 +277,59 @@ def run(base: str) -> None:
     check(b.get("scope_enforced") is False,
           "scope_hash reported as signed-but-unenforced, rather than implied")
 
-    print("\n3 · a card addressed to another service")
+    print("\n3 · a fleet wallet claiming the cluster the CHAIN records for it")
+    if not fleet_now:
+        check(False, f"the demo fleet is not resolved in window {window} "
+                     "— run `make resolve-humans ARGS=--commit`", warn_only=True)
+    else:
+        st, b = _req(f"{base}/agent/whoami", card=_card(w1, cluster=fleet_now))
+        b = b or {}
+        check(st == 200 and b.get("tier") == "human",
+              f"tier {b.get('tier')} · verified against clusterOf on Arc")
+        check(b.get("ident_kind") == "human-cluster",
+              f"limit keyed on {b.get('ident_kind')} — per PERSON, not per key")
+
+        print("\n4 · a SECOND wallet of the same human")
+        st2, b2 = _req(f"{base}/agent/whoami", card=_card(w2, cluster=fleet_now))
+        b2 = b2 or {}
+        check(st2 == 200 and b2.get("tier") == "human"
+              and b2.get("ident_kind") == "human-cluster",
+              f"a different key, same person, same kind of bucket ({b2.get('ident_kind')})")
+        check(b.get("agent") != b2.get("agent"),
+              f"and they really are different keys: {b.get('agent')} vs {b2.get('agent')}")
+        print("    (bucket EQUALITY is asserted in "
+              "test_agent_http.py::test_ten_keys_of_one_human_buy_one_budget_over_http)")
+
+        print("\n5 · the same wallet claiming somebody else's cluster")
+        if solo_now:
+            st, b = _req(f"{base}/agent/whoami", card=_card(w1, cluster=solo_now))
+            check(st == 401, f"401 — {_detail(b)[:96]}")
+        else:
+            check(False, "the solo human is not resolved, so this act has no counterpart",
+                  warn_only=True)
+
+        print("\n6 · the rotation trap: last week's cluster id")
+        if fleet_prev and fleet_prev != fleet_now:
+            st, b = _req(f"{base}/agent/whoami", card=_card(w1, cluster=fleet_prev))
+            d = _detail(b)
+            check(st == 401 and "re-" in d.lower(),
+                  f"401 and it says what to DO: {d[:96]}")
+        else:
+            check(True, f"no distinct window {window - 1} id to replay", warn_only=True)
+
+    print("\n7 · a card addressed to another service")
     st, b = _req(f"{base}/agent/whoami", card=_card(throwaway, audience="someone-elses-api"))
     check(st == 401 and "someone-elses-api" in _detail(b),
           f"401 — audience is what replaces verifyingContract: {_detail(b)[:80]}")
 
-    print("\n4 · a card that wants to live for 30 days")
+    print("\n8 · a card that wants to live for 30 days")
     try:
         _card(throwaway, ttl_s=30 * 86400)
         check(False, "a 30-day card was minted — the bound is not enforced")
     except ValueError as exc:
         check(True, f"refused at the signer: {exc}")
 
-    print("\n5 · a CARDED tape read whose variables carry a prompt injection")
+    print("\n9 · a CARDED tape read whose variables carry a prompt injection")
     st, b = _req(f"{base}/graph/query", card=_card(throwaway),
                  body={"operation": "meta", "variables": {"note": INJECTION}})
     d = (b or {}).get("detail") or {}
@@ -275,7 +339,7 @@ def run(base: str) -> None:
     check(isinstance(d, dict) and INJECTION not in json.dumps(d),
           "and the refusal does not echo the text it refused")
 
-    print("\n6 · the screen's own counters, read back")
+    print("\n10 · the screen's own counters, read back")
     st, a = _req(f"{base}/armor/info")
     a = a or {}
     check(a.get("backend") == "gcp", f"backend: {a.get('backend')}")

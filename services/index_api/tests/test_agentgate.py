@@ -20,7 +20,7 @@ from acr_core.config import ACRSettings
 from acr_oracle_client.agentcard import MAX_TTL_S, encode_header, mint, sign_card, with_window
 from acr_oracle_client.signer import LocalKeySigner
 from fastapi import HTTPException
-from index_api.agentgate import TIER_CARDED, AgentGate
+from index_api.agentgate import TIER_CARDED, TIER_HUMAN, AgentGate
 
 CHAIN = 5042002
 FLEET = "0x" + "aa" * 32      # one human, three wallets
@@ -97,6 +97,16 @@ def _fleet_mirror(window=2958) -> _Mirror:
 # --- the point of the whole module -------------------------------------------
 
 
+def test_three_keys_belonging_to_one_human_share_one_rate_limit_bucket():
+    """THE sybil answer. Keys are free, so a limit keyed on the agent address is
+    evadable by anyone willing to run eth-account in a loop. Keyed on the human it
+    is not, and this is the assertion that says so."""
+    gate = _gate(_fleet_mirror())
+    idents = {_present(gate, _signer(w), human_cluster=FLEET).ident for w in WALLETS}
+    assert len(idents) == 1
+    assert idents == {FLEET.lower()}
+
+
 def test_a_different_human_gets_a_different_bucket():
     """The corollary, and it has to be checked: a scheme that collapsed everyone
     into one bucket would also pass the test above."""
@@ -116,6 +126,52 @@ def test_an_unbound_card_is_keyed_on_the_key_and_says_so():
 
 
 # --- the human claim ---------------------------------------------------------
+
+
+def test_a_matching_claim_reaches_the_human_tier():
+    a = _present(_gate(_fleet_mirror()), _signer("acr-buyer-1"), human_cluster=FLEET)
+    assert a.tier == TIER_HUMAN
+    assert a.cluster == FLEET.lower() or a.cluster.lower() == FLEET.lower()
+
+
+def test_claiming_another_humans_cluster_is_refused():
+    with pytest.raises(HTTPException, match="does not record"):
+        _present(_gate(_fleet_mirror()), _signer("acr-buyer-1"), human_cluster=SOLO)
+
+
+def test_claiming_last_windows_id_says_to_re_mint_rather_than_calling_it_false():
+    """Cluster ids are keccak(nullifier, salt, WINDOW), so the same human's id
+    changes completely every 7 days. An agent that cached its id is the likeliest
+    mistake by far, and "your claim is false" sends them looking in the wrong
+    place. Measured while building this: the fleet was 0xd9e05794… in window 2957
+    and 0x5bf3b922… in 2958, with no resemblance."""
+    with pytest.raises(HTTPException, match="rotate weekly"):
+        _present(_gate(_fleet_mirror()), _signer("acr-buyer-1"), human_cluster=LAST_WEEK)
+
+
+def test_an_agent_resolved_to_nobody_is_refused():
+    gate = _gate(_Mirror({2958: {}}))
+    with pytest.raises(HTTPException, match="not resolved to any human"):
+        _present(gate, _signer("acr-buyer-1"), human_cluster=FLEET)
+
+
+def test_an_unconfigured_mirror_declines_the_tier_instead_of_granting_it():
+    """A claim nobody checked must never become a tier. This is the case a live
+    chain cannot produce on demand, and the one where a careless `except` would
+    silently upgrade every caller."""
+    a = _present(_gate(_Mirror(configured=False)), _signer("acr-buyer-1"), human_cluster=FLEET)
+    assert a.tier == TIER_CARDED
+    assert a.cluster is None
+    assert "not configured" in a.human_note
+
+
+def test_an_unreachable_mirror_declines_the_tier_and_is_not_a_500():
+    a = _present(
+        _gate(_Mirror(raises=TimeoutError("rpc down"))), _signer("acr-buyer-1"),
+        human_cluster=FLEET,
+    )
+    assert a.tier == TIER_CARDED
+    assert "unreachable" in a.human_note
 
 
 # --- every other refusal -----------------------------------------------------
@@ -196,3 +252,19 @@ def test_the_challenge_names_everything_an_agent_needs_to_mint_one():
     assert "reader" in body["roles"]
     assert body["human_binding"]["optional"] is True
     assert exc.status_code == 401
+
+
+def test_info_reports_whether_the_human_tier_is_even_reachable():
+    """A gate that cannot check claims and one that grants the tier freely look
+    identical from outside. /humanid/info reports its salt for the same reason."""
+    assert _gate(_fleet_mirror()).info()["human_binding_verifiable"] is True
+    assert _gate(_Mirror(configured=False)).info()["human_binding_verifiable"] is False
+
+
+def test_counters_separate_cards_from_human_tier_grants():
+    gate = _gate(_fleet_mirror())
+    _present(gate, _signer("acr-buyer-1"))
+    _present(gate, _signer("acr-buyer-2"), human_cluster=FLEET)
+    info = gate.info()
+    assert info["cards_verified"] == 2
+    assert info["human_tier_granted"] == 1

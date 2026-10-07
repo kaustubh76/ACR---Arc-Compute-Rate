@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Ed } from "@/components/Ed";
 import { LoopFlow } from "@/components/loop/LoopFlow";
+import { PersonNotWallet } from "@/components/loop/PersonNotWallet";
 import { ScreenLab } from "@/components/loop/ScreenLab";
 import { TierColumns } from "@/components/loop/TierColumns";
 import type { TerminalData } from "@/lib/types";
@@ -47,6 +48,7 @@ export function LoopView({ initial }: { initial: Envelope<TerminalData> }) {
       <LoopFlow wake={wake} />
       <TierColumns wake={wake} />
       <ScreenLab wake={wake} />
+      <PersonNotWallet data={data} wake={wake} />
 
       <section className="section">
         <div className="section-head">

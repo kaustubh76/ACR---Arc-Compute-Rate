@@ -48,6 +48,13 @@ CHAIN_KEYS = {
     # carry a testnet literal — and the private-mainnet header flag the paywall
     # and the browser payer both key on.
     "circle_blockchain", "gateway_chain", "private_mainnet",
+    # The fifth, and the same story again: HumanIdMirror publishes the rotated
+    # cluster ids the human-denominated bound rests on, and was on chain before
+    # any surface named it. Widened here deliberately and in the same change as
+    # the payload — which is the whole point of freezing the set, because
+    # lib/chain.ts holds a SECOND copy of this contract and nothing but a red
+    # test connects the two across the language boundary.
+    "humanid_address",
     "gate", "tape_source", "signer", "poster",
 }
 

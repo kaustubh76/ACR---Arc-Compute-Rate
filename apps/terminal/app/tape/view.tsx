@@ -12,6 +12,7 @@ import {
   bucketTotal,
   byWorstFirst,
   followedReroute,
+  humanCell,
   usdc6,
 } from "@/lib/tape";
 import type { SellerRating, SellerTerms, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
@@ -109,6 +110,17 @@ function PayerField({
   );
 }
 
+/** How many PEOPLE bought here, when that is a thing we know.
+ *
+ *  `humanCell` decides, this only renders. The split exists because "0 people"
+ *  and "we did not count" are different facts, and a ternary inside a table cell
+ *  is where they quietly become one. The dash carries the press's own reason as
+ *  its title rather than a phrasing invented here. */
+/** The page's one chip style, reused: a seller whose volume is partly paid by
+ *  wallets the chain ties to a person. Rendered only when the share is above zero,
+ *  because zero here means "not measured", never "nobody" (same rule `humanCell`
+ *  keeps). The share rides in the title rather than the cell: this is a classifier
+ *  tag, like `sim`, not a new column. */
 /** The evidence under the suggestion: the payer's newest purchases, with the
  *  suggested seller and the one to leave marked, and ONE sentence chosen from the
  *  data. "The buyer acted on its own bill" is the claim the whole loop rests on,
@@ -167,6 +179,54 @@ function RerouteEvidence({
         })}
       </div>
     </div>
+  );
+}
+
+function HumanMark({ share, of }: { share: number | null | undefined; of: "this payer" | "the window" }) {
+  if (share == null || share <= 0) return null;
+  // The two tables divide by different things — one payer's fills above, every
+  // fill this rotation window below — so the same chip can read 100% and 64% for
+  // one seller. The title names the denominator rather than letting a reader
+  // hover both and conclude one of them is wrong.
+  const scope = of === "this payer" ? "this payer's fills with the seller" : "the seller's fills this rotation window";
+  return (
+    <span
+      className="chip chip-sim"
+      style={{ marginLeft: 6 }}
+      title={`${(share * 100).toFixed(0)}% of ${scope} came from wallets the chain resolves to a verified person`}
+    >
+      <Ed x="human" p="real person" />
+    </span>
+  );
+}
+
+function HumanCell({ rating }: { rating: SellerRating | undefined }) {
+  const cell = humanCell(rating);
+  if (cell.kind === "unmeasured") {
+    return (
+      <span className="muted" title={cell.note}>
+        —
+      </span>
+    );
+  }
+  return (
+    <span>
+      <span className="mono num">
+        {cell.humans}
+        {cell.payers != null ? (
+          <span className="muted">/{cell.payers}</span>
+        ) : null}
+      </span>
+      {cell.allSandbox ? (
+        <span
+          className="chip chip-sim"
+          style={{ marginLeft: 6 }}
+          title="Every one of these is a World ID Sandbox identity, not an Orb-verified person."
+        >
+          sim
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -488,6 +548,9 @@ export function TapeView() {
                     <th style={{ textAlign: "right" }}>
                       <Ed x="Ours" p="Our own money" />
                     </th>
+                    <th style={{ textAlign: "right" }}>
+                      <Ed x="People" p="Verified people" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -495,6 +558,7 @@ export function TapeView() {
                     <tr key={r.seller}>
                       <td>
                         <AddressChip address={r.seller} copy={false} label={nameOf(r.seller) ?? undefined} />
+                        <HumanMark share={r.human_share} of="this payer" />
                       </td>
                       <td className="mono" style={{ fontSize: 12.5 }}>
                         <SellsCell t={terms[r.seller.toLowerCase()]} />
@@ -519,6 +583,9 @@ export function TapeView() {
                         {r.synthetic_share === null
                           ? "…"
                           : `${(r.synthetic_share * 100).toFixed(0)}%`}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <HumanCell rating={ratings[r.seller.toLowerCase()]} />
                       </td>
                     </tr>
                   ))}
@@ -636,6 +703,7 @@ export function TapeView() {
                     <tr key={s.id}>
                       <td>
                         <AddressChip address={s.id} copy={false} label={nameOf(s.id) ?? undefined} />
+                        <HumanMark share={s.humanShare} of="the window" />
                       </td>
                       <td>
                         <GradeChip rating={r} />

@@ -12,10 +12,10 @@ export const runtime = "nodejs";
  * ONE ROUTE FOR TWO READS because they answer one question. "Is the gate real"
  * and "is the screen real" are the same doubt in two places, the footer renders
  * them together, and two proxy routes would mean two polls for one line of copy.
- * Several upstream reads, each
+ * `/api/humanid` already sets this precedent: several upstream reads, each
  * independently allowed to fail, assembled into one envelope.
  *
- * THE RULE THIS ROUTE EXISTS TO ENFORCE
+ * THE RULE THIS ROUTE EXISTS TO ENFORCE, and it is the same one `/api/humanid`
  * carries: a screen that silently fell back to its offline floor and a screen that
  * is inspecting nothing look identical from outside. `/armor/info` reports which
  * backend actually answered, so the footer can say so instead of the README

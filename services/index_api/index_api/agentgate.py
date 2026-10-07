@@ -44,6 +44,7 @@ from acr_oracle_client.agentcard import (
     decode_header,
     recover_agent,
 )
+from acr_oracle_client.humanid import HumanIdMirrorClient, current_window
 from fastapi import Header, HTTPException, Request
 
 log = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ CHALLENGE_HEADER = "AGENT-CARD-REQUIRED"
 
 TIER_ANON = "anonymous"
 TIER_CARDED = "carded"
+TIER_HUMAN = "human"
 
 
 class AgentCardRequired(HTTPException):
@@ -119,6 +121,7 @@ class AgentGate:
         self.settings = settings or get_settings()
         self._mirror = mirror
         self.verified = 0
+        self.human_verified = 0
 
     # --- configuration ---
 
@@ -128,6 +131,11 @@ class AgentGate:
         rather than to a wildcard: a gate that accepts any audience has given up
         the one protection that replaces `verifyingContract`."""
         return (self.settings.agent_audience or "acr-index-api").strip()
+
+    def mirror(self) -> HumanIdMirrorClient:
+        if self._mirror is None:
+            self._mirror = HumanIdMirrorClient(settings=self.settings)
+        return self._mirror
 
     # --- the challenge ---
 
@@ -200,16 +208,106 @@ class AgentGate:
                 detail=f"agent card lifetime {card.ttl_s}s exceeds the {MAX_TTL_S}s limit",
             )
 
-        # The human tier is gone with the World integration. `humanCluster`
-        # survives in the card's EIP-712 struct — it is in the typehash, so
-        # dropping it would invalidate every card already issued — and nothing
-        # reads it. A card may still carry one; it buys nothing.
+        # 4 · the human claim, if one was made.
+        cluster, note, tier = None, "", TIER_CARDED
+        if card.claims_human:
+            cluster, note = self._check_human(card)
+            if cluster is not None:
+                tier = TIER_HUMAN
+
         self.verified += 1
-        agent = VerifiedAgent(card=card, tier=TIER_CARDED)
-        log.info("agent card ok %s role=%s tier=%s", agent.masked, card.role, TIER_CARDED)
+        if tier == TIER_HUMAN:
+            self.human_verified += 1
+        agent = VerifiedAgent(card=card, tier=tier, cluster=cluster, human_note=note)
+        log.info("agent card ok %s role=%s tier=%s", agent.masked, card.role, tier)
         return agent
 
+    def _check_human(self, card: AgentCard) -> tuple[str | None, str]:
+        """Check the claimed cluster against the chain.
+
+        Returns `(confirmed_cluster, note)`. A None cluster with a note is "not
+        established"; the note says which of the three reasons applies, because a
+        caller who is told only "no" cannot tell a misconfigured server from a
+        false claim from a stale resolution.
+        """
+        mirror = self.mirror()
+        # `readable()`, NOT `configured()`. The latter also demands a signer,
+        # because `HumanIdMirrorClient` both reads and writes — and this gate only
+        # ever calls `cluster_of`, a view. Gating a read on a write credential put
+        # the human tier out of reach on the one deployment that should have it:
+        # production, which has no reason to hold a key that can write this mirror.
+        if not mirror.readable():
+            return None, "the human-id mirror is not configured, so the claim could not be checked"
+
+        window = current_window()
+        try:
+            got = mirror.cluster_of(card.agent, window)
+        except Exception as exc:  # noqa: BLE001 - unreachable chain is not a false claim
+            log.warning("agentgate: clusterOf unreadable (%s)", type(exc).__name__)
+            return None, "the human-id mirror was unreachable, so the claim could not be checked"
+
+        if got is not None:
+            on_chain = "0x" + bytes(got).hex()
+            if on_chain.lower() == card.human_cluster.lower():
+                return on_chain, ""
+            # A mismatch has two quite different causes and the generic message
+            # serves neither. Cluster ids are keccak(nullifier, salt, WINDOW), so
+            # the same human's id changes completely every 7 days — and the
+            # overwhelmingly likely mistake is a card minted against last week's
+            # id by an agent that cached it. Measured while building this: the
+            # fleet is 0xd9e05794… in window 2957 and 0x5bf3b922… in 2958, with no
+            # resemblance between them. Say which mistake it is.
+            if card.human_cluster.lower() == self._cluster_hex(card.agent, window - 1):
+                raise HTTPException(
+                    status_code=401,
+                    detail=(
+                        f"agent card claims this agent's window {window - 1} cluster id, but the "
+                        f"current window is {window} — ids rotate weekly, so re-mint the card "
+                        "with the current id"
+                    ),
+                )
+            raise HTTPException(
+                status_code=401,
+                detail="agent card claims a human cluster the chain does not record for it",
+            )
+
+        # Nothing in THIS window. Before calling the claim false, look one window
+        # back: cluster ids rotate every 7 days, so a resolution that was valid
+        # last week reads identically to a claim that was never true. Telling an
+        # operator "re-resolve" instead of "your claim is false" is the whole
+        # difference between an actionable 401 and a mysterious one.
+        try:
+            previous = mirror.cluster_of(card.agent, window - 1)
+        except Exception:  # noqa: BLE001 - best-effort diagnosis only
+            previous = None
+        if previous is not None:
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    f"agent is resolved in window {window - 1} but not {window} — "
+                    "cluster ids rotate weekly; re-run the resolver"
+                ),
+            )
+        raise HTTPException(
+            status_code=401,
+            detail=f"agent is not resolved to any human in window {window}",
+        )
+
+    def _cluster_hex(self, agent: str, window: int) -> str:
+        """This agent's cluster in `window`, lowercased hex, or "" if none.
+
+        Best-effort and never raises: it exists only to DIAGNOSE a mismatch that
+        has already been decided, so an unreachable chain here must degrade to
+        the generic message rather than turn a 401 into a 500.
+        """
+        try:
+            got = self.mirror().cluster_of(agent, int(window))
+        except Exception:  # noqa: BLE001 - diagnosis only
+            return ""
+        return ("0x" + bytes(got).hex()).lower() if got else ""
+
     def info(self) -> dict:
+        mirror = self.mirror()
         return {
             "scheme": "agentcard",
             "header": CARD_HEADER,
@@ -218,8 +316,15 @@ class AgentGate:
             "roles": list(ROLES),
             "max_ttl_seconds": MAX_TTL_S,
             "clock_skew_seconds": CLOCK_SKEW_S,
-            "tiers": [TIER_ANON, TIER_CARDED],
+            "tiers": [TIER_ANON, TIER_CARDED, TIER_HUMAN],
+            # Whether the human tier is REACHABLE here. A gate that cannot check
+            # claims and one that is granting the tier freely look identical from
+            # outside, which is why this is reported rather than described.
+            # Whether a claim CAN be checked here — a read, so `readable()`.
+            "human_binding_verifiable": mirror.readable(),
+            "rotation_window": current_window(),
             "cards_verified": self.verified,
+            "human_tier_granted": self.human_verified,
         }
 
 
