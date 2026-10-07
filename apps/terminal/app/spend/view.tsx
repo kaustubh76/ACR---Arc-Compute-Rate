@@ -569,6 +569,14 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
             <Ed x="This period" p="Lately" />
           </h2>
           <span className="label">{st.period_days}d</span>
+          {/* /traction had ZERO inbound links — the masthead was the only way in,
+              which is exactly the property that justified folding /exchange away.
+              It links OUT to /spend?business=… and nothing linked back, so the
+              two siblings were a one-way street. This is the figures above for
+              every business rather than this one. */}
+          <a className="section-link" href="/traction">
+            <Ed x="every business →" p="all the businesses →" />
+          </a>
         </div>
         <p className="standfirst">
           <Ed
