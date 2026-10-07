@@ -32,7 +32,17 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
   const [startErr, setStartErr] = useState<string | null>(null);
 
   const st = status?.data;
-  const labLive = status ? status.live : env.live;
+  // THREE states, not two. This used to be one boolean, and the collapse was a
+  // visitor-facing lie: `/demo/attack/status` is ungated and answers 200 on
+  // mainnet, so `status.live` was true, the teal "press live" chip rendered, the
+  // button armed, and the press returned 404 to anyone who touched it.
+  //
+  //   pressLive      the status read itself worked (or the bundle says it should)
+  //   labAvailable   the press would ACCEPT a run here — it says so now
+  //   canStart       both, which is the only state the button may be armed in
+  const pressLive = status ? status.live : env.live;
+  const labAvailable = status?.data?.available !== false;
+  const canStart = pressLive && labAvailable;
   const running = st?.state === "running";
   const done = st?.state === "done" && st.series.length > 0;
   const errored = st?.state === "error";
@@ -213,7 +223,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           <button
             className="btn btn-adversary"
             onClick={commence}
-            disabled={!labLive || running || starting}
+            disabled={!canStart || running || starting}
           >
             {/* `starting` used to drive `disabled` and nothing else, so the
                 headline button greyed out and said the same words for up to
@@ -237,7 +247,7 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
           </button>
           {/* A public visitor cannot "run make api". Say what is actually
               happening and how long it takes, using the ladder's own estimate. */}
-          {!labLive && (
+          {!pressLive && (
             <div className="label">
               <span className="chip chip-gold">
                 <i className="dot breathe" aria-hidden />
@@ -259,10 +269,30 @@ export function AttackView({ initial }: { initial: Envelope<TerminalData> }) {
               />
             </div>
           )}
+          {/* The third state, which had no branch at all: the press is up and
+              answering, and it will not start a run HERE. The lab spends our own
+              USDC on a stranger's request, so `_testnet_surface` keeps it off
+              mainnet — which is correct, and was being presented as "live".
+              Said in the gate's own terms rather than as a failure, because
+              nothing is broken: this is the guard working. */}
+          {pressLive && !labAvailable && (
+            <div className="label">
+              <span className="chip chip-sim">
+                <Ed x="testnet only" p="test network only" />
+              </span>
+              <Ed
+                as="p"
+                className="muted"
+                style={{ marginTop: 8, maxWidth: 68 * 9 }}
+                x="A run buys thousands of wash trades with our own USDC, so the press only accepts one off mainnet. The chart below is a recorded run, and every figure on it was produced this way."
+                p="A run spends our own money on fake trades, so we only allow it on the test network. The chart below is a run we recorded."
+              />
+            </div>
+          )}
           {/* The page only ever showed a chip when it was BROKEN. Saying so
               when it is fine is what makes the broken case believable — and
               the age proves the poll is alive rather than merely configured. */}
-          {labLive && (
+          {canStart && (
             <div className="label">
               <span className="chip chip-teal">
                 <i className="dot breathe" aria-hidden />

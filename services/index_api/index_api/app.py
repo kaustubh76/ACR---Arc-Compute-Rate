@@ -2135,9 +2135,22 @@ async def demo_attack_start(req: AttackStartRequest | None = None) -> dict:
 
 @app.get("/demo/attack/status")
 def demo_attack_status() -> dict:
+    """The run's state, PLUS whether a run can be started here at all.
+
+    Ungated on purpose — a reader should be able to see a finished run's chart on
+    any network. But `/demo/attack/start` is gated to testnet, and the two
+    together used to lie: this route answered 200 on mainnet, the Terminal read
+    that as "the lab is live", rendered a teal `press live` chip and armed the
+    button, and a visitor who pressed it got a 404. Measured on production
+    2026-10-07: status 200, start 404.
+
+    `available` is the server answering the question the page was guessing at.
+    The gate is the authority on what the gate will accept, and a client that
+    infers it from a chain id would be a second copy of the rule.
+    """
     from . import demo
 
-    return demo.status()
+    return {**demo.status(), "available": testnet_surfaces_enabled(get_settings())}
 
 
 class BuyerStartRequest(BaseModel):

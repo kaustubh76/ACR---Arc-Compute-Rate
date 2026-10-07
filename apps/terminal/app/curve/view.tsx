@@ -242,7 +242,12 @@ export function CurveView({ initial }: { initial: Envelope<TerminalData> }) {
             p="The shop · what is for sale, what sold, and the robot that buys"
           />
         </summary>
-        {floorOpen ? <ShopFloor initial={initial} /> : null}
+        {/* `.disclosure-body` carries the shared 4px/24px padding
+            (globals.css) and every other disclosure in the app uses it; the
+            fold shipped without it. */}
+        <div className="disclosure-body">
+          {floorOpen ? <ShopFloor initial={initial} /> : null}
+        </div>
       </details>
 
       <section className="section">

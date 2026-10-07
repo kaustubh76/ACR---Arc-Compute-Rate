@@ -387,6 +387,14 @@ export interface AttackStatus {
   /** idle | simulating | estimating | done. `simulating` is the blocking tape
    *  build that runs BEFORE hour 0 and used to look like a hang. */
   phase?: string;
+  /** Whether `POST /demo/attack/start` would ACCEPT a run on this network, which
+   *  is a different fact from whether this read succeeded. The start route is
+   *  gated to testnet and this one is not, so on mainnet the status answers 200
+   *  while a start 404s — and the page used to read the 200 as "the lab is live".
+   *  Optional because an older press does not send it; `undefined` is treated as
+   *  available, which is the pre-existing behaviour and the safe default for a
+   *  deployment that predates the field. */
+  available?: boolean;
   started_at?: number | null;
   elapsed_s?: number | null;
   /** Known before the first hour, so counters can be a fraction of a whole. */

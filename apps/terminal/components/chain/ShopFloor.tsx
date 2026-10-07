@@ -304,7 +304,14 @@ export function ShopFloor({ initial }: { initial: Envelope<TerminalData> }) {
 
   return (
     <>
-      <div className="standfirst-block" style={{ marginTop: 40 }}>
+      {/* NOT `standfirst-block` with a 40px top margin any more. That is the
+          PAGE-OPENER idiom — compare app/curve/view.tsx, app/attack/view.tsx,
+          app/developers/view.tsx — and this stopped being a page when /exchange
+          folded into /curve. It was rendering a second page-opening standfirst
+          40px below a disclosure summary that already has its own padding, so
+          /curve had two of them. A plain section wrapper now; the disclosure
+          body supplies the spacing. */}
+      <div className="section">
         <Ed
           as="p"
           className="standfirst"
