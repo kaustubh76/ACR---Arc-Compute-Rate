@@ -142,6 +142,57 @@ def balance_problems(text: str) -> list[str]:
     return problems
 
 
+def operator_clock() -> None:
+    """What `ACR_OPERATOR_AUTORUN` is set to on the deployment, and what that means.
+
+    `docs/TAMEION.md` presents the autorun table as *"what makes 'settled without a
+    human touching them' a thing the record shows rather than a thing the design
+    permits"* — and `render.yaml` ships `off` on BOTH services. `off` is the
+    default a checkout, a laptop and a CI run get; on a deployment it means the
+    decision log can only grow when somebody types `make operator-run`.
+
+    REPORTED, not failed. `off` is a legitimate configuration and this script's
+    other checks are all hard failures, so turning a deliberate setting red would
+    make the gate something to mute. What was wrong was that nothing SAID it: the
+    autonomy figures are true about who signed, and silent about who invoked. A
+    control nobody audits is a control nobody can show you, which is this repo's
+    own argument for the audit endpoint.
+    """
+    print("\nthe operator's own clock")
+    status, body = get("/api/health")
+    if not check(status == 200, f"/api/health answers ({status})"):
+        return
+    env = json.loads(body) if body else {}
+    data = env.get("data") if isinstance(env.get("data"), dict) else env
+    op = data.get("operator") or {}
+    mode = str(op.get("mode") or "")
+    checked = op.get("checked_at")
+
+    # THREE states, and the first one is why this needed a second pass. An absent
+    # `operator` key is "this press does not report one" — an older image, or a URL
+    # that is not the terminal — and my first version let it fall through to the
+    # armed branch, where `checked_at: null` hard-failed as though a live loop had
+    # stalled. Same mistake the counterparty screen exists to refuse: "we could not
+    # ask" is not "we asked and the answer was bad".
+    if not mode:
+        check(True, "this press reports no operator loop — nothing to say about its clock")
+        return
+    if mode == "off":
+        check(True, f"autorun: {mode} — the log grows only when somebody runs "
+                    "`make operator-run`, so every figure below is a human's invocation "
+                    "of the agent's authority, not the loop ticking")
+    else:
+        age = op.get("checked_age_s")
+        when = "never" if checked is None else f"{age}s ago"
+        check(True, f"autorun: {mode}, every {op.get('every_s')}s, last checked {when}")
+        # An ARMED loop that has never checked is exactly the state `dry` exists to
+        # rule out: the first question about any new loop is whether it ticks at
+        # all on that host, and that should be answerable before a payment depends
+        # on it. The deployed press reported `checked_at: null` for all three of
+        # the venue keeper's chores, which is how this failure looks.
+        check(checked is not None, "an armed loop has actually ticked (checked_at is not null)")
+
+
 def main() -> int:
     print(f"operator surfaces on {TERMINAL}\n")
 
@@ -191,6 +242,8 @@ def main() -> int:
         )
         check("decided" in work and "escalated" in work,
               "decided and escalated are two numbers, not a ratio")
+
+    operator_clock()
 
     if not rows:
         print("\nno businesses onboarded yet — nothing further to prove, and that")
