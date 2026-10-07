@@ -542,7 +542,20 @@ export function TractionView() {
             p="Every number here is counted fresh from the records, so none of them can drift."
           />
         </p>
-        {error ? (
+        {/* THIS PAGE RENDERED NOTHING AT ALL, and that is a different symptom
+            from /spend's for the same cause. `app/api/operator/traction/route.ts`
+            answered 200 with `data: null` when the press was unreachable, so
+            `error` stayed falsy while `t` stayed null — and every branch here
+            needs a non-null payload. The result was a heading, a standfirst,
+            and a blank space where the figures go. Not a false number: no
+            number, with nothing saying why. The proxy now refuses with 503 and
+            this branch fires.
+
+            `&& !t`, not `error` alone: SWR keeps the last good payload across a
+            failed revalidation, and `Numbers` below renders off that same `t`.
+            Without the guard a transient 503 would print an apology directly
+            above the figures it apologises for. */}
+        {error && !t ? (
           <div className="panel panel-pad">
             <p className="standfirst">
               <Ed

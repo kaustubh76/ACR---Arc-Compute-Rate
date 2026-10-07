@@ -198,38 +198,71 @@ def main() -> int:
 
     print("the business list")
     status, body = get("/api/operator/businesses")
-    if not check(status == 200, f"/api/operator/businesses answers ({status})"):
+    # THREE STATES, and the middle one is new. This was `if not check(status ==
+    # 200): return _done()` — a hard early exit that skipped traction, the
+    # clock, the statement, the ledger, the audit and the refusal block.
+    #
+    # It had to change together with the proxy. `app/api/operator/businesses/
+    # route.ts` used to answer 200 with `data: null` when the press was
+    # unreachable, so a press with no operator routes produced a GREEN run of
+    # this script over a page that said "No businesses onboarded yet". The proxy
+    # now refuses with 503, and a checker that read 503 as failure would have
+    # turned the honest answer into the red one — punishing exactly the fix.
+    #
+    # Same shape as `operator_clock()`, and the same principle the counterparty
+    # screen is built on: "we could not ask" is not "we asked and it was bad".
+    refused = status == 503
+    rows: list = []
+    counts: dict = {}
+    if refused:
+        check(True, "the business list refuses rather than lies (503)")
+        # The STATUS is not the whole claim. A 503 with a figure in it would be
+        # a page that renders something while telling a client to ignore it.
+        env = json.loads(body) if body else {}
+        check(
+            env.get("data") is None and env.get("live") is False,
+            "the refusal carries no figures: {live:false, data:null}",
+        )
+    elif not check(status == 200, f"/api/operator/businesses answers ({status})"):
         return _done()
-    env = json.loads(body) if body else {}
-    # The proxy wraps its payload in {live, data}; the press returns it bare.
-    # Unwrapping defensively lets one script verify both.
-    data = env.get("data") if isinstance(env.get("data"), dict) else env
-    rows = data.get("businesses") or []
-    counts = data.get("counts") or {}
-    if "live" in env:
-        check(env.get("live") is True, "it is answering live, not from a bundle")
-    # NOT len(rows). The list carries every row; the count deliberately drops
-    # the sandbox ones, because a business we invented to demonstrate the agent
-    # must never appear in a figure a reviewer reads as adoption. The asymmetry
-    # IS the property, so this asserts it rather than asserting it away.
-    real = [r for r in rows if not r.get("sandbox")]
-    check(
-        counts.get("businesses") == len(real),
-        f"the count is the real businesses, sandboxes excluded "
-        f"({counts.get('businesses')} = {len(real)} of {len(rows)})",
-    )
-    check(
-        all(r.get("sandbox") is not None for r in rows),
-        "every row says whether it is a sandbox, so nothing counts by omission",
-    )
-    check(
-        all(("name" in r) == bool(r.get("consented")) for r in rows),
-        "a business is named only where it consented",
-    )
+    else:
+        env = json.loads(body) if body else {}
+        # The proxy wraps its payload in {live, data}; the press returns it bare.
+        # Unwrapping defensively lets one script verify both.
+        data = env.get("data") if isinstance(env.get("data"), dict) else env
+        rows = data.get("businesses") or []
+        counts = data.get("counts") or {}
+        if "live" in env:
+            check(env.get("live") is True, "it is answering live, not from a bundle")
+        # NOT len(rows). The list carries every row; the count deliberately drops
+        # the sandbox ones, because a business we invented to demonstrate the agent
+        # must never appear in a figure a reviewer reads as adoption. The asymmetry
+        # IS the property, so this asserts it rather than asserting it away.
+        real = [r for r in rows if not r.get("sandbox")]
+        check(
+            counts.get("businesses") == len(real),
+            f"the count is the real businesses, sandboxes excluded "
+            f"({counts.get('businesses')} = {len(real)} of {len(rows)})",
+        )
+        check(
+            all(r.get("sandbox") is not None for r in rows),
+            "every row says whether it is a sandbox, so nothing counts by omission",
+        )
+        check(
+            all(("name" in r) == bool(r.get("consented")) for r in rows),
+            "a business is named only where it consented",
+        )
 
     print("\nthe traction figures")
     status, body = get("/api/operator/traction")
-    if check(status == 200, f"/api/operator/traction answers ({status})"):
+    if status == 503:
+        check(True, "the traction figures refuse rather than lie (503)")
+        env = json.loads(body) if body else {}
+        check(
+            env.get("data") is None and env.get("live") is False,
+            "the refusal carries no figures: {live:false, data:null}",
+        )
+    elif check(status == 200, f"/api/operator/traction answers ({status})"):
         raw = json.loads(body) or {}
         t = raw.get("data") if isinstance(raw.get("data"), dict) else raw
         by_chain = t.get("by_chain") or {}
@@ -244,6 +277,16 @@ def main() -> int:
               "decided and escalated are two numbers, not a ratio")
 
     operator_clock()
+
+    # The refusal is checked BEFORE the empty list, because `rows` is empty in
+    # both cases and the sentence below is a claim about the registry. Printing
+    # "that is a true state rather than a broken one" at a press that never
+    # answered would be this script telling the same lie the page used to.
+    if refused:
+        print("\nthe press is not answering, so nothing further can be proved about")
+        print("its contents. What IS proved is the part that was broken: both")
+        print("surfaces said so, rather than rendering a zero that reads as fact.")
+        return _done()
 
     if not rows:
         print("\nno businesses onboarded yet — nothing further to prove, and that")
@@ -357,18 +400,24 @@ def main() -> int:
         print("    (no decision in this window records which screen answered)")
 
     print("\nthe refusals")
-    # The press 404s an unknown business. The terminal's proxies answer 200 with
-    # an {live:false, data:null} envelope for ANY upstream refusal, by house
-    # convention, so the page can render the absence instead of a stale figure.
-    # Both are refusals; neither is an empty statement reading as "has spent
-    # nothing". Accepting the envelope is what makes this check true of the
-    # surface a reviewer actually opens.
+    # The press 404s an unknown business. The terminal's statement proxy answers
+    # 200 with a {live:false, data:null} envelope, so the page can render the
+    # absence instead of a stale figure. Both are refusals; neither is an empty
+    # statement reading as "has spent nothing".
+    #
+    # THE CONVENTION IS NOW SPLIT, and the split is the whole point of it. A
+    # 200/null means the press ANSWERED AND THERE IS NOTHING — which is true
+    # here: "has this business spent anything" has the honest answer "there is
+    # no such business". `/businesses` and `/traction` return null for a
+    # different reason, that we could not ask at all, and they now say 503. The
+    # same envelope was carrying both meanings, and the page could not tell them
+    # apart because nothing in the response did.
     status, body = get("/api/operator/statement?business=definitely-not-a-business")
-    refused = status in (404, 422)
+    unknown_refused = status in (404, 422, 503)
     if status == 200 and body:
         env = json.loads(body)
-        refused = env.get("data") is None
-    check(refused, f"an unknown business is refused, not answered empty ({status})")
+        unknown_refused = env.get("data") is None
+    check(unknown_refused, f"an unknown business is refused, not answered empty ({status})")
     status, _ = get("/api/operator/statement?business=../etc/passwd")
     check(status in (400, 404, 422), f"a path-shaped business is rejected ({status})")
 
