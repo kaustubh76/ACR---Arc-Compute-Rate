@@ -293,7 +293,35 @@ services:
       # platform image. The size looked like a broken build and was not; the
       # running container is the only answer that settles it.
       # digest sha256:5956e08623de…
-      url: docker.io/kaushtubh02/acr-api:2026-10-05-0844
+      # 2026-10-08: /par, and the evidence that makes it checkable. The 10-05
+      # pin was NEVER WHAT RAN — the service answered 44 routes with no
+      # /operator/* while this file asserted a 49-route tag, so the blueprint had
+      # not been synced and `make verify-drift` read 6 routes short for three
+      # days. A pin here is a declaration; only the service's own image URL is
+      # evidence. Changing this line does nothing on its own.
+      # Verified in THIS image by running it, not by trusting the build:
+      #   docker run -p 8099:8000 …:2026-10-08-0649
+      #   /openapi.json        -> 50 routes, == app.openapi() in the checkout,
+      #                           5 of them /operator/*, and /par present
+      #   /par ($/1k tokens)   -> 200 · benchmarked_against market ·
+      #                           basket ACR-INF ok · 5 of 10 rows ·
+      #                           5 of 5 quotes carrying a source url AND a row
+      #                           locator. That last line is the point: anchors/
+      #                           being COPYd is not the same as being readable
+      #                           at request time, and an earlier image shipped
+      #                           without it while humanAdjustedBound read 0.
+      #   /operator/traction   -> businesses 1 · decided 18 · by_chain keys
+      #                           ['testnet'] only, nothing summing the chains.
+      #                           The 19 archived decisions carry no chain field;
+      #                           traction buckets on the BUSINESS's chain, and
+      #                           both businesses are testnet — so a mainnet
+      #                           press reports them as testnet, which is true.
+      #   /armor/info          -> backend 'local', credentials_present false.
+      #                           Honest: no service account is mounted. The GCP
+      #                           screen still needs its key as a secret file.
+      # Same 352MB as the 10-05 pin, for the same reason recorded above.
+      # digest sha256:2d7e56d896a5…
+      url: docker.io/kaushtubh02/acr-api:2026-10-08-0649
     healthCheckPath: /health
     envVars:
       # --- the chain: docs.arc.io, never guessed --------------------------
