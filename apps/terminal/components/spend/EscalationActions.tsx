@@ -209,6 +209,25 @@ export function EscalationActions({
         />
       </p>
 
+      {/* WHY THE BUTTONS ARE OFF, which nothing said.
+          All three are `disabled` without a key, so a reader arriving at their
+          own statement met three grey controls and no reason — the same shape as
+          a page that cannot tell "nothing" from "we could not ask", one layer
+          down in the UI. A disabled control that does not say why reads as
+          broken, and the honest answer here is flattering rather than
+          embarrassing: this console cannot be driven from a browser that has not
+          been given the operator's key, which is the point of it.
+
+          Only when there is no key, and it replaces nothing. */}
+      {!key ? (
+        <p className="label">
+          <Ed
+            x="These are off until the operator key is in the field above. Nothing here can move money without it, and the key is never stored beyond this tab."
+            p="These stay off until you enter your key above. Nothing can move money without it."
+          />
+        </p>
+      ) : null}
+
       <div className="segmented" role="group" aria-label="settle">
         <button type="button" disabled={!key || phase === "previewing"}
           onClick={() => dryRun("operator/approve")}>

@@ -72,13 +72,13 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
   // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
   // how two of these floors were briefly set below actual.
-  "app/spend/view.tsx": 68, // the queue (even empty), the budgets, which chain, the six
+  "app/spend/view.tsx": 98, // the queue (even empty), the budgets, which chain, the six errors, and the price-check link per escalation
   "app/traction/view.tsx": 49, // every figure labelled in both registers
   // The form, the three unit hints, the verdict rows, the basket state and
   // every column of the comparison table. A visitor who cannot read "$/1k
   // tokens" is exactly the visitor this page is for.
   "app/check/view.tsx": 40,
-  "components/spend/EscalationActions.tsx": 10, // the key, the buttons, the note, who signs
+  "components/spend/EscalationActions.tsx": 11, // the key, the buttons, why they are off without one, the note, who signs
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
   "components/ApiConsole.tsx": 8,
