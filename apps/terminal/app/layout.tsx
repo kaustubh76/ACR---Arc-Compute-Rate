@@ -43,7 +43,17 @@ export const metadata: Metadata = {
   // VERCEL_PROJECT_PRODUCTION_URL — and this Vercel project is named
   // `terminal`, not `arc-compute-rate`, so the canonical would point at a URL
   // that is not the one on the submission form.
-  metadataBase: new URL("https://arc-compute-rate.vercel.app"),
+  //
+  // THE CUSTOM DOMAIN, from 2026-10-08. `arc-compute-rate.vercel.app` still
+  // resolves as the project alias and every published link to it still works,
+  // but only one host can be canonical and a reader arriving by either should
+  // be told the same one. Paired with `alternates: { canonical: "./" }` below,
+  // this is what every page's canonical URL is built from, so it was the one
+  // line that would have kept advertising the old host indefinitely.
+  //
+  // The apex, not `www`: `www.arccomputerate.in` 307s here (next.config.mjs),
+  // so naming www would canonicalise to a redirect.
+  metadataBase: new URL("https://arccomputerate.in"),
   title: "ACR · The Arc Compute Rate",
   description:
     "The reference rate for machine commerce: benchmarks from Arc payment exhaust, published hourly on-chain with their attack cost.",

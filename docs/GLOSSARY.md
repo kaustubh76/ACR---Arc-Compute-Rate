@@ -6,7 +6,7 @@
 > **plain-words ①→⑩ walkthrough** at the bottom.
 >
 > **Live in the product:** the Terminal renders this glossary at
-> [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion)
+> [arccomputerate.in/companion](https://arccomputerate.in/companion)
 > ("The Reader's Companion"), and the masthead's one-click **plain** edition
 > re-sets every page of the paper in this register — same numbers, plain words
 > (`apps/terminal/lib/plainGlossary.ts` is the distilled, coverage-tested subset).
@@ -429,7 +429,7 @@ and it proves its own tamper-resistance.
 - **LIVE on Arc mainnet** — ACR is not just buildable, it's **running in production**
   on Arc's public network (chain 5042), since 2026-09-27. *The shop is open, not just
   built — and the money is real.*
-- **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
+- **Vercel** — the host serving the Terminal (`arccomputerate.in`). *The
   landlord for the storefront website.*
 - **Render** — the host serving the seller API (`acr-api-mainnet.onrender.com`), which
   posts a Circle-signed oracle price every hour. *The landlord for the back office.*

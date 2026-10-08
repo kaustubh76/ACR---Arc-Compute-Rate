@@ -4,7 +4,7 @@ Written for anyone with a browser wallet and a few dollars of USDC on Base, Ethe
 OP Mainnet, Polygon, Avalanche or Unichain. Real money, small amounts: a query costs a fraction of
 a cent, and nothing here asks for more than the amount you type.
 
-**Terminal:** https://arc-compute-rate.vercel.app · **Chain:** Arc mainnet, id `5042` ·
+**Terminal:** https://arccomputerate.in · **Chain:** Arc mainnet, id `5042` ·
 **Gas:** USDC (there is no other token on Arc; the wallet shows gas in USDC).
 
 ## What you are testing

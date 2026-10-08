@@ -22,7 +22,7 @@ reachable, running live Circle Arc-testnet execution.
 |---|---|---|
 | Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — **LIVE** since 2026-09-27 (`gate: circle`, `signer: local`). `plan: starter` in `render.yaml`, NOT free, and the comment there says why: a sleeping press stranded testnet collateral twice. **Its image predates the operator** — 44 routes, no `/operator/*` and no `/par` as of 2026-10-07 (`make verify-drift`) |
 | Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended 2026-09-15, **resumed 2026-10-01** and answering today (`chain_id: 5042002`). `plan: free`, so it sleeps: a cold start measured 25 s. This is the host that serves the operator |
-| Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
+| Terminal | **Vercel** | https://arccomputerate.in |
 
 The service is declared in [`render.yaml`](../render.yaml) at the repo root: a
 `runtime: image` web service pulling `docker.io/kaushtubh02/acr-api:latest`, health-
@@ -158,7 +158,7 @@ vercel deploy --prod \
 - `NEXT_PUBLIC_ACR_API` — the browser `/docs` link on `/developers` (build-time inlined).
 
 Output: the public dashboard on the linked Vercel project (project name
-`terminal` — deployed at `https://arc-compute-rate.vercel.app`). While the
+`terminal` — deployed at `https://arccomputerate.in`). While the
 API is unreachable (free-tier cold start) the terminal walks its connection
 ladder honestly: instant shell + skeletons, "waking the press", direct
 ACROracle reads via `/api/onchain`, and the bundled `lib/fallback.json`

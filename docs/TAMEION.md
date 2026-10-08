@@ -13,7 +13,7 @@ dated, pays what clears policy, escalates what is not its call, and writes a
 double-entry ledger a human can open.
 
 **Where the pages are, stated exactly, because three documents used to disagree.**
-The terminal **is** deployed — <https://arc-compute-rate.vercel.app> answers 200, and so do
+The terminal **is** deployed — <https://arccomputerate.in> answers 200, and so do
 `/spend` and `/traction`. What those two pages show in production is *nothing*, and the reason is a
 host split rather than a bug:
 

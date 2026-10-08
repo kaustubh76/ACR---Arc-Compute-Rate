@@ -39,6 +39,30 @@ const nextConfig = {
     return [
       { source: "/exchange", destination: "/curve", permanent: false },
       { source: "/sellers", destination: "/developers#register", permanent: false },
+      /* www -> apex, so one host is canonical and the other sends you to it.
+       *
+       * HERE RATHER THAN IN VERCEL'S DOMAIN SETTINGS, which can also do this.
+       * A dashboard redirect is invisible from the repository, untestable in
+       * CI, and lost the next time somebody re-creates the project — and this
+       * file already carries the reasoning for the other two redirects, so a
+       * reader finds all three in one place. It costs one function invocation
+       * on a path almost nobody takes.
+       *
+       * `has` matches the Host header, so this fires only for www and leaves
+       * the apex and the still-live `arc-compute-rate.vercel.app` alone. The
+       * `:path*` capture keeps the deep link: www.../curve lands on /curve,
+       * not the homepage, which is the difference between a redirect and a
+       * dead end.
+       *
+       * 307 to match the other two: this is a product decision about which
+       * host is canonical, and a 308 is cached by the browser indefinitely.
+       */
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.arccomputerate.in" }],
+        destination: "https://arccomputerate.in/:path*",
+        permanent: false,
+      },
     ];
   },
 };

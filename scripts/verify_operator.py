@@ -34,8 +34,9 @@ import sys
 import urllib.error
 import urllib.request
 
+# The custom domain, kept in step with verify_live.py and verify_loop.py.
 TERMINAL = os.environ.get(
-    "VERIFY_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
+    "VERIFY_TERMINAL_URL", "https://arccomputerate.in"
 ).rstrip("/")
 TIMEOUT_S = 45.0
 
