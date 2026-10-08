@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Ed } from "@/components/Ed";
 import { EscalationActions } from "@/components/spend/EscalationActions";
@@ -7,6 +8,7 @@ import { Term } from "@/components/Term";
 import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 import { CHAIN, CHAIN_TESTNET, txUrl } from "@/lib/chain";
+import { checkHref } from "@/lib/checkLink";
 import { useNow } from "@/lib/useNow";
 import type {
   LedgerAudit,
@@ -552,6 +554,33 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                 {dueWords(d.due_at ?? null, d.at)
                   ? ` · ${dueWords(d.due_at ?? null, d.at)}`
                   : ""}
+                {/* SEE THE BENCHMARK THIS DECISION RESTS ON, on the card where
+                    the person is about to agree or refuse. `/check` prices one
+                    bill against published third-party prices and shows every
+                    one it used with a link — so the owner can check the rule
+                    sentence above instead of taking it.
+
+                    In this line rather than as a control of its own: the bill's
+                    other references already live here, and a panel per
+                    escalation would be clutter on the page that most needs to
+                    be scannable.
+
+                    OFFERED ONLY WHEN IT WOULD WORK. `/check` needs a unit, an
+                    amount and a quantity, and refuses to populate from a
+                    partial URL. Measured on 112 live fleet receipts: 42 are
+                    `$/1k tokens`, 12 `$/GPU-sec`, 12 `$/MB`, 6 `$/query` and 40
+                    carry no unit at all — and every decision now on the press
+                    predates the `unit` field entirely. A link that lands on an
+                    empty form is worse than no link, so this renders for the
+                    priceable ones and stays absent for the rest. */}
+                {checkHref(d) ? (
+                  <>
+                    {" · "}
+                    <Link className="section-link" href={checkHref(d) as string}>
+                      <Ed x="price it yourself" p="check this price" />
+                    </Link>
+                  </>
+                ) : null}
               </p>
               <EscalationActions
                 business={st.business.slug}
