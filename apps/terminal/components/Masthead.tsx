@@ -19,6 +19,12 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   // only from the footer and the 404 page — the one page written for a
   // first-time reader was the one no first-time reader could find.
   ["/companion", "Companion", "Start Here"],
+  // Third, ahead of the lab, because of what a reader wants in this order: they
+  // meet a rate, and the next question is not "can it be gamed" but "what does
+  // it say about MY bill". /attack defends the rate, which only matters once
+  // somebody cares about it. This is also the only page here that takes an
+  // input from a stranger and answers without an account, a key or a signup.
+  ["/check", "Check a Bill", "Is This Fair?"],
   ["/attack", "Attack Lab", "Try to Cheat It"],
   ["/curve", "Curve", "Future Prices"],
   // The tape used to sit after a seller registry that no longer exists. It

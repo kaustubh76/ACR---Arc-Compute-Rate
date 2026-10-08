@@ -74,6 +74,10 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // how two of these floors were briefly set below actual.
   "app/spend/view.tsx": 68, // the queue (even empty), the budgets, which chain, the six
   "app/traction/view.tsx": 49, // every figure labelled in both registers
+  // The form, the three unit hints, the verdict rows, the basket state and
+  // every column of the comparison table. A visitor who cannot read "$/1k
+  // tokens" is exactly the visitor this page is for.
+  "app/check/view.tsx": 40,
   "components/spend/EscalationActions.tsx": 10, // the key, the buttons, the note, who signs
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
@@ -132,6 +136,7 @@ const EXEMPT: Record<string, string> = {
   "app/ops/page.tsx": "metadata only",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
+  "app/check/page.tsx": "metadata only — a price check has no answer until a visitor types one",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",
