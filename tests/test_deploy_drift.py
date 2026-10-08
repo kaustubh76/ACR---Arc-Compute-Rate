@@ -75,3 +75,52 @@ def test_hosts_are_rstripped_so_a_trailing_slash_cannot_double_up() -> None:
             os.environ.pop("VERIFY_DRIFT_HOSTS", None)
         else:
             os.environ["VERIFY_DRIFT_HOSTS"] = before
+
+
+def test_an_unreadable_host_passes_by_default_and_fails_under_strict() -> None:
+    """The two answers a gate and a report need from the same question.
+
+    `deployed_paths` returns None for a host it could not read, and `report`
+    calls that NOT drift — correct for a standing report, because a free-tier
+    cold start must not read as a missing feature.
+
+    It is wrong at the end of a deploy, where the whole job is to witness that
+    the new image is serving. `deploy/redeploy-render.sh` used to grep
+    /openapi.json for one route (`/desk/withdrawable`) that every image since
+    September has, so it reported success on images built weeks apart; it now
+    runs this script instead. Measured 2026-10-08: the first run exited 0 on a
+    host that was one route short, because its /openapi.json timed out. A gate
+    that says yes when it cannot see is the fail-open shape `mainnet_guard`
+    exists to refuse.
+
+    So the behaviour is a split, and this pins both halves — a silent inversion
+    would make the deploy gate meaningless again and nothing else would notice.
+    """
+    import importlib
+    import os
+
+    import verify_deploy_drift as mod
+
+    before = os.environ.get("VERIFY_DRIFT_STRICT")
+    unreachable = "https://acr-api-definitely-not-a-host-9f2a.invalid"
+    try:
+        os.environ.pop("VERIFY_DRIFT_STRICT", None)
+        lenient = importlib.reload(mod)
+        assert lenient.STRICT is False
+        assert lenient.report(unreachable, {"/health"}) is True, (
+            "by default an unreadable host must NOT read as drift"
+        )
+
+        os.environ["VERIFY_DRIFT_STRICT"] = "1"
+        strict = importlib.reload(mod)
+        assert strict.STRICT is True
+        assert strict.report(unreachable, {"/health"}) is False, (
+            "under VERIFY_DRIFT_STRICT=1 an unreadable host must fail: it cannot "
+            "be shown to serve this checkout, and a deploy gate needs a witness"
+        )
+    finally:
+        if before is None:
+            os.environ.pop("VERIFY_DRIFT_STRICT", None)
+        else:
+            os.environ["VERIFY_DRIFT_STRICT"] = before
+        importlib.reload(mod)

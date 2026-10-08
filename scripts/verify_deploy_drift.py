@@ -118,12 +118,33 @@ def _family(paths: set[str]) -> dict[str, int]:
     return out
 
 
+#: Promote "could not read" from a pass to a failure.
+#:
+#: Unreadable-is-not-drift is the right default for a standing report — a
+#: free-tier cold start must not read as a missing feature, which is the whole
+#: of `deployed_paths`'s docstring. It is the WRONG default for a gate at the
+#: end of a deploy, where the entire job is to witness that the new image is
+#: serving: there, "I could not tell" is the one answer that must not pass.
+#:
+#: Found by running it twice. The first run exited 0 on a host that was 1 route
+#: short, because its /openapi.json timed out; the second reported the route.
+#: A gate that says yes when it cannot see is the fail-open shape this repo
+#: keeps closing — `mainnet_guard` exists because two x402 modes did it.
+#: Same `VERIFY_*_STRICT` idiom `verify_live.py` already uses to promote its
+#: warn-only checks.
+STRICT = os.environ.get("VERIFY_DRIFT_STRICT", "") == "1"
+
+
 def report(base: str, built: set[str]) -> bool:
     """One host. Returns True when it serves exactly what the repo builds."""
     served = deployed_paths(base)
     print(f"\n  {base}")
     if served is None:
         print("    ! could not read /openapi.json — asleep, down, or not an ACR host.")
+        if STRICT:
+            print("      VERIFY_DRIFT_STRICT=1: an unreadable host cannot be shown to")
+            print("      serve this checkout, so this is a FAILURE rather than a pass.")
+            return False
         print("      Not counted as drift: that is verify_live.py's question.")
         return True
 

@@ -116,13 +116,34 @@ for i in $(seq 1 30); do
     echo "  ✓ /health responding after ~$((i * 10))s"
     curl -s -m 20 "${URL}/health"
     echo
-    if curl -s -m 20 "${URL}/openapi.json" | grep -q '/desk/withdrawable'; then
-      echo "  ✓ the desk's routes are present"
-    else
-      echo "  ✗ /desk/withdrawable MISSING — this is not the image we built" >&2
-      exit 1
+    # THE WHOLE ROUTE SET, not one route. This grepped `/desk/withdrawable`
+    # and called it "this is the image we built" — but every image since
+    # September has that route, so the check passed on images built weeks
+    # apart and could not distinguish them at all. Measured 2026-10-08: the
+    # mainnet service was serving a 44-route image with no /operator/* and no
+    # /par while this line reported success, because the one route it asks
+    # about was present in both.
+    #
+    # `verify_deploy_drift.py` already answers the real question — does this
+    # host serve exactly what this checkout builds, in both directions — and
+    # it is the tool that FOUND the 6-route gap. Reused rather than
+    # reimplemented: a second opinion about route sets would eventually
+    # disagree with the one `make verify-drift` reports.
+    echo "  ▸ comparing the served route set against this checkout"
+    # STRICT, because at the end of a deploy "I could not read the host" is
+    # the one answer that must not pass. The default is deliberately lenient
+    # so a cold start does not read as a missing feature; a gate needs the
+    # opposite.
+    if VERIFY_DRIFT_HOSTS="${URL}" VERIFY_DRIFT_STRICT=1 \
+         uv run python "${ROOT}/scripts/verify_deploy_drift.py"; then
+      echo "  ✓ the deployment serves exactly what this checkout builds"
+      exit 0
     fi
-    exit 0
+    echo "  ✗ the service does not serve what this checkout builds." >&2
+    echo "    If it is a PINNED image (acr-api-mainnet is), a deploy re-pulls the" >&2
+    echo "    pin and changes nothing — the service's image URL has to be set:" >&2
+    echo "      render services update ${SERVICE_ID} --image ${IMAGE}:${TAG} --confirm" >&2
+    exit 1
   fi
   sleep 10
 done
