@@ -154,6 +154,7 @@ is also the native gas token at eighteen, and
 | **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
 | **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
+| **Is one bill fair?** | `GET /par?unit=…&billed_usdc=…&quantity=…` — one invoice against published list prices from sellers we do not operate, each row carrying the page it came from, the line quoted and the date it was read. No account and no key: it is the only surface here a stranger can exercise. Rendered by the [`/check`](https://arc-compute-rate.vercel.app/check) page, and **absent from both deployed images** today, so the page refuses rather than guessing (`make verify-drift`) |
 | **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
 | **Prove it** | `make verify-operator` |
 
