@@ -423,7 +423,21 @@ services:
       - key: ACR_HUMANID_SANDBOX
         value: "false" # Orb-verified people on mainnet; "true" would discount every human
       - key: ACR_CORS_ORIGINS
-        value: https://arc-compute-rate.vercel.app # "*" fails the guard on mainnet
+        # THE WALLET PATH DEPENDS ON THIS, which is easy to miss because nothing
+        # else does. Every read goes through the Next proxies on the terminal's
+        # own origin, so a wrong value here breaks nothing a visitor sees first.
+        # But `lib/apiBase.ts`'s `sellerBase()` exists so the BROWSER pays the
+        # press directly, and `lib/walletPayer.ts` reads PAYMENT-REQUIRED and
+        # PAYMENT-RESPONSE off that cross-origin response — the two headers
+        # `app.py`'s `expose_headers` names. So an origin missing from this list
+        # takes out exactly two controls, pay-with-wallet on /developers and the
+        # /curve shop floor, and leaves the rest of the site working.
+        #
+        # ALL THREE, and apex and www listed separately: there is no
+        # `allow_origin_regex` anywhere, so `app.py` matches the exact string
+        # after splitting on commas. The old vercel.app host stays while links
+        # to it are still in the wild.
+        value: https://arccomputerate.in,https://www.arccomputerate.in,https://arc-compute-rate.vercel.app # "*" fails the guard on mainnet
 
       # --- what a human pays --------------------------------------------------
       - key: ACR_PASS_PRICE_USDC

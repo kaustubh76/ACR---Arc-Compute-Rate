@@ -31,13 +31,13 @@ something true about how the repo grew and nothing true about what it is for.
 |---|---|
 | **[methodology.md](methodology.md)** | The methodology paper — the estimand, the estimator, and the manipulation bound. This is the product; the software is its implementation. |
 | **[ARCHITECTURE-DIAGRAM.md](ARCHITECTURE-DIAGRAM.md)** | The architecture canvas (`acr_architecture.excalidraw`) explained zone by zone, with the ①–⑩ data flow and the product reasoning behind it. |
-| **[GLOSSARY.md](GLOSSARY.md)** | Every technical term in plain English with an everyday analogy. Rendered live at [`/companion`](https://arc-compute-rate.vercel.app/companion), and gated in CI against the canvas so no term goes undefined. |
+| **[GLOSSARY.md](GLOSSARY.md)** | Every technical term in plain English with an everyday analogy. Rendered live at [`/companion`](https://arccomputerate.in/companion), and gated in CI against the canvas so no term goes undefined. |
 
 ## Use it — as an agent, a buyer, or a builder
 
 | Doc | Covers |
 |---|---|
-| [acr-openapi.md](acr-openapi.md) · [.pdf](acr-openapi.pdf) | The seller API, endpoint by endpoint, rendered from the live OpenAPI 3.1 schema (`make openapi-doc-check` fails when stale). Mirrored at [`/developers`](https://arc-compute-rate.vercel.app/developers). |
+| [acr-openapi.md](acr-openapi.md) · [.pdf](acr-openapi.pdf) | The seller API, endpoint by endpoint, rendered from the live OpenAPI 3.1 schema (`make openapi-doc-check` fails when stale). Mirrored at [`/developers`](https://arccomputerate.in/developers). |
 | [agent-runbook.md](agent-runbook.md) | The Circle Agent Stack loop end to end: the buyer discovers listings, pays x402 nanopayments, reads its own transaction costs and reroutes. |
 | [AGENT-MODULE.md](AGENT-MODULE.md) | The agent card, the gate, and a rate limit denominated in **people** rather than keys — why the EIP-712 domain names no `verifyingContract`, and why the carded tier is evadable on purpose. |
 | [WALLETS.md](WALLETS.md) | Which of Circle's wallet products does which job here, and the constraint that forced each choice. The most reusable document in the repo. |

@@ -46,11 +46,20 @@ ATTESTATION_TTL_S = 90.0
 X402_CATALOG_VERSION = 2
 
 #: Discovery metadata. Overridable because a fork should describe itself, not us.
-PROVIDER_WEBSITE = os.environ.get(
-    "ACR_PROVIDER_WEBSITE", "https://arc-compute-rate.vercel.app"
-)
+#:
+#: THE ADDRESS A CRAWLER FOLLOWS. These two reach Circle's Discovery API through
+#: `/marketplace/catalog`, so they are not decoration: they are how an agent
+#: that found us gets to a page it can read. Moved to the custom domain
+#: 2026-10-08.
+#:
+#: Changing the default is not enough on its own. The running image is pinned
+#: and predates this line, so `ACR_PROVIDER_WEBSITE` is also set on the service
+#: — the env var makes the deployed press correct now, and the default makes the
+#: next image correct without one. Same pair of facts, two places, because they
+#: become true at different times.
+PROVIDER_WEBSITE = os.environ.get("ACR_PROVIDER_WEBSITE", "https://arccomputerate.in")
 PROVIDER_DOCS_URL = os.environ.get(
-    "ACR_PROVIDER_DOCS_URL", "https://arc-compute-rate.vercel.app/developers"
+    "ACR_PROVIDER_DOCS_URL", "https://arccomputerate.in/developers"
 )
 #: One of Circle's six discovery categories.
 PROVIDER_CATEGORY = os.environ.get("ACR_PROVIDER_CATEGORY", "FINANCIAL_ANALYSIS")

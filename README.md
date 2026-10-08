@@ -3,7 +3,7 @@
 [![ci](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml/badge.svg)](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![chain: Arc mainnet 5042](https://img.shields.io/badge/chain-Arc%20mainnet%205042-0c8599)](https://explorer.arc.io)
-[![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arc-compute-rate.vercel.app)
+[![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arccomputerate.in)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab)](pyproject.toml)
 [![Solidity 0.8.24](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/foundry.toml)
 
@@ -40,8 +40,8 @@ Arc **mainnet**, chain `5042`, since 2026-09-27:
 
 | | |
 |---|---|
-| **Terminal (dashboard)** | https://arc-compute-rate.vercel.app |
-| **The loop, drivable** | [arc-compute-rate.vercel.app/loop](https://arc-compute-rate.vercel.app/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
+| **Terminal (dashboard)** | https://arccomputerate.in |
+| **The loop, drivable** | [arccomputerate.in/loop](https://arccomputerate.in/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
 | **Seller API (x402-gated)** | https://acr-api-mainnet.onrender.com — answers from the mainnet launch; see [`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 for what is still outstanding |
 | **Documentation** | [`docs/README.md`](docs/README.md) — start with [`methodology.md`](docs/methodology.md) |
 
@@ -154,7 +154,7 @@ is also the native gas token at eighteen, and
 | **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
 | **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
-| **Is one bill fair?** | `GET /par?unit=…&billed_usdc=…&quantity=…` — one invoice against published list prices from sellers we do not operate, each row carrying the page it came from, the line quoted and the date it was read. No account and no key: it is the only surface here a stranger can exercise. Rendered by the [`/check`](https://arc-compute-rate.vercel.app/check) page, and **absent from both deployed images** today, so the page refuses rather than guessing (`make verify-drift`) |
+| **Is one bill fair?** | `GET /par?unit=…&billed_usdc=…&quantity=…` — one invoice against published list prices from sellers we do not operate, each row carrying the page it came from, the line quoted and the date it was read. No account and no key: it is the only surface here a stranger can exercise. Rendered by the [`/check`](https://arccomputerate.in/check) page, and **absent from both deployed images** today, so the page refuses rather than guessing (`make verify-drift`) |
 | **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
 | **Prove it** | `make verify-operator` |
 
@@ -220,7 +220,7 @@ Distinguishing a bot from **an agent acting for a real, unique human**, durably:
 - **One budget per person, not per wallet.** An agent's signed card may claim the human
   cluster `HumanIdMirror` records for its wallet this week; the gate confirms it on chain
   and meters every wallet that person owns as one. Try it on
-  [`/developers`](https://arc-compute-rate.vercel.app/developers) — *as a demo human* →
+  [`/developers`](https://arccomputerate.in/developers) — *as a demo human* →
   `tier: human`.
 - **A proof, verified, then one TCA across all of a person's wallets** — runnable by anyone
   with nothing secret (the demo buyers' keys derive from public labels):
@@ -275,7 +275,7 @@ Everything runs **credential-free**. With no Circle or Arc keys set, the tape fa
 ## New here — the two-minute path
 
 1. **Read** [`docs/methodology.md`](docs/methodology.md) — what the number is, how it is recovered, and what it costs to move. The full index is [`docs/README.md`](docs/README.md).
-2. **Open** the [Terminal](https://arc-compute-rate.vercel.app). Hit the **plain** toggle in the masthead to re-set the entire site in beginner English; [`/companion`](https://arc-compute-rate.vercel.app/companion) is the glossary.
+2. **Open** the [Terminal](https://arccomputerate.in). Hit the **plain** toggle in the masthead to re-set the entire site in beginner English; [`/companion`](https://arccomputerate.in/companion) is the glossary.
 3. **Verify** the claims rather than trusting them:
    ```bash
    make verify-live      # every pillar, checked against the live deployment

@@ -30,6 +30,9 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/"],
     },
-    host: "https://arc-compute-rate.vercel.app",
+    // The canonical host, kept in step with `metadataBase` in app/layout.tsx.
+    // A robots.txt naming a different host than every canonical tag is the
+    // shape of a site that has half-moved.
+    host: "https://arccomputerate.in",
   };
 }

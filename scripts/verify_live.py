@@ -37,8 +37,12 @@ from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 # switch: that service is suspended and answers 503, so every check below
 # failed while the keepalive reported it as a red run nobody read.
 API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
+# The custom domain, from 2026-10-08. `keepalive.yml` runs this every ten
+# minutes and does NOT set the env var, so this default IS the host the
+# standing gate audits — left alone it would have kept proving the old one
+# healthy, which is true and no longer the question.
 TERMINAL = os.environ.get(
-    "ACR_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
+    "ACR_TERMINAL_URL", "https://arccomputerate.in"
 ).rstrip("/")
 #: Free-tier hosts sleep; a cold start is slow but not a fault.
 TIMEOUT_S = float(os.environ.get("VERIFY_TIMEOUT_S", "90"))
