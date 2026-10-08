@@ -1017,7 +1017,14 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
   const strayLink =
     chosen !== null && rows.length > 0 && !rows.some((b) => b.slug === chosen);
   const slug = (strayLink ? null : chosen) ?? rows[0]?.slug ?? null;
-  const { statement, error: stError, refresh } = useStatement(slug);
+  // THIRTY DAYS, not the hook's 7-day default, and the number is load-bearing.
+  // `acr-fleet`'s only activity leaves a 7-day window after 2026-10-10T06:54Z
+  // and the sandbox's after 2026-10-09T00:03:20Z — so this page was days away
+  // from showing a correctly-fetched, live, EMPTY statement for a business that
+  // has spent money, which is the same falsehood the list above was telling by
+  // a different route. A window is a question, and 7 days was asking the wrong
+  // one. Inside the proxy's 1..90 clamp, so it cannot become a slow query.
+  const { statement, error: stError, refresh } = useStatement(slug, 30);
   const st = statement?.data ?? null;
 
   return (
@@ -1045,7 +1052,22 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
           />
         </p>
 
-        {listError ? (
+        {/* THIS BRANCH WAS UNREACHABLE CODE until 2026-10-07, and the one below
+            it ran in its place. `lib/useLive.ts`'s fetcher throws only on a
+            non-ok STATUS, and `app/api/operator/businesses/route.ts` answered
+            200 with `data: null` whenever the press was unreachable — so a
+            reviewer opening this page against a press with no operator routes
+            was told "No businesses onboarded yet" about a product that has one.
+            The copy here was right all along. Nothing could reach it. The proxy
+            now refuses with 503 and this fires.
+
+            `&& rows.length === 0`, not `listError` alone: SWR keeps the last
+            good payload when a revalidation fails, and a transient 503 after a
+            successful load should not replace a real business with an apology.
+            The staleness is already legible in the age label in the section
+            head above, which keeps counting up off the retained `fetchedAt` —
+            woven into an element that exists rather than added as a banner. */}
+        {listError && rows.length === 0 ? (
           <div className="panel panel-pad">
             <p className="standfirst">
               <Ed

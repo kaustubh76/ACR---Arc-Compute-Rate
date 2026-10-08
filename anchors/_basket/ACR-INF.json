@@ -13,6 +13,8 @@
   "rule": {
     "aggregate": "median",
     "trim": 0.0,
+    "min_priced": 5,
+    "min_priced_note": "How many rows must actually carry a price. A ratchet, like the anchor's own `ceiling`: the basket has thinned before, ACR-INF going from 6 to 5 priced of 10 requested with no signal anywhere, and `par.Basket.usable` sends a stranger's bill to the FLEET scale once a basket stops being usable \u2014 a scale anchors/GAP.md puts 20x to 1250x off market. Lower it deliberately in a commit, or fix the fetch.",
     "blend": { "prompt": 0.75, "completion": 0.25 },
     "unit_conversion": "usd_per_token * 1000",
     "blend_note": "A 75/25 prompt:completion blend approximates a read-heavy agent workload. Stated because the aggregate is a function of this choice: the same catalogue gives a ~1000x gap prompt-only and ~588x blended."

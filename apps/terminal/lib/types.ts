@@ -1077,3 +1077,94 @@ export interface TractionPayload {
   per_business: TractionRow[];
   note: string;
 }
+
+/** Payload of GET /par (via `app/api/par/route.ts`) — one bill, priced against
+ *  published third-party prices. The surface a stranger can exercise without
+ *  onboarding, which is why every field a reader would want to CHECK is here
+ *  rather than summarised.
+ *
+ *  `par.quotes[].url` and `.cite` arrived late: the dated files under `anchors/`
+ *  had carried a source URL per row from the beginning, and both
+ *  `par.market_basket` and `Par.as_dict` dropped it, so the comparison set was
+ *  verifiable in principle and unopenable in fact. */
+export interface ParQuote {
+  /** A model id or a chain address — `openai/gpt-4o-mini`, not a name. */
+  seller: string;
+  price_usdc: number;
+  /** `catalog` · `challenge` · `fill` · `market`. Only some of those name
+   *  somebody a wallet could actually pay. */
+  source: string;
+  /** Is this seller one of ours? Disclosed, never filtered out. */
+  first_party: boolean;
+  /** A human name, when the source has one. Null for an address. */
+  label: string | null;
+  /** Where to go and check this price. Null for a fleet quote, which has no
+   *  published page. */
+  url: string | null;
+  /** How to find the number once the URL is open: a quoted figure for a
+   *  curated row, a path into the response for an API one. A URL without this
+   *  points at a 464-model blob. */
+  cite: string | null;
+}
+
+export interface ParCheck {
+  unit: string;
+  billed_usdc: number;
+  quantity: number;
+  vendor: string | null;
+  vendor_supplied: boolean;
+  /** `market` or `fleet` — WHOSE prices answered. A vendor of ours is priced
+   *  against the fleet; a stranger against the market. It also silently
+   *  becomes `fleet` when the basket is unusable or stale, which is why
+   *  `basket.status` belongs on the page and not in a tooltip. */
+  benchmarked_against: "market" | "fleet" | string;
+  basket: {
+    index_id: string;
+    /** `ok` · `ABSENT` · `STALE` · `NO_ROWS`. */
+    status: string;
+    /** Unix SECONDS, unlike the envelope's `fetchedAt` in milliseconds. */
+    fetched_at: number;
+    rows: number;
+    requested: number;
+  };
+  /** How far over the going rate, in basis points. THIS is the number to show.
+   *  `verdict.verdict` answers a different question and disagrees on purpose:
+   *  it reads `over_par` whenever material money sits at the CHEAPEST row, so a
+   *  bill at exactly the market median comes back labelled over par while this
+   *  field reads under 1 bp. The press's own tests assert both behaviours. */
+  over_rate_bp: number | null;
+  par: {
+    resource: string;
+    available: boolean;
+    denomination: string;
+    /** `NO_QUOTES` · `ONE_SELLER` · `NO_INDEPENDENT_SELLER` · `NO_QUANTITY`. */
+    reason: string;
+    par_usdc: number | null;
+    best_usdc: number | null;
+    best_seller: string;
+    best_source: string;
+    sellers: number;
+    /** A count beside a count, never a share. */
+    first_party_sellers: number;
+    basis: string;
+    quotes: ParQuote[];
+  };
+  verdict: {
+    benchmarked: boolean;
+    reason?: string;
+    verdict: string;
+    over_par_bp?: number | null;
+    saving_usdc?: number | null;
+    note?: string;
+    [k: string]: unknown;
+  };
+  /** What the operator WOULD do with this bill. A dry run of the real ladder,
+   *  not a separate opinion. */
+  would: {
+    intent: string;
+    /** One line naming the check that fired. */
+    rule: string;
+    notes: string[];
+    recommended_intent: string;
+  };
+}

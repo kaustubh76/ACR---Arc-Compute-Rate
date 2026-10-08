@@ -28,6 +28,7 @@ import type {
   MarketReceiptsData,
   OnchainDirectRead,
   OpsLedger,
+  ParCheck,
   RevenueData,
   Statement,
   TerminalData,
@@ -349,6 +350,36 @@ export function useStatement(slug: string | null, days = 7) {
     { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
   );
   return { statement: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** One bill, priced against published third-party prices — the /check page.
+ *
+ *  `query` is null until a visitor has actually submitted something, because a
+ *  price check has no answer until somebody types one. Same null-key idiom as
+ *  `useStatement`, used for the same reason and with two deliberate
+ *  differences:
+ *
+ *  NO `refreshInterval`, NO `revalidateOnFocus`. Re-polling a price check is
+ *  pointless at best: the basket behind it is a dated file refreshed by hand,
+ *  so a second request cannot return a different answer, and a verdict that
+ *  silently changed while a reader was looking away would be worse than one
+ *  that did not. The reader's own submit is the only thing that should refetch.
+ *
+ *  `keepPreviousData` comes from RETRY and is kept on purpose: while a new
+ *  check is in flight the previous verdict stays on screen rather than
+ *  flashing empty, which is what `readResult.keepLast` exists to say. */
+export function useParCheck(query: string | null) {
+  const { data, error, isLoading, mutate } = useSWR<Envelope<ParCheck | null>>(
+    query ? `/api/par?${query}` : null,
+    fetcher,
+    { ...RETRY, refreshInterval: 0, revalidateOnFocus: false },
+  );
+  return {
+    check: data,
+    error: error as FetchError | undefined,
+    loading: isLoading,
+    refresh: mutate,
+  };
 }
 
 /** One business's ledger audit. Polls beside the statement it sits with,

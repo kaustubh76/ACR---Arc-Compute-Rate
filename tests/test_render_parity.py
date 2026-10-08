@@ -52,6 +52,18 @@ VIEWS: dict[str, tuple[str, ...]] = {
     ),
     "traction": ("app/traction/view.tsx",),
     "audit": ("app/spend/view.tsx",),
+    # /par, the one surface a stranger can exercise without an account. Added
+    # after `Quote.url` turned out to have been dropped by `market_basket` and
+    # `Par.as_dict` since both were written: every anchor row had carried a
+    # source URL from the beginning, nothing outside scripts/anchors.py ever
+    # read it, and no gate could notice because this ledger did not cover /par.
+    # That is precisely the failure it was built to catch.
+    "par check": ("app/check/view.tsx",),
+    # The SAME view against an unbenchmarked answer. `par.reason` is a union of
+    # four causes and only the benchmarked shape would ever be seeded from a
+    # working basket, which is the same trap `market_context` set above: a gate
+    # that only sees the good payload audits the good payload.
+    "par check (unbenchmarked)": ("app/check/view.tsx",),
 }
 
 #: field path → why it is deliberately not rendered. Every entry is a claim
@@ -88,6 +100,41 @@ EXEMPT: dict[str, str] = {
     "escalations[].vendor": "rendered in the block heading",
     "escalations[].escalated": "every row in this queue is escalated by definition",
     "escalations[].category": "not what a person deciding this needs first",
+    # --- par check (/check) ---
+    # The /par payload carries the SAME comparison twice: `par` is the benchmark
+    # object and `verdict` is `assess()`'s read of it. The page renders the par
+    # object, plus `over_rate_bp`, which the route computes precisely because
+    # `verdict.verdict` answers a different question and disagrees on purpose. A
+    # second rendering of each figure would be two fields for one fact, which is
+    # the drift this ledger exists to prevent.
+    "verdict.par_usdc": "`par.par_usdc` is the one rendered; the same number twice would drift",
+    "verdict.best_usdc": "`par.best_usdc` is rendered, with its seller beside it",
+    "verdict.best_seller": "rendered from `par.best_seller`, where the cheapest figure is",
+    "verdict.best_source": "rendered from `par.best_source`, beside the seller it qualifies",
+    "verdict.sellers": "rendered from `par.sellers`, with the first-party count beside it",
+    "verdict.basis": "rendered from `par.basis` as the evidence section's label",
+    "verdict.denomination": "always `unit` on this route, and the unit is the thing a reader picked",
+    "par.denomination": "always `unit` here; the route passes it and the picker already said so",
+    "par.resource": "the unit under another name on this route, and the unit is in the heading",
+    "verdict.reason": (
+        "`par.reason` is the field that names WHICH absence it is, and the page "
+        "renders a sentence per cause from it"
+    ),
+    "verdict.benchmarked": (
+        "`par.available` is the boolean the page branches on; two booleans for one "
+        "fact is how a page comes to disagree with itself"
+    ),
+    "verdict.over_par_bp": (
+        "the route re-exposes this as `over_rate_bp` and the page renders that, "
+        "because the engine's framing reads over_par at the market median"
+    ),
+    "verdict.over_par_usdc": "the bp figure is the comparable one; the dollar gap is quoted in the rule",
+    "verdict.saving_bp": "the page shows the saving in money, which is what a reader acts on",
+    "verdict.note": (
+        "\"a suggestion, not a promise\" — the page says the same thing in its own "
+        "words beside the agent's intent, in both editions"
+    ),
+    "vendor_supplied": "derivable from `vendor`, and the form already knows whether it was filled",
     "escalations[].intent": "every row in this queue is an escalation",
     "escalations[].rule": "rendered as the block's standfirst",
     "escalations[].notes": "the rule carries the reason a person acts on",
@@ -437,11 +484,34 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
     audited["business"] = "parity"
     audited["period_days"] = 90
 
+    # The price check, through the real route function rather than a hand-built
+    # dict, so the payload is whatever /par actually emits today.
+    from fastapi.testclient import TestClient
+
+    from index_api.app import app as _app
+
+    client = TestClient(_app)
+    par_ok = client.get(
+        "/par", params={"unit": "$/1k tokens", "billed_usdc": 0.02, "quantity": 10}
+    ).json()
+    # An unbenchmarked answer, forced by pointing the basket reader at an empty
+    # directory: with no market and no fleet quotes, `par.available` is false and
+    # `reason` carries which absence it is. Monkeypatched rather than mocked, so
+    # the route builds the refusal through its own code path.
+    import index_api.par as _par
+
+    monkeypatch.setattr(_par, "_ANCHOR_DIR", tmp_path / "no-anchors")
+    par_none = client.get(
+        "/par", params={"unit": "$/MB", "billed_usdc": 1.0, "quantity": 1.0}
+    ).json()
+
     return {
         "statement": statement,
         "statement (market context unavailable)": degraded,
         "traction": build_traction(),
         "audit": audited,
+        "par check": par_ok,
+        "par check (unbenchmarked)": par_none,
     }
 
 

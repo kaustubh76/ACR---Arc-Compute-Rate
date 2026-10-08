@@ -42,6 +42,44 @@ owner is the Circle custody owner wallet; this document changes when that does.
 Every power above emits an event. Nothing is upgradeable; there is no `delegatecall` and no
 `selfdestruct`.
 
+## Owner powers, off chain — one secret, eleven actions
+
+`ACR_OPS_TOKEN` authorises the operator console (`POST /ops/actions`, header
+`X-ACR-Ops-Token`). It was documented nowhere, and the table above made that absence easy to
+miss: the on-chain powers are enumerated contract by contract, so a reader could reasonably
+conclude they had seen the whole list. They had not. Six of these eleven sign a transaction,
+one of them from the owner's own wallet.
+
+| action | what it does | signs? |
+|---|---|---|
+| `operator/approve` | pay an escalated bill from the owner's wallet | **yes**, capped at `OPS_MAX_APPROVE_USDC` (25) |
+| `funding/move` | move USDC treasury → role wallet | **yes**, capped at `OPS_MAX_FUND_USDC` (5) |
+| `venue/collateralize` | post more maker collateral on a live series | **yes**, capped at `COLLATERALIZE_MAX_USDC` (2) |
+| `venue/withdraw` | reclaim our collateral across every series | **yes** |
+| `venue/settle` | settle an expired series | **yes**, and only if the freshness precheck passes |
+| `venue/pause` | halt or resume the venue | **yes** — the loudest action here |
+| `venue/roll` | run the keeper's roll check now | **maybe** — it delegates, and a roll can open a series |
+| `operator/reject` | decline an escalated bill, and record the refusal | no — a decision, not a payment |
+| `keeper/heartbeat` | clear the heartbeat cooldown so the next tick trades | no |
+| `keeper/roll-check` | clear the roll-check cooldown | no |
+| `verify/run` | recompute the systems ledger now | no |
+
+Properties worth knowing before handing this to anyone:
+
+- **It is one credential for all eleven.** There are no per-action scopes, so there is no
+  such thing as giving somebody `verify/run` and nothing else. Anybody holding the token can
+  pay a bill and pause the venue.
+- **Every action takes a dry run**, and the dry-run branch is the same code path, so "what
+  would this do" is answerable without doing it.
+- **The money actions are capped per run**, by the environment variables named above. A cap
+  is not a budget: it bounds one call, not a sequence of them.
+- **A wrong token gets 401 and an unconfigured console gets 404**, checked in constant time.
+  The 404 is deliberate — with no token set the service does not admit the console exists, so
+  a probe cannot distinguish "off" from "wrong key". `scripts/verify_operator.py` relies on
+  exactly that difference and spends one wrong-key attempt per run to learn it.
+- **It is not an owner key.** It authorises the *service* to use keys it already holds; it
+  cannot add a signer, change a cluster, or do anything in the table above this one.
+
 ## What happens when something fails
 
 **The press stops.** Prints go stale; `/health`, `/ops` and `verify_live` alarm. Trading

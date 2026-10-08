@@ -153,3 +153,56 @@ def test_the_indexs_dollar_figure_never_reaches_this_route():
     assert "overpaid_usdc" not in blob
     # And no figure anywhere near the reference level, which is 0.5 $/1k tokens.
     assert j["par"]["par_usdc"] is None or j["par"]["par_usdc"] < 0.01
+
+
+# --- the evidence -----------------------------------------------------------
+#
+# A SEPARATE SECTION BECAUSE A SEPARATE GATE WAS NEEDED. `tests/test_render_parity.py`
+# now audits this payload, and it was measured NOT to catch the bug these tests
+# cover: that ledger asks "is every emitted field rendered", so deleting `url`
+# from `Par.as_dict` removes it from the payload, removes it from the ledger's
+# view, and passes. Checked by actually deleting it — both parity tests stayed
+# green. A gate for "emitted but unrendered" is not a gate for "no longer
+# emitted", and the second is how these fields were missing in the first place.
+
+
+def test_every_market_quote_carries_somewhere_to_go_and_look() -> None:
+    """The fields that make a benchmark checkable rather than merely stated.
+
+    Every dated row under `anchors/` has carried a source URL since the baskets
+    were written, and `market_basket` dropped it for the whole life of the
+    module: `Quote` had no field for it, `Par.as_dict` emitted four keys, and
+    nothing outside `scripts/anchors.py` ever read `source.url`. So /par would
+    answer a stranger `openai/gpt-4o-mini · 0.0002625 · market` and give them
+    nothing to open.
+    """
+    _, j = _get(unit=UNIT, billed_usdc=0.02, quantity=10)
+    assert j["benchmarked_against"] == "market", "this test is about the market basket"
+    quotes = j["par"]["quotes"]
+    assert quotes, "no quotes to check"
+    for q in quotes:
+        assert q["url"], f"{q['seller']}: no source url, so the price cannot be checked"
+        assert str(q["url"]).startswith("https://"), f"{q['seller']}: {q['url']!r}"
+        # The URL alone is not enough for an http basket: every ACR-INF row
+        # points at the SAME 464-model response, so without a locator a reader
+        # is handed a blob and told their price is in it.
+        assert q["cite"], f"{q['seller']}: a url with no way to find the row in it"
+
+
+def test_a_quote_names_itself_in_words_as_well_as_in_ids() -> None:
+    """`openai/gpt-4o-mini` is checkable and `GPT-4o mini` is readable, and a
+    page aimed at somebody holding an invoice needs both."""
+    _, j = _get(unit=UNIT, billed_usdc=0.02, quantity=10)
+    for q in j["par"]["quotes"]:
+        assert q["label"], f"{q['seller']}: no human label"
+        assert q["seller"], "a label with no id is not checkable"
+
+
+def test_the_evidence_keys_are_always_present_even_when_empty() -> None:
+    """Null, never absent. This dict is read by the /par response, the operator
+    statement AND the decision archive, and a key that appears on some rows only
+    makes three readers write the same `in` check."""
+    _, j = _get(unit=UNIT, billed_usdc=0.02, quantity=10)
+    for q in j["par"]["quotes"]:
+        for key in ("label", "url", "cite", "seller", "price_usdc", "source", "first_party"):
+            assert key in q, f"{key} missing from a quote dict"
