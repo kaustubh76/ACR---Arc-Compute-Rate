@@ -164,6 +164,72 @@ ladder honestly: instant shell + skeletons, "waking the press", direct
 ACROracle reads via `/api/onchain`, and the bundled `lib/fallback.json`
 archived edition as the floor.
 
+### 2a. The custom domain — `arccomputerate.in`
+
+Live since 2026-10-08. `arc-compute-rate.vercel.app` still resolves as the project
+alias, so every link published before the move still works. The apex is canonical
+and `www` 307s to it via a `has: host` rule in `apps/terminal/next.config.mjs`
+(in the repo rather than Vercel's domain settings: a dashboard redirect is
+invisible from the tree and lost if the project is ever recreated).
+
+**DNS stays at Hostinger. Do not point the nameservers at Vercel.** The zone
+carries live mail:
+
+```
+MX   5   mx1.hostinger.com
+MX   10  mx2.hostinger.com
+TXT  @   v=spf1 include:_spf.mail.hostinger.com ~all
+```
+
+Vercel offers a nameserver switch as its option (b). Taking it drops those
+records and **mail to the domain stops without an error anywhere**. Vercel marks
+the A-record route `[recommended]` regardless, and it wants an A record for the
+apex *and* for `www` — not the apex-A / www-CNAME pairing older guides describe:
+
+```
+@     A  76.76.21.21
+www   A  76.76.21.21
+```
+
+One trap when setting these: the zone shipped a malformed `www` record resolving
+to `arccomputerate.in.arccomputerate.in.` — a value that already contained the
+zone, entered in a field that appends it. Delete it rather than editing around it.
+
+**Adding the domain needs the `vercel` CLI, not the API token.** A Vercel token
+that can create deployments gets `403 forbidden — You don't have permission to
+update the project` on `POST /v10/projects/{id}/domains`. The locally
+authenticated CLI does it:
+
+```bash
+cd apps/terminal
+vercel domains add arccomputerate.in terminal --non-interactive
+vercel domains add www.arccomputerate.in terminal --non-interactive
+vercel domains inspect arccomputerate.in --non-interactive   # the records it wants
+```
+
+**The press needs three env vars, and one of them breaks a feature silently.**
+Set them on the Render service (single-key edits — the bulk env PUT replaces
+every var) and redeploy, because env edits alone do not restart a service:
+
+```
+ACR_CORS_ORIGINS=https://arccomputerate.in,https://www.arccomputerate.in,https://arc-compute-rate.vercel.app
+ACR_PROVIDER_WEBSITE=https://arccomputerate.in
+ACR_PROVIDER_DOCS_URL=https://arccomputerate.in/developers
+```
+
+`ACR_CORS_ORIGINS` is the one to get right. Every read in the Terminal goes
+through its own `/api/*` proxies, so a wrong value here breaks nothing a visitor
+sees first — but `lib/apiBase.ts`'s `sellerBase()` exists so the **browser** pays
+the press directly, and `lib/walletPayer.ts` reads `PAYMENT-REQUIRED` and
+`PAYMENT-RESPONSE` off that cross-origin response. An origin missing from the
+list takes out exactly two controls, pay-with-wallet on `/developers` and the
+`/curve` shop floor, and leaves everything else working. There is no
+`allow_origin_regex` anywhere, so the apex does **not** cover `www`: a
+cross-origin fetch is refused before any redirect is followed.
+
+`tests/test_canonical_host.py` checks all four places the hostname lives agree —
+`metadataBase`, `robots.ts`, `PROVIDER_WEBSITE` and this CORS list.
+
 ### 2b. Real Circle settlement from the cloud dashboard (optional)
 
 The Terminal is the buyer for the UI-triggered "LIVE buyer" and console "Settle
