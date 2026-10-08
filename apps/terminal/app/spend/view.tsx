@@ -1076,6 +1076,18 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
               />
             </p>
           </div>
+        ) : businesses?.data == null ? (
+          /* NOTHING, because we have not asked yet.
+             Measured on production right after the 503 fix shipped: for about a
+             second between first paint and the answer arriving, this page said
+             "No businesses onboarded yet" — the zero state wearing the loading
+             state's clothes. It is the same defect the 503 fixed, one layer up:
+             `rows` is `[]` before the request resolves exactly as it is when the
+             answer is genuinely empty, so a branch keyed on `rows.length` cannot
+             tell them apart and asserts the stronger claim.
+             `businesses?.data` is the thing that distinguishes them. Brief is
+             not harmless: a reviewer's first paint is the one they screenshot. */
+          null
         ) : rows.length === 0 ? (
           /* Zero is a result, and it is the current one. Saying it in words
              beats an empty page that reads as broken. */
