@@ -486,10 +486,27 @@ def _card(data: dict, days: int) -> dict:
     breakdown.sort(key=lambda b: (b["vw_slippage_bp"] is None, -(b["vw_slippage_bp"] or 0)))
 
     vw_total = _vw_bp(w_slip, bm_spent)
-    return {
+    card = {
         "available": True,
         "source": "subgraph",
         "window_days": days,
+        # WHETHER ACR HAS EVER SEEN THIS PAYER, which is a different fact from
+        # "it spent nothing", and the one a stranger most needs.
+        #
+        # A wallet with no settlements got `purchases: 0, spent_usdc: 0.0,
+        # overpaid_usdc: 0.0` and `available: true` — which reads as a clean
+        # bill of health and means "I have never heard of you". Measured against
+        # production on 2026-10-09: an arbitrary address answered exactly that,
+        # and so did two real payers taken from `/marketplace/receipts`, because
+        # this surface reads mirrored on-chain settlements and those are a
+        # different payer set.
+        #
+        # NOT folded into `available: false`. That value is reserved for the
+        # subgraph failing to answer (`_unavailable`), and this module's own
+        # docstring says unavailable is not zero. A payer with genuinely no
+        # settlements IS a valid answer — it simply must not be mistaken for a
+        # verdict on money ACR never saw.
+        "seen": n_all > 0,
         "purchases": n_all,
         "benchmarked": n,
         "spent_usdc": spent / 1e6,
@@ -498,6 +515,21 @@ def _card(data: dict, days: int) -> dict:
         "by_seller": breakdown,
         "reroute": _reroute(breakdown),
     }
+    if not card["seen"]:
+        # SCOPED TO THE WINDOW, and the sentence has to say so. `nAll` is summed
+        # over `payerDays` rows filtered by `day_gte`, so this cannot tell "never
+        # seen" from "nothing in these N days" — a payer who bought 90 days ago
+        # and asks for 7 is in here too. Claiming "no record of this payer" flat
+        # would be a second confident statement about something not measured,
+        # which is the failure this field was added to end.
+        card["note"] = (
+            f"ACR has no record of this payer in the last {days} days. Widening `days` "
+            "may find older purchases. Note that this reads settlements mirrored from "
+            "ACR's own x402 paywall, so a wallet that has never bought from an ACR "
+            "seller reads zero here however wide the window. To price bills you pay "
+            "to your own vendors, use /par."
+        )
+    return card
 
 
 def human_tca(cluster: str, window: int, days: int = 7) -> dict:

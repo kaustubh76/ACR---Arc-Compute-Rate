@@ -56,7 +56,36 @@ const PROBES: Probe[] = [
         ? "this press has no /par yet"
         : null,
   },
-  { tool: "my_tca", args: { target: PAYER } },
+  { tool: "wallet_tca", args: { target: PAYER } },
+  {
+    /* THE CONFIDENT ZERO, CHECKED AGAINST A REAL TAPE. A random address has
+       never bought from an ACR seller, so the press must say `seen: false` and
+       not report a clean bill of health on money it never saw.
+
+       This needs its own `tolerate` because `verdict()` below passes anything
+       with `available: true` — and `available: true, purchases: 0` is exactly
+       the shape being guarded against. The regression would be invisible here
+       otherwise, which is how it survived this long. */
+    tool: "wallet_tca",
+    args: { target: `0x${Math.floor(Math.random() * 1e16).toString(16).padStart(40, "0")}` },
+    tolerate: (o) =>
+      o.seen === false
+        ? "a wallet this tape has never seen says so"
+        : o.seen === undefined
+          ? "this press predates `seen` — it still answers a bare zero here"
+          : null,
+  },
+  {
+    /* The local half: check_spend above recorded a bill, so this must now find
+       it. A stub cannot test this — it is the only probe that proves the two
+       tools are wired to the same file. */
+    tool: "spend_report",
+    args: { days: 1 },
+    tolerate: (o) =>
+      typeof o.reason === "string" && /no bills have been checked/.test(o.reason)
+        ? "nothing recorded — check_spend above did not reach a press with /par"
+        : null,
+  },
   {
     tool: "reroute_suggestion",
     args: { target: PAYER },

@@ -210,10 +210,12 @@ make recompute                    # re-derive the index from the indexed tape an
 
 **Ask the Tape** in natural language: [`skills/acr-analyst/SKILL.md`](skills/acr-analyst/SKILL.md)
 (a schema map for any agent, usable with The Graph's Subgraph MCP) and [`mcp/`](mcp/README.md) —
-`npx -y acr-mcp`, nine tools for any MCP host. Eight are reads (`reroute_suggestion`,
-`seller_rating`, `query_tape`…) including **`can_i_pay`**, which answers "can this agent pay for a
-metered query, and if not which rung is in the way" without spending anything; the ninth settles
-one for real, and is not registered unless a payer key is set.
+`npx -y acr-mcp`, eleven tools for any MCP host. Ten are reads (`reroute_suggestion`,
+`seller_rating`, `query_tape`…) including **`check_spend`**, which runs the spend agent's own
+ladder over any vendor's invoice, **`spend_report`**, which totals every bill it has priced on
+that machine, and **`can_i_pay`**, which answers "can this agent pay for a metered query, and if
+not which rung is in the way" without spending anything; the eleventh settles one for real, and is
+not registered unless a payer key is set.
 Substreams is N/A on Arc (Studio-only), stated rather than skipped.
 
 ### World — humans, not wallets
@@ -293,7 +295,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **1329 py** · **217 forge** · **259 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **1332 py** · **217 forge** · **259 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -308,7 +310,7 @@ Suites, all green and re-measured on every push: **1329 py** · **217 forge** ·
 | [`apps/agent/`](apps/agent) | The machine buyer (TypeScript, Circle Gateway `x402-batching` client) |
 | [`redteam/`](redteam) | The wash-flow adversary used to attack our own index |
 | [`graph/`](graph) | The `acr-tape` subgraph: settlements benchmarked in the mapping, humans per window (The Graph, Studio) |
-| [`mcp/`](mcp) | Nine MCP tools — Machine TCA and a payment self-check for any MCP host, carded. Published as `acr-mcp` |
+| [`mcp/`](mcp) | Eleven MCP tools — Machine TCA, a per-invoice price check, a running spend report and a payment self-check for any MCP host, carded. Published as `acr-mcp` |
 | [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
 | [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
 | [`hackathon/`](hackathon) | The two hackathon submissions this began as — preserved, not maintained |

@@ -8,7 +8,7 @@ import { Ed } from "@/components/Ed";
  *
  * Sibling of AgentCardSnippet. That one writes the code an agent needs to present
  * a card; this one writes the config a Claude (or any MCP host) needs to call the
- * tape as nine tools, and four questions worth asking it.
+ * tape as eleven tools, and five questions worth asking it.
  *
  * WHAT CHANGED, AND WHY IT MATTERS HERE. The first version of this section said
  * "nothing spends", which was true and was also the problem: a developer who came
@@ -29,10 +29,11 @@ type Tab = "config" | "pay" | "ask";
 
 export const TOOLS = [
   "check_spend",
+  "spend_report",
   "can_i_pay",
   "pay_and_read",
   "payment_receipts",
-  "my_tca",
+  "wallet_tca",
   "reroute_suggestion",
   "seller_rating",
   "benchmark_price",
@@ -51,7 +52,7 @@ export function snippets(api: string): Record<Tab, string> {
       "env": {
         "ACR_API": "${api}",
         "ACR_AGENT_PRIVATE_KEY": "0x<any 32-byte key: the card, not a wallet>",
-        "ACR_HUMAN_AGENT_KEY": "0x<optional: a wallet in AgentBook, for my_tca(\\"me\\")>"
+        "ACR_HUMAN_AGENT_KEY": "0x<optional: a wallet in AgentBook, for wallet_tca(\\"me\\")>"
       }
     }
   }
@@ -85,8 +86,13 @@ export function snippets(api: string): Record<Tab, string> {
 #   -> can_i_pay: seven rungs — host, chain, card, paywall, challenge, payer key, Gateway funds.
 #      Needs no key, and spends nothing: it asks for the 402 and does not answer it.
 
+"Has my agent been overpaying its vendors this month?"
+#   -> spend_report: every bill check_spend has priced on this machine, totalled. Over the going
+#      rate in bp, and what was actually recoverable in USDC. Reads a local file; uploads nothing.
+
 "What did 0xc2903b52a3ad365fd237b78389a2fde99e886999 overpay last month, and where should it buy instead?"
-#   -> my_tca + reroute_suggestion: slippage vs the benchmark, the seller to leave, the saving in bp
+#   -> wallet_tca + reroute_suggestion: slippage vs the benchmark, the seller to leave, the saving
+#      in bp. Only for a wallet that bought from ACR: one it has never seen answers seen:false
 
 "Rate seller 0xefe0E4625AFf072c3FCff230b47f8150A17aDF19, and tell me how much of that grade is actually measured."
 #   -> seller_rating: it answers Unrated on a thin tape and says so, rather than scoring the
@@ -121,8 +127,8 @@ export function McpSnippet({ api }: { api: string }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, maxWidth: 68 * 9, marginTop: 0 }}
-        x="Ten tools any MCP host can call. Nine are reads: check_spend runs the spend agent\u2019s own ladder over any vendor\u2019s invoice, and can_i_pay asks the paywall for a price without answering it. One spends, and only when you set a payer key."
-        p="Ten questions an AI assistant can ask, including whether a bill is fair and whether it could pay for something."
+        x="Eleven tools any MCP host can call. Ten are reads: check_spend runs the spend agent\u2019s own ladder over any vendor\u2019s invoice, and spend_report totals every bill it has priced. One spends, and only when you set a payer key."
+        p="Eleven questions an AI assistant can ask, including whether a bill is fair and whether your agent has been overpaying."
       />
       <div className="register-row" style={{ fontSize: 13 }}>
         <span className="muted" style={{ minWidth: 132 }}>

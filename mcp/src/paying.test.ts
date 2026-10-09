@@ -12,11 +12,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { CARD_HEADER, FALLBACK_CHAIN_ID, gateChainId, withCard } from "./card.js";
+import { CARD_HEADER, gateChainId, withCard } from "./card.js";
 import { arcChain, knownChainIds, USDC_DECIMALS } from "./chain.js";
 import { admits, fundingStep, newLedger, priceFromChallenge, record, validateKey } from "./pay.js";
 import { canIPay } from "./preflight.js";
 import { callTool, TOOLS, toolsFor, UNIT_SANITY_BP, UNITS } from "./tools.js";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+/* NO TEST MAY TOUCH THE DEVELOPER'S OWN LEDGER.
+ *
+ * `check_spend` now records each priced bill, and `spendLog.logPath` defaults
+ * to `~/.acr/spend.jsonl` — so the first run of this suite after that change
+ * wrote three fake bills into my real home directory. A unit suite that
+ * pollutes the machine it runs on is a unit suite nobody can trust twice.
+ *
+ * Set here rather than passed per call, so a test added later cannot forget:
+ * `callTool` falls back to `process.env` when no `env` is given, and this IS
+ * that fallback. `spendLog.test.ts` asserts the default path separately,
+ * without writing to it. */
+process.env.ACR_SPEND_LOG = join(mkdtempSync(join(tmpdir(), "acr-mcp-test-")), "spend.jsonl");
+
 
 const KEY = `0x${"11".repeat(32)}` as const;
 
@@ -95,10 +112,6 @@ test("with a resolvable chain id the card IS presented", async () => {
   });
   await f("https://acr.test/rating/0xabc");
   assert.ok((seen[0].headers?.[CARD_HEADER] ?? "").length > 200, "a real card is a base64 blob");
-});
-
-test("the fallback chain id is only a last resort, and is one we have a profile for", () => {
-  assert.ok(arcChain(FALLBACK_CHAIN_ID), "a fallback with no chain profile could not be paid on");
 });
 
 // ───────────────────────────────────────────────────── the chain table
@@ -475,13 +488,13 @@ test("get_rate reads the on-chain route, and reports an unposted oracle as a sta
 });
 
 test("a window that came back empty says it is a window, not a verdict", async () => {
-  const empty = (await callTool("my_tca", { target: "0xabc" }, {
+  const empty = (await callTool("wallet_tca", { target: "0xabc" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/tca/0xabc": { body: { available: true, purchases: 0 } } }),
   })) as { hint?: string };
   assert.match(empty.hint ?? "", /This is the window/);
 
-  const full = (await callTool("my_tca", { target: "0xabc" }, {
+  const full = (await callTool("wallet_tca", { target: "0xabc" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/tca/0xabc": { body: { available: true, purchases: 87 } } }),
   })) as { hint?: string };
@@ -489,7 +502,7 @@ test("a window that came back empty says it is a window, not a verdict", async (
 
   // A count that is ABSENT is not a count of zero — this distinction was wrong
   // first time round and put a "no rows" hint on answers that had rows.
-  const noCount = (await callTool("my_tca", { target: "0xabc" }, {
+  const noCount = (await callTool("wallet_tca", { target: "0xabc" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/tca/0xabc": { body: { available: true, vw_slippage_bp: 41 } } }),
   })) as { hint?: string };
@@ -639,8 +652,19 @@ test("check_spend passes the press's verdict through untouched", async () => {
   const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/par": { body } }),
-  })) as typeof body;
-  assert.deepEqual(out, body);
+  })) as typeof body & { recorded_to?: unknown };
+
+  /* `recorded_to` is the ONE field this hop adds, and it is pulled off before
+     the comparison rather than added to the expectation — so the assertion
+     still says "everything else is the press's own words". If a future edit
+     reinterprets a verdict or renames a field, this fails; if it adds a second
+     local field, it also fails, which is the point. */
+  const { recorded_to, ...passedThrough } = out;
+  assert.deepEqual(passedThrough, body);
+  assert.ok(
+    typeof recorded_to === "string" || recorded_to === null,
+    "check_spend must say where it recorded the bill, or that it did not",
+  );
 });
 
 test("check_spend is read-only, so it is always offered", () => {

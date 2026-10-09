@@ -255,7 +255,7 @@ jobs:
             const names = list.result.tools.map((t) => t.name);
             // No payer key in CI, so the one tool that spends must be withheld.
             if (names.includes("pay_and_read")) throw new Error("pay_and_read offered with no payer key");
-            for (const t of ["can_i_pay", "my_tca", "query_tape"]) {
+            for (const t of ["can_i_pay", "wallet_tca", "spend_report", "query_tape"]) {
               if (!names.includes(t)) throw new Error(`the built server is missing ${t}`);
             }
             console.log(`built server offers ${names.length} tools: ${names.join(", ")}`);

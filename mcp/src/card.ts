@@ -85,10 +85,6 @@ export async function mintCardHeader(opts: CardOptions): Promise<string> {
  *  card rather than one signed for a guess. */
 export type ChainIdSource = number | (() => Promise<number | null>);
 
-/** The last-resort chain id, used only when the gate cannot be reached AND no
- *  override is set. Arc testnet, which is the host the published config names. */
-export const FALLBACK_CHAIN_ID = 5042002;
-
 /** Ask the gate which chain it verifies cards for, and cache the answer.
  *
  * THE BUG THIS EXISTS FOR. The chain id is inside the EIP-712 domain, so it is
@@ -104,7 +100,16 @@ export const FALLBACK_CHAIN_ID = 5042002;
  * So the id is not defaulted any more. `GET /agent/challenge` answers 200 with
  * its own `chain_id` to an uncarded caller — the gate states which chain it is
  * on, and we sign for that. `ACR_ARC_CHAIN_ID` still wins, for a fork or a local
- * gate; the literal above is only reached when neither is available.
+ * gate.
+ *
+ * AND THERE IS NO FALLBACK, which is the point. A `FALLBACK_CHAIN_ID = 5042002`
+ * used to sit above this comment, described as "only reached when neither is
+ * available" — it was reached never: the failure path below returns `null`, and
+ * `withCard` then sends no card at all. Guessing a chain is what produced the
+ * 401 in the first place, so an unreachable gate gets an anonymous request and
+ * the honest lower rate-limit tier, not a signature for a chain nobody
+ * confirmed. A constant whose comment described behaviour the code did not have
+ * is worse than no constant.
  *
  * Takes the RAW fetch, never the carded one: the probe that decides what the
  * card says cannot itself be wrapped in a card.

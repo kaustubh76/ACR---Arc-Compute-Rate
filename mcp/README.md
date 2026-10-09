@@ -1,13 +1,31 @@
 # ACR Machine TCA, over MCP
 
-Ten tools that let an MCP host (Claude Desktop, Claude Code, anything speaking
-stdio MCP) ask **whether a bill should be paid**, what compute actually cost a
-wallet, which seller to route to, what the tape says — and **whether this agent
-can pay for a metered query at all**.
+Eleven tools that let an MCP host (Claude Desktop, Claude Code, anything
+speaking stdio MCP) ask **whether a bill should be paid**, **whether your agent
+has been overpaying**, what compute actually cost a wallet, which seller to
+route to, what the tape says — and **whether this agent can pay for a metered
+query at all**.
 
 ```bash
 npx -y acr-mcp          # no clone, no path to edit
 ```
+
+<details><summary>Or from a clone, which is also how you pin a fork</summary>
+
+`dist/` is gitignored, so a fresh clone has no binary until it builds one:
+
+```bash
+git clone https://github.com/kaustubh76/ACR---Arc-Compute-Rate.git
+cd ACR---Arc-Compute-Rate/mcp && npm ci && npm run build
+```
+
+Then point the host at the built file — `dist/server.js`, never `src/server.ts`,
+and an absolute path:
+
+```json
+{ "command": "node", "args": ["/abs/path/to/ACR---Arc-Compute-Rate/mcp/dist/server.js"] }
+```
+</details>
 
 ```json
 {
@@ -24,8 +42,8 @@ npx -y acr-mcp          # no clone, no path to edit
 }
 ```
 
-That is the whole setup. Eight of the nine tools are reads, so you can paste this
-with no wallet anywhere near it. **`ACR_ARC_CHAIN_ID` is deliberately absent** —
+That is the whole setup. Ten of the eleven tools are reads, so you can paste
+this with no wallet anywhere near it. **`ACR_ARC_CHAIN_ID` is deliberately absent** —
 the card takes its chain from whichever gate `ACR_API` names, so pointing this at
 a different press needs nothing else changed. See *The 401 this used to be* below.
 
@@ -35,7 +53,8 @@ a different press needs nothing else changed. See *The 401 this used to be* belo
 | **`can_i_pay`** | **can this agent pay for a metered query, and if not, which of seven rungs is in the way** | no |
 | **`pay_and_read`** | buys one metered query for real and returns the data plus the settlement reference | **yes** |
 | **`payment_receipts`** | did the payment land — the settlement tape and revenue counter, narrowed to your payer | no |
-| `my_tca` | a wallet's transaction-cost analysis: what it paid vs the benchmark, slippage, overpaid. `"me"` answers the human-proof challenge and returns ONE figure across every wallet the person owns (`ACR_HUMAN_AGENT_KEY`) | no |
+| **`spend_report`** | **the running total of every bill this machine has had checked: how many were over the going rate, by how much in bp, the worst vendor, and what was actually recoverable in USDC. The answer to "is my agent overpaying" for an agent that pays its own vendors** | no |
+| `wallet_tca` | a wallet's transaction-cost analysis **if it bought from ACR**: what it paid vs the benchmark, slippage, overpaid. A wallet ACR has never seen comes back `seen: false`, not zero. `"me"` answers the human-proof challenge and returns ONE figure across every wallet the person owns (`ACR_HUMAN_AGENT_KEY`) | no |
 | `reroute_suggestion` | the seller this payer should have bought from, and the saving | no |
 | `seller_rating` | one seller's rating, components and human depth | no |
 | `benchmark_price` | one quote priced against what the market is actually paying | no |
@@ -82,6 +101,66 @@ Three things worth knowing:
 What it does **not** check is named rather than implied: there is no meter, no
 counterparty screen, no agreement, no budget and no balance for a caller who has
 onboarded nothing, and the verdict leaves a note for each.
+
+## Is my agent overpaying?
+
+`check_spend` answers one bill. `spend_report` answers the question behind it.
+
+Every bill `check_spend` prices is appended to a file on **your** machine, and
+`spend_report` folds them into a running view: how many were over the going
+rate, by how much, which vendor is worst, and what was actually recoverable.
+
+```
+spend_report(days: 30)            # or vendor: "0x…", to narrow it
+```
+
+```jsonc
+{
+  "bills_checked": 41, "priced": 38,
+  "over_rate":  { "n": 11, "median_bp": 380, "worst_bp": 4120 },
+  "actionable": { "n": 6, "could_have_paid_usdc": 1.84,
+                  "basis": "the cheapest reachable independent offer at the time of each check" },
+  "by_vendor":  [ { "vendor": "0x…", "bills": 9, "over_rate_bp": 410.2 } ],
+  "note": "these are bills you asked ACR to price. ACR did not observe your payments."
+}
+```
+
+**Why one number is in basis points and the other in dollars.** `par` is the
+median of independent observed quotes, so "above the going rate" is a statement
+about one price in a market — real, and not money you can go and collect.
+`best` is the cheapest offer somebody actually made, so the difference from it
+is money that was available. Only the second becomes USDC. ACR's own index
+cannot price a real invoice at all: `anchors/GAP.md` puts its reference levels
+20x to 1250x off real market prices, which is why none of this is measured
+against it.
+
+**And this is a record of checks, not of payments.** ACR never sees whether you
+paid any of these bills, at what price, or at all. `wallet_tca` is the other
+half — it measures settlements ACR actually observed — and it only works for a
+wallet that bought from ACR's own sellers.
+
+## Privacy
+
+**`check_spend` sends each bill to the press.** That is how it gets priced: the
+amount, the quantity, the unit and the vendor address go to whatever `ACR_API`
+names. That was true before `spend_report` existed and it is worth saying
+plainly — if your invoice amounts are sensitive, this is the tool that transmits
+them.
+
+**`spend_report` sends nothing.** It reads a plain JSONL file on your machine
+and does the arithmetic locally. ACR does not need a copy of your vendor ledger
+to tell you what a fair price is, so it does not get one.
+
+| | |
+|---|---|
+| where | `ACR_SPEND_LOG`, default `~/.acr/spend.jsonl`. The home directory, not the working directory, because an MCP server inherits its host's |
+| what | one line per priced bill: vendor, unit, quantity, amount, and the press's verdict. No keys, no cards, no addresses you did not supply |
+| who can read it | mode `0600`, created `0700`. Plain JSONL: read it, grep it, `rm` it |
+| turning it off | `ACR_SPEND_LOG=off`. Then `check_spend` answers `recorded_to: null` and `spend_report` says there is nothing to report |
+
+There is deliberately **no tool that deletes it**. A tool that erases a
+business's bill history is a tool a model will eventually try; `rm` is the
+interface.
 
 ## Can my agent pay?
 
@@ -176,7 +255,9 @@ card the gate will refuse — a lower rate-limit bucket beats a 401 on every too
 | `ACR_ARC_RPC_URL` | the RPC `can_i_pay` reads balances from (default: the chain's public one) |
 | `ACR_AGENT_HUMAN_CLUSTER` | **opt-in** human claim: the cluster `HumanIdMirror.clusterOf` records for this key's wallet in the *current* 7-day window. A claim the chain cannot confirm is a **401**, never a silent downgrade, so leave it unset unless you have resolved that wallet |
 | `ACR_ARC_CHAIN_ID` | overrides the card's domain chain. **Leave it unset** unless you know you need it; the gate is asked instead |
-| `ACR_HUMAN_AGENT_KEY` | lets `my_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. A demo buyer's key derives from its public label |
+| `ACR_SPEND_LOG` | where `check_spend` records each priced bill so `spend_report` can total them. Default `~/.acr/spend.jsonl`; `off` disables recording entirely. Nothing here is uploaded — see **Privacy** |
+| `ACR_ARC_PRIVATE_MAINNET` | selects Arc's private mainnet profile for the one path that spends. Leave unset unless you have been told otherwise: it changes which chain a settlement is built for |
+| `ACR_HUMAN_AGENT_KEY` | lets `wallet_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. A demo buyer's key derives from its public label |
 | `ACR_HUMAN_NULLIFIER` | the same, for a local **dev** gate (`ACR_HUMANID_MODE=dev`): a bare nullifier. Not a spending key; anyone holding it can read that human's costs |
 
 The card names no `verifyingContract` on purpose — the seller, not a contract,

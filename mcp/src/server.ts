@@ -3,7 +3,7 @@
  *
  *   npx -y acr-mcp                 # with ACR_API in the host's env block
  *
- * Registered in an MCP host's config as a stdio server. Eight of the nine tools
+ * Registered in an MCP host's config as a stdio server. Ten of the eleven tools
  * are reads, including `can_i_pay`, which answers "could this agent pay for a
  * metered query" by asking for a 402 challenge without answering it. So a host
  * can grant this server with no wallet in the loop and still get a real answer
@@ -18,7 +18,7 @@
  * Two other credentials, neither of which can move funds:
  *   ACR_AGENT_PRIVATE_KEY   the agent CARD. Any 32-byte key; nothing is enrolled.
  *                           Raises the rate-limit bucket from the shared one.
- *   ACR_HUMAN_NULLIFIER     the dev human gate's credential, for `my_tca("me")`.
+ *   ACR_HUMAN_NULLIFIER     the dev human gate's credential, for `wallet_tca("me")`.
  *                           Not a spending key, but anyone holding it can read
  *                           that human's transaction costs.
  */
@@ -79,7 +79,7 @@ async function extraHeaders(): Promise<Record<string, string>> {
 }
 
 const server = new Server(
-  { name: "acr-tca", version: "0.2.0" },
+  { name: "acr-tca", version: "0.3.0" },
   { capabilities: { tools: {} } },
 );
 

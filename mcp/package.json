@@ -1,23 +1,44 @@
 {
   "name": "acr-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
-  "description": "ACR Machine TCA over MCP — check whether your agent can pay, benchmark a machine purchase, grade a seller, verify a print.",
+  "description": "ACR Machine TCA over MCP \u2014 check whether your agent can pay, benchmark a machine purchase, grade a seller, verify a print.",
   "license": "MIT",
   "homepage": "https://github.com/kaushtubh02/ACR#readme",
-  "repository": { "type": "git", "url": "git+https://github.com/kaushtubh02/ACR.git", "directory": "mcp" },
-  "keywords": ["mcp", "model-context-protocol", "x402", "usdc", "arc", "circle", "agent-payments"],
-  "bin": { "acr-mcp": "dist/server.js" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaustubh76/ACR---Arc-Compute-Rate.git",
+    "directory": "mcp"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "x402",
+    "usdc",
+    "arc",
+    "circle",
+    "agent-payments"
+  ],
+  "bin": {
+    "acr-mcp": "dist/server.js"
+  },
   "main": "dist/tools.js",
-  "files": ["dist", "README.md"],
-  "engines": { "node": ">=24" },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.18.2"
+  },
   "scripts": {
     "build": "tsc",
     "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/*.test.ts",
     "smoke": "node --import tsx scripts/smoke.ts",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "release": "npm run smoke && npm publish"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.2.0",

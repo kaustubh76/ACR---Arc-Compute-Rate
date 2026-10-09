@@ -13,6 +13,7 @@
  */
 
 import { arcChain } from "./chain.js";
+import { append as recordSpend, logPath, read as readSpendLog, report as spendReport } from "./spendLog.js";
 import {
   admits,
   GatewayPayer,
@@ -83,12 +84,23 @@ const DAYS = { type: "number", description: `window in days (default ${DEFAULT_D
 
 export const TOOLS: ToolDef[] = [
   {
-    name: "my_tca",
+    /* NAMED FOR WHAT IT GRADES. This was `my_tca`, and "my" was wrong twice
+       over: it never reads the configured ACR_AGENT_PRIVATE_KEY (it grades
+       whatever address you type, so pasting someone else's gives you theirs),
+       and it can only see wallets that bought from ACR's own sellers — it
+       reads settlements mirrored from ACR's x402 paywall. A developer pointing
+       `my_tca` at their own agent's wallet got zeros about money ACR never saw.
+       `spend_report` is the tool that answers "what is MY agent spending".
+       Renamed before the package was ever published, so no host breaks. */
+    name: "wallet_tca",
     description:
-      "Transaction-cost analysis for a payer: what its purchases cost against the ACR print " +
-      "it could have seen at the moment of each trade. Returns volume-weighted slippage in " +
-      'basis points, USDC overpaid, and a per-seller breakdown. Pass "me" to get one figure ' +
-      "across every wallet a verified human is resolved to, without naming any of them.",
+      "Transaction-cost analysis for a wallet THAT BOUGHT FROM ACR: what its purchases cost " +
+      "against the ACR print it could have seen at the moment of each trade. Returns " +
+      "volume-weighted slippage in basis points, USDC overpaid, and a per-seller breakdown. " +
+      "A wallet that has never bought from an ACR seller comes back `seen: false` — it does " +
+      "not report zero cost. For bills you pay your own vendors, use check_spend and " +
+      'spend_report. Pass "me" for one figure across every wallet a verified human is ' +
+      "resolved to, without naming any of them.",
     inputSchema: {
       type: "object",
       properties: {
@@ -107,7 +119,20 @@ export const TOOLS: ToolDef[] = [
     description:
       "Which seller this payer's volume would have cost less with, computed from its own past " +
       "fills. A suggestion about observed history, not a promise about future fills.",
-    inputSchema: { type: "object", properties: { target: ADDRESS, days: DAYS }, required: ["target"] },
+    inputSchema: {
+      type: "object",
+      // `"me"` works here exactly as it does on wallet_tca, and the schema said
+      // ADDRESS — an undocumented capability a model can never discover, which
+      // is the same as not having it.
+      properties: {
+        target: {
+          type: "string",
+          description: 'an 0x address, or "me" for the calling human\'s own wallets unioned together',
+        },
+        days: DAYS,
+      },
+      required: ["target"],
+    },
   },
   {
     name: "seller_rating",
@@ -203,6 +228,29 @@ export const TOOLS: ToolDef[] = [
         },
       },
       required: ["billed_usdc", "quantity", "unit"],
+    },
+  },
+  {
+    name: "spend_report",
+    description:
+      "The running total of every bill this machine has had checked: how many were over the " +
+      "going rate, by how much in basis points, the worst vendor, and — only where a cheaper " +
+      "seller was actually reachable — what could have been paid instead in USDC. This is the " +
+      "answer to \"is my agent overpaying\" for an agent that pays its own vendors and has " +
+      "never touched ACR. Built from a local file on this machine; nothing is uploaded, and " +
+      "ACR never sees whether you paid any of these bills.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: {
+          type: "number",
+          description: "window in days, 1 to 365. Default 30.",
+        },
+        vendor: {
+          type: "string",
+          description: "narrow to one vendor address, as it was given to check_spend",
+        },
+      },
     },
   },
   {
@@ -434,7 +482,7 @@ export async function callTool(
   const days = typeof args.days === "number" ? args.days : DEFAULT_DAYS;
 
   switch (name) {
-    case "my_tca": {
+    case "wallet_tca": {
       const body =
         String(args.target) === "me"
           ? await humanTca(f, api, days, opts.nullifier, opts.humanKey)
@@ -636,8 +684,41 @@ export async function callTool(
         error?: string;
         body?: { detail?: unknown };
         would?: { intent?: unknown; rule?: unknown };
+        over_rate_bp?: number | null;
+        verdict?: { verdict?: unknown; saving_usdc?: unknown; best_seller?: unknown };
+        par?: { par_usdc?: number | null; best_usdc?: number | null; best_seller?: string | null };
+        basket?: { status?: unknown };
       };
-      if (!par?.error) return par;
+      if (!par?.error) {
+        /* RECORDED, AND SAID OUT LOUD ON THE SAME BREATH. `recorded_to` rides on
+           the answer the developer is already reading, because a README is not
+           consent and a tool that quietly starts writing a file of your vendor
+           bills to your home directory is a surprise. `null` when
+           ACR_SPEND_LOG=off, or when the write failed — never a claimed write
+           that did not happen. */
+        const recorded_to = recordSpend(
+          {
+            at: Date.now() / 1000,
+            vendor: vendor || null,
+            unit,
+            quantity,
+            billed_usdc: billed,
+            over_rate_bp: typeof par.over_rate_bp === "number" ? par.over_rate_bp : null,
+            par_usdc: par.par?.par_usdc ?? null,
+            best_usdc: par.par?.best_usdc ?? null,
+            best_seller: par.par?.best_seller ?? null,
+            verdict: typeof par.verdict?.verdict === "string" ? par.verdict.verdict : null,
+            // The press's own recoverable figure, not a second computation of
+            // it — see `actionable` in spendLog.ts for why that matters.
+            saving_usdc:
+              typeof par.verdict?.saving_usdc === "number" ? par.verdict.saving_usdc : null,
+            intent: typeof par.would?.intent === "string" ? par.would.intent : null,
+            basket_status: typeof par.basket?.status === "string" ? par.basket.status : null,
+          },
+          opts.env,
+        );
+        return { ...par, recorded_to };
+      }
       if (par.error === "HTTP 404") {
         return {
           available: false,
@@ -658,6 +739,35 @@ export async function callTool(
         detail: par.body,
         host_side: par.error !== "HTTP 422",
       };
+    }
+
+    case "spend_report": {
+      /* THE RUNNING ANSWER, and it is computed here rather than asked of the
+         press on purpose: these are the developer's own bills and ACR has no
+         business holding a copy to do arithmetic it can do locally. */
+      const raw = Number(args.days ?? 30);
+      const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 30;
+      const path = logPath(opts.env);
+      if (!path) {
+        return {
+          available: false,
+          reason:
+            "ACR_SPEND_LOG is off, so no bills have been recorded. Unset it (or point it " +
+            "at a path) and the next check_spend starts the record.",
+        };
+      }
+      const rows = readSpendLog(opts.env);
+      if (rows.length === 0) {
+        // NOT an empty report. "No bills yet" and "no bills over the rate" are
+        // different facts, and a zeroed report would say the reassuring one.
+        return {
+          available: false,
+          reason: `no bills have been checked yet on this machine (${path}). Run check_spend first.`,
+          path,
+        };
+      }
+      const vendor = typeof args.vendor === "string" ? args.vendor : undefined;
+      return spendReport(rows, { days, vendor, path });
     }
 
     case "can_i_pay":

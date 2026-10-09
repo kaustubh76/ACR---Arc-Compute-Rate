@@ -35,7 +35,17 @@ test("every tool the server registers is named on this page", () => {
   // every match on its own, so the assertion could not fail. The tool list is
   // rendered from TOOLS, so what needs proving is that the WORKED EXAMPLES
   // exercise the tools worth demonstrating.
-  for (const t of ["can_i_pay", "my_tca", "reroute_suggestion", "seller_rating", "query_tape"]) {
+  for (const t of [
+    "can_i_pay",
+    "wallet_tca",
+    // The tool the page exists to teach now: check_spend answers one bill and
+    // spend_report answers the question behind it, so an example that shows the
+    // first without the second teaches half a product.
+    "spend_report",
+    "reroute_suggestion",
+    "seller_rating",
+    "query_tape",
+  ]) {
     assert.match(s.ask, new RegExp(t), `the examples should demonstrate ${t}`);
   }
   assert.match(s.pay, /pay_and_read/, "the paying tab must name the tool it unlocks");

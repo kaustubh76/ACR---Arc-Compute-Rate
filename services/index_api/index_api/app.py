@@ -1441,9 +1441,13 @@ def price_check(
     benchmark nobody checks — the same sentence `/tca/{payer}` is ungated for,
     and this is the pre-trade half of that post-trade answer.
 
-    Ungated for one bill. `POST /par/batch` is where a ledger goes, and that one
-    is paid: a person checking an invoice should not meet a paywall, and an
-    agent pricing a hundred should.
+    Ungated, and there is no batch sibling. This docstring used to promise a
+    paid `POST /par/batch` as "where a ledger goes"; nothing ever built it, and
+    a route advertised in prose and absent from the router is a worse answer
+    than no route. The ledger went to the CALLER instead — `mcp/src/spendLog.ts`
+    records each priced bill on the developer's own machine and `spend_report`
+    totals them, which needs no paywall decision and keeps a business's vendor
+    list out of this service entirely.
 
     WHICH MARKET depends on the vendor, and the rule is `operator.py`'s, not a
     second one invented here: a seller this deployment operates is judged

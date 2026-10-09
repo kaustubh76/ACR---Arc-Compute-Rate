@@ -649,14 +649,18 @@ and it proves its own tamper-resistance.
   `sandbox` onto the chain and into every count. `make prove-human` runs the whole path with
   nothing secret — judge-runnable. *Showing a ticket that proves a person is behind the robot,
   without showing the person.*
-- **the MCP server (`mcp/`) · `can_i_pay` · `my_tca` · `query_tape` · `skills/acr-analyst`** —
-  nine tools any MCP host (Claude, for one) can call: a wallet's TCA, a reroute suggestion, a
+- **the MCP server (`mcp/`) · `check_spend` · `spend_report` · `can_i_pay` · `wallet_tca` ·
+  `query_tape` · `skills/acr-analyst`** —
+  eleven tools any MCP host (Claude, for one) can call: one vendor invoice priced against the
+  going rate and the running total of every invoice priced on that machine, a wallet's TCA (for a
+  wallet that bought from ACR; one it has never seen answers `seen: false`, not zero), a
+  reroute suggestion, a
   seller's rating, the benchmark, the on-chain rate, any named subgraph operation, and — the one
   the surface could not answer at all for its first version — whether this agent can actually pay
   for a metered query, reported as seven rungs so the one in the way is named. `can_i_pay` asks the
   paywall for a price and declines to answer it, so it spends nothing and needs no key;
   `pay_and_read` does settle, and is not registered unless a payer key is set. Every call carries
-  an agent card, signed for the chain the gate itself names; `my_tca("me")` signs the AgentKit
+  an agent card, signed for the chain the gate itself names; `wallet_tca("me")` signs the AgentKit
   challenge. The analyst skill is the same tape explained to an agent in English — "Ask the Tape".
   *A phrasebook and a phone line so an AI assistant can ask the market what things cost — and find
   out whether it can afford to.*
