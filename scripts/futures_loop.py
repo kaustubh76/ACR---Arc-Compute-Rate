@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Keep the live ACR futures book moving — a bounded, mean-reverting taker loop.
 
-Trades the seeded series on a timer so the public desk (arccomputerate.in
+Trades the seeded series on a timer so the public desk (arc-compute-rate.vercel.app
 /curve) shows a *living* market: inventory oscillating, open interest changing.
 Only the TAKER trades — every fill auto-mirrors the maker — so one funded key
 drives the whole book.

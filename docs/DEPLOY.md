@@ -158,19 +158,36 @@ vercel deploy --prod \
 - `NEXT_PUBLIC_ACR_API` — the browser `/docs` link on `/developers` (build-time inlined).
 
 Output: the public dashboard on the linked Vercel project (project name
-`terminal` — deployed at `https://arccomputerate.in`). While the
+`terminal` — deployed at `https://arc-compute-rate.vercel.app`). While the
 API is unreachable (free-tier cold start) the terminal walks its connection
 ladder honestly: instant shell + skeletons, "waking the press", direct
 ACROracle reads via `/api/onchain`, and the bundled `lib/fallback.json`
 archived edition as the floor.
 
-### 2a. The custom domain — `arccomputerate.in`
+### 2a. The custom domain — `arccomputerate.in` — NOT IN USE
 
-Live since 2026-10-08. `arc-compute-rate.vercel.app` still resolves as the project
-alias, so every link published before the move still works. The apex is canonical
-and `www` 307s to it via a `has: host` rule in `apps/terminal/next.config.mjs`
-(in the repo rather than Vercel's domain settings: a dashboard redirect is
-invisible from the tree and lost if the project is ever recreated).
+**Set aside 2026-10-09. The canonical host is `arc-compute-rate.vercel.app`.**
+
+This section is kept as the record of how to finish the move, not as a
+description of the current state. What happened: the domain was added to the
+Vercel project and both it and `www` report `verified: true` — verification only
+proves you control the name — but **the DNS was never changed**. `dig +short A
+arccomputerate.in` answers Hostinger's parking range, and the host returns a
+"Parked Domain name on Hostinger DNS system" page at **HTTP 200**.
+
+That 200 is the whole trap. Three documents, `metadataBase`, `robots.txt`, the
+provider catalog Circle's crawler follows, and the standing liveness gate were
+all moved onto the name, and nothing failed loudly: `tests/test_canonical_host.py`
+compares those places to **each other** and stayed green, and `verify_live.py`
+produced a red run that blamed a Next route. **Verify a host by fetching a page
+and reading what comes back, never by its status code.**
+
+To finish it later: add the two A records below, confirm with a fetch that the
+content is the terminal and not a parking page, then move the canonical host in
+the one place that defines it — `marketplace.PROVIDER_WEBSITE`, which
+`test_canonical_host.py` reads as truth and which drags `metadataBase` and
+`robots.ts` with it. The `www` 307 rule was deleted from
+`apps/terminal/next.config.mjs` as dead config; re-add it with the DNS.
 
 **DNS stays at Hostinger. Do not point the nameservers at Vercel.** The zone
 carries live mail:
@@ -212,10 +229,17 @@ Set them on the Render service (single-key edits — the bulk env PUT replaces
 every var) and redeploy, because env edits alone do not restart a service:
 
 ```
-ACR_CORS_ORIGINS=https://arccomputerate.in,https://www.arccomputerate.in,https://arc-compute-rate.vercel.app
-ACR_PROVIDER_WEBSITE=https://arccomputerate.in
-ACR_PROVIDER_DOCS_URL=https://arccomputerate.in/developers
+ACR_CORS_ORIGINS=https://arc-compute-rate.vercel.app
+ACR_PROVIDER_WEBSITE=https://arc-compute-rate.vercel.app
+ACR_PROVIDER_DOCS_URL=https://arc-compute-rate.vercel.app/developers
 ```
+
+These are the values for the host that actually serves. The block named the
+custom domain for one day, which would have sent Circle's crawler to a parked
+page — and note the live mainnet service still carries the OLD list, which
+**rejects** the custom domain and allows the Vercel origin, because a Render env
+edit does not restart a service. Add the custom-domain origins back when its DNS
+is finished, not before.
 
 `ACR_CORS_ORIGINS` is the one to get right. Every read in the Terminal goes
 through its own `/api/*` proxies, so a wrong value here breaks nothing a visitor

@@ -10,7 +10,7 @@
 > **The pitch line:** *"Machine commerce just got its SOFR — and it prints its own attack cost."*
 
 **Live right now (Arc **mainnet**, chain 5042, since 2026-09-27):**
-- **Terminal (dashboard):** https://arccomputerate.in
+- **Terminal (dashboard):** https://arc-compute-rate.vercel.app
 - **Seller API (x402-gated):** https://acr-api-mainnet.onrender.com
 - **ACROracle:** [`0xAfe8…6D07`](https://explorer.arc.io/address/0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07) · **ACROracleV2:** [`0xF77E…2f81`](https://explorer.arc.io/address/0xF77E763ef710096c0b9F02Ea16F76e68E0312f81) · **ACRFutures:** [`0xdb5D…6d3b`](https://explorer.arc.io/address/0xdb5D7dbB67aD8EC8517982E95c89906abFBC6d3b) · **AttestationRegistry:** [`0x13CF…5096`](https://explorer.arc.io/address/0x13CF727d1D25283d58Efe7647dCf30e9cE255096) · **ReceiptMirror:** [`0x1a53…5bE3`](https://explorer.arc.io/address/0x1a5390E59d4ce0a386Aa071365A932Dc34d35bE3) · **HumanIdMirror:** [`0x7134…40B5`](https://explorer.arc.io/address/0x7134622a01Add334eA306dDa5A5877b418a940B5) · **FeedAccessAttestor:** [`0xB950…A490`](https://explorer.arc.io/address/0xB9508caD4A5C367C3a62B6767C4837a607EaA490) — the full mainnet set is in [`README.md`](../README.md#live-right-now)
 - **CI:** 4 jobs (python · contracts · agent · terminal) on every push — `.github/workflows/ci.yml`
@@ -207,7 +207,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | File | Purpose |
 |---|---|
 | `acr_architecture.excalidraw` | The **comprehensive, implementation-accurate** canvas: 221 elements (67 rectangles, 119 text, 35 fully-bound arrows) covering the four-pillar estimator in detail, the role-based custody signer, EIP-712 verification, the x402 facilitator (concrete Circle wiring), robustness diagnostics, TapeSource, on-chain reads, **the on-chain `ACRFutures` venue + Public Desk (Circle user-controlled wallets)**, **the self-owning, self-rolling venue keeper**, **the autonomous hedger (an agent that reads the rate, then trades on it)**, **the `FeedAccessAttestor` (on-chain paid-feed access)**, **the agentic-economy demand side (live x402 buyer · Agent Marketplace · Circle webhooks · durable receipts)**, Circle SCP deploy, the verification surface, **and a "PLAIN ENGLISH" glossary panel**. Open at excalidraw.com. |
-| `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. Rendered live at [arccomputerate.in/companion](https://arccomputerate.in/companion) — and the Terminal masthead's one-click **plain** edition re-sets the whole site in this register. |
+| `docs/GLOSSARY.md` | Plain-English definitions (with everyday analogies) of every technical term on the diagram, plus a jargon-free ①→⑩ walkthrough. Rendered live at [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion) — and the Terminal masthead's one-click **plain** edition re-sets the whole site in this register. |
 | `hackathon/canvases/acr_flows.excalidraw` | **"How each piece works, step by step"** — 180 elements, six end-to-end flows (hourly oracle press · x402 sale · venue keeper · autonomous hedger · attack demo · verification), one box per step with the real component name in every box. The companion to the architecture canvas: that one shows *what exists*, this one shows *what happens*. |
 | `acr_architecture_v1_blueprint.excalidraw` | The original 143-element blueprint (kept for reference). |
 | `docs/ARCHITECTURE-DIAGRAM.md` | This document. |
@@ -220,7 +220,7 @@ The arrows carry the sequence; this is also the **live-demo narration order** �
 | `packages/` | The estimator core: `acr_core` · `acr_estimator` · `acr_tape` · `acr_sim` · `acr_instrument` · `acr_oracle_client` |
 | `contracts/` | `ACROracle.sol` + `AttestationRegistry.sol` + `ACRFutures.sol` + `FeedAccessAttestor.sol` (Foundry, 60 tests incl. invariants) — all deployed on Arc testnet |
 | `services/index_api/` | The x402-gated seller API (FastAPI) — deployed at acr-api-mainnet.onrender.com |
-| `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arccomputerate.in |
+| `apps/terminal/` | The ACR Terminal (Next.js) — deployed at arc-compute-rate.vercel.app |
 | `apps/agent/` | The machine buyer (Circle Gateway `x402-batching` client) |
 | `.github/workflows/` | CI (4 jobs) + the keep-alive ping for the free-tier press |
 | `docs/WALLETS.md` | Which Circle wallet product does which job — and the constraint that forces each choice |

@@ -55,6 +55,13 @@ jobs:
           # audited a chain the product had already left — nine consecutive red
           # runs while the mainnet press slept and its prints went 48h stale.
           ACR_API_URL: https://acr-api-mainnet.onrender.com
+          # The TERMINAL this job audits, stated rather than defaulted. From
+          # 2026-10-08 to 10-09 the script's default was a custom domain that
+          # never resolved, and because a parked page answers HTTP 200 the run
+          # went red on `/api/wallet/balances` while two other terminal checks
+          # passed vacuously — a red run blaming a Next route for a DNS fault.
+          # Named here so the default is not load-bearing twice.
+          ACR_TERMINAL_URL: https://arc-compute-rate.vercel.app
           ACR_ARC_CHAIN_ID: "5042"
           ACR_ARC_RPC_URL: https://rpc.mainnet.arc.io
           ACR_ORACLE_ADDRESS: "0xAfe8a941957EbD3C759fEA5365fe4B75f9626D07"

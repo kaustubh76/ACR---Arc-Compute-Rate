@@ -33,6 +33,12 @@ export default function robots(): MetadataRoute.Robots {
     // The canonical host, kept in step with `metadataBase` in app/layout.tsx.
     // A robots.txt naming a different host than every canonical tag is the
     // shape of a site that has half-moved.
-    host: "https://arccomputerate.in",
+    //
+    // Both named the custom domain until 2026-10-09 — in step with each other
+    // and both wrong, because that host never resolved to this deployment and
+    // served a parked page instead. Agreeing with each other is the weaker
+    // half of the check; the stronger half is that the host answers with this
+    // site, and only a fetch can tell you that.
+    host: "https://arc-compute-rate.vercel.app",
   };
 }

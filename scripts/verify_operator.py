@@ -34,9 +34,11 @@ import sys
 import urllib.error
 import urllib.request
 
-# The custom domain, kept in step with verify_live.py and verify_loop.py.
+# The host that actually serves, kept in step with verify_live.py and
+# verify_loop.py. Was a custom domain that never resolved, so `make
+# verify-operator` probed all three reviewer surfaces on a parked page.
 TERMINAL = os.environ.get(
-    "VERIFY_TERMINAL_URL", "https://arccomputerate.in"
+    "VERIFY_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
 ).rstrip("/")
 TIMEOUT_S = 45.0
 

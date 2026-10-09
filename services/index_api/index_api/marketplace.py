@@ -49,17 +49,24 @@ X402_CATALOG_VERSION = 2
 #:
 #: THE ADDRESS A CRAWLER FOLLOWS. These two reach Circle's Discovery API through
 #: `/marketplace/catalog`, so they are not decoration: they are how an agent
-#: that found us gets to a page it can read. Moved to the custom domain
-#: 2026-10-08.
+#: that found us gets to a page it can read.
 #:
-#: Changing the default is not enough on its own. The running image is pinned
-#: and predates this line, so `ACR_PROVIDER_WEBSITE` is also set on the service
-#: — the env var makes the deployed press correct now, and the default makes the
-#: next image correct without one. Same pair of facts, two places, because they
-#: become true at different times.
-PROVIDER_WEBSITE = os.environ.get("ACR_PROVIDER_WEBSITE", "https://arccomputerate.in")
+#: MOVED BACK OFF THE CUSTOM DOMAIN 2026-10-09, because it never served. The
+#: name was pointed at the project in Vercel's dashboard — both it and `www`
+#: report `verified: true` — but its DNS was never changed: `dig +short A`
+#: answers Hostinger's parking range and the host returns a "Parked Domain name
+#: on Hostinger DNS system" page at **HTTP 200**. A 200 is what made it look
+#: fine. Every value below was sending Circle's crawler to that page.
+#:
+#: This constant is also the one the four-place host gate reads as its
+#: definition of canonical (`tests/test_canonical_host.py`), so moving it moves
+#: `metadataBase` and `robots.txt` with it. Verify a host by reading a page it
+#: returns, never by its status code.
+PROVIDER_WEBSITE = os.environ.get(
+    "ACR_PROVIDER_WEBSITE", "https://arc-compute-rate.vercel.app"
+)
 PROVIDER_DOCS_URL = os.environ.get(
-    "ACR_PROVIDER_DOCS_URL", "https://arccomputerate.in/developers"
+    "ACR_PROVIDER_DOCS_URL", "https://arc-compute-rate.vercel.app/developers"
 )
 #: One of Circle's six discovery categories.
 PROVIDER_CATEGORY = os.environ.get("ACR_PROVIDER_CATEGORY", "FINANCIAL_ANALYSIS")

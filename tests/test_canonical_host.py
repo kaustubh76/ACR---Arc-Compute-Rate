@@ -1,7 +1,7 @@
 """One canonical host, named in four places that cannot see each other.
 
-Moving the Terminal to `arccomputerate.in` put the same hostname in four files,
-in three languages, and nothing compared them:
+Moving the Terminal to a custom domain put the same hostname in four files, in
+three languages, and nothing compared them:
 
     apps/terminal/app/layout.tsx    `metadataBase` -- with
                                     `alternates: {canonical: "./"}` this is what
@@ -31,6 +31,14 @@ breakage nobody finds from the front door.
 Python reads the TypeScript and the YAML for the reason
 `test_endpoint_register_parity.py` gives: only Python can import the press
 constant, and the alternative is a fourth copy of the hostname in a test.
+
+WHAT THIS FILE CANNOT CATCH, recorded because it happened. It compares the four
+places to EACH OTHER and none of them to reality, so for a day it was green
+while all four agreed on a name whose DNS had never been pointed here — one that
+answered HTTP 200 from a parked-domain page. Agreement is the weaker half of the
+check. The stronger half is that the host serves this site, which only a fetch
+can establish, and that belongs to `verify_live.py` rather than to a unit test.
+So: green here means consistent, not correct.
 """
 
 from __future__ import annotations
@@ -124,8 +132,18 @@ def test_mainnet_cors_names_the_canonical_origin() -> None:
         f"every other surface kept working"
     )
     # There is no `allow_origin_regex` anywhere in the repo, so matching is an
-    # exact string and the apex does NOT cover www.
+    # exact string and an apex does NOT cover its own www.
+    #
+    # ONLY MEANINGFUL FOR A REGISTRABLE APEX. A Vercel project alias has no
+    # `www` sub-label — `www.<project>.vercel.app` is not a name that can be
+    # issued — so demanding one in the allowlist would require an origin that
+    # cannot exist. The premise of the assertion below is real and is real only
+    # for a custom domain, so it is scoped to one rather than deleted: the day
+    # the custom domain actually resolves, this starts guarding again without
+    # anyone remembering to re-add it.
     host = canonical.removeprefix("https://")
+    if host.endswith(".vercel.app"):
+        return
     assert f"https://www.{host}" in origins, (
         f"https://www.{host} is not in {origins}. www 307s to the apex for page "
         f"loads, but a cross-origin fetch is refused before any redirect is "

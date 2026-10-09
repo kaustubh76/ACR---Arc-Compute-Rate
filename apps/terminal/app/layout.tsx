@@ -51,9 +51,20 @@ export const metadata: Metadata = {
   // this is what every page's canonical URL is built from, so it was the one
   // line that would have kept advertising the old host indefinitely.
   //
-  // The apex, not `www`: `www.arccomputerate.in` 307s here (next.config.mjs),
-  // so naming www would canonicalise to a redirect.
-  metadataBase: new URL("https://arccomputerate.in"),
+  // BACK ON THE VERCEL HOST, 2026-10-09. The custom domain was never serving:
+  // Vercel reported it `verified: true` while its DNS still pointed at
+  // Hostinger, which answers a parked-domain page with **HTTP 200**. Paired
+  // with `alternates: { canonical: "./" }` below, this line was telling every
+  // crawler that the real copy of all eleven routes lived on that parked page —
+  // and because it answers 200 rather than 404, a crawler would consolidate
+  // onto it and drop the deployment that actually works.
+  //
+  // Kept in step with `app/robots.ts` and `marketplace.PROVIDER_WEBSITE` by
+  // `tests/test_canonical_host.py`. That gate compares the four places to each
+  // other and none of them to reality, so it was green throughout — which is
+  // the lesson, not a complaint: a host is verified by fetching it and reading
+  // what comes back.
+  metadataBase: new URL("https://arc-compute-rate.vercel.app"),
   title: "ACR · The Arc Compute Rate",
   description:
     "The reference rate for machine commerce: benchmarks from Arc payment exhaust, published hourly on-chain with their attack cost.",
