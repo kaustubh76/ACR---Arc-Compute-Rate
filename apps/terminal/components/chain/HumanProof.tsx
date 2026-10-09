@@ -30,6 +30,11 @@ interface ProveResult {
   address: string | null;
   body: {
     available?: boolean;
+    /** See `gradedCard` in lib/tape.ts. `available` means the subgraph
+     *  answered; `seen` means it had rows. A cluster with no settlements in
+     *  the window is `available: true, seen: false` and every figure zero. */
+    seen?: boolean;
+    note?: string;
     reason?: string;
     human?: { cluster?: string; window?: number; wallet_count?: number };
     purchases?: number;
@@ -145,7 +150,7 @@ export function HumanProof() {
                 <Ed x="window" p="week" /> {proof.body.human?.window ?? "…"} · {proof.body.human?.wallet_count ?? "…"}{" "}
                 <Ed x="wallets, never listed" p="wallets, and it never says which" />
               </Row>
-              {proof.body.available ? (
+              {proof.body.available && proof.body.seen !== false ? (
                 <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>
                   {proof.body.purchases} <Ed x="purchases" p="buys" /> · ${(proof.body.spent_usdc ?? 0).toFixed(5)} ·{" "}
                   {proof.body.vw_slippage_bp ?? "…"} bp <Ed x="slippage" p="over the going rate" /> · ${(proof.body.overpaid_usdc ?? 0).toFixed(6)}{" "}

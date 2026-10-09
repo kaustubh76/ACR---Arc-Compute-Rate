@@ -31,6 +31,9 @@ interface Prove {
   address: string | null;
   body: {
     available?: boolean;
+    /** See `gradedCard` in lib/tape.ts: answered is not the same as had rows. */
+    seen?: boolean;
+    note?: string;
     reason?: string;
     human?: { cluster?: string; window?: number; wallet_count?: number };
     purchases?: number;
@@ -141,16 +144,16 @@ export function PersonNotWallet({ data, wake }: { data: TerminalData; wake: Wake
           <div className={`flow-node${cls(4)}`}>
             <span className="label"><Ed x="5 · one bill" p="5 · one bill" /></span>
             <span className="flow-value">
-              {ok && proof?.body?.available ? (
+              {ok && proof?.body?.available && proof.body.seen !== false ? (
                 <>{proof.body.human?.wallet_count} <Ed x="wallets" p="wallets" /> · {proof.body.purchases} <Ed x="purchases" p="buys" /> · {money(proof.body.spent_usdc ?? 0, 5)}</>
               ) : ok ? (
-                proof?.body?.reason ?? "…"
+                proof?.body?.note ?? proof?.body?.reason ?? "…"
               ) : (
                 "…"
               )}
             </span>
             <span className="flow-cap">
-              {ok && proof?.body?.available ? (
+              {ok && proof?.body?.available && proof.body.seen !== false ? (
                 <>{proof.body.vw_slippage_bp ?? "…"} bp <Ed x="over the benchmark · overpaid" p="over the going rate · paid too much by" /> {money(proof.body.overpaid_usdc ?? 0, 6)} · <Ed x="replay" p="used again" />{" "}
                   <span className={proof.replay_status === 401 ? "green" : "vermilion"}>{proof.replay_status ?? "…"}</span></>
               ) : (

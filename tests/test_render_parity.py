@@ -64,7 +64,41 @@ VIEWS: dict[str, tuple[str, ...]] = {
     # working basket, which is the same trap `market_context` set above: a gate
     # that only sees the good payload audits the good payload.
     "par check (unbenchmarked)": ("app/check/view.tsx",),
+    # /tca, which no payload covered until 2026-10-10. `seen` and its `note`
+    # were added to the press to stop an unknown payer reading as a clean bill,
+    # and five surfaces went on rendering the zero because nothing here walked
+    # this payload. The unseen shape is listed first because it is the one that
+    # was wrong.
+    "tca (a payer the tape has never seen)": (
+        "app/tape/view.tsx",
+        "components/TapeTeaser.tsx",
+        "components/loop/LoopFlow.tsx",
+        "lib/tape.ts",
+    ),
+    "tca (a payer with fills)": (
+        "app/tape/view.tsx",
+        "components/TapeTeaser.tsx",
+        "components/loop/LoopFlow.tsx",
+        "lib/tape.ts",
+    ),
 }
+
+def _tca_card(*, seen: bool) -> dict:
+    """A TCA card built by the press's own `_card`, in both of its states.
+
+    `seen=False` is the one that matters: the subgraph answered, so
+    `available` is true and every figure is zero, which is what an unknown
+    payer gets. Five terminal surfaces rendered that as an audited clean bill
+    until 2026-10-10, and no gate could see it because /tca was not in VIEWS.
+    """
+    from index_api.tca import _card
+
+    if seen:
+        rows = [{"spent": "2500000", "bmSpent": "2500000",
+                 "wSlipTenthBp": "32500000", "overpay": "0", "n": "10", "nAll": "12"}]
+        return _card({"payerDays": rows, "settlements": []}, 7)
+    return _card({"payerDays": [], "settlements": []}, 7)
+
 
 #: field path → why it is deliberately not rendered. Every entry is a claim
 #: somebody can argue with, which is the point of writing it down.
@@ -446,10 +480,14 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
 
     statement = build_statement(
         "parity", days=90, policy_for=lambda b: _Pol(),
-        tca_fn=lambda payer, days=7: {
-            "available": True, "purchases": 12, "benchmarked": 10,
-            "spent_usdc": 2.5, "vw_slippage_bp": 130.0, "overpaid_usdc": 999.0,
-        },
+        # THROUGH `_card`, NOT A LITERAL — the same lesson this file states in
+        # capitals about `ObligationDecision` above, and the market card was
+        # still written the other way. The hand-written dict here omitted
+        # `seen`, so when the press gained that field in 2026-10 the gate
+        # reported clean while /spend rendered `Purchases 0` for a treasury the
+        # tape has never heard of. A fixture that cannot emit a leaf cannot
+        # audit it.
+        tca_fn=lambda payer, days=7: _tca_card(seen=True),
     )
     # The same statement with the market context refused, which is the shape
     # production serves whenever the subgraph is slow or silent. `_market_card`
@@ -512,6 +550,8 @@ def _payloads(tmp_path, monkeypatch) -> dict[str, dict]:
         "audit": audited,
         "par check": par_ok,
         "par check (unbenchmarked)": par_none,
+        "tca (a payer the tape has never seen)": _tca_card(seen=False),
+        "tca (a payer with fills)": _tca_card(seen=True),
     }
 
 

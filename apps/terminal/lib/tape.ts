@@ -149,6 +149,22 @@ export interface TcaCard {
   source: string;
   payer: string;
   window_days: number;
+  /** Whether this tape has ANY settlement for this payer in the window.
+   *
+   *  THE FIELD THAT STOPS A ZERO READING AS A CLEAN BILL. `available` is true
+   *  whenever the subgraph answered, which it does for a wallet it has never
+   *  heard of — so every figure below comes back 0 and the page renders a full
+   *  cost panel, overpay in breach red, for somebody ACR has never seen. It was
+   *  measured against production for an arbitrary address AND for two real
+   *  payers off `/marketplace/receipts`, which are a different payer set.
+   *
+   *  `tca.py:509`. Optional only because a press older than 2026-10-09 does not
+   *  send it; `undefined` must be treated as "cannot tell", never as `true`. */
+  seen?: boolean;
+  /** The press's own sentence for an unseen payer, naming the window and what
+   *  would put them on the record. Rendered verbatim — this hop does not get to
+   *  paraphrase a diagnosis it did not make. */
+  note?: string;
   purchases: number;
   benchmarked: number;
   spent_usdc: number;
@@ -156,6 +172,55 @@ export interface TcaCard {
   overpaid_usdc: number;
   by_seller: TcaSellerRow[];
   reroute: Reroute | null;
+}
+
+/** The card, but only when it actually grades something.
+ *
+ *  WHY A SHARED PREDICATE. Five surfaces render this payload — /tape, the home
+ *  teaser, the loop flow, the human proof and the person-not-wallet panel — and
+ *  every one of them gated on `available` alone. `available` means "the
+ *  subgraph answered", and it answers for a wallet it has never heard of: all
+ *  figures 0, and /tape drew a full cost panel with the overpay in breach red
+ *  for an address ACR had never seen. Measured on the live site, not reasoned
+ *  about. Five copies of the fix would be five chances to get it wrong again.
+ *
+ *  THREE STATES, NOT TWO, and the third is the one that needs care:
+ *
+ *    seen === true        this tape has rows for the payer. Grade it.
+ *    seen === false       it has none. `emptyTapeReason` carries the press's
+ *                         own sentence saying so.
+ *    seen === undefined   a press older than 2026-10-09, which cannot tell us.
+ *                         An absent field must never read as `true` — so a card
+ *                         with no rows is not graded, and one with rows is.
+ *                         `purchases` is the only evidence such a press offers.
+ */
+export function gradedCard(tca: TcaCard | Unavailable | null | undefined): TcaCard | null {
+  if (!tca || !tca.available) return null;
+  const card = tca as TcaCard;
+  if (card.seen === false) return null;
+  if (card.seen === undefined && card.purchases === 0) return null;
+  return card;
+}
+
+/** Why there is nothing to grade, in the press's words wherever it gave them.
+ *
+ *  Returns null when there IS something to grade, so a caller can write
+ *  `gradedCard(t) ?? <Empty reason={emptyTapeReason(t)} />` and cover every
+ *  state. The press's `note` is passed through verbatim: it names the window
+ *  and what would put a payer on the record, and a client paraphrase of a
+ *  diagnosis it did not make is how a precise answer becomes a vague one. */
+export function emptyTapeReason(tca: TcaCard | Unavailable | null | undefined): string | null {
+  if (!tca) return null;
+  if (!tca.available) return (tca as Unavailable).reason;
+  const card = tca as TcaCard;
+  if (card.seen === false) {
+    return card.note ?? "this tape has no record of this payer in the window.";
+  }
+  if (card.seen === undefined && card.purchases === 0) {
+    // An older press. "No rows" is all it told us, so that is all we say.
+    return "no priced fills for this wallet in this window.";
+  }
+  return null;
 }
 
 export interface Unavailable {

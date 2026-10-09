@@ -7,7 +7,7 @@ import { Ed } from "@/components/Ed";
 import { ageWordsAt, fmtInt } from "@/lib/format";
 import { LOOP_NODES, type LoopNode } from "@/lib/loop";
 import { applyReroute, describe } from "@/lib/reroute";
-import { bp, followedReroute, type TapeRecentRow, type TcaCard } from "@/lib/tape";
+import { bp, followedReroute, gradedCard, type TapeRecentRow } from "@/lib/tape";
 import { useCatalog, useMarketReceipts, useTape } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { WakeNote, type WakeState } from "./Wake";
@@ -43,7 +43,10 @@ export function LoopFlow({ wake }: { wake: WakeState }) {
   const nowS = useNow();
 
   const data = tape?.data;
-  const card = data?.tca && data.tca.available ? (data.tca as TcaCard) : null;
+  // See `gradedCard`: an unseen payer used to light station 4 with
+  // "0 purchases · overpaid $0.00000" and enable the Drive button beneath it.
+  // The honest copy for this state was already written on the `!card` branch.
+  const card = gradedCard(data?.tca);
   const recent: TapeRecentRow[] = data?.recent ?? [];
   const meta = data?.meta ?? null;
   const transport = data?.transport ?? null;
