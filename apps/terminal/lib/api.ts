@@ -20,7 +20,7 @@
  * lib/envelope.ts, or `cookies()` in a page) and passes it down.
  */
 
-import { chainMismatch, isHostFailure, publishedSeller, sellerCandidates } from "./apiBase";
+import { chainMismatch, isHostFailure, publishedSeller, sellerCandidates, servesPath } from "./apiBase";
 import { CHAINS, chainCandidates, emptyTerminal, type ChainKey } from "./chainChoice";
 import { makeLadder } from "./sellerLadder";
 import type { Envelope, TerminalData } from "./types";
@@ -65,6 +65,10 @@ interface Rig {
    *  mainnet rig's refusal of the testnet host poison the testnet rig, because
    *  the verdict is "may this host serve chain X" and X differs. */
   identity: Map<string, string | null>;
+  /** Which paths each host's own `/openapi.json` says it serves, or null when
+   *  it could not be read. Memoised per host exactly like `identity`, and for
+   *  the same reason: it is a fact about a deployment, not about a request. */
+  serves: Map<string, Set<string> | null>;
   /** The 5s memo, per chain. Module-scope before, and therefore shared across
    *  visitors on a warm lambda — which is the real defect, not an inconvenience. */
   memo: { at: number; env: Envelope<TerminalData> } | null;
@@ -97,6 +101,7 @@ function rigFor(chain: ChainKey): Rig {
       ),
     ),
     identity: new Map(),
+    serves: new Map(),
     memo: null,
   };
   rigs.set(chain, rig);
@@ -135,6 +140,40 @@ async function identityProblem(rig: Rig, base: string): Promise<string | null> {
   rig.identity.set(base, verdict);
   if (verdict) console.warn(`[terminal] refusing ${base} for ${rig.chain}: ${verdict}`);
   return verdict;
+}
+
+/** Whether this host simply does not have the route — as opposed to failing.
+ *
+ *  Asked only after a 404, and answered by the host's own `/openapi.json`.
+ *  One fetch per host per process, memoised like `identityProblem`'s `/health`
+ *  probe above; ~39 KB measured against the live presses, under a second. It
+ *  is `scripts/verify_deploy_drift.py` run for the visitor instead of for the
+ *  operator, and it means the honest message below disappears by itself when
+ *  the host is redeployed — nothing to remember, nothing to un-hardcode.
+ *
+ *  UNREADABLE MEANS "DO NOT CLAIM". If the spec cannot be fetched this returns
+ *  false, so the answer stays the ordinary failure. Absence of evidence is not
+ *  evidence, the same rule `identityProblem` applies to a missing chain id.
+ */
+async function routeAbsent(rig: Rig, base: string, path: string): Promise<boolean> {
+  let served = rig.serves.get(base);
+  if (served === undefined) {
+    served = null;
+    try {
+      const res = await fetch(`${base}/openapi.json`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) {
+        const spec = (await res.json()) as { paths?: Record<string, unknown> };
+        if (spec?.paths) served = new Set(Object.keys(spec.paths));
+      }
+    } catch {
+      /* unreadable: stays null, and the caller reports an ordinary failure */
+    }
+    rig.serves.set(base, served);
+  }
+  return served !== null && !servesPath(served, path);
 }
 
 export function apiBase(chain: ChainKey): string {
@@ -293,12 +332,17 @@ export async function fetchLiveMeta<T>(
         };
       }
       console.warn(`[terminal] upstream ${res.status} on ${path} (${chain})`);
+      /* A 404 is either "this deployment predates the route" or an ordinary
+         not-found, and only the host's own spec can say which. Asked here
+         rather than guessed from the body, and only on a 404, so the common
+         paths pay nothing for it. */
+      const absent = res.status === 404 && (await routeAbsent(rig, base, path));
       return {
         ok: false,
         hostFailed: isHostFailure(res.status),
         value: {
           data: null,
-          upstream: "error" as UpstreamStatus,
+          upstream: (absent ? "absent" : "error") as UpstreamStatus,
           // The ladder already stops here — "an answer, even an unwelcome one,
           // ends it" — so a 401 is never retried against the fallback host,
           // which would be asking a second press to agree about a credential.

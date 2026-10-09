@@ -60,6 +60,10 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/WalletFunding.tsx": 6, // the balance line, deposit, bridge (busy + idle) and the bridge note
   // The §5.9 read gate. Both editions carry the whole refusal, because a
   // reader who cannot open a page needs the way past it in words they read.
+  // One apology, three surfaces. /spend, /traction and /check each had their
+  // own outage sentence and none could tell "this press is down" from "this
+  // press predates the route"; the markers that left those files landed here.
+  "components/WhyEmpty.tsx": 4,
   "components/spend/ReaderCardGate.tsx": 12,
   "components/spend/LedgerDownload.tsx": 4, // the label plus its three phases
 
@@ -76,7 +80,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
   // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
   // how two of these floors were briefly set below actual.
-  "app/spend/view.tsx": 98, // the queue (even empty), the budgets, which chain, the six errors, and the price-check link per escalation
+  "app/spend/view.tsx": 97, // the queue (even empty), the budgets, which chain, the six errors, and the price-check link per escalation
   "app/traction/view.tsx": 49, // every figure labelled in both registers
   // The form, the three unit hints, the verdict rows, the basket state and
   // every column of the comparison table. A visitor who cannot read "$/1k

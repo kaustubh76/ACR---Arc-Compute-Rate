@@ -36,7 +36,7 @@ import { useChain } from "@/lib/useChain";
  * `lib/coverage.test.ts` carries one entry either way.
  */
 
-type Phase = "idle" | "working" | "refused" | "failed";
+type Phase = "idle" | "working" | "refused" | "failed" | "absent";
 
 /** `filename="x.beancount"` out of a Content-Disposition, or null.
  *
@@ -70,6 +70,15 @@ export function LedgerDownload({ slug }: { slug: string }) {
         setPhase("refused");
         return;
       }
+      if (res.status === 404) {
+        /* NOT "RETRY". A 404 here is the press having no ledger route, and
+           `res.status` was being read and thrown away while all three of 404,
+           502 and 504 collapsed into a button inviting an action that cannot
+           succeed. The proxy beside this one already refuses to flatten a
+           refusal into a bad gateway for the same reason. */
+        setPhase("absent");
+        return;
+      }
       if (!res.ok) {
         setPhase("failed");
         return;
@@ -96,6 +105,14 @@ export function LedgerDownload({ slug }: { slug: string }) {
     return (
       <span className="label">
         <Ed x="ledger · needs a card" p="the file · needs your card" />
+      </span>
+    );
+  }
+
+  if (phase === "absent") {
+    return (
+      <span className="label">
+        <Ed x="ledger · not on this press" p="the file · not on this service" />
       </span>
     );
   }

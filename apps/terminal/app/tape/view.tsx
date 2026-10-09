@@ -328,7 +328,14 @@ export function TapeView() {
   const recent = data?.recent ?? [];
   const transport = data?.transport ?? null;
   const nowS = useNow();
-  const unreachable = error != null || env?.upstream === "error" || env?.upstream === "timeout";
+  // `"absent"` included deliberately rather than left out: it has never
+  // occurred on this route, and the day it does, "we could not read it" is
+  // far closer to the truth than an empty tape presented as a fact.
+  const unreachable =
+    error != null ||
+    env?.upstream === "error" ||
+    env?.upstream === "timeout" ||
+    env?.upstream === "absent";
 
   const sellers: TapeSeller[] = data?.sellers ?? [];
   const ratings = data?.ratings ?? {};

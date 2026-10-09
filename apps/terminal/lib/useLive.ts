@@ -47,10 +47,17 @@ export class FetchError extends Error {
    *  challenge object or a 403's sentence. Undefined for every other failure,
    *  which is how a caller tells "you may not read this" from "this is down". */
   refusal?: Refusal;
-  constructor(message: string, status: number, refusal?: Refusal) {
+  /** What the proxy said about the host: `"absent"` when the press answered
+   *  404 and its own spec does not list the route, i.e. a deployment that
+   *  predates the feature rather than a service that is down. Carried so a
+   *  view can say which, because "it is not running" sends a reader away from
+   *  the network where it is. */
+  upstream?: Envelope<unknown>["upstream"];
+  constructor(message: string, status: number, refusal?: Refusal, upstream?: Envelope<unknown>["upstream"]) {
     super(message);
     this.status = status;
     if (refusal) this.refusal = refusal;
+    if (upstream) this.upstream = upstream;
   }
 }
 
@@ -73,16 +80,26 @@ export const fetcher = async (url: string) => {
        press answers four different sentences and the one the reader needs is in
        there. Parsed defensively: a 502 from an edge is HTML, and an unparseable
        body must still throw the status rather than throw a parse error. */
+    /* Both the refusal and the upstream verdict are read from the one body.
+       `upstream` is what tells a view "this press predates the route" from
+       "this press is down", and the proxies have always stamped it — nothing
+       read it, so every failure read as an outage. */
     let refusal: Refusal | undefined;
-    if (isRefusal(res.status)) {
-      try {
-        const body = (await res.json()) as { refusal?: Refusal; detail?: unknown };
+    let upstream: Envelope<unknown>["upstream"];
+    try {
+      const body = (await res.json()) as {
+        refusal?: Refusal;
+        detail?: unknown;
+        upstream?: Envelope<unknown>["upstream"];
+      };
+      upstream = body?.upstream;
+      if (isRefusal(res.status)) {
         refusal = body?.refusal ?? { status: res.status, detail: body?.detail ?? null };
-      } catch {
-        refusal = { status: res.status, detail: null };
       }
+    } catch {
+      if (isRefusal(res.status)) refusal = { status: res.status, detail: null };
     }
-    throw new FetchError(`${res.status} ${url}`, res.status, refusal);
+    throw new FetchError(`${res.status} ${url}`, res.status, refusal, upstream);
   }
   return res.json();
 };
@@ -103,16 +120,26 @@ export const cardFetcherFor = (chain: ChainKey) => async (url: string) => {
   const card = readerCardNow();
   const res = await fetch(url, { headers: cardHeaders(card) });
   if (!res.ok) {
+    /* Both the refusal and the upstream verdict are read from the one body.
+       `upstream` is what tells a view "this press predates the route" from
+       "this press is down", and the proxies have always stamped it — nothing
+       read it, so every failure read as an outage. */
     let refusal: Refusal | undefined;
-    if (isRefusal(res.status)) {
-      try {
-        const body = (await res.json()) as { refusal?: Refusal; detail?: unknown };
+    let upstream: Envelope<unknown>["upstream"];
+    try {
+      const body = (await res.json()) as {
+        refusal?: Refusal;
+        detail?: unknown;
+        upstream?: Envelope<unknown>["upstream"];
+      };
+      upstream = body?.upstream;
+      if (isRefusal(res.status)) {
         refusal = body?.refusal ?? { status: res.status, detail: body?.detail ?? null };
-      } catch {
-        refusal = { status: res.status, detail: null };
       }
+    } catch {
+      if (isRefusal(res.status)) refusal = { status: res.status, detail: null };
     }
-    throw new FetchError(`${res.status} ${url}`, res.status, refusal);
+    throw new FetchError(`${res.status} ${url}`, res.status, refusal, upstream);
   }
   const body = await res.json();
   if (!sameChain(body, chain)) {
@@ -165,6 +192,11 @@ const RETRY = {
     // already rejected. `setReaderCard` revalidates when the card changes,
     // which is the only event that could change this answer.
     if (err instanceof FetchError && isRefusal(err.status)) return;
+    /* Nor is a route this deployment does not have. Retrying it six times over
+       about two minutes leaves the submit button on /check flickering between
+       "Pricing…" and "Price this bill" while the answer sits below it, and the
+       press is not going to grow the route while the reader waits. */
+    if (err instanceof FetchError && err.upstream === "absent") return;
     if (retryCount >= 6) return;
     const delay = Math.min(30_000, 2_000 * 2 ** retryCount);
     setTimeout(() => revalidate({ retryCount }), delay);
@@ -460,7 +492,7 @@ export function useBusinesses() {
     fetcherFor(chain),
     { refreshInterval: 300_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { businesses: data, error: error as Error | undefined, refresh: mutate };
+  return { businesses: data, error: error as FetchError | undefined, refresh: mutate };
 }
 
 /** One business's Spend Statement. `null` slug means "nothing selected yet",
@@ -532,5 +564,5 @@ export function useTraction() {
     fetcherFor(chain),
     { refreshInterval: 120_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { traction: data, error: error as Error | undefined, refresh: mutate };
+  return { traction: data, error: error as FetchError | undefined, refresh: mutate };
 }

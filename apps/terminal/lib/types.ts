@@ -313,7 +313,11 @@ export interface Envelope<T> {
   live: boolean;
   data: T;
   fetchedAt: number;
-  upstream?: "ok" | "error" | "timeout";
+  /** `"absent"` means the host answered 404 and its own `/openapi.json` does
+   *  not list the route: a deployment that predates the feature, not a
+   *  failure. Distinguished because telling a visitor a running service is
+   *  down sends them away from the one that works. */
+  upstream?: "ok" | "error" | "timeout" | "absent";
   /** Which chain answered — `"mainnet"` or `"testnet"`.
    *
    *  The last line of defence behind the cookie and the URL param. One

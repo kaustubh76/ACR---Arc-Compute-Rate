@@ -2,6 +2,7 @@
 
 import { Ed } from "@/components/Ed";
 import { UNITS, isUnit, INDEX_FOR_UNIT, type Unit } from "@/lib/indices";
+import { rateChip } from "@/lib/rateChip";
 import { useParCheck } from "@/lib/useLive";
 import type { ParCheck, ParQuote } from "@/lib/types";
 import { useEffect, useState } from "react";
@@ -61,14 +62,6 @@ function fmtBp(n: number | null | undefined): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(0)} bp`;
 }
 
-/** The verdict chip. Three states, keyed on the RATE rather than on
- *  `verdict.verdict`, which answers a different question. */
-function rateChip(bpOver: number | null): { cls: string; x: string; p: string } {
-  if (bpOver == null) return { cls: "chip muted", x: "no benchmark", p: "nothing to compare" };
-  if (bpOver > 25) return { cls: "chip chip-breach", x: "over the rate", p: "more than others charge" };
-  if (bpOver < -25) return { cls: "chip chip-teal", x: "under the rate", p: "less than others charge" };
-  return { cls: "chip chip-gold", x: "at the rate", p: "about what others charge" };
-}
 
 function Form({
   unit,
@@ -416,7 +409,7 @@ function NoBenchmark({ reason, sellers }: { reason: string; sellers: number }) {
 }
 
 function Verdict({ c, requestPath }: { c: ParCheck; requestPath: string }) {
-  const chip = rateChip(c.over_rate_bp);
+  const chip = rateChip(c.over_rate_bp, c.benchmarked_against, c.basket?.status);
   const unitPrice = c.quantity > 0 ? c.billed_usdc / c.quantity : null;
   // `available` is the boolean and `reason` is the explanation; the page needs
   // both to decide between a verdict and a stated absence, which is why
@@ -761,6 +754,14 @@ export function CheckView() {
                 <Ed
                   x="That bill could not be read, so nothing was priced. Check the amount and the quantity."
                   p="We could not read that bill, so we priced nothing. Check the numbers."
+                />
+              ) : error.upstream === "absent" ? (
+                /* "Try again shortly" was false here: a route that does not
+                   exist does not appear by waiting. Still not a verdict on the
+                   bill, which is the distinction this block exists for. */
+                <Ed
+                  x="This deployment of the press has no benchmark to ask, so nothing was priced. Waiting will not change that."
+                  p="The service here is an older build with no price check. Waiting will not help."
                 />
               ) : (
                 <Ed
