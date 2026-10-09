@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export const dynamic = "force-dynamic";
 const BUSINESS = /^(0x[0-9a-fA-F]{40}|[a-z0-9][a-z0-9-]{0,40})$/;
 
 export async function GET(req: Request) {
+  const chain = requestChain(req);
   const url = new URL(req.url);
   const business = (url.searchParams.get("business") ?? "").trim();
   if (!BUSINESS.test(business)) {
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
     // longer walk than a statement. Still bounded — an unbounded fetch in a
     // route handler is a held connection, not a patient one.
     const res = await fetch(
-      `${apiBase()}/operator/ledger/${encodeURIComponent(business)}?days=${days}`,
+      `${apiBase(chain)}/operator/ledger/${encodeURIComponent(business)}?days=${days}`,
       { cache: "no-store", signal: AbortSignal.timeout(10_000) },
     );
     if (!res.ok) {

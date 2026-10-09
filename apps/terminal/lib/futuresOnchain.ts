@@ -18,6 +18,7 @@ import { createPublicClient, http } from "viem";
 import { CHAIN } from "./chain";
 import { INDICES } from "./indices";
 import { bundleSection } from "./api";
+import { CHAINS, type ChainKey } from "./chainChoice";
 import {
   buildDeskRow,
   decodeSeries,
@@ -31,6 +32,25 @@ import type { FuturesRoster, FuturesTradeRow } from "./types";
 // Note: no shouldMemo here — every failure path returns BEFORE the memo
 // write, so an unread result can never reach the cache at all.
 import { ok, readFailure, unread, type Read } from "./readResult";
+
+/* THE DIRECT-READ TIER IS MAINNET-ONLY, BY CONSTRUCTION RATHER THAN BY OMISSION.
+ *
+ * Every address below is resolved from the committed bundle, which IS a mainnet
+ * snapshot (`lib/mainnetOnly.test.ts` asserts that field by field), and this
+ * module bypasses the press ladder entirely — so there is nothing between a
+ * wrong chain and a reader seeing mainnet contract state under another chain's
+ * label. This repo also holds no oracle, registry or venue address for any other
+ * network, so there is no honest reading to give.
+ *
+ * Refused rather than guessed, and refused BEFORE any client is built, so a
+ * locked-out chain makes zero RPC calls. The test asserts the call count and not
+ * just the payload: a reader that fires the request and discards the answer
+ * passes a payload assertion and still costs a round trip to the wrong chain.
+ */
+function directReadsAllowed(chain: ChainKey): boolean {
+  return CHAINS[chain].directReads;
+}
+
 
 const FUTURES_ABI = [
   {
@@ -147,24 +167,24 @@ const TAPE_LIMIT = 25;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function futuresAddress(): `0x${string}` | null {
+function futuresAddress(chain: ChainKey): `0x${string}` | null {
   const addr =
-    process.env.ACR_FUTURES_ADDRESS ?? bundleSection("chain")?.futures_address ?? null;
+    process.env.ACR_FUTURES_ADDRESS ?? bundleSection(chain, "chain")?.futures_address ?? null;
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? (addr as `0x${string}`) : null;
 }
 
-function rpcUrl(): string {
-  return process.env.ACR_ARC_RPC_URL ?? bundleSection("chain")?.rpc_url ?? CHAIN.rpc;
+function rpcUrl(chain: ChainKey): string {
+  return process.env.ACR_ARC_RPC_URL ?? bundleSection(chain, "chain")?.rpc_url ?? CHAIN.rpc;
 }
 
 let clientMemo: ReturnType<typeof createPublicClient> | null = null;
-function client() {
+function client(chain: ChainKey) {
   if (!clientMemo) {
     clientMemo = createPublicClient({
       // Same load-bearing transport options as lib/onchain.ts — Next patches
       // global fetch, and without the no-store opt-out viem's RPC POSTs land
       // in the Data Cache and the route serves frozen chain state.
-      transport: http(rpcUrl(), {
+      transport: http(rpcUrl(chain), {
         timeout: 4_000,
         retryCount: 1,
         fetchOptions: { cache: "no-store" },
@@ -195,13 +215,13 @@ const seenAt = new Map<string, number>();
 /** One page of `Traded` logs. Explicit numeric toBlock: the Arc RPC 413s wide
  *  ranges that end at the string "latest" but accepts the same range with a
  *  number. */
-function tradedLogs(venue: `0x${string}`, fromBlock: bigint, toBlock: bigint) {
-  return client().getLogs({ address: venue, event: TRADED_EVENT, fromBlock, toBlock });
+function tradedLogs(chain: ChainKey, venue: `0x${string}`, fromBlock: bigint, toBlock: bigint) {
+  return client(chain).getLogs({ address: venue, event: TRADED_EVENT, fromBlock, toBlock });
 }
 type TradedLog = Awaited<ReturnType<typeof tradedLogs>>[number];
 
-async function readTape(venue: `0x${string}`): Promise<FuturesTradeRow[]> {
-  const latest = await client().getBlockNumber();
+async function readTape(chain: ChainKey, venue: `0x${string}`): Promise<FuturesTradeRow[]> {
+  const latest = await client(chain).getBlockNumber();
   await sleep(RPC_GAP_MS);
 
   // Walk backwards a page at a time; stop as soon as the tape is full, so a
@@ -215,7 +235,7 @@ async function readTape(venue: `0x${string}`): Promise<FuturesTradeRow[]> {
     for (const span of LOG_SPANS) {
       start = end > span ? end - span : 0n;
       try {
-        got = await tradedLogs(venue, start, end);
+        got = await tradedLogs(chain, venue, start, end);
         break;
       } catch (e) {
         if (!isRangeError(e)) break; // throttled — narrowing is no cure
@@ -277,13 +297,13 @@ export interface TraderPosition {
  *  no extra RPC, and never from the client — a caller-supplied multiplier would
  *  be a caller-supplied PnL.
  */
-async function seriesMultiplier(seriesId: number): Promise<Read<number>> {
+async function seriesMultiplier(chain: ChainKey, seriesId: number): Promise<Read<number>> {
   const cached = Object.values(memo?.data?.desks ?? {}).find((d) => d.series_id === seriesId);
   if (cached?.multiplier) return ok(cached.multiplier);
-  const venue = futuresAddress();
+  const venue = futuresAddress(chain);
   if (!venue) return unread("multiplier.novenue");
   try {
-    const raw = (await client().readContract({
+    const raw = (await client(chain).readContract({
       address: venue,
       abi: FUTURES_ABI,
       functionName: "getSeries",
@@ -303,27 +323,28 @@ async function seriesMultiplier(seriesId: number): Promise<Read<number>> {
 }
 
 export async function readTraderPosition(
+  chain: ChainKey,
   seriesId: number,
   trader: `0x${string}`,
 ): Promise<Read<TraderPosition | null>> {
-  const venue = futuresAddress();
+  const venue = futuresAddress(chain);
   if (!venue) return ok(null); // no venue configured is a fact, not a failure
   const key = `${seriesId}:${trader.toLowerCase()}`;
   const hit = posMemo.get(key);
   if (hit && Date.now() - hit.at < POS_MEMO_MS) return ok(hit.data);
   let data: TraderPosition | null = null;
   try {
-    const mult = await seriesMultiplier(seriesId);
+    const mult = await seriesMultiplier(chain, seriesId);
     if (!mult.ok) return unread(mult.why); // never a 1x PnL
     const multiplier = mult.value;
-    const pos = (await client().readContract({
+    const pos = (await client(chain).readContract({
       address: venue,
       abi: FUTURES_ABI,
       functionName: "positionOf",
       args: [BigInt(seriesId), trader],
     } as never)) as unknown as RawPosition;
     await sleep(RPC_GAP_MS);
-    const upnl = (await client().readContract({
+    const upnl = (await client(chain).readContract({
       address: venue,
       abi: FUTURES_ABI,
       functionName: "unrealizedPnl",
@@ -364,11 +385,12 @@ export async function readTraderPosition(
 const fillsMemo = new Map<string, { at: number; data: FuturesTradeRow[] }>();
 
 export async function readTraderFills(
+  chain: ChainKey,
   seriesId: number,
   trader: `0x${string}`,
   limit = 8,
 ): Promise<Read<FuturesTradeRow[]>> {
-  const venue = futuresAddress();
+  const venue = futuresAddress(chain);
   if (!venue) return ok([]);
   const key = `${seriesId}:${trader.toLowerCase()}`;
   const hit = fillsMemo.get(key);
@@ -376,7 +398,7 @@ export async function readTraderFills(
 
   let rows: FuturesTradeRow[] = [];
   try {
-    const latest = await client().getBlockNumber();
+    const latest = await client(chain).getBlockNumber();
     // The same backwards walk, span ladder and 413-vs-429 distinction as
     // readTape. Arc's getLogs limits are solved in this file; re-solving them
     // here is how a second, subtly different bug gets in.
@@ -397,7 +419,7 @@ export async function readTraderFills(
         let attempts = 0;
         for (;;) {
           try {
-            got = (await client().getLogs({
+            got = (await client(chain).getLogs({
               address: venue,
               event: TRADED_EVENT,
               args: { seriesId: BigInt(seriesId), taker: trader },
@@ -465,15 +487,16 @@ export async function readTraderFills(
 /** Read the whole venue — desks per index plus the recent fill tape — straight
  *  from ACRFutures. Null when no venue is configured or nothing resolved (the
  *  caller then falls back to the archived bundle). */
-export async function readFuturesDirect(): Promise<FuturesRoster | null> {
-  const venue = futuresAddress();
+export async function readFuturesDirect(chain: ChainKey): Promise<FuturesRoster | null> {
+  if (!directReadsAllowed(chain)) return null;
+  const venue = futuresAddress(chain);
   if (!venue) return null;
   if (memo && Date.now() - memo.at < (memo.partial ? PARTIAL_MEMO_MS : MEMO_MS)) {
     return memo.data;
   }
 
   const read = <T>(functionName: string, args: readonly unknown[] = []): Promise<T> =>
-    client().readContract({
+    client(chain).readContract({
       address: venue,
       abi: FUTURES_ABI,
       functionName,
@@ -554,7 +577,7 @@ export async function readFuturesDirect(): Promise<FuturesRoster | null> {
 
   let trades: FuturesTradeRow[] = [];
   try {
-    trades = await readTape(venue);
+    trades = await readTape(chain, venue);
   } catch {
     /* tape is best-effort — desks alone still revive the surfaces */
   }

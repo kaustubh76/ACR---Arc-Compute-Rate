@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { readRegistry } from "@/lib/registryOnchain";
 import { freshHeaders, readStatus } from "@/lib/readResult";
+import { requestChain } from "@/lib/envelope";
 
 /* GET /api/registry — the chain's own answer, on demand.
  *
@@ -25,11 +26,12 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
+  const chain = requestChain(req);
   // `?records=1` asks for each attestation too. Off by default because the
   // crawl costs ~2.8s of paced RPC and `took_ms` is a figure the button shows;
   // see `readRegistry`'s own note.
   const records = new URL(req.url).searchParams.get("records") === "1";
-  const r = await readRegistry({ records });
+  const r = await readRegistry(chain, { records });
   if (r.ok) {
     return NextResponse.json(r.value, { status: 200, headers: freshHeaders() });
   }

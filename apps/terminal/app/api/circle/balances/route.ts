@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient } from "@/lib/gatewayBuyer";
 import type { BalancesData, Envelope, WalletBalance, X402Info } from "@/lib/types";
@@ -11,12 +12,13 @@ export const dynamic = "force-dynamic";
 /** GET — live USDC standings for the seller (pay_to) and buyer wallets, plus the
  *  buyer's Gateway deposit. Powered by the same funded key as the buyer route,
  *  so the panel only lights up when a buyer is configured. */
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   const off = (note: string): NextResponse => {
     const env: Envelope<BalancesData> = {
       live: false,
       data: { buyer_ready: false, wallets: [], note },
-      fetchedAt: Date.now(),
+      fetchedAt: Date.now(), chain,
     };
     return NextResponse.json(env);
   };
@@ -30,7 +32,7 @@ export async function GET() {
   let gatewayChain: string = CHAIN.gatewayChain;
   let privateMainnet = false;
   try {
-    const res = await fetch(`${apiBase()}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+    const res = await fetch(`${apiBase(chain)}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       const j = (await res.json()) as X402Info;
       payTo = j.pay_to ?? null;
@@ -69,7 +71,7 @@ export async function GET() {
     const env: Envelope<BalancesData> = {
       live: true,
       data: { buyer_ready: true, wallets },
-      fetchedAt: Date.now(),
+      fetchedAt: Date.now(), chain,
     };
     return NextResponse.json(env);
   } catch (e) {

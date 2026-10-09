@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { countHumans, currentWindow } from "@/lib/humans";
 import type { HumanClusterRow, HumanIdData, HumanIdInfo } from "@/lib/humans";
 import type { Envelope } from "@/lib/types";
@@ -34,8 +36,9 @@ interface ProxyEnvelope<T> {
   data?: T;
 }
 
-async function op<T>(operation: string, variables: Record<string, unknown> = {}) {
+async function op<T>(chain: ChainKey, operation: string, variables: Record<string, unknown> = {}) {
   const { data } = await postLiveMeta<ProxyEnvelope<T>>(
+    chain,
     "/graph/query",
     { operation, variables },
     OP_TIMEOUT_MS,
@@ -43,11 +46,12 @@ async function op<T>(operation: string, variables: Record<string, unknown> = {})
   return data?.available ? (data.data ?? null) : null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   const [infoRes, metaRes, clusterRes] = await Promise.all([
-    fetchLiveMeta<HumanIdInfo>("/humanid/info", OP_TIMEOUT_MS),
-    op<{ _meta: { block: { timestamp: number } } }>("meta"),
-    op<{ humanClusters: HumanClusterRow[] }>("humans", { first: FIRST }),
+    fetchLiveMeta<HumanIdInfo>(chain, "/humanid/info", OP_TIMEOUT_MS),
+    op<{ _meta: { block: { timestamp: number } } }>(chain, "meta"),
+    op<{ humanClusters: HumanClusterRow[] }>(chain, "humans", { first: FIRST }),
   ]);
 
   const rows = clusterRes?.humanClusters ?? null;
@@ -77,7 +81,7 @@ export async function GET() {
   const env: Envelope<HumanIdData> = {
     live,
     data,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream: live ? "ok" : infoRes.upstream,
   };
   return NextResponse.json(env, {

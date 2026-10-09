@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase, bundleSection } from "@/lib/api";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 import { INDICES, PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { ConsoleResult, Envelope, X402Info } from "@/lib/types";
 
@@ -73,9 +74,10 @@ async function readBody(res: Response): Promise<unknown> {
 }
 
 /** GET — proxy /x402/info so the client can label the gate + gate the demo agent. */
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   try {
-    const res = await fetch(`${apiBase()}/x402/info`, {
+    const res = await fetch(`${apiBase(chain)}/x402/info`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2500),
     });
@@ -83,10 +85,10 @@ export async function GET() {
       const env: Envelope<X402Info | null> = {
         live: true,
         data: (await res.json()) as X402Info,
-        fetchedAt: Date.now(),
+        fetchedAt: Date.now(), chain,
       };
       return NextResponse.json(env, {
-        headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
+        headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
       });
     }
   } catch {
@@ -94,16 +96,17 @@ export async function GET() {
   }
   const env: Envelope<X402Info | null> = {
     live: false,
-    data: bundleSection("x402") ?? null,
-    fetchedAt: Date.now(),
+    data: bundleSection(chain, "x402") ?? null,
+    fetchedAt: Date.now(), chain,
   };
   return NextResponse.json(env, {
-    headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
+    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
   });
 }
 
 /** POST — the two-act x402 exchange: 402 challenge, then pay and retry. */
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   let path = "";
   let payer = "";
   let deskSession = "";
@@ -127,7 +130,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "bad desk_session" }, { status: 400 });
   }
 
-  const base = apiBase();
+  const base = apiBase(chain);
   try {
     // Act I — bare request, expect a 402 challenge.
     const r1 = await fetch(`${base}${path}`, {

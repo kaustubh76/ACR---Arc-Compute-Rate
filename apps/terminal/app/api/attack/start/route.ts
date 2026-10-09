@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 // The free-tier press can be mid-wake when a visitor commences an attack —
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   let body = "{}";
   try {
     body = JSON.stringify(await req.json());
@@ -14,7 +16,7 @@ export async function POST(req: NextRequest) {
     /* empty body → defaults */
   }
   try {
-    const res = await fetch(`${apiBase()}/demo/attack/start`, {
+    const res = await fetch(`${apiBase(chain)}/demo/attack/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,

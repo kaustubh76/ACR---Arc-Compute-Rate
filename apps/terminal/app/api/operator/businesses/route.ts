@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 import type { BusinessesPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -41,21 +42,21 @@ export const dynamic = "force-dynamic";
    `app/api/probe/route.ts` budgets 12s for a cold wake for exactly this reason.
    Left at 5s, a refusal would be the COMMON case on a first visit — which is a
    different false statement, told to the same reviewer. */
-export async function GET() {
-  const { data, upstream } = await fetchLiveMeta<BusinessesPayload>(
-    "/operator/businesses",
+export async function GET(req: Request) {
+  const chain = requestChain(req);
+  const { data, upstream } = await fetchLiveMeta<BusinessesPayload>(chain, "/operator/businesses",
     12_000,
   );
   if (!data) {
     return NextResponse.json(
-      { live: false, data: null, fetchedAt: Date.now(), upstream, error: "the press did not answer" },
+      { live: false, data: null, fetchedAt: Date.now(), chain, upstream, error: "the press did not answer" },
       // A failed read must never be cached — the rule `readResult.ts` states,
       // and the reason /api/registry/keys stopped replaying a stale answer.
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
   return NextResponse.json(
-    { live: true, data, fetchedAt: Date.now(), upstream },
-    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } },
+    { live: true, data, fetchedAt: Date.now(), chain, upstream },
+    { headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=120", chain) },
   );
 }

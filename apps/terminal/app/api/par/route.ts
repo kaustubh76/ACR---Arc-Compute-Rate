@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { isUnit } from "@/lib/indices";
 import { freshHeaders } from "@/lib/readResult";
 import type { ParCheck } from "@/lib/types";
@@ -26,6 +28,7 @@ export const dynamic = "force-dynamic";
    just edited is the same bug with money in it. */
 
 export async function GET(req: Request) {
+  const chain = requestChain(req);
   const q = new URL(req.url).searchParams;
 
   const unit = (q.get("unit") ?? "").trim();
@@ -34,7 +37,7 @@ export async function GET(req: Request) {
   // `app/api/probe/route.ts` uses for its runnable paths, and for the same
   // reason: a set cannot be talked into matching something it does not hold.
   if (!isUnit(unit)) {
-    return bad("unit must be one of the three priced units");
+    return bad(chain, "unit must be one of the three priced units");
   }
 
   // REJECTED, NOT CLAMPED, and the difference matters here. `days` is clampable
@@ -45,11 +48,11 @@ export async function GET(req: Request) {
   // the press cannot because it sees them together.
   const billed = Number(q.get("billed_usdc"));
   if (!Number.isFinite(billed) || billed <= 0) {
-    return bad("billed_usdc must be a number greater than zero");
+    return bad(chain, "billed_usdc must be a number greater than zero");
   }
   const quantity = Number(q.get("quantity"));
   if (!Number.isFinite(quantity) || quantity <= 0) {
-    return bad("quantity must be a number greater than zero");
+    return bad(chain, "quantity must be a number greater than zero");
   }
 
   // Optional, and the same alternative `statement/route.ts` already carries in
@@ -59,7 +62,7 @@ export async function GET(req: Request) {
   // label.
   const vendor = (q.get("vendor") ?? "").trim();
   if (vendor && !/^0x[0-9a-fA-F]{40}$/.test(vendor)) {
-    return bad("vendor must be a 0x address, or left empty");
+    return bad(chain, "vendor must be a 0x address, or left empty");
   }
 
   const path =
@@ -69,23 +72,23 @@ export async function GET(req: Request) {
 
   // 12s, matching the cold-wake budget in `app/api/probe/route.ts`: this is the
   // first thing many visitors will press, and the press sleeps on a free tier.
-  const { data, upstream } = await fetchLiveMeta<ParCheck>(path, 12_000);
+  const { data, upstream } = await fetchLiveMeta<ParCheck>(chain, path, 12_000);
   if (!data) {
     return NextResponse.json(
-      { live: false, data: null, fetchedAt: Date.now(), upstream, error: "the press did not answer" },
+      { live: false, data: null, fetchedAt: Date.now(), chain, upstream, error: "the press did not answer" },
       { status: 503, headers: freshHeaders() },
     );
   }
   return NextResponse.json(
-    { live: true, data, fetchedAt: Date.now(), upstream },
+    { live: true, data, fetchedAt: Date.now(), chain, upstream },
     { headers: freshHeaders() },
   );
 }
 
 /** One refusal shape, so the page has one error path to render. */
-function bad(error: string) {
+function bad(chain: ChainKey, error: string) {
   return NextResponse.json(
-    { live: false, data: null, fetchedAt: Date.now(), error },
+    { live: false, data: null, fetchedAt: Date.now(), chain, error },
     { status: 422, headers: freshHeaders() },
   );
 }

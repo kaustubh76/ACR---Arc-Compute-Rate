@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, erc20Abi, formatUnits, http, isAddress } from "viem";
 import { bundleSection } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 import { CHAIN, chainFacts } from "@/lib/chain";
 import { GATEWAY_WALLET_ABI, fundingStep } from "@/lib/walletPayer";
 
@@ -15,11 +16,12 @@ export const dynamic = "force-dynamic";
  *  provider URL that must not reach a browser. Read-only; the address is the
  *  visitor's claim. */
 export async function GET(req: NextRequest) {
+  const chain = requestChain(req);
   const address = (req.nextUrl.searchParams.get("address") ?? "").trim();
   if (!isAddress(address)) return NextResponse.json({ detail: "address is not an EVM address" }, { status: 400 });
   const price = Math.max(0, Number(req.nextUrl.searchParams.get("price") ?? 0) || 0);
 
-  const f = chainFacts(bundleSection("chain") ?? null);
+  const f = chainFacts(bundleSection(chain, "chain") ?? null);
   const rpc = process.env.ACR_ARC_RPC_URL ?? f.rpc ?? CHAIN.rpc;
   if (!rpc) return NextResponse.json({ detail: "no RPC configured on this server" }, { status: 503 });
   const client = createPublicClient({ transport: http(rpc, { timeout: 8_000 }) });
@@ -41,7 +43,7 @@ export async function GET(req: NextRequest) {
       usdc_gateway: usdcGateway,
       gateway_wallet: gateway || null,
       next: fundingStep(usdcWallet, usdcGateway, price),
-      fetchedAt: Date.now(),
+      fetchedAt: Date.now(), chain,
     });
   } catch (e) {
     return NextResponse.json({ detail: `chain read failed: ${(e as Error).message.slice(0, 120)}` }, { status: 502 });

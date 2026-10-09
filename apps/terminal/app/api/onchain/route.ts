@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readOracleDirect } from "@/lib/onchain";
 import type { Envelope, OnchainDirectRead } from "@/lib/types";
+import { requestChain } from "@/lib/envelope";
 
 /* Settlement-grade prints read straight from ACROracle with viem — answers
    even when the FastAPI press is cold. Cached at the CDN: prints move hourly,
@@ -15,18 +16,19 @@ export const maxDuration = 30;
 const CACHE = "public, s-maxage=30, stale-while-revalidate=300";
 
 export async function GET(req: NextRequest) {
+  const chain = requestChain(req);
   // ?history=<index-id> also reads the last 12 on-chain prints for that index.
   const historyFor = req.nextUrl.searchParams.get("history");
   let data: OnchainDirectRead | null = null;
   try {
-    data = await readOracleDirect(historyFor);
+    data = await readOracleDirect(chain, historyFor);
   } catch (e) {
     console.warn("[terminal] direct oracle read failed:", (e as Error).message);
   }
   const env: Envelope<OnchainDirectRead | null> = {
     live: data != null,
     data,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream: data != null ? "ok" : "error",
   };
   return NextResponse.json(env, { headers: { "Cache-Control": CACHE } });

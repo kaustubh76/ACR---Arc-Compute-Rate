@@ -4,6 +4,7 @@ import { Masthead } from "@/components/Masthead";
 import { ChainStrip } from "@/components/ChainStrip";
 import { Colophon } from "@/components/Colophon";
 import { peekTerminal } from "@/lib/api";
+import { serverChain } from "@/lib/serverChain";
 import { editionBootScript } from "@/lib/edition";
 import "./globals.css";
 
@@ -102,8 +103,14 @@ export const dynamic = "force-dynamic";
 // or bundled snapshot), so HTML flushes immediately and each page's own
 // loadTerminal() streams in behind its loading.tsx skeleton. The client SWR
 // layer upgrades the shell to live data within one fetch.
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const initial = peekTerminal();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read before the shell paints so <html data-chain> is server-rendered and the
+  // client adopts it with no flash — unlike data-edition, whose truth lives in
+  // localStorage where the server cannot see it and which therefore needs a
+  // pre-paint script. Reading cookies here is what makes every route dynamic;
+  // they are all force-dynamic already, so nothing moves.
+  const chain = await serverChain();
+  const initial = peekTerminal(chain);
   return (
     // suppressHydrationWarning: the edition boot script may stamp
     // data-edition="plain" on <html> before hydration (next-themes pattern);

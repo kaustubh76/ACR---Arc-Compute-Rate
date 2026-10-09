@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 import type { HumanChallenge } from "@/lib/humans";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,11 @@ interface ChallengeResult {
   note: string | null;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const chain = requestChain(req);
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}/tca/human?days=7`, {
+    res = await fetch(`${apiBase(chain)}/tca/human?days=7`, {
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

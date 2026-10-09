@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { bundleSection, fetchLiveMeta } from "@/lib/api";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 import type { Envelope, HedgerState } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,21 +15,22 @@ export const runtime = "nodejs";
    is precisely the "absent looks like empty" failure this codebase keeps
    meeting. Better to fall straight to the archived snapshot, which is honestly
    labelled stale, than to serve a half-true live-looking answer. */
-export async function GET() {
-  const { data, upstream } = await fetchLiveMeta<HedgerState>("/hedger", 8_000);
+export async function GET(req: Request) {
+  const chain = requestChain(req);
+  const { data, upstream } = await fetchLiveMeta<HedgerState>(chain, "/hedger", 8_000);
   if (data) {
     const env: Envelope<HedgerState> = {
       live: true,
       data,
-      fetchedAt: Date.now(),
+      fetchedAt: Date.now(), chain,
       upstream,
     };
     return NextResponse.json(env, {
-      headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=20" },
+      headers: chainHeaders("public, s-maxage=5, stale-while-revalidate=20", chain),
     });
   }
 
-  const archived = bundleSection("hedger") as HedgerState | undefined;
+  const archived = bundleSection(chain, "hedger") as HedgerState | undefined;
   const env: Envelope<HedgerState> = {
     live: false,
     data:
@@ -52,10 +54,10 @@ export async function GET() {
         fills: [],
         receipts: null,
       },
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream,
   };
   return NextResponse.json(env, {
-    headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=120", chain),
   });
 }

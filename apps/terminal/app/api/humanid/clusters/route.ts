@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { postLiveMeta } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 import { currentWindow, type ClusterRow, type ClustersData } from "@/lib/humans";
 import type { Envelope } from "@/lib/types";
 
@@ -23,11 +24,11 @@ interface RawCluster {
   wallets?: { id: string; settlementCount?: string | number }[];
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   const [metaRes, humansRes] = await Promise.all([
-    postLiveMeta<{ data?: { _meta?: { block?: { timestamp?: number } } } }>("/graph/query", { operation: "meta" }, 8000),
-    postLiveMeta<{ available: boolean; data?: { humanClusters?: RawCluster[] } }>(
-      "/graph/query",
+    postLiveMeta<{ data?: { _meta?: { block?: { timestamp?: number } } } }>(chain, "/graph/query", { operation: "meta" }, 8000),
+    postLiveMeta<{ available: boolean; data?: { humanClusters?: RawCluster[] } }>(chain, "/graph/query",
       { operation: "humans", variables: { first: 100 } },
       8000,
     ),
@@ -49,7 +50,7 @@ export async function GET() {
   const env: Envelope<ClustersData | null> = {
     live: clusters != null,
     data: clusters ? { window, blockTime, clusters } : null,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream: clusters != null ? "ok" : humansRes.upstream,
   };
   return NextResponse.json(env, { headers: { "Cache-Control": "no-store" } });

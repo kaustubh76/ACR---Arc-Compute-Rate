@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { baseState, loadTerminal } from "@/lib/api";
+import { serverChain } from "@/lib/serverChain";
 import { DevelopersView } from "./view";
 
 export const metadata: Metadata = {
@@ -10,7 +11,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function DevelopersPage() {
-  const initial = await loadTerminal();
+  const chain = await serverChain();
+  const initial = await loadTerminal(chain);
   /* The host the page is ACTUALLY reading from, which is not always the one
      NEXT_PUBLIC_ACR_API names: `lib/api.ts` refuses a seller whose chain is not
      the build's, even when that seller is perfectly healthy, and climbs to the
@@ -26,6 +28,6 @@ export default async function DevelopersPage() {
      `baseState()` reaches the 133 KB fallback bundle, which must never be pulled
      into the browser. (No literals here — lib/mainnetOnly.test.ts gates the
      shipping UI on exactly that, and it is right to.) */
-  const activeApi = baseState().active;
+  const activeApi = baseState(chain).active;
   return <DevelopersView initial={initial} activeApi={activeApi} />;
 }
