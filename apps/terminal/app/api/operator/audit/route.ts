@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchLive } from "@/lib/api";
-import { requestChain } from "@/lib/envelope";
+import { fetchLiveMeta } from "@/lib/api";
+import { cardHeader, passthroughRefusalHeaders, requestChain } from "@/lib/envelope";
 import type { LedgerAudit } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +26,21 @@ export async function GET(req: Request) {
   const raw = Number(url.searchParams.get("days") ?? 90);
   const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 90;
 
-  const data = await fetchLive<LedgerAudit>(chain, `/operator/audit/${encodeURIComponent(business)}?days=${days}`,
+  // Forwarded and passed through, for the same reasons as the statement proxy
+  // beside it — a findings list is per-business detail, so it is gated the same
+  // way and refused with the same sentence.
+  const { data, refusal } = await fetchLiveMeta<LedgerAudit>(
+    chain,
+    `/operator/audit/${encodeURIComponent(business)}?days=${days}`,
+    5000,
+    cardHeader(req),
   );
+  if (refusal) {
+    return NextResponse.json(
+      { live: false, data: null, fetchedAt: Date.now(), chain, refusal },
+      { status: refusal.status, headers: passthroughRefusalHeaders(refusal.authenticate) },
+    );
+  }
   return NextResponse.json(
     { live: Boolean(data), data: data ?? null, fetchedAt: Date.now(), chain },
     // No cache. A findings list is the one thing on this site where a stale

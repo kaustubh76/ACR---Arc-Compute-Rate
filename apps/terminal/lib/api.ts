@@ -209,6 +209,52 @@ export async function sellerFetch(
   return { res: out.res, base: out.base };
 }
 
+/** An upstream answer that was a NO rather than a failure.
+ *
+ *  THE PROBLEM THIS SOLVES. `fetchLive` returns `T | null`, so every unhappy
+ *  answer arrives at the browser as `{live: false, data: null}` — a press that
+ *  is down and a press that refused you are the same empty page. That was
+ *  harmless while nothing upstream could refuse a read. The moment
+ *  `ACR_OPERATOR_READ_SCOPE` is on, the press answers four deliberately
+ *  different sentences and this hop was about to flatten all four into silence.
+ *
+ *  ONLY 401 AND 403 TRAVEL THIS CHANNEL, and the narrowness is the point. A 404
+ *  for an unknown business keeps answering exactly as it does today — a 200
+ *  envelope with `data: null`, which `/traction` and `scripts/verify_operator.py`
+ *  both already depend on. Widening this to every 4xx would be a bigger change
+ *  wearing this one's clothes.
+ */
+export interface Refusal {
+  status: number;
+  /** The press's own `detail`: an object for the 401 challenge, a sentence for
+   *  the 403s. Passed through unread — this hop does not get to paraphrase a
+   *  refusal it did not make. */
+  detail: unknown;
+  /** `AgentCard`, when the press sent it. The client reads it to tell "you need
+   *  a card" from "your card is not the problem". */
+  authenticate?: string;
+}
+
+/** Whether an upstream status is a refusal of THIS caller rather than a fault.
+ *  Separate from `isHostFailure` on purpose: that one decides whether to climb
+ *  the ladder, this one decides whether there is a sentence worth carrying. */
+function isRefusal(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+async function readRefusal(res: Response): Promise<Refusal> {
+  const authenticate = res.headers.get("WWW-Authenticate") ?? undefined;
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    return { status: res.status, detail: body?.detail ?? body, ...(authenticate ? { authenticate } : {}) };
+  } catch {
+    // A refusal with an unparseable body is still a refusal; the status is the
+    // part the client acts on, and inventing a sentence here would be worse
+    // than admitting there wasn't one.
+    return { status: res.status, detail: null, ...(authenticate ? { authenticate } : {}) };
+  }
+}
+
 /** Like fetchLive, but reports WHY the upstream failed so proxies can stamp
  *  `upstream` on their envelope — the UI renders "press unreachable"
  *  differently from a genuine empty feed. Failures are logged (once per call)
@@ -221,9 +267,10 @@ export async function fetchLiveMeta<T>(
   path: string,
   timeoutMs = 5000,
   headers?: Record<string, string>,
-): Promise<{ data: T | null; upstream: UpstreamStatus }> {
+): Promise<{ data: T | null; upstream: UpstreamStatus; refusal?: Refusal }> {
   const rig = rigFor(chain);
-  return rig.ladder.run<{ data: T | null; upstream: UpstreamStatus }>(async (base) => {
+  type Meta = { data: T | null; upstream: UpstreamStatus; refusal?: Refusal };
+  return rig.ladder.run<Meta>(async (base) => {
     try {
       const res = await fetch(`${base}${path}`, {
         cache: "no-store",
@@ -249,7 +296,14 @@ export async function fetchLiveMeta<T>(
       return {
         ok: false,
         hostFailed: isHostFailure(res.status),
-        value: { data: null, upstream: "error" as UpstreamStatus },
+        value: {
+          data: null,
+          upstream: "error" as UpstreamStatus,
+          // The ladder already stops here — "an answer, even an unwelcome one,
+          // ends it" — so a 401 is never retried against the fallback host,
+          // which would be asking a second press to agree about a credential.
+          ...(isRefusal(res.status) ? { refusal: await readRefusal(res) } : {}),
+        },
       };
     } catch (e) {
       const timedOut = e instanceof Error && e.name === "TimeoutError";

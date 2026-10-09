@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
+import { CARD_HEADER, DEMO_HUMAN_LABEL, MAX_CARD, demoKey, mintCard } from "@/lib/agentcard";
 import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
 import { requestChain } from "@/lib/envelope";
 import type { ChainKey } from "@/lib/chainChoice";
@@ -49,8 +49,6 @@ const MAX_BODY = 1400;
  *  has to survive, and 5s (the console's budget) would fail every time. */
 const TIMEOUT_MS = 12_000;
 
-/** A card is ~600 bytes of base64. Anything much larger is not a card. */
-const MAX_CARD = 2048;
 
 export async function POST(req: NextRequest) {
   const chain = requestChain(req);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { fetchLive } from "@/lib/api";
-import { requestChain } from "@/lib/envelope";
+import { fetchLiveMeta } from "@/lib/api";
+import { cardHeader, passthroughRefusalHeaders, requestChain } from "@/lib/envelope";
 import type { Statement } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +31,29 @@ export async function GET(req: Request) {
   const raw = Number(url.searchParams.get("days") ?? 7);
   const days = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.trunc(raw))) : 7;
 
-  const data = await fetchLive<Statement>(chain, `/operator/statement/${encodeURIComponent(business)}?days=${days}`,
+  /* The card is forwarded, not interpreted. `/spend` is public by design and
+     stays public while `ACR_OPERATOR_READ_SCOPE` is unset upstream, so this hop
+     has no opinion about whether a card is needed — it carries one if the
+     browser sent one and lets the press answer. */
+  const { data, refusal } = await fetchLiveMeta<Statement>(
+    chain,
+    `/operator/statement/${encodeURIComponent(business)}?days=${days}`,
+    5000,
+    cardHeader(req),
   );
+
+  /* A REFUSAL KEEPS ITS OWN STATUS AND ITS OWN SENTENCE. Answering 200 with an
+     empty envelope here would tell the reader "this business has no spend",
+     which is both false and unactionable; the press already distinguishes "no
+     card" from "a card for another business" from "a card nobody nominated",
+     and those three sentences are the entire point of the gate. */
+  if (refusal) {
+    return NextResponse.json(
+      { live: false, data: null, fetchedAt: Date.now(), chain, refusal },
+      { status: refusal.status, headers: passthroughRefusalHeaders(refusal.authenticate) },
+    );
+  }
+
   return NextResponse.json(
     { live: Boolean(data), data: data ?? null, fetchedAt: Date.now(), chain },
     // No cache: the escalation queue is the part of this page somebody is

@@ -274,8 +274,16 @@ def run(base: str) -> None:
     b = b or {}
     check(st == 200 and b.get("tier") == "carded",
           f"tier {b.get('tier')} · limit keyed on {b.get('ident_kind')}")
-    check(b.get("scope_enforced") is False,
-          "scope_hash reported as signed-but-unenforced, rather than implied")
+    # REPORTS, DOES NOT ASSERT. This script talks to whatever press it is
+    # pointed at, and `ACR_OPERATOR_READ_SCOPE` is that press's decision — a
+    # hardcoded `is False` here would have turned a correctly configured host
+    # into a failed demo. What matters is that the endpoint SAYS which it is,
+    # because a signed field everyone assumes is enforced is the failure this
+    # check was placed to prevent.
+    enforced = b.get("scope_enforced")
+    check(isinstance(enforced, bool),
+          f"scope_hash is signed, and this press reports it as "
+          f"{'enforced on the operator routes' if enforced else 'unenforced'}")
 
     print("\n3 · a fleet wallet claiming the cluster the CHAIN records for it")
     if not fleet_now:

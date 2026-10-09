@@ -44,6 +44,8 @@ from .agentgate import (
     VerifiedAgent,
     get_gate,
     optional_agent,
+    require_business_read,
+    scope_enforced,
 )
 from .armor import SCREEN_CAP, SCREEN_CAP_REPLY, get_screen, screen_is_live
 from .fleet import fleet_summary, listing_for
@@ -1269,11 +1271,17 @@ def agent_whoami(
     echoing a key invites clients to depend on its shape; `human_note` is what a
     caller actually needs when a claim did not reach the human tier.
 
-    `scope_enforced` is reported as FALSE because it is. `scopeHash` is a signed
-    field that `AgentGate.verify` checks against nothing — enforcing it needs a
-    per-route scope map, which is a design decision rather than a wiring one. Said
-    out loud here so it stays visible instead of becoming a field everyone assumes
-    is enforced because it is in the signature.
+    `scope_enforced` REPORTS THE FLAG, and used to be a hardcoded `False` with a
+    paragraph here explaining that `scopeHash` was a signed field checked against
+    nothing. That was honest for exactly as long as the answer was always false.
+    It is now `ACR_OPERATOR_READ_SCOPE`: when set, `require_business_read` checks
+    a card's `scopeHash` against `read:business:<slug>` on the three per-business
+    operator routes, and refuses four ways.
+
+    STILL ONLY THOSE THREE ROUTES. There is no per-route scope map, so a caller
+    reading `scope_enforced: true` learns that SOME scope is enforced somewhere,
+    not that every route checks one. `scopeHash` is one-way, so nothing here can
+    enumerate what a card grants — only test a candidate for equality.
     """
     ratelimit.check(request, "agent")
     if agent is None:
@@ -1293,7 +1301,7 @@ def agent_whoami(
         "expires_at": agent.card.expires_at,
         "ttl_s": agent.card.ttl_s,
         "scope_hash": agent.card.scope_hash,
-        "scope_enforced": False,
+        "scope_enforced": scope_enforced(),
         # WHAT the limit is keyed on, without saying what the key IS. The ident is
         # still withheld — echoing it invites clients to depend on its shape — but
         # whether your budget is shared with the rest of your fleet or is yours
@@ -1622,6 +1630,12 @@ def operator_ledger(
     b = resolve(business)
     if b is None:
         raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    # AFTER the 404, deliberately. A gate that fired first would answer 401 for a
+    # business that does not exist, which hides nothing — `/operator/businesses`
+    # lists every slug publicly — and would break `verify_operator.py`, whose
+    # unknown-business check accepts 404/422/503 and not 401. Off by default; see
+    # `require_business_read`.
+    require_business_read(agent, b)
     since = time.time() - max(1, min(365, int(days))) * 86_400
     rows = read_decisions(business=b.slug, since=since)
     return to_beancount(rows, b.slug)
@@ -1720,6 +1734,12 @@ def operator_audit(
     b = resolve(business)
     if b is None:
         raise HTTPException(status_code=404, detail=f"no business registered as {business!r}")
+    # AFTER the 404, deliberately. A gate that fired first would answer 401 for a
+    # business that does not exist, which hides nothing — `/operator/businesses`
+    # lists every slug publicly — and would break `verify_operator.py`, whose
+    # unknown-business check accepts 404/422/503 and not 401. Off by default; see
+    # `require_business_read`.
+    require_business_read(agent, b)
     window = max(1, min(365, int(days)))
     since = time.time() - window * 86_400
     out = audit(
@@ -1760,7 +1780,25 @@ def operator_statement(
     `market_context`, in basis points — see `statement.py` for why that
     separation is load-bearing.
     """
+    from .businesses import resolve
+
     _meter_agent(request, agent)
+    # Resolved here as well as inside `build_statement`, so the 404 for an unknown
+    # business comes before the gate and the gate has a `Business` to key on. Two
+    # lookups of a two-row registry; the alternative is a gate that cannot name
+    # which business it is protecting.
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no business registered as {business!r}",
+        )
+    # AFTER the 404, deliberately. A gate that fired first would answer 401 for a
+    # business that does not exist, which hides nothing — `/operator/businesses`
+    # lists every slug publicly — and would break `verify_operator.py`, whose
+    # unknown-business check accepts 404/422/503 and not 401. Off by default; see
+    # `require_business_read`.
+    require_business_read(agent, b)
     st = build_statement(
         business, days=days, limit=limit, tca_fn=payer_tca, policy_for=_policy_for
     )

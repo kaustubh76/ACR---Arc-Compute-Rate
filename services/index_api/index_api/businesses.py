@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -45,6 +46,10 @@ REGISTRY_PATH = Path(__file__).with_name("businesses.json")
 #: studio we have never met" are different evidence, and collapsing them into one
 #: number is the move that makes traction look better than it is.
 TIERS = ("own", "network", "cohort", "oss")
+
+
+#: A 20-byte hex address. The same shape the press validates everywhere else.
+_ADDRESS_RE = re.compile(r"^0x[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True)
@@ -73,7 +78,34 @@ class Business:
     #: usage are different things and Canteen's FAQ draws the line exactly
     #: there: "what doesn't count is a synthetic dataset".
     sandbox: bool = False
+    #: Addresses allowed to READ this business's detail, beside its treasury.
+    #:
+    #: Why this exists rather than "the treasury signs". A read card signed by
+    #: the treasury means the key that SPENDS has to come online to look at a
+    #: dashboard, which is the thing a real customer would refuse — and rightly.
+    #: So a business can nominate a laptop key instead, and the treasury stays
+    #: cold. Adding one is a commit, like every other change here, for the reason
+    #: at the top of this file: an address that can read a vendor list should not
+    #: be addable by an HTTP call.
+    #:
+    #: Deliberately NOT in ``as_public_dict``. Who may read a business is not a
+    #: public fact about it.
+    readers: tuple[str, ...] = field(default_factory=tuple)
     note: str = ""
+
+    def may_read(self, address: str) -> bool:
+        """Whether this address may read the business's detail.
+
+        Lower-cased on both sides, never compared raw — the same discipline
+        ``key`` applies to the treasury, and for the reason ``agentcard._bytes32``
+        records about the neighbouring bytes32 fields: a field whose malformed
+        form still verifies is a field that must be normalised at the edge rather
+        than trusted.
+        """
+        got = (address or "").strip().lower()
+        if not got:
+            return False
+        return got == self.treasury.strip().lower() or got in self.readers
 
     @property
     def public_name(self) -> str:
@@ -109,6 +141,25 @@ class Business:
         return d
 
 
+def _readers(slug: str, raw) -> tuple[str, ...]:
+    """The reader allowlist, normalised and shape-checked.
+
+    Dropped with a warning rather than taken on trust: a malformed entry here
+    would be an address that silently never matches, which reads as "my card is
+    wrong" to whoever is holding a perfectly good card. Lower-cased on the way in
+    so every comparison downstream is already normalised.
+    """
+    out: list[str] = []
+    for item in raw or ():
+        addr = str(item or "").strip().lower()
+        if _ADDRESS_RE.match(addr):
+            out.append(addr)
+        else:
+            log.warning("businesses: %s has a reader that is not an address: %r", slug, item)
+    # De-duplicated, because the same address listed twice is one grant.
+    return tuple(dict.fromkeys(out))
+
+
 def _one(row: dict) -> Business | None:
     slug = str(row.get("slug") or "").strip()
     treasury = str(row.get("treasury") or "").strip()
@@ -134,6 +185,7 @@ def _one(row: dict) -> Business | None:
         categories=tuple(str(c) for c in (row.get("categories") or ())),
         onboarded_at=float(row.get("onboarded_at") or 0.0),
         sandbox=bool(row.get("sandbox")),
+        readers=_readers(slug, row.get("readers")),
         note=str(row.get("note") or ""),
     )
 

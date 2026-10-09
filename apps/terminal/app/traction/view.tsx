@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { Ed } from "@/components/Ed";
+import { LedgerDownload } from "@/components/spend/LedgerDownload";
 import { ageWords, fmtInt, fmtPrice } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
 import { useTraction } from "@/lib/useLive";
@@ -131,15 +132,14 @@ function BusinessRow({ r }: { r: TractionRow }) {
           <Ed x="statement" p="the summary" />
         </Link>
         {" · "}
-        {/* `download`, because beancount is a file format with tools that read
-            it — bean-check on a saved file, not a tab of plain text. */}
-        <a
-          className="section-link"
-          href={`/api/operator/ledger?business=${encodeURIComponent(r.slug)}`}
-          download={`${r.slug}.beancount`}
-        >
-          <Ed x="ledger" p="the file" />
-        </a>
+        {/* STILL A DOWNLOAD, no longer a link. beancount is a file format with
+            tools that read it — bean-check on a saved file, not a tab of plain
+            text — so `download` was right and stays the behaviour. What changed
+            is that the file can now need a credential, and an `<a>` cannot
+            carry a header: a navigation sends cookies and nothing else. See
+            components/spend/LedgerDownload.tsx for why the card did not simply
+            go in the query string. */}
+        <LedgerDownload slug={r.slug} />
       </td>
     </tr>
   );

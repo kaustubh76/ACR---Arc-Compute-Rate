@@ -58,6 +58,10 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
   "components/WalletFunding.tsx": 6, // the balance line, deposit, bridge (busy + idle) and the bridge note
+  // The §5.9 read gate. Both editions carry the whole refusal, because a
+  // reader who cannot open a page needs the way past it in words they read.
+  "components/spend/ReaderCardGate.tsx": 12,
+  "components/spend/LedgerDownload.tsx": 4, // the label plus its three phases
 
   "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions

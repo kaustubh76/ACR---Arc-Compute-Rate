@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Ed } from "@/components/Ed";
 import { EscalationActions } from "@/components/spend/EscalationActions";
+import { ReaderCardGate, ReaderCardNote } from "@/components/spend/ReaderCardGate";
 import { Term } from "@/components/Term";
 import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
@@ -1068,6 +1069,7 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
               decoration: useNow() returns 0 during SSR on purpose, and
               rendering a wall-clock age server-side would differ from the
               client and break hydration. app/ops/view.tsx does both. */}
+          <ReaderCardNote />
           {businesses?.fetchedAt && nowS > 0 ? (
             <span className="label">
               {ageWords(Math.max(0, nowS - Math.round(businesses.fetchedAt / 1000)))}
@@ -1202,7 +1204,14 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
         )}
       </section>
 
-      {stError && slug ? (
+      {/* TWO DIFFERENT FAILURES, TWO DIFFERENT PAGES. "Could not be read" was
+          the only answer this page had, and it is the wrong one for a refusal:
+          it blames the press for a decision the press made correctly, and it
+          gives a reader holding the wrong card nothing to act on. `refusal` is
+          set only for 401 and 403, so with `ACR_OPERATOR_READ_SCOPE` unset
+          upstream this is exactly the branch it has always been. */}
+      {stError?.refusal && slug ? <ReaderCardGate refusal={stError.refusal} /> : null}
+      {stError && !stError.refusal && slug ? (
         <section className="section">
           <div className="panel panel-pad">
             <p className="standfirst">

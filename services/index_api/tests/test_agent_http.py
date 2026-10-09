@@ -163,10 +163,17 @@ def test_an_unverifiable_mirror_declines_the_tier_and_says_so(unverifiable_gate)
     assert "configured" in body["human_note"].lower()
 
 
-def test_the_signed_scope_is_reported_as_unenforced(human_gate):
-    """`scopeHash` is in the signature and is checked against nothing. Saying so
-    on the endpoint is what keeps it from becoming a field everyone assumes is
-    enforced BECAUSE it is signed."""
+def test_the_signed_scope_is_reported_as_unenforced_by_default(human_gate):
+    """The DEFAULT-PATH tripwire, and it keeps its original value on purpose.
+
+    This assertion was placed when `scope_enforced` was a hardcoded `False`, so
+    that enforcing scopes could not happen silently. It still asserts `False`,
+    but for a different reason: `ACR_OPERATOR_READ_SCOPE` is unset here, which is
+    the state a reviewer and `scripts/verify_operator.py` meet. The other state
+    is asserted in `test_operator_scope.py`, which drives both.
+
+    So the tripwire did its job — it was changed deliberately, by a commit that
+    had to come here and say why — rather than being deleted."""
     r = client.get("/agent/whoami", headers={"AGENT-CARD": _header("w1")})
     assert r.json()["scope_enforced"] is False
 

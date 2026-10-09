@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
-import { requestChain } from "@/lib/envelope";
+import { cardHeader, requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +47,31 @@ export async function GET(req: Request) {
     // route handler is a held connection, not a patient one.
     const res = await fetch(
       `${apiBase(chain)}/operator/ledger/${encodeURIComponent(business)}?days=${days}`,
-      { cache: "no-store", signal: AbortSignal.timeout(10_000) },
+      { cache: "no-store", signal: AbortSignal.timeout(10_000), headers: cardHeader(req) },
     );
+    /* A REFUSAL IS NOT A BAD GATEWAY. Collapsing 401 into 502 would tell a
+       reader the press is broken when the press is working exactly as
+       configured, and would hide the sentence that says what to do about it. So
+       401 and 403 keep their status and their body — the same narrow pair the
+       JSON proxies pass through, and for the same reason.
+
+       THE HEADER IS WHY THIS DOWNLOAD IS NOT A LINK ANY MORE. `<a href download>`
+       cannot carry a header, so with the gate on the old link 401ed and
+       delivered the refusal as a downloaded file. /traction now fetches this
+       with the card and saves the body as a Blob. */
+    if (res.status === 401 || res.status === 403) {
+      const detail = await res.text();
+      return new NextResponse(detail, {
+        status: res.status,
+        headers: {
+          "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+          ...(res.headers.get("WWW-Authenticate")
+            ? { "WWW-Authenticate": res.headers.get("WWW-Authenticate") as string }
+            : {}),
+          "Cache-Control": "no-store",
+        },
+      });
+    }
     if (!res.ok) {
       return NextResponse.json(
         { error: `the press answered ${res.status}` },

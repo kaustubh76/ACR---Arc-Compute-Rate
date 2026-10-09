@@ -228,6 +228,10 @@ The MCP server reads its own `ACR_AGENT_PRIVATE_KEY` / `ACR_AGENT_HUMAN_CLUSTER`
 MCP host's config — `mcp/README.md`. The buyer agent reads `AGENT_PRIVATE_KEY` / `AGENT_HUMAN_CLUSTER`.
 `render.yaml` records every production name above (the credentials as a secret **file** path).
 
+`ACR_OPERATOR_READ_SCOPE` gates the three per-business operator reads on a scoped card (§8).
+Unset or falsey is the default and changes nothing. It is a press-side variable: the Terminal
+forwards whatever card a reader presents and has no opinion about whether one is required.
+
 **The production image must install the `armor` extra.** `Dockerfile`'s `UV_EXTRAS` carries
 `--extra circle --extra armor`; without the second, `google-auth` is absent, `ModelArmorScreen`
 cannot mint a bearer token, and `build_screen` falls back to the offline floor — an image
@@ -311,11 +315,30 @@ resolution and is handled there too.
 - **No registry, no revocation.** A card cannot be cancelled before it expires; the 15-minute
   bound *is* the revocation window. A registry would fix that and would also make the scheme
   permissioned, which is the property being bought here.
-- **`scopeHash` is signed and enforced against nothing.** It is in the struct, it is in the
-  signature, and `AgentGate.verify` has no scope step. Enforcing it needs a per-route scope map,
-  which is a design decision rather than a wiring one. `/agent/whoami` therefore reports
-  `scope_enforced: false` out loud, so it cannot quietly become a field everyone assumes is
-  checked *because* it is signed.
+- **`scopeHash` is enforced on three routes, and nowhere else.** It used to be enforced against
+  nothing — signed, in the struct, and checked by no one — and `/agent/whoami` said
+  `scope_enforced: false` out loud so it could not quietly become a field everyone assumed was
+  checked *because* it was signed. That tripwire did its job: it had to be edited deliberately,
+  by the commit that made it untrue.
+
+  `ACR_OPERATOR_READ_SCOPE` now gates `/operator/{statement,ledger,audit}/{slug}` on a card
+  claiming `read:business:<slug>` **and** signed by the business's treasury or by an address in
+  its `readers` list. Four causes, four sentences — no card (401, naming the scope and
+  `/agent/challenge`), a card for another business, a card claiming nothing, and a correctly
+  scoped card from an address nobody nominated. A gate that answers "denied" to four problems is
+  a gate nobody can configure.
+
+  **Three limits, stated rather than discovered.** There is still no per-route scope map, so
+  `scope_enforced: true` means *some* scope is enforced somewhere, not that every route checks
+  one. `scopeHash` is one-way, so a gate can only test a candidate scope for equality — it can
+  never enumerate what a card grants, and nothing should be built expecting it to. And the counts
+  stay public in both states: `/operator/businesses` and `/operator/traction` need no card,
+  because a stranger being able to check this product's claims is the point.
+
+  **Off unless set.** Unset, every operator response is byte-identical to before — asserted in
+  `test_operator_scope.py`, which drives both states, and measured through the terminal's own
+  proxies. `scripts/mint_card.py` is the only thing in this repo that prints a card; it takes the
+  key from the environment, never argv.
 - **Every caller of ours now presents a card, and one of them is Claude.** The MCP server
   (`mcp/src/card.ts`, the same encoder as the buyer agent's) wraps the one `fetch` every tool uses,
   so `query_tape` from an MCP host is a carded call — driven against production over the real stdio

@@ -20,6 +20,7 @@
  * same argument `lib/readResult.ts` and `lib/sellerLadder.ts` already make.
  */
 
+import { CARD_HEADER, MAX_CARD } from "./agentcard";
 import { CHAIN_COOKIE, CHAIN_PARAM, resolveChain, type ChainKey } from "./chainChoice";
 import { sharedCache } from "./readResult";
 import type { Envelope } from "./types";
@@ -77,6 +78,56 @@ export function envelope<T>(
   };
 }
 
+/** The caller's agent card, ready to spread into an upstream `fetch` — or `{}`.
+ *
+ *  THE CARD IS NEVER IN A URL, and that is the whole reason this is a header on
+ *  the hop rather than a query parameter the client could have appended. A card
+ *  is a bearer credential: a URL is written to access logs, kept in a browser's
+ *  history, sent in a `Referer`, and — the one that matters here — is the ONLY
+ *  thing Vercel's CDN keys a stored response on. A card in the query string
+ *  would therefore be both leaked and, worse, the key under which one reader's
+ *  private statement got stored for the next reader. `lib/cardForwarding.test.ts`
+ *  is the gate that keeps it out.
+ *
+ *  ABSENT, MALFORMED AND OVERLONG ALL BECOME "NO CARD", deliberately: the press
+ *  is the only thing that may judge a card, so this hop does not get to invent a
+ *  reason. It either forwards what it was given or forwards nothing, and the
+ *  press answers the 401 that names what to claim.
+ *
+ *  The length cap is `MAX_CARD`, shared with the probe. A header is attacker-set
+ *  and this one is copied into an outbound request, so an unbounded one is an
+ *  unbounded request we make on somebody else's say-so.
+ */
+export function cardHeader(req: Request): Record<string, string> {
+  const card = (req.headers.get(CARD_HEADER) ?? "").trim();
+  if (!card || card.length > MAX_CARD) return {};
+  /* STANDARD base64's alphabet, `+/` and not `-_`. Both encoders are plain
+     base64 — `base64.b64encode` in agentcard.py, `btoa` in lib/agentcard.ts —
+     and I first wrote this as base64url, which would have refused any card
+     containing a `+` or a `/` before the press ever saw it.
+
+     It passed 200 of 200 real minted cards, which is the part worth recording:
+     a `+` needs a byte at a position ≡2 mod 3 to be `>` or `~`, and a card's
+     JSON is hex addresses, a slug and a signature. So the bug was invisible to
+     every test I would have written, and waiting on the first card whose `name`
+     carried one of four characters. Measured, not reasoned about — and then
+     fixed by matching what the encoders emit rather than keeping a cap that
+     happened to hold.
+
+     The property actually wanted is narrower than the alphabet: no CR, no LF,
+     no control characters, nothing that can split the upstream request this
+     value is copied into. */
+  if (!/^[A-Za-z0-9+/=]+$/.test(card)) return {};
+
+  /* AND IT MUST LOOK LIKE A CARD. Hex is a subset of base64's alphabet, so a
+     charset check alone forwards `0x` + sixty-four hex characters — a private
+     key — into an upstream request and an upstream log. A card is base64 of
+     `{"card":…`, so it begins `eyJ`. Same rule as `normaliseCard` in
+     lib/readerCard.ts, which is where the measurement is recorded. */
+  if (!card.startsWith("eyJ")) return {};
+  return { [CARD_HEADER]: card };
+}
+
 /** The headers for a read, with the chain deciding whether it may be shared.
  *
  *  `directive` is the shared directive this route has always used. On the default
@@ -94,6 +145,21 @@ export function envelope<T>(
  */
 export function chainHeaders(directive: string, chain: ChainKey): Record<string, string> {
   return { "Cache-Control": sharedCache(directive, chain) };
+}
+
+/** The headers for an upstream refusal this hop is passing through.
+ *
+ *  A 401 WITHOUT `WWW-Authenticate` IS NOT A 401. RFC 9110 requires the header
+ *  on a 401, it is how a client learns which scheme to use, and the press
+ *  already sends `AgentCard` — so dropping it at the proxy would turn a
+ *  well-formed challenge into a bare refusal one hop from the browser. Measured:
+ *  the ledger proxy forwarded it and the two JSON proxies did not, which is the
+ *  kind of difference nothing notices until a client follows the spec.
+ *
+ *  Never cached, for the reason `refusalHeaders` gives.
+ */
+export function passthroughRefusalHeaders(authenticate?: string): Record<string, string> {
+  return { ...refusalHeaders(), ...(authenticate ? { "WWW-Authenticate": authenticate } : {}) };
 }
 
 /** The headers for a refusal: never cached, on any chain.

@@ -21,6 +21,12 @@
 /** The header the gate reads — `CARD_HEADER` in agentgate.py. */
 export const CARD_HEADER = "AGENT-CARD";
 
+/** A card is ~600 bytes of base64; a minted reader card measured 652. Anything
+ *  much larger is not a card, and every hop that FORWARDS one caps it here
+ *  rather than keeping its own number — /api/probe had the only copy, and a
+ *  second copy is how two hops come to disagree about what a card is. */
+export const MAX_CARD = 2048;
+
 export const DOMAIN_NAME = "ACR Agent Card";
 export const DOMAIN_VERSION = "1";
 export const ZERO32 = `0x${"00".repeat(32)}` as const;
