@@ -42,9 +42,40 @@ export function unread<T>(why: string): Read<T> {
  */
 export function readHeaders(r: Read<unknown>): Record<string, string> {
   return r.ok
-    ? { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" }
+    ? { "Cache-Control": sharedCache("public, s-maxage=10, stale-while-revalidate=30") }
     : { "Cache-Control": "no-store" };
 }
+
+/** A shared-cache directive, but only for the default chain.
+ *
+ *  THE ONE BUG THIS FORECLOSES. Vercel's CDN keys a stored response on method
+ *  and URL, not on cookies: Next's `Vary` list carries no cookie, and Vercel
+ *  documents `Vary` only for its own `X-Vercel-IP-*`. Measured on the live
+ *  deployment — two sequential GETs of /api/terminal returned
+ *  `x-vercel-cache: MISS` then `HIT`. So once a second chain is reachable, every
+ *  route answering `public, s-maxage=…` can hand one visitor's chain to the
+ *  next visitor on the other one.
+ *
+ *  Two halves, and BOTH are needed. This function is the half that stops a
+ *  non-default response being stored at all. It does NOT stop a non-default
+ *  request being answered from an entry already stored under that URL — only a
+ *  different URL does that, which is why `apiKey()` in lib/chainChoice.ts puts
+ *  the chain in the query of every client fetch. Neither half is sufficient.
+ *
+ *  `chain` is optional so the ~20 existing call sites keep working unchanged
+ *  while they are converted: omitted means the default chain, which is exactly
+ *  what they all served before there was a choice.
+ */
+export function sharedCache(directive: string, chain?: string): string {
+  const key = (chain ?? "").trim();
+  if (key === "" || key === DEFAULT_CHAIN_KEY) return directive;
+  return "private, no-store";
+}
+
+/* Spelled here rather than imported from lib/chainChoice.ts to keep this module
+   dependency-free — it is imported by route handlers AND by client components,
+   and chainChoice reaches lib/chain.ts. The pair is pinned by a test. */
+const DEFAULT_CHAIN_KEY = "mainnet";
 
 /** Cache headers for a read whose whole product is that it is fresh.
  *

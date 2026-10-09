@@ -314,6 +314,19 @@ export interface Envelope<T> {
   data: T;
   fetchedAt: number;
   upstream?: "ok" | "error" | "timeout";
+  /** Which chain answered — `"mainnet"` or `"testnet"`.
+   *
+   *  The last line of defence behind the cookie and the URL param. One
+   *  deployment serves both chains, and sixteen route handlers answer with a
+   *  shared `Cache-Control: public, s-maxage=…` that Vercel's CDN keys on URL
+   *  alone, so prevention can be defeated by any cache layer nobody predicted.
+   *  The client compares this against what it asked for and refuses to render a
+   *  mismatch (`sameChain()` in lib/chainChoice.ts).
+   *
+   *  Optional only so the conversion could land route by route; every proxy
+   *  stamps it. An absent value is treated as a mismatch, not as the default —
+   *  "I don't know which chain this is" must not render as "mainnet". */
+  chain?: "mainnet" | "testnet";
 }
 
 /** Payload of /api/onchain — settlement-grade prints read straight from

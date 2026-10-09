@@ -22,6 +22,16 @@
  *  learn it, and public — it is in the README and in every x402 receipt. */
 export const MAINNET_SELLER = "https://acr-api-mainnet.onrender.com";
 
+/** The deployed testnet seller, for the same reason and on the same terms.
+ *
+ *  ACR has partners who work on Arc testnet, so one deployment serves both and a
+ *  visitor chooses (`lib/chainChoice.ts`). That makes this host a first-class
+ *  part of the product rather than a leftover — which is the distinction
+ *  `lib/mainnetOnly.test.ts` cares about. It stays addressable here, next to its
+ *  mainnet twin, for the same reason `lib/chain.ts` keeps both profiles: moving
+ *  the default must not delete the network this was proven on. */
+export const TESTNET_SELLER = "https://acr-api-1fto.onrender.com";
+
 /** The local seller `make api` serves. */
 export const LOCAL_SELLER = "http://127.0.0.1:8000";
 
