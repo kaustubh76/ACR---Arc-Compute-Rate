@@ -22,7 +22,15 @@ reachable, running live Circle Arc-testnet execution.
 |---|---|---|
 | Seller API (mainnet, 5042) | **Render** `acr-api-mainnet` (`srv-das1navlk1mc73dvsm8g`), from `render.yaml` | https://acr-api-mainnet.onrender.com — **LIVE** since 2026-09-27 (`gate: circle`, `signer: local`). `plan: starter` in `render.yaml`, NOT free, and the comment there says why: a sleeping press stranded testnet collateral twice. **Its image predates the operator** — 44 routes, no `/operator/*` and no `/par` as of 2026-10-07 (`make verify-drift`) |
 | Seller API (testnet, 5042002) | **Render** `acr-api`, from `render.yaml` | https://acr-api-1fto.onrender.com — suspended 2026-09-15, **resumed 2026-10-01** and answering today (`chain_id: 5042002`). `plan: free`, so it sleeps: a cold start measured 25 s. This is the host that serves the operator |
-| Terminal | **Vercel** | https://arccomputerate.in |
+| Seller API (probe, 5042) | **Render** `acr-probe-free` (`srv-db28nc97lnhs73e1tgfg`) | https://acr-probe-free.onrender.com — a mainnet-CHAIN press on the free plan. It had **never deployed successfully** until 2026-10-09: both attempts on 10-06 died on one guard violation, `ACR_HUMANID_APP_ID is unset`. Now serving all 50 routes. No `ACR_SUBGRAPH_URL` and no posted oracle, so the tape and print tools refuse; `/par` and `/operator/*` work |
+| Terminal | **Vercel** | https://arc-compute-rate.vercel.app |
+
+**THREE RENDER ACCOUNTS, AND NO KEY SEES THEM ALL.** This is the thing that
+costs an hour if you meet it unprepared. `acr-api` belongs to one team,
+`acr-probe-free` to another, and **`acr-api-mainnet` to a third that neither
+API key in `.env` can see** — a `?name=acr-api-mainnet` query returns `[]` for
+both. So a mainnet image swap is a dashboard action by its owner, not something
+a script here can do. Measured 2026-10-09.
 
 The service is declared in [`render.yaml`](../render.yaml) at the repo root: a
 `runtime: image` web service pulling `docker.io/kaushtubh02/acr-api:latest`, health-
@@ -49,14 +57,27 @@ Deploy order for a normal change — **Render first, then Vercel**, because the
 Terminal reads the API:
 
 ```bash
-# 1. API: rebuild and push the image render.yaml points at, then redeploy
-#    the service from the Render dashboard (Manual Deploy).
-docker build -t kaushtubh02/acr-api:latest .
-docker push kaushtubh02/acr-api:latest
+# 1. API: rebuild and push. --platform is MANDATORY from Apple silicon: an
+#    arm64 push produces an image Render accepts and then cannot start, and
+#    the symptom is a port-scan timeout rather than an arch error.
+#    Tag dated AND latest: the dated tag is the rollback target and the only
+#    thing a PINNED service can be pointed at; `latest` is what the testnet
+#    service tracks.
+TAG=$(date -u +%Y-%m-%d-%H%M)
+docker build --platform linux/amd64 -t kaushtubh02/acr-api:$TAG -t kaushtubh02/acr-api:latest .
+docker push kaushtubh02/acr-api:$TAG && docker push kaushtubh02/acr-api:latest
 
-# 2. Confirm the new build is actually being served before moving on.
-#    (Free plan: the first call takes ~20 s while the instance wakes.)
-curl -s https://acr-api-mainnet.onrender.com/health
+# 1b. Run it before you ship it. Thirty seconds, and it is the only check that
+#     catches a bad image while it is still only yours:
+docker run --rm -p 8097:8000 --platform linux/amd64 \
+  -e ACR_ARC_CHAIN_ID=5042002 -e ACR_HUMANID_MODE=dev kaushtubh02/acr-api:$TAG
+#     then: curl -s localhost:8097/openapi.json | jq '.paths | keys | length'
+
+# 2. Confirm the new build is SERVED, with a witness that could not pass
+#    against the old image. /health cannot do this — every image answers it.
+#    Use a route the new image added, and the strict drift gate:
+VERIFY_DRIFT_HOSTS=https://acr-api-mainnet.onrender.com VERIFY_DRIFT_STRICT=1 \
+  uv run python scripts/verify_deploy_drift.py
 
 # 3. Terminal: Vercel deploys are MANUAL for this project — trigger from the
 #    Vercel dashboard (or `vercel --prod` from apps/terminal).
