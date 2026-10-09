@@ -46,6 +46,16 @@ const PAYER = "0xc2903b52a3ad365fd237b78389a2fde99e886999";
 const SELLER = "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19";
 
 const PROBES: Probe[] = [
+  {
+    // The one tool that works on a bill ACR has never seen, which is the whole
+    // point of it. Priced in a unit the press actually accepts.
+    tool: "check_spend",
+    args: { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" },
+    tolerate: (o) =>
+      typeof o.reason === "string" && /predates the benchmark/.test(o.reason)
+        ? "this press has no /par yet"
+        : null,
+  },
   { tool: "my_tca", args: { target: PAYER } },
   {
     tool: "reroute_suggestion",

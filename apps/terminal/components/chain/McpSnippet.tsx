@@ -28,6 +28,7 @@ import { Ed } from "@/components/Ed";
 type Tab = "config" | "pay" | "ask";
 
 export const TOOLS = [
+  "check_spend",
   "can_i_pay",
   "pay_and_read",
   "payment_receipts",
@@ -74,7 +75,11 @@ export function snippets(api: string): Record<Tab, string> {
 
 # A settlement spends the GATEWAY balance, not the wallet's USDC. can_i_pay says
 # "deposit" rather than "ready" when the wallet is funded and the Gateway is not.`,
-    ask: `# Four things to ask, once the server is in your host's config:
+    ask: `# Five things to ask, once the server is in your host's config:
+
+"I was billed 0.47 USDC for 23 thousand tokens by 0xefe0E4625AFf072c3FCff230b47f8150A17aDF19. Should I pay it?"
+#   -> check_spend: the spend agent\u2019s own ten-rung ladder over YOUR invoice, with the published
+#      prices it was judged against. No account, no key, no history with ACR needed.
 
 "Can you pay for a metered ACR query right now? If not, what is in the way?"
 #   -> can_i_pay: seven rungs — host, chain, card, paywall, challenge, payer key, Gateway funds.
@@ -116,8 +121,8 @@ export function McpSnippet({ api }: { api: string }) {
         as="p"
         className="muted"
         style={{ fontSize: 13, maxWidth: 68 * 9, marginTop: 0 }}
-        x="Nine tools any MCP host can call. Eight are reads, can_i_pay among them: it asks the paywall for a price and declines to answer it, so it needs no wallet. One spends, and only when you set a payer key."
-        p="Nine questions an AI assistant can ask the tape, including whether it could actually pay for something."
+        x="Ten tools any MCP host can call. Nine are reads: check_spend runs the spend agent\u2019s own ladder over any vendor\u2019s invoice, and can_i_pay asks the paywall for a price without answering it. One spends, and only when you set a payer key."
+        p="Ten questions an AI assistant can ask, including whether a bill is fair and whether it could pay for something."
       />
       <div className="register-row" style={{ fontSize: 13 }}>
         <span className="muted" style={{ minWidth: 132 }}>

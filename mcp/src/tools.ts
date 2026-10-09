@@ -40,6 +40,21 @@ import { canIPay, DEFAULT_GATED_ENDPOINT } from "./preflight.js";
  *  (see `card.ts:gateChainId`). That was the whole bug. */
 export const DEFAULT_API = "https://acr-api-mainnet.onrender.com";
 
+/** The three units a bill can be priced in, and the only three.
+ *
+ *  `_PRICEABLE_UNITS` in the press, derived there from the index roster
+ *  (`spec_for(i).unit for i in ALL_INDEX_IDS`), and the press answers **422** to
+ *  anything else — naming this list back in the refusal, which is how a caller
+ *  can always recover the current set without reading our source.
+ *
+ *  SHIPPED WRONG ONCE, so the list is a constant now rather than prose in a
+ *  description. The schema used to offer `"$/GPU-hour"` and `"$/GB-month"` as
+ *  examples; neither exists, so two of the three units this tool advertised were
+ *  an instant 422. An example in a tool description is not documentation — it is
+ *  the value a model will actually send. */
+export const UNITS = ["$/1k tokens", "$/GPU-sec", "$/MB"] as const;
+export type Unit = (typeof UNITS)[number];
+
 /** The lookback a window-taking tool uses when the caller names none.
  *
  *  Was 7, which returned nothing for everything. Measured 2026-10-08: at 7 days
@@ -116,9 +131,10 @@ export const TOOLS: ToolDef[] = [
         price: { type: "number", description: "the quoted price, USDC" },
         unit: {
           type: "string",
+          enum: [...UNITS],
           description:
-            'what the price is per — e.g. "$/GPU-hour", "$/1k tokens", "$/GB-month". Strongly ' +
-            "recommended: it is what selects the right market to compare against.",
+            `what the price is per — one of ${UNITS.join(" | ")}, and the press 422s anything ` +
+            "else. Strongly recommended: the unit is what selects the market to compare against.",
         },
         quantity: { type: "number", description: "how many units the quote covers (default 1)" },
         index_id: {
@@ -149,6 +165,44 @@ export const TOOLS: ToolDef[] = [
         operation: { type: "string", description: "an operation name; omit to list them" },
         variables: { type: "object", description: "that operation's variables" },
       },
+    },
+  },
+  {
+    name: "check_spend",
+    description:
+      "Should you pay this bill. Give it an invoice as the invoice is written — the amount " +
+      "billed, how much you bought, and the unit — and it runs ACR's benchmark and the spend " +
+      "agent's own decision ladder over it, returning the verdict that agent would reach: pay, " +
+      "reroute, hold, escalate or refuse, with the rule that produced it and the published " +
+      "prices it was judged against. Works on ANY vendor's bill: it needs no account, no key " +
+      "and no history with ACR. Nothing is paid and nothing is signed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        billed_usdc: {
+          type: "number",
+          description: "the amount on the invoice, USDC — as billed, not per unit",
+        },
+        quantity: {
+          type: "number",
+          description:
+            "how much you bought, counted IN the unit below — so 23 for 23,000 tokens at " +
+            '"$/1k tokens", not 23000. The bill divided by this is the per-unit price compared.',
+        },
+        unit: {
+          type: "string",
+          enum: [...UNITS],
+          description: `what you were buying — one of ${UNITS.join(" | ")}`,
+        },
+        vendor: {
+          type: "string",
+          description:
+            "who billed you, as an 0x address. Optional, and it changes the answer: a seller " +
+            "ACR operates is judged against ACR's own fleet prices, anyone else against the " +
+            "open market, and a vendor is always excluded from its own comparison set.",
+        },
+      },
+      required: ["billed_usdc", "quantity", "unit"],
     },
   },
   {
@@ -329,9 +383,11 @@ export async function signAgentKitChallenge(
  *
  *  THE NUMBER THIS GUARDS. `benchmark_price({index_id: "ACR-GPU", price: 2.50})`
  *  used to answer `available: true, slippage_bp: 2257157.1` — a confident
- *  22,572% — because the ACR print is a macro index level, not a dollar price per
- *  GPU-hour. The two are simply not the same quantity. A refusal that says so is
- *  worth more than a number that is wrong by three orders of magnitude. */
+ *  22,572% — because the ACR print is a macro index LEVEL, not a dollar price per
+ *  unit of anything. A real GPU invoice quotes dollars an hour; ACR prices
+ *  `$/GPU-sec`; and the index level is a third quantity again. None of the three
+ *  is comparable to the others, and a refusal that says so is worth more than a
+ *  number wrong by three orders of magnitude. */
 export const UNIT_SANITY_BP = 100_000;
 
 /** Present AND zero. An ABSENT count is not a zero count: the payload simply did
@@ -458,7 +514,8 @@ export async function callTool(
           available: false,
           reason:
             "no `unit` was given and this press has no /par, so there is nothing to compare " +
-            "against. Pass `unit` (e.g. \"$/GPU-hour\"), or `index_id` for the weaker index comparison.",
+            `against. Pass \`unit\` (${UNITS.join(" | ")}), or \`index_id\` for the weaker ` +
+            "index comparison.",
         };
       }
       const print = (await readJson(f, `${api}/onchain/${indexId}`)) as { value?: number };
@@ -525,6 +582,82 @@ export async function callTool(
         };
       }
       return body;
+    }
+
+    case "check_spend": {
+      const billed = Number(args.billed_usdc);
+      const quantity = Number(args.quantity);
+      const unit = String(args.unit ?? "").trim();
+      const vendor = String(args.vendor ?? "").trim();
+
+      // REFUSED HERE, NOT CLAMPED, and the difference matters. A window is
+      // clampable because 1..90 are all sensible answers to "how long". A billed
+      // amount is not: nudging a typo to the nearest legal value would hand back
+      // a verdict about a number nobody entered. Checked locally as well as at
+      // the press so the message can name WHICH field was wrong — the press sees
+      // them together and answers about both.
+      if (!Number.isFinite(billed) || billed <= 0) {
+        return { available: false, reason: "billed_usdc must be a number greater than zero." };
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return {
+          available: false,
+          reason:
+            "quantity must be a number greater than zero. Without it there is no per-unit " +
+            "price, and a whole bill cannot be compared against a rate.",
+        };
+      }
+      if (!(UNITS as readonly string[]).includes(unit)) {
+        return {
+          available: false,
+          reason: `unit must be one of ${UNITS.join(" | ")}, got ${JSON.stringify(unit)}.`,
+          units: [...UNITS],
+        };
+      }
+      if (vendor && !/^0x[0-9a-fA-F]{40}$/.test(vendor)) {
+        return {
+          available: false,
+          reason: `vendor must be a 0x-prefixed 20-byte address, or omitted. Got ${JSON.stringify(vendor)}.`,
+        };
+      }
+
+      // The bill goes up AS BILLED. The press divides by the quantity itself, so
+      // a caller is never asked to do the arithmetic the tool exists to check.
+      // `vendor` is omitted entirely rather than sent empty: an absent param is
+      // what makes the press substitute its no-vendor sentinel and price the bill
+      // against the open market like any other stranger's invoice.
+      const q =
+        `unit=${encodeURIComponent(unit)}` +
+        `&billed_usdc=${encodeURIComponent(String(billed))}` +
+        `&quantity=${encodeURIComponent(String(quantity))}` +
+        (vendor ? `&vendor=${encodeURIComponent(vendor)}` : "");
+
+      const par = (await readJson(f, `${api}/par?${q}`)) as {
+        error?: string;
+        body?: { detail?: unknown };
+        would?: { intent?: unknown; rule?: unknown };
+      };
+      if (!par?.error) return par;
+      if (par.error === "HTTP 404") {
+        return {
+          available: false,
+          reason:
+            `${api} has no /par, so this bill could not be priced. That press predates the ` +
+            "benchmark — it is a deployment gap, not a verdict on the bill.",
+          host_side: true,
+        };
+      }
+      // A 422 is the press refusing the BILL and it names which field; anything
+      // else is the press refusing to answer. Two different things to do next.
+      return {
+        available: false,
+        reason:
+          par.error === "HTTP 422"
+            ? `the benchmark could not read this bill: ${String(par.body?.detail ?? "422")}`
+            : `the benchmark did not answer: ${par.error}`,
+        detail: par.body,
+        host_side: par.error !== "HTTP 422",
+      };
     }
 
     case "can_i_pay":

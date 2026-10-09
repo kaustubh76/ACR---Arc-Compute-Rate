@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { TOOLS, snippets } from "../components/chain/McpSnippet";
 
 test("the MCP config names the API this page looks at, and is JSON a host can paste", () => {
@@ -38,24 +41,25 @@ test("every tool the server registers is named on this page", () => {
   assert.match(s.pay, /pay_and_read/, "the paying tab must name the tool it unlocks");
 });
 
-test("the nine tools are the ones mcp/src/tools.ts serves", () => {
-  // Pinned by name so a renamed tool cannot leave this page teaching the old one.
-  // `pay_and_read` is in the list because the plugin HAS it; the server withholds
-  // it at runtime until a payer key is set (mcp/src/tools.ts:toolsFor).
-  assert.deepEqual(
-    [...TOOLS].sort(),
-    [
-      "benchmark_price",
-      "can_i_pay",
-      "get_rate",
-      "my_tca",
-      "pay_and_read",
-      "payment_receipts",
-      "query_tape",
-      "reroute_suggestion",
-      "seller_rating",
-    ],
-  );
+test("the tools this page teaches ARE the tools the server registers", () => {
+  /* READ FROM mcp/src/tools.ts, not pinned as a second list.
+     
+     This test used to assert a hardcoded array of names. That is a snapshot, not
+     a cross-check: when `check_spend` was added to the plugin, this file went on
+     passing against its own stale copy and the page quietly taught nine tools of
+     ten. A literal list in a test cannot catch the drift it exists to catch.
+     
+     So it reads the other language's source, which is the discipline
+     `tests/test_canonical_host.py` and `lib/mainnetOnly.test.ts` already use:
+     when the alternative is a second copy of the truth, read the first one.
+     `pay_and_read` is included because the plugin HAS it — the server withholds
+     it at runtime until a payer key is set (`toolsFor`), which is a different
+     question from whether it exists. */
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "mcp", "src", "tools.ts"), "utf8");
+  // The `TOOLS` array's entries, each `name: "…"` at the head of a tool record.
+  const registered = [...src.matchAll(/^\s{4}name: "([a-z_]+)",$/gm)].map((m) => m[1]);
+  assert.ok(registered.length >= 9, `expected to find the tool names, found ${registered.length}`);
+  assert.deepEqual([...TOOLS].sort(), registered.sort(), "the page and the plugin must agree");
 });
 
 test("the paying tab states the cap and which balance a settlement spends", () => {

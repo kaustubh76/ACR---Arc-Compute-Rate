@@ -16,7 +16,7 @@ import { CARD_HEADER, FALLBACK_CHAIN_ID, gateChainId, withCard } from "./card.js
 import { arcChain, knownChainIds, USDC_DECIMALS } from "./chain.js";
 import { admits, fundingStep, newLedger, priceFromChallenge, record, validateKey } from "./pay.js";
 import { canIPay } from "./preflight.js";
-import { callTool, TOOLS, toolsFor, UNIT_SANITY_BP } from "./tools.js";
+import { callTool, TOOLS, toolsFor, UNIT_SANITY_BP, UNITS } from "./tools.js";
 
 const KEY = `0x${"11".repeat(32)}` as const;
 
@@ -529,4 +529,123 @@ test("query_tape passes a normal answer through untouched", async () => {
   })) as { available: boolean; data: { settlements: unknown[] } };
   assert.equal(out.available, true);
   assert.equal(out.data.settlements.length, 1);
+});
+
+// ───────────────────────────────────────────────────── check_spend
+
+test("the three units are the press's three, and no invented one survives", () => {
+  // SHIPPED WRONG ONCE: the schema advertised "$/GPU-hour" and "$/GB-month",
+  // neither of which exists, so two of the three units this plugin offered were
+  // an instant 422. An example in a tool description is not documentation — it
+  // is the value a model will actually send.
+  assert.deepEqual([...UNITS], ["$/1k tokens", "$/GPU-sec", "$/MB"]);
+  const schemas = JSON.stringify(TOOLS);
+  for (const invented of ["$/GPU-hour", "$/GB-month", "$/GB", "$/token"]) {
+    assert.ok(!schemas.includes(invented), `${invented} is not a unit the press accepts`);
+  }
+  // Every tool that takes a unit must offer the enum, so a model cannot guess.
+  for (const t of TOOLS) {
+    const u = (t.inputSchema.properties as Record<string, { enum?: string[] }>).unit;
+    if (u) assert.deepEqual(u.enum, [...UNITS], `${t.name} must enumerate the units`);
+  }
+});
+
+test("check_spend sends the bill AS BILLED, and the quantity beside it", async () => {
+  // The whole point of the register's spec: an invoice says "$0.47 for 23 units".
+  // Making the caller divide first is asking them to do the arithmetic the tool
+  // exists to check — and it is what the older benchmark_price did.
+  const seen: Array<{ url: string }> = [];
+  await callTool("check_spend", { billed_usdc: 0.47, quantity: 23, unit: "$/1k tokens" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body: { would: { intent: "pay", rule: "at par" } } } }, seen),
+  });
+  const u = new URL(seen[0].url);
+  assert.equal(u.searchParams.get("billed_usdc"), "0.47", "the bill, not a per-unit price");
+  assert.equal(u.searchParams.get("quantity"), "23");
+  assert.equal(u.searchParams.get("unit"), "$/1k tokens");
+  assert.equal(u.searchParams.has("vendor"), false, "no vendor means the param is ABSENT");
+});
+
+test("check_spend forwards a vendor, because it changes which market answers", async () => {
+  // A seller ACR operates is judged against ACR's own fleet prices and anyone
+  // else against the open market, and a vendor is excluded from its own
+  // comparison set. Dropping the field silently changes the answer.
+  const seen: Array<{ url: string }> = [];
+  const vendor = "0xefe0E4625AFf072c3FCff230b47f8150A17aDF19";
+  await callTool("check_spend", { billed_usdc: 1, quantity: 2, unit: "$/MB", vendor }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body: { would: { intent: "pay" } } } }, seen),
+  });
+  assert.equal(new URL(seen[0].url).searchParams.get("vendor"), vendor);
+});
+
+test("check_spend refuses a bad bill locally, and names WHICH field", async () => {
+  const seen: Array<{ url: string }> = [];
+  const opts = { api: "https://acr.test", fetchImpl: router({ "/par": { body: {} } }, seen) };
+  const cases: Array<[Record<string, unknown>, RegExp]> = [
+    [{ billed_usdc: 0, quantity: 1, unit: "$/MB" }, /billed_usdc/],
+    [{ billed_usdc: -1, quantity: 1, unit: "$/MB" }, /billed_usdc/],
+    [{ billed_usdc: 1, quantity: 0, unit: "$/MB" }, /quantity/],
+    [{ billed_usdc: 1, quantity: 1, unit: "$/GPU-hour" }, /unit must be one of/],
+    [{ billed_usdc: 1, quantity: 1, unit: "$/MB", vendor: "acme-corp" }, /vendor must be/],
+  ];
+  for (const [args, re] of cases) {
+    const out = (await callTool("check_spend", args, opts)) as { available: boolean; reason: string };
+    assert.equal(out.available, false, JSON.stringify(args));
+    assert.match(out.reason, re);
+  }
+  assert.equal(seen.length, 0, "a bill refused locally must never reach the press");
+});
+
+test("an unknown unit hands back the three that work", async () => {
+  const out = (await callTool("check_spend", { billed_usdc: 1, quantity: 1, unit: "$/widget" }, {
+    api: "https://acr.test",
+    fetchImpl: router({}),
+  })) as { units: string[] };
+  assert.deepEqual(out.units, [...UNITS], "a refusal that does not say what WOULD work is a dead end");
+});
+
+test("check_spend tells a press gap apart from a bad bill", async () => {
+  // A 404 is a deployment that predates the benchmark; a 422 is the press
+  // refusing this bill and naming the field. Two different things to do next,
+  // so `host_side` says whose problem it is.
+  const gap = (await callTool("check_spend", { billed_usdc: 1, quantity: 1, unit: "$/MB" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { status: 404, body: { detail: "Not Found" } } }),
+  })) as { available: boolean; host_side: boolean; reason: string };
+  assert.equal(gap.available, false);
+  assert.equal(gap.host_side, true);
+  assert.match(gap.reason, /predates the benchmark/);
+
+  const badBill = (await callTool("check_spend", { billed_usdc: 1, quantity: 1, unit: "$/MB" }, {
+    api: "https://acr.test",
+    fetchImpl: router({
+      "/par": { status: 422, body: { detail: "billed_usdc and quantity must both be positive" } },
+    }),
+  })) as { available: boolean; host_side: boolean; reason: string };
+  assert.equal(badBill.host_side, false, "a 422 is about the bill, not about us");
+  assert.match(badBill.reason, /could not read this bill/);
+});
+
+test("check_spend passes the press's verdict through untouched", async () => {
+  // It must not reinterpret. The register's point is that this is the SAME
+  // ladder the spend agent runs, so the verdict is the press's own words.
+  const body = {
+    would: { intent: "escalate", rule: "over the going market rate", recommended_intent: "refuse" },
+    par: { par_usdc: 0.0004, best_usdc: 0.0001, sellers: 4 },
+    over_rate_bp: 1781,
+    vendor_supplied: false,
+  };
+  const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body } }),
+  })) as typeof body;
+  assert.deepEqual(out, body);
+});
+
+test("check_spend is read-only, so it is always offered", () => {
+  // Unlike pay_and_read. A developer with no key and no history is exactly the
+  // caller the register wrote this tool for.
+  assert.ok(toolsFor(false).some((t) => t.name === "check_spend"));
+  assert.ok(toolsFor(true).some((t) => t.name === "check_spend"));
 });

@@ -1,9 +1,9 @@
 # ACR Machine TCA, over MCP
 
-Nine tools that let an MCP host (Claude Desktop, Claude Code, anything speaking
-stdio MCP) ask the ACR seller what compute actually cost a wallet, which seller to
-route to, what the tape says — and **whether this agent can pay for a metered
-query at all**.
+Ten tools that let an MCP host (Claude Desktop, Claude Code, anything speaking
+stdio MCP) ask **whether a bill should be paid**, what compute actually cost a
+wallet, which seller to route to, what the tape says — and **whether this agent
+can pay for a metered query at all**.
 
 ```bash
 npx -y acr-mcp          # no clone, no path to edit
@@ -31,6 +31,7 @@ a different press needs nothing else changed. See *The 401 this used to be* belo
 
 | tool | what it answers | spends? |
 |---|---|---|
+| **`check_spend`** | **should you pay this bill — the spend agent's own ten-rung ladder over any vendor's invoice, with the published prices it was judged against. No account, no key, no history with ACR** | no |
 | **`can_i_pay`** | **can this agent pay for a metered query, and if not, which of seven rungs is in the way** | no |
 | **`pay_and_read`** | buys one metered query for real and returns the data plus the settlement reference | **yes** |
 | **`payment_receipts`** | did the payment land — the settlement tape and revenue counter, narrowed to your payer | no |
@@ -40,6 +41,47 @@ a different press needs nothing else changed. See *The 401 this used to be* belo
 | `benchmark_price` | one quote priced against what the market is actually paying | no |
 | `get_rate` | the on-chain print for an index | no |
 | `query_tape` | any named subgraph operation through the seller's read proxy | no |
+
+## Should I pay this bill?
+
+`check_spend` is the one tool that works on a bill ACR has never seen. Give it the
+invoice **as the invoice is written** — the amount billed, how much you bought, and
+the unit — and it runs ACR's benchmark and the spend agent's own decision ladder
+over it, returning the verdict that agent would reach and the rule that produced it.
+
+```
+check_spend(billed_usdc: 0.47, quantity: 23, unit: "$/1k tokens",
+            vendor: "0xefe0…dF19")   # vendor optional
+```
+
+Three things worth knowing:
+
+- **The bill goes up as billed.** The press divides by the quantity itself, so you
+  are never asked to compute the per-unit price the tool exists to check. `quantity`
+  is counted *in* the unit: 23 for 23,000 tokens at `$/1k tokens`, not 23000.
+- **`vendor` changes the answer, so it is not a label.** A seller ACR operates is
+  judged against ACR's own fleet prices; anyone else against the open market. A
+  vendor is always excluded from its own comparison set, which can collapse the
+  benchmark to "no independent seller" — an answer, not a failure.
+
+  **And it can flip the verdict, which is worth seeing before it surprises you.**
+  Measured against a local press: `0.47` for 23 at `$/1k tokens` with no vendor is
+  `escalate`, *"500870 bp above the going market rate of 0.0004 across 5 published
+  prices"*. The **same bill** naming a fleet seller is `pay` — because excluding
+  that seller leaves the fleet population with nobody to compare against, so the
+  bill becomes unbenchmarked, and an unbenchmarked bill under the 1 USDC ceiling
+  passes. The verdict says so in its own words (*"unbenchmarked but under the
+  ceiling"*) and `benchmarked_against` flips `market` → `fleet`, which is why this
+  tool returns the press's payload untouched rather than reducing it to a verdict.
+  A one-word answer would have hidden the reason the word changed.
+- **Three units, and only three** — `$/1k tokens`, `$/GPU-sec`, `$/MB`. The press
+  422s anything else and names the list back in its refusal. An earlier version of
+  this plugin advertised `$/GPU-hour` and `$/GB-month`; neither exists, so two of
+  the three units it offered were an instant 422.
+
+What it does **not** check is named rather than implied: there is no meter, no
+counterparty screen, no agreement, no budget and no balance for a caller who has
+onboarded nothing, and the verdict leaves a note for each.
 
 ## Can my agent pay?
 
@@ -159,7 +201,7 @@ rather than a verdict.
 ## Developing
 
 ```bash
-npm ci && npm test      # 53 hermetic tests, no network, no secrets — what CI runs
+npm ci && npm test      # 61 hermetic tests, no network, no secrets — what CI runs
 npm run typecheck
 npm run build           # tsc → dist/, which is what `npx acr-mcp` runs
 npm run smoke           # every tool against a REAL press (needs network)
