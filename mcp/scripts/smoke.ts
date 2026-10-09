@@ -68,12 +68,18 @@ const PROBES: Probe[] = [
        otherwise, which is how it survived this long. */
     tool: "wallet_tca",
     args: { target: `0x${Math.floor(Math.random() * 1e16).toString(16).padStart(40, "0")}` },
-    tolerate: (o) =>
-      o.seen === false
-        ? "a wallet this tape has never seen says so"
-        : o.seen === undefined
-          ? "this press predates `seen` — it still answers a bare zero here"
-          : null,
+    tolerate: (o) => {
+      /* ORDER MATTERS, and the first version got it wrong against a real
+         press. `verdict()` calls this for ANY unhappy answer, so when the
+         subgraph was unreachable it reported "this press predates `seen`" —
+         a confident, specific and false diagnosis of a host that was running
+         the newest image. An `available: false` means the tape could not be
+         read at all, and nothing about `seen` can be concluded from it. */
+      if (o.available === false) return null;
+      if (o.seen === false) return "a wallet this tape has never seen says so";
+      if (o.seen === undefined) return "this press predates `seen` — it still answers a bare zero here";
+      return null;
+    },
   },
   {
     /* The local half: check_spend above recorded a bill, so this must now find
