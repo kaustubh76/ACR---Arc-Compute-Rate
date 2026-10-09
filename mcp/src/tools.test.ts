@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { signAgentKitChallenge, callTool, TOOLS } from "./tools.js";
+import { signAgentKitChallenge, callTool, DEFAULT_API, DEFAULT_DAYS, TOOLS, toolsFor, UNIT_SANITY_BP } from "./tools.js";
 
 /** A fetch stand-in that records calls and replays canned bodies. */
 function fake(routes: Record<string, unknown>, seen: string[] = []) {
@@ -164,7 +164,7 @@ test('my_tca with an address does not touch the human gate', async () => {
     { target: "0xabc" },
     { api: "https://acr.test", fetchImpl: fake({ "/tca/": { available: true } }, seen) },
   );
-  assert.equal(seen[0], "GET https://acr.test/tca/0xabc?days=7");
+  assert.equal(seen[0], `GET https://acr.test/tca/0xabc?days=${DEFAULT_DAYS}`);
 });
 
 test('reroute_suggestion("me") reroutes the fleet as one book', async () => {

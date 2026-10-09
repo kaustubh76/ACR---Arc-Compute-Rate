@@ -5,9 +5,49 @@
  * recomputed any of it would be a second implementation to keep in step — and
  * the first time they disagreed, a judge would be looking at two different
  * answers to the same question with no way to tell which was the benchmark.
+ *
+ * The exception is the paying half (`can_i_pay`, `pay_and_read`): there is no
+ * endpoint that can answer "can THIS agent pay" on a caller's behalf, because the
+ * answer depends on a key and a balance the server has never seen. That part is
+ * assembled here, out of the gate's own descriptors plus two on-chain reads.
  */
 
+import { arcChain } from "./chain.js";
+import {
+  admits,
+  GatewayPayer,
+  newLedger,
+  payerAddress,
+  priceFromChallenge,
+  record,
+  validateKey,
+  type SpendLedger,
+} from "./pay.js";
+import { canIPay, DEFAULT_GATED_ENDPOINT } from "./preflight.js";
+
+/** The press this plugin reads when nothing says otherwise.
+ *
+ *  The same host `/developers` renders in its config block, because a developer
+ *  who follows the page and one who follows this file must not end up on
+ *  different chains. Two things pin it here rather than to the other Arc: the
+ *  terminal REFUSES a seller that is not on the build's chain (lib/apiBase.ts),
+ *  so the page would not call it anyway; and the terminal has a whole-project
+ *  gate forbidding the other network's values in its shipping UI, with eight
+ *  recorded incidents behind it (apps/terminal/lib/mainnetOnly.test.ts).
+ *
+ *  Overriding `ACR_API` to any other press needs NOTHING else changed: the chain
+ *  id the card is signed for comes from whichever gate it names, not from here
+ *  (see `card.ts:gateChainId`). That was the whole bug. */
 export const DEFAULT_API = "https://acr-api-mainnet.onrender.com";
+
+/** The lookback a window-taking tool uses when the caller names none.
+ *
+ *  Was 7, which returned nothing for everything. Measured 2026-10-08: at 7 days
+ *  every payer and seller on both presses reported zero rows — including the two
+ *  addresses `/developers` prints as its worked examples. At 30 the same payer
+ *  has 87 purchases and the same seller grades D. A default that makes the live
+ *  system look empty teaches the wrong thing about it. */
+export const DEFAULT_DAYS = 30;
 
 export interface Fetchish {
   (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{
@@ -24,7 +64,7 @@ export interface ToolDef {
 }
 
 const ADDRESS = { type: "string", description: "an 0x address" };
-const DAYS = { type: "number", description: "window in days (default 7)" };
+const DAYS = { type: "number", description: `window in days (default ${DEFAULT_DAYS})` };
 
 export const TOOLS: ToolDef[] = [
   {
@@ -65,15 +105,28 @@ export const TOOLS: ToolDef[] = [
   {
     name: "benchmark_price",
     description:
-      "Compare a quoted unit price against the current ACR print for that index — the same " +
-      "arrival comparison the tape applies to a settled purchase, before you pay it.",
+      "Price one quote against what the market is actually paying, before you pay it. Give the " +
+      "`unit` the quote is denominated in and it goes through ACR's /par benchmark, which " +
+      "returns the verdict the spend agent itself would reach. Without a unit it can only " +
+      "compare against the index print, which is a different quantity from a per-unit price, so " +
+      "it says so and refuses rather than reporting a slippage of two million basis points.",
     inputSchema: {
       type: "object",
       properties: {
-        price: { type: "number", description: "quoted price per unit, USDC" },
-        index_id: { type: "string", description: "ACR-INF | ACR-GPU | ACR-DATA" },
+        price: { type: "number", description: "the quoted price, USDC" },
+        unit: {
+          type: "string",
+          description:
+            'what the price is per — e.g. "$/GPU-hour", "$/1k tokens", "$/GB-month". Strongly ' +
+            "recommended: it is what selects the right market to compare against.",
+        },
+        quantity: { type: "number", description: "how many units the quote covers (default 1)" },
+        index_id: {
+          type: "string",
+          description: "ACR-INF | ACR-GPU | ACR-DATA — only used for the unit-less fallback",
+        },
       },
-      required: ["price", "index_id"],
+      required: ["price"],
     },
   },
   {
@@ -93,12 +146,77 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       type: "object",
       properties: {
-        operation: { type: "string" },
-        variables: { type: "object" },
+        operation: { type: "string", description: "an operation name; omit to list them" },
+        variables: { type: "object", description: "that operation's variables" },
+      },
+    },
+  },
+  {
+    name: "can_i_pay",
+    description:
+      "Can this agent actually pay for a metered query, and if not, which rung is in the way. " +
+      "Checks the host and its chain, whether the gate accepts this agent's card, whether the " +
+      "endpoint is really behind the paywall, that the 402 challenge parses, whether a payer key " +
+      "is configured, and whether the money is in the Circle Gateway balance a settlement spends " +
+      "from. Reads only — it asks for the 402 and does not answer it, so nothing is spent and no " +
+      "key is needed to run it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        endpoint: {
+          type: "string",
+          description: 'which paid endpoint to check, e.g. "/prints" (the default)',
+        },
+      },
+    },
+  },
+  {
+    name: "pay_and_read",
+    description:
+      "SPENDS MONEY. Pay for one metered query and return both the data and the settlement " +
+      "reference: 402 challenge, EIP-3009 authorization against Circle Gateway, retry, 200. " +
+      "Only available when a payer key is configured, and refused past the session's spend cap. " +
+      "Run can_i_pay first — it names what would stop this.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        endpoint: {
+          type: "string",
+          description: 'the paid endpoint to buy, e.g. "/prints" or "/prints/ACR-GPU"',
+        },
+      },
+      required: ["endpoint"],
+    },
+  },
+  {
+    name: "payment_receipts",
+    description:
+      "Did the payment land. The settlement tape plus the revenue counter, narrowed to this " +
+      "agent's payer address when one is configured. Counts run SHORT, never long: receipts held " +
+      "only in the press's memory are lost if it restarts, while the chain row survives — so " +
+      "treat what this returns as a floor, not a total.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        payer: {
+          type: "string",
+          description: "an 0x address to narrow to; defaults to this plugin's own payer",
+        },
+        limit: { type: "number", description: "how many receipts to return (default 20)" },
       },
     },
   },
 ];
+
+/** Which tools to advertise to the host.
+ *
+ *  `pay_and_read` is withheld unless a payer key is configured. A tool a host can
+ *  see is a tool a model will try, and "you have no key" is a worse answer than
+ *  never offering the capability — while `can_i_pay`, which is read-only, stays
+ *  available precisely so the model can explain what is missing. */
+export function toolsFor(hasPayerKey: boolean): ToolDef[] {
+  return hasPayerKey ? TOOLS : TOOLS.filter((t) => t.name !== "pay_and_read");
+}
 
 async function readJson(
   fetchImpl: Fetchish,
@@ -206,21 +324,67 @@ export async function signAgentKitChallenge(
   return Buffer.from(JSON.stringify(payload)).toString("base64");
 }
 
+/** How far a quote may sit from the thing it is compared against before the
+ *  comparison is more likely a unit mismatch than a bad deal. 100,000 bp is 1000%.
+ *
+ *  THE NUMBER THIS GUARDS. `benchmark_price({index_id: "ACR-GPU", price: 2.50})`
+ *  used to answer `available: true, slippage_bp: 2257157.1` — a confident
+ *  22,572% — because the ACR print is a macro index level, not a dollar price per
+ *  GPU-hour. The two are simply not the same quantity. A refusal that says so is
+ *  worth more than a number that is wrong by three orders of magnitude. */
+export const UNIT_SANITY_BP = 100_000;
+
+/** Present AND zero. An ABSENT count is not a zero count: the payload simply did
+ *  not carry that field, and treating the two alike put a "no rows" hint on
+ *  answers that had rows in them. */
+function countedZero(v: unknown): boolean {
+  return typeof v === "number" && v === 0;
+}
+
+/** Add a hint when a window came back empty, so "nothing happened" is
+ *  distinguishable from "nothing happened IN THIS WINDOW" — the second is a
+ *  question about the argument, and the caller can act on it. */
+function withWindowHint(body: unknown, days: number, empty: (b: Record<string, unknown>) => boolean): unknown {
+  if (!body || typeof body !== "object") return body;
+  const b = body as Record<string, unknown>;
+  if (b.available !== true || !empty(b)) return body;
+  return {
+    ...b,
+    hint: `no rows in the last ${days} days. This is the window, not necessarily the whole tape — ` +
+      "try a wider `days` before concluding there is no history.",
+  };
+}
+
 /** Dispatch one tool call. Returns the payload the host will render. */
 export async function callTool(
   name: string,
   args: Record<string, unknown>,
-  opts: { api?: string; fetchImpl?: Fetchish; nullifier?: string; humanKey?: string } = {},
+  opts: {
+    api?: string;
+    fetchImpl?: Fetchish;
+    nullifier?: string;
+    humanKey?: string;
+    /** The developer's own payer key. Absent → `can_i_pay` says so, `pay_and_read` refuses. */
+    payerKey?: string;
+    /** Per-process spend ceiling and tally; created once in server.ts. */
+    ledger?: SpendLedger;
+    /** Mints the agent card for the settlement request itself. */
+    extraHeaders?: () => Promise<Record<string, string>>;
+    env?: NodeJS.ProcessEnv;
+  } = {},
 ): Promise<unknown> {
   const api = (opts.api ?? DEFAULT_API).replace(/\/$/, "");
   const f = opts.fetchImpl ?? (globalThis.fetch as unknown as Fetchish);
-  const days = typeof args.days === "number" ? args.days : 7;
+  const days = typeof args.days === "number" ? args.days : DEFAULT_DAYS;
 
   switch (name) {
-    case "my_tca":
-      return String(args.target) === "me"
-        ? humanTca(f, api, days, opts.nullifier, opts.humanKey)
-        : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
+    case "my_tca": {
+      const body =
+        String(args.target) === "me"
+          ? await humanTca(f, api, days, opts.nullifier, opts.humanKey)
+          : await readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
+      return withWindowHint(body, days, (b) => countedZero(b.purchases));
+    }
 
     case "reroute_suggestion": {
       const tca = (await (String(args.target) === "me"
@@ -236,30 +400,99 @@ export async function callTool(
       return tca.reroute ?? { reroute: null, reason: "no cheaper seller in this window" };
     }
 
-    case "seller_rating":
-      return readJson(f, `${api}/rating/${String(args.seller)}?days=${days}`);
+    case "seller_rating": {
+      const body = await readJson(f, `${api}/rating/${String(args.seller)}?days=${days}`);
+      return withWindowHint(body, days, (b) => countedZero(b.n));
+    }
 
-    case "get_rate":
-      return readJson(f, `${api}/onchain/${String(args.index_id)}`);
+    case "get_rate": {
+      const body = (await readJson(f, `${api}/onchain/${String(args.index_id)}`)) as {
+        error?: string;
+        body?: { detail?: string };
+      };
+      // A press with no print is a state, not a transport failure. Say which it
+      // is: this host serves the testnet oracle, which has no posted prints, and
+      // the value is still buyable from the paid endpoint.
+      if (body?.error === "HTTP 404") {
+        return {
+          available: false,
+          index_id: args.index_id,
+          reason:
+            `${api} has no on-chain print for ${String(args.index_id)} ` +
+            `(${body.body?.detail ?? "404"}). Its oracle has not been posted to.`,
+          try_instead: `pay_and_read("/prints/${String(args.index_id)}") reads the same value from the metered endpoint.`,
+        };
+      }
+      return body;
+    }
 
     case "benchmark_price": {
-      const print = (await readJson(f, `${api}/onchain/${String(args.index_id)}`)) as {
-        value?: number;
-      };
-      const arrival = typeof print?.value === "number" ? print.value : null;
       const price = Number(args.price);
+      const quantity = typeof args.quantity === "number" && args.quantity > 0 ? args.quantity : 1;
+      const unit = String(args.unit ?? "").trim();
+
+      // The real pre-trade surface: /par runs the spend agent's own `decide()`
+      // over the bill and hands back the verdict it would reach. Needs the unit,
+      // because the unit is what selects the market to compare against.
+      if (unit) {
+        const q =
+          `unit=${encodeURIComponent(unit)}` +
+          `&billed_usdc=${encodeURIComponent(String(price * quantity))}` +
+          `&quantity=${encodeURIComponent(String(quantity))}`;
+        const par = (await readJson(f, `${api}/par?${q}`)) as { error?: string; body?: unknown };
+        if (!par?.error) return par;
+        if (par.error !== "HTTP 404") {
+          return {
+            available: false,
+            reason: `the benchmark refused this bill: ${par.error}`,
+            detail: par.body,
+          };
+        }
+        // 404 means this press predates /par — fall through to the index
+        // comparison, which is weaker but honest about being weaker.
+      }
+
+      const indexId = String(args.index_id ?? "");
+      if (!indexId) {
+        return {
+          available: false,
+          reason:
+            "no `unit` was given and this press has no /par, so there is nothing to compare " +
+            "against. Pass `unit` (e.g. \"$/GPU-hour\"), or `index_id` for the weaker index comparison.",
+        };
+      }
+      const print = (await readJson(f, `${api}/onchain/${indexId}`)) as { value?: number };
+      const arrival = typeof print?.value === "number" ? print.value : null;
       if (arrival === null || !(arrival > 0)) {
-        return { available: false, reason: "no on-chain print to compare against" };
+        return {
+          available: false,
+          index_id: indexId,
+          reason: `no on-chain print for ${indexId} on ${api} to compare against.`,
+        };
+      }
+      const slippageBp = Math.round(((price - arrival) / arrival) * 1e4 * 10) / 10;
+      if (Math.abs(slippageBp) > UNIT_SANITY_BP) {
+        return {
+          available: false,
+          index_id: indexId,
+          quoted: price,
+          arrival,
+          reason:
+            `the quote and the ${indexId} index level are ${Math.abs(slippageBp / 1e4).toFixed(0)}x apart, ` +
+            "which means they are not the same quantity — the index is a level, not a dollar price per " +
+            "unit. Pass the `unit` this quote is per so the comparison goes through /par instead.",
+        };
       }
       return {
         available: true,
-        index_id: args.index_id,
+        index_id: indexId,
         quoted: price,
         arrival,
         // Same convention the mappings use for a settled purchase, so a quote
         // and a fill are measured the same way.
-        slippage_bp: Math.round(((price - arrival) / arrival) * 1e4 * 10) / 10,
+        slippage_bp: slippageBp,
         basis: "the latest on-chain ACR print",
+        caveat: "an index level, not a per-unit market price. Pass `unit` for the /par benchmark.",
       };
     }
 
@@ -270,7 +503,145 @@ export async function callTool(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ operation: args.operation, variables: args.variables ?? {} }),
       });
-      return res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as {
+        detail?: unknown;
+      };
+      // The agent screen in front of this route fails CLOSED, which is the right
+      // default for a screen and an opaque answer for a caller: a developer
+      // reading "could not reach a verdict" has no way to tell that it is the
+      // press's own credential that is missing and nothing they did. Say so, and
+      // name the descriptor that proves it — `screened: 0` with no last
+      // invocation means the screen has never once run on that host.
+      if (typeof body?.detail === "string" && /agent screen could not reach a verdict/i.test(body.detail)) {
+        return {
+          available: false,
+          operation: args.operation,
+          reason:
+            `${api} refused this read: ${body.detail}. That is the press's screen failing closed, ` +
+            "not a problem with your call or your card.",
+          host_side: true,
+          check: `GET ${api}/armor/info — "screened": 0 with no last_invocation means the screen has ` +
+            "never run there, so every carded read of the tape will be refused until its credential is installed.",
+        };
+      }
+      return body;
+    }
+
+    case "can_i_pay":
+      return canIPay({
+        api,
+        fetchImpl: f,
+        endpoint: typeof args.endpoint === "string" ? args.endpoint : undefined,
+        payerKey: opts.payerKey,
+        env: opts.env,
+      });
+
+    case "pay_and_read": {
+      const ledger = opts.ledger ?? newLedger();
+      const parsed = validateKey(opts.payerKey ?? "");
+      if ("reason" in parsed) {
+        return {
+          paid: false,
+          reason: opts.payerKey
+            ? `ACR_PAYER_PRIVATE_KEY is ${parsed.reason}`
+            : "no payer key configured, so this plugin cannot pay. Set ACR_PAYER_PRIVATE_KEY to a " +
+              "wallet you control. can_i_pay() reports every other rung without one.",
+        };
+      }
+      const endpoint = String(args.endpoint ?? DEFAULT_GATED_ENDPOINT);
+      const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
+      // The chain comes from the host, never from a literal here — the whole
+      // class of bug this plugin shipped with was a chain assumed rather than asked.
+      const health = (await readJson(f, `${api}/health`)) as { chain_id?: unknown };
+      const chainId = Number(health?.chain_id);
+      const chain = Number.isFinite(chainId) ? arcChain(chainId, opts.env) : null;
+      if (!chain) {
+        return {
+          paid: false,
+          reason: `${api} reports chain ${String(health?.chain_id ?? "?")}, which this plugin has no ` +
+            "payment profile for. Run can_i_pay() for the full ladder.",
+        };
+      }
+
+      // Price the call BEFORE authorizing anything, so the cap is checked against
+      // the real amount rather than an assumed one.
+      const probe = (await readJson(f, `${api}${path}`)) as { body?: unknown; error?: string };
+      const challenge = probe?.error ? probe.body : probe;
+      let price: number;
+      try {
+        price = priceFromChallenge(challenge);
+      } catch {
+        return {
+          paid: false,
+          reason: `${path} did not answer with a priced 402 challenge. Run can_i_pay("${path}") to see why.`,
+          gate_said: challenge,
+        };
+      }
+      const allowed = admits(ledger, price);
+      if (!allowed.ok) return { paid: false, reason: allowed.reason, price_usdc: price };
+
+      try {
+        const payer = await GatewayPayer.create(parsed.key, chain, opts.extraHeaders);
+        const res = await payer.pay(`${api}${path}`);
+        record(ledger, res.paidUsdc);
+        return {
+          paid: true,
+          endpoint: path,
+          status: res.status,
+          paid_usdc: res.paidUsdc,
+          settlement: res.transaction,
+          network: res.network,
+          payer: res.payer,
+          session_spend: { usdc: ledger.spentUsdc, calls: ledger.calls, cap_usdc: ledger.maxUsdc },
+          data: res.data,
+          verify: `payment_receipts() should now show settlement ${res.transaction}.`,
+        };
+      } catch (err) {
+        return {
+          paid: false,
+          endpoint: path,
+          price_usdc: price,
+          reason: `the settlement failed: ${String(err).slice(0, 400)}`,
+          next_step: `can_i_pay("${path}") names which rung is in the way.`,
+        };
+      }
+    }
+
+    case "payment_receipts": {
+      const limit = typeof args.limit === "number" && args.limit > 0 ? Math.floor(args.limit) : 20;
+      let mine: string | null = typeof args.payer === "string" ? String(args.payer) : null;
+      if (!mine && opts.payerKey) {
+        const parsed = validateKey(opts.payerKey);
+        if (!("reason" in parsed)) mine = await payerAddress(parsed.key).catch(() => null);
+      }
+      const [tape, revenue] = await Promise.all([
+        readJson(f, `${api}/marketplace/receipts`),
+        readJson(f, `${api}/revenue`),
+      ]);
+      const rows = (((tape as { receipts?: unknown[] })?.receipts ??
+        (tape as { settlements?: unknown[] })?.settlements ??
+        []) as Array<Record<string, unknown>>).filter((r) =>
+        mine ? String(r.payer ?? "").toLowerCase() === mine.toLowerCase() : true,
+      );
+      const rev = revenue as { paid_queries?: unknown; revenue_usdc?: unknown; recent?: unknown[] };
+      const recent = ((rev?.recent ?? []) as Array<Record<string, unknown>>).filter((r) =>
+        mine ? String(r.payer ?? "").toLowerCase() === mine.toLowerCase() : true,
+      );
+      return {
+        available: true,
+        payer: mine,
+        narrowed: mine !== null,
+        receipts: rows.slice(0, limit),
+        revenue_counter: {
+          paid_queries: rev?.paid_queries ?? null,
+          revenue_usdc: rev?.revenue_usdc ?? null,
+          mine_recent: recent.slice(0, limit),
+        },
+        caveat:
+          "a floor, not a total: receipts the press holds only in memory are lost across a restart, " +
+          "while the settlement's chain row survives — so this can run short and never long.",
+      };
     }
 
     default:

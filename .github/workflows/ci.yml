@@ -213,6 +213,12 @@ jobs:
     # tool contract: that it forwards an operation NAME and never caller-supplied
     # query text, and that "no suggestion" stays distinguishable from "the tape
     # was unreadable".
+    #
+    # These tests fake `fetch`, which is what keeps the job hermetic and
+    # secret-free — and is also why they cannot catch a gate REFUSING the plugin's
+    # agent card: a fake gate refuses nothing. That check is `npm run smoke`,
+    # which needs the network and a live press, so it runs before a publish
+    # rather than here. A free-tier press asleep is not a failing build.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -228,3 +234,29 @@ jobs:
       - name: Tests
         run: npm test
         working-directory: mcp
+      # `bin` points at dist/server.js, so an unbuildable package is a broken
+      # `npx acr-mcp` for everyone who pastes the config off /developers.
+      - name: Build
+        run: npm run build
+        working-directory: mcp
+      - name: The built binary speaks MCP
+        working-directory: mcp
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | timeout 30 node dist/server.js > /tmp/mcp-handshake.jsonl || true
+          node -e '
+            const fs = require("node:fs");
+            const lines = fs.readFileSync("/tmp/mcp-handshake.jsonl", "utf8").trim().split("\n").filter(Boolean);
+            const list = lines.map((l) => JSON.parse(l)).find((m) => m.id === 2);
+            if (!list) throw new Error("the built server never answered tools/list");
+            const names = list.result.tools.map((t) => t.name);
+            // No payer key in CI, so the one tool that spends must be withheld.
+            if (names.includes("pay_and_read")) throw new Error("pay_and_read offered with no payer key");
+            for (const t of ["can_i_pay", "my_tca", "query_tape"]) {
+              if (!names.includes(t)) throw new Error(`the built server is missing ${t}`);
+            }
+            console.log(`built server offers ${names.length} tools: ${names.join(", ")}`);
+          '

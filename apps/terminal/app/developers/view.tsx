@@ -131,7 +131,14 @@ const FAMILY_HEAD: Record<Family, React.ReactNode> = {
   ops: <Ed x="Operations" p="Housekeeping" />,
 };
 
-export function DevelopersView({ initial }: { initial: Envelope<TerminalData> }) {
+export function DevelopersView({
+  initial,
+  activeApi,
+}: {
+  initial: Envelope<TerminalData>;
+  /** The seller this page is actually reading from — see the note in page.tsx. */
+  activeApi: string;
+}) {
   const env = useTerminal(initial);
   const { revenue, refresh } = useRevenue();
   const rev = revenue?.data;
@@ -305,11 +312,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           and this is where a reader finds out what that means. */}
       <HumanProof />
       {/* The agent gate's sibling section: the same "ask it what it wants", and then
-          the code to satisfy it, in three languages, derived from that answer. The
-          snippets name the PUBLIC host because that is the one an agent would call;
-          without NEXT_PUBLIC_ACR_API at build time they name the dev loopback. */}
-      <AgentCardSnippet api={sellerBase()} />
-      <McpSnippet api={sellerBase()} />
+          the code to satisfy it, in three languages, derived from that answer.
+
+          These name `activeApi`, the host this page IS reading from, not
+          `sellerBase()`, the configured override. The two differ exactly when the
+          override is refused on chain identity, and on the live deployment they
+          did: the config block here handed visitors the one host the rest of the
+          page had decided was "healthy, but not serving this product". A snippet
+          that names a host the page itself will not call is worse than no snippet,
+          because it looks checked. */}
+      <AgentCardSnippet api={activeApi} />
+      <McpSnippet api={activeApi} />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said
@@ -397,13 +410,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
       <section className="section">
         <div className="section-head">
           <Ed x="Endpoints" p="What you can ask" className="label" />
-          {/* NEXT_PUBLIC_ACR_API is inlined at build time — without it there is
-              no honest public docs URL, so render nothing rather than ship a
-              localhost link to production visitors. */}
-          {env.live && process.env.NEXT_PUBLIC_ACR_API && (
+          {/* The docs of the host this page READS FROM, for the same reason the
+              snippets below name it: NEXT_PUBLIC_ACR_API is the configured
+              override, and when it is refused on chain identity this link sent
+              visitors to the OpenAPI of a press the page never calls. Still
+              gated on `env.live`, so a page serving the archive does not link
+              live docs, and `activeApi` is always a real public host — which is
+              what the build-time-inlining note here used to be guarding. */}
+          {env.live && (
             <a
               className="section-link"
-              href={`${process.env.NEXT_PUBLIC_ACR_API}/docs`}
+              href={`${activeApi}/docs`}
               target="_blank"
               rel="noreferrer"
             >
