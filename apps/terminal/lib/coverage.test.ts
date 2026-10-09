@@ -78,6 +78,8 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // every column of the comparison table. A visitor who cannot read "$/1k
   // tokens" is exactly the visitor this page is for.
   "app/check/view.tsx": 40,
+  // two states, two registers each: the footnote and the chip.
+  "components/ChainToggle.tsx": 2,
   "components/spend/EscalationActions.tsx": 11, // the key, the buttons, why they are off without one, the note, who signs
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
   "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy

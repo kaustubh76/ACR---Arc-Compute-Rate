@@ -1,4 +1,6 @@
-import { sellerBase } from "@/lib/apiBase";
+import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -18,9 +20,15 @@ export const maxDuration = 30;
    referrers), and never persisted here — the browser holds it in
    sessionStorage for the length of one tab. */
 
-// Same resolution order as lib/api.ts, so the console can never end up
-// pointing at a different press than the rest of the terminal.
-const API = (process.env.ACR_API?.trim() || sellerBase()).replace(/\/$/, "");
+/* RESOLVED PER REQUEST, THROUGH THE LADDER, and it used to be neither.
+   
+   This was `const API = process.env.ACR_API || sellerBase()` at module scope.
+   The comment above it promised "the console can never end up pointing at a
+   different press than the rest of the terminal" — and once one deployment
+   served two chains that promise was false twice over: it read one chain's
+   variable for every visitor, and it bypassed the seller ladder, so it also
+   never fell back where every other route did. A console that moves money is
+   the last place to be talking to a different press than the page around it. */
 const TOKEN_HEADER = "x-acr-ops-token";
 // Bounded charset and length so a hostile header can never become a smuggled
 // second header line. Shape only — the upstream decides whether it is right.
@@ -33,9 +41,9 @@ function bad(status: number, message: string) {
   return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-async function forward(init: RequestInit, path: string): Promise<NextResponse> {
+async function forward(chain: ChainKey, init: RequestInit, path: string): Promise<NextResponse> {
   try {
-    const r = await fetch(`${API}${path}`, { ...init, signal: AbortSignal.timeout(28_000) });
+    const r = await fetch(`${apiBase(chain)}${path}`, { ...init, signal: AbortSignal.timeout(28_000) });
     const body = await r.json().catch(() => null);
     return NextResponse.json(body ?? { error: "the press sent no answer" }, {
       status: r.status,
@@ -50,10 +58,10 @@ async function forward(init: RequestInit, path: string): Promise<NextResponse> {
 
 /** The catalogue plus the audit trail. */
 export async function GET(req: NextRequest) {
+  const chain = requestChain(req);
   const token = req.headers.get(TOKEN_HEADER);
   if (!token || !TOKEN_RE.test(token)) return bad(401, "operator key required");
-  return forward(
-    { method: "GET", headers: { "X-ACR-Ops-Token": token }, cache: "no-store" },
+  return forward(chain, { method: "GET", headers: { "X-ACR-Ops-Token": token }, cache: "no-store" },
     "/ops/actions",
   );
 }
@@ -61,6 +69,7 @@ export async function GET(req: NextRequest) {
 /** Run one action. Dry-run is the default here too: the flag has to be an
  *  explicit `false` to execute, so a malformed body can never spend money. */
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   const token = req.headers.get(TOKEN_HEADER);
   if (!token || !TOKEN_RE.test(token)) return bad(401, "operator key required");
 
@@ -76,8 +85,7 @@ export async function POST(req: NextRequest) {
     return bad(400, "params must be an object");
   if (dry_run !== undefined && typeof dry_run !== "boolean") return bad(400, "dry_run must be a boolean");
 
-  return forward(
-    {
+  return forward(chain, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-ACR-Ops-Token": token },
       // Rebuilt, not forwarded. Only these three fields can ever reach the press.

@@ -117,6 +117,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // it is the only attribute the server does not render.
     <html
       lang="en"
+      data-chain={chain}
       className={`${display.variable} ${body.variable} ${eyebrow.variable} ${mono.variable}`}
       suppressHydrationWarning
     >

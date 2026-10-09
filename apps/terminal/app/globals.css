@@ -2725,6 +2725,59 @@ html[data-edition-turn] .plain-only {
   }
 }
 
+/* the network switch — a footnote on the default chain, a chip off it.
+   Borrowed from `.segmented button`'s reset rather than invented: same eyebrow
+   type, same muted ink, so on the default chain it reads as chrome and not as a
+   control competing with the edition toggle beside it. Off the default it also
+   carries `.chip chip-gold`, which supplies its own border and colour. */
+.chain-switch {
+  border: 0;
+  background: transparent;
+  padding: 7px 4px;
+  font-family: var(--eyebrow);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ether-45);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-quart);
+}
+.chain-switch:hover {
+  color: var(--sand);
+}
+.chain-switch:focus-visible {
+  outline: 1px solid var(--validator);
+  outline-offset: 2px;
+}
+/* Which label shows is CSS's job, keyed on the attribute the SERVER rendered —
+   the same mechanism `.ed-x` / `.ed-p` use for the edition, and for the same
+   reason: `useChain()`'s server snapshot is the constant default, so a
+   React-driven label flashed the wrong state until hydration. Both branches
+   ship; one is revealed. */
+.chain-off-default {
+  display: none;
+}
+[data-chain="testnet"] .chain-on-default {
+  display: none;
+}
+[data-chain="testnet"] .chain-off-default {
+  display: inline;
+}
+
+/* Off the default network the footnote becomes a chip, because being on the
+   wrong one must be impossible to miss. Borrowing `.chip`'s look here rather
+   than toggling the class in React keeps the whole control server-renderable. */
+[data-chain="testnet"] .chain-switch {
+  padding: 4px 10px;
+  border: 1px solid rgba(233, 161, 63, 0.55);
+  border-radius: 999px;
+  background: var(--gold-wash);
+  color: var(--sand);
+}
+[data-chain="testnet"] .chain-switch:hover {
+  border-color: var(--gold);
+}
+
 /* masthead: the toggle rides with the status pill as one right-aligned unit */
 .nav-right {
   margin-left: auto;
