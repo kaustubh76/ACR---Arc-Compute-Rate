@@ -310,7 +310,7 @@ Suites, all green and re-measured on every push: **1332 py** · **217 forge** ·
 | [`apps/agent/`](apps/agent) | The machine buyer (TypeScript, Circle Gateway `x402-batching` client) |
 | [`redteam/`](redteam) | The wash-flow adversary used to attack our own index |
 | [`graph/`](graph) | The `acr-tape` subgraph: settlements benchmarked in the mapping, humans per window (The Graph, Studio) |
-| [`mcp/`](mcp) | Eleven MCP tools — Machine TCA, a per-invoice price check, a running spend report and a payment self-check for any MCP host, carded. Published as `acr-mcp` |
+| [`mcp/`](mcp) | Eleven MCP tools — Machine TCA, a per-invoice price check, a running spend report and a payment self-check for any MCP host, carded. Packaged as `acr-mcp` (v0.3.0, `npm run release` publishes it) |
 | [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
 | [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
 | [`hackathon/`](hackathon) | The two hackathon submissions this began as — preserved, not maintained |
