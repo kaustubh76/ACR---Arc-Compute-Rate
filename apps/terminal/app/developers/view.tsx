@@ -155,6 +155,15 @@ export function DevelopersView({
   const env = useTerminal(initial);
   const { revenue, refresh } = useRevenue();
   const rev = revenue?.data;
+  /* WHETHER THESE FIGURES WERE READ, which the heading below asserts in the
+     word "live". The proxy answers `live: false` with an OFFLINE literal of
+     zeros whenever the press did not answer — and off the default chain there
+     is no bundle to fall back to either, so that is every load until the press
+     wakes. Printed under "live", a zero is a claim that machines have paid us
+     nothing. This page's sibling states the rule: "`?? 0` printed '0 failing'
+     for a field the press never sent, which is this page's own
+     unread-is-not-zero rule broken in the one line that summarises it". */
+  const revenueRead = Boolean(revenue?.live);
   const info = useX402Info();
   // The gate's live advertised price (ACR_X402_PRICE_USDC) — what is PAID.
   const price = info?.data?.price_usdc ?? rev?.price_usdc ?? PRICE_FALLBACK_USDC;
@@ -369,12 +378,16 @@ export function DevelopersView({
 
       <section className="section">
         <div className="section-head">
-          <Ed x="Machine revenue · live" p="What machines have paid us · live" className="label" />
+          {revenueRead ? (
+            <Ed x="Machine revenue · live" p="What machines have paid us · live" className="label" />
+          ) : (
+            <Ed x="Machine revenue · not read" p="What machines have paid us · not read" className="label" />
+          )}
         </div>
         <div className="lab-counters">
           <div>
             <div className="counter-value">
-              <TickerNumber text={fmtInt(rev?.paid_queries ?? 0)} />
+              {revenueRead ? <TickerNumber text={fmtInt(rev?.paid_queries ?? 0)} /> : "…"}
             </div>
             <div className="counter-label label">
               <Ed x="Paid queries" p="Questions paid for" />
@@ -382,7 +395,7 @@ export function DevelopersView({
           </div>
           <div>
             <div className="counter-value gold">
-              <TickerNumber text={money(rev?.revenue_usdc ?? 0, 4)} />
+              {revenueRead ? <TickerNumber text={money(rev?.revenue_usdc ?? 0, 4)} /> : "…"}
             </div>
             <div className="counter-label label">
               <Ed x="Revenue (USDC)" p="Revenue (dollars)" />
@@ -415,10 +428,19 @@ export function DevelopersView({
           </div>
         ) : (
           <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
-            <Ed
-              x="No receipts yet this session. Run a query above and it prints here."
-              p="No receipts yet this session. Ask a question above and it prints here."
-            />
+            {/* Same rule as the counters above: "none yet" is a statement about
+                the feed, and we may not make it from a feed we did not read. */}
+            {revenueRead ? (
+              <Ed
+                x="No receipts yet this session. Run a query above and it prints here."
+                p="No receipts yet this session. Ask a question above and it prints here."
+              />
+            ) : (
+              <Ed
+                x="The revenue feed has not answered, so no receipt is shown. An unread feed is not an empty one."
+                p="We could not read the payments feed, so nothing is shown here yet."
+              />
+            )}
           </p>
         )}
       </section>
@@ -608,6 +630,8 @@ export function DevelopersView({
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
                                   ) : e.why === "address" ? (
                                     <Ed x="needs a wallet in the path" p="needs a wallet address" />
+                                  ) : e.why === "business" ? (
+                                    <Ed x="needs a business slug in the path" p="needs the name of a business" />
                                   ) : e.why === "human" ? (
                                     <Ed x="needs a proof of personhood" p="needs proof you are a real person" />
                                   ) : (

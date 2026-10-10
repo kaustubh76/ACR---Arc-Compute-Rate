@@ -3,19 +3,7 @@ import assert from "node:assert/strict";
 
 import { MAINNET_SELLER, TESTNET_SELLER } from "./apiBase";
 import { CHAIN, CHAIN_TESTNET, chainFacts, isMainnet } from "./chain";
-import {
-  apiKey,
-  CHAIN_KEYS,
-  CHAIN_PARAM,
-  CHAINS,
-  DEFAULT_CHAIN,
-  chainCandidates,
-  emptyChainFacts,
-  emptyTerminal,
-  parseChainKey,
-  resolveChain,
-  sameChain,
-} from "./chainChoice";
+import { CHAINS, CHAIN_KEYS, CHAIN_PARAM, DEFAULT_CHAIN, apiKey, chainCandidates, emptyChainFacts, emptyTerminal, parseChainKey, resolveChain, sameChain } from "./chainChoice";
 import { readHeaders, sharedCache } from "./readResult";
 import { ok, unread } from "./readResult";
 
@@ -181,4 +169,44 @@ test("the cushion is shaped like the payload it stands in for", () => {
     assert.equal(t.attack.usdc_burned, 0);
     assert.equal(t.attack.n_adversarial, 0);
   }
+});
+
+test("an off-default chain never falls back to the default chain's money", () => {
+  /* THE BUG THIS PINS, in /api/wallet/balances: the bundle is mainnet-only, so
+     off the default chain `bundleSection(...)` is undefined and
+     `chainFacts(null)` resolves the MAINNET profile field by field — mainnet
+     USDC, mainnet Gateway, mainnet RPC — and the response was labelled
+     eip155:5042. A visitor on the practice network was shown a real-money
+     balance and a real-money funding plan.
+
+     Neither existing gate could see it: mainnetOnly scans for testnet
+     LITERALS and this was the ABSENCE of one, and chainWiring passes because
+     the route does resolve the chain and does stamp it on the answer. Wiring
+     the chain through is not the same as using it, so this asserts the values
+     differ rather than that the plumbing exists. */
+  const main = emptyChainFacts("mainnet");
+  const test = emptyChainFacts("testnet");
+  assert.notEqual(main.chain_id, test.chain_id);
+  assert.notEqual(main.caip2, test.caip2);
+  /* THE RPC IS WHAT DECIDES WHICH CHAIN A BALANCE COMES FROM, and it is the
+     field the fallback was getting wrong. I first asserted on `usdc_address`
+     and it failed: Arc's USDC is a predeploy at the SAME address on both
+     chains, so the token tells you nothing about which network you read. The
+     node does. */
+  assert.notEqual(
+    main.public_rpc_url,
+    test.public_rpc_url,
+    "the node a balance is read from must differ, or the figure is another chain's",
+  );
+  assert.notEqual(
+    main.gateway_wallet.toLowerCase(),
+    test.gateway_wallet.toLowerCase(),
+    "and the Gateway a funding plan would top up",
+  );
+  assert.equal(
+    main.usdc_address.toLowerCase(),
+    test.usdc_address.toLowerCase(),
+    "USDC is a predeploy and IS the same on both; recorded so the next reader " +
+      "does not mistake that for the fallback having worked",
+  );
 });
