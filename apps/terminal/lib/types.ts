@@ -447,7 +447,19 @@ export interface RevenueData {
 }
 
 export interface X402Info {
-  facilitator: "dev" | "circle";
+  /** Which paywall answered — and OPTIONAL, because "we could not ask" is a
+   *  third state that used to be rendered as the first.
+   *
+   *  Measured on the live site 2026-10-10: the front page read
+   *  `LIVE · DEV GATE` in gold over the production Circle paywall. `/api/console`
+   *  gives the press 2.5s and falls back to the archived bundle, whose
+   *  `x402.facilitator` is `"dev"` — true when that bundle was cut, false now —
+   *  so a cold Render start turned "unreachable" into a confident claim about
+   *  which gate was live. It also flipped `agentAllowed`, which keys on
+   *  `mode === "dev"`.
+   *  `ApiConsole` already renders no badge when this is absent, which is the
+   *  honest answer; the type just never allowed it to be. */
+  facilitator?: "dev" | "circle";
   price_usdc: number;
   scheme: string;
   network: string;

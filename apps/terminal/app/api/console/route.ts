@@ -94,9 +94,19 @@ export async function GET(req: Request) {
   } catch {
     /* offline */
   }
+  /* THE ARCHIVE MAY DESCRIBE THE PAYWALL BUT NOT NAME THE GATE. Everything
+     else in this section — the price, the network, which endpoints are metered
+     — is still useful when the press is unreachable, and the page labels itself
+     archived around it. `facilitator` is different: it is a claim about what is
+     live RIGHT NOW, the bundled value is `"dev"`, and rendering it put a gold
+     DEV GATE badge over the production Circle paywall on every cold start.
+     Dropped rather than corrected to `"circle"`, because that would be the same
+     mistake with a luckier value. Absent is the truth, and `ApiConsole` already
+     draws nothing for it. */
+  const archived = bundleSection(chain, "x402") ?? null;
   const env: Envelope<X402Info | null> = {
     live: false,
-    data: bundleSection(chain, "x402") ?? null,
+    data: archived ? (({ facilitator: _gate, ...rest }) => rest)(archived) : null,
     fetchedAt: Date.now(), chain,
   };
   return NextResponse.json(env, {

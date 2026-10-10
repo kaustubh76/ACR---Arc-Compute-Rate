@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const res = await fetch(`${apiBase(chain)}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       const j = (await res.json()) as X402Info;
-      gate = j.facilitator;
+      gate = j.facilitator ?? null;
       network = j.network ?? null;
     }
   } catch {
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const info = await fetch(`${base}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (info.ok) {
       const j = (await info.json()) as X402Info;
-      gate = j.facilitator;
+      gate = j.facilitator ?? null;
       network = j.network ?? null;
       gatewayChain = j.gateway_chain ?? null;
       privateMainnet = Boolean(j.private_mainnet);
