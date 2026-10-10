@@ -37,8 +37,12 @@ _ROW = re.compile(r'path:\s*"([^"]+)"')
 #: where a route would go to disappear quietly.
 NOT_IN_THE_REGISTER: dict[str, str] = {
     "/ops/verify": (
-        "an operator surface behind X-ACR-Ops-Token; /developers is a reader page "
-        "and listing an operator route there invites readers to probe it"
+        "an operator surface. NOT token-gated — `app.py` says 'Ungated and "
+        "read-only' and the terminal proxies it to the public /ops page with no "
+        "token; only /ops/actions carries X-ACR-Ops-Token. The reason it is off "
+        "/developers is audience, not access: that page is a developer's index "
+        "of what a machine can buy, and the operator's own console already "
+        "surfaces this one"
     ),
     "/ops/actions": "same, and with dry_run=False it spends real money",
     "/compute/{label}": (

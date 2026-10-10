@@ -9,8 +9,8 @@ import { RUNNABLE } from "@/lib/endpoints";
 
 /* POST /api/probe — call one free endpoint and report what came back.
  *
- * The endpoints table listed twenty-seven routes and let a reader run five of
- * them. The other twenty-two are FREE, so there was never a reason beyond the
+ * The endpoints table listed every route and let a reader run only the five
+ * paid ones. The rest are FREE, so there was never a reason beyond the
  * absence of this route: a public GET needs no payment, no wallet and no
  * session, and a reader who can see the answer arrive stops having to take the
  * documentation's word for it.

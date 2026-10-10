@@ -178,7 +178,7 @@ export function DevelopersView({
   const [loadPath, setLoadPath] = useState<string | null>(null);
 
   /* --- the endpoints table, made answerable ---
-     Twenty-two of the twenty-seven rows were inert, and every one of those is
+     Most of the rows were inert, and every one of those is
      a FREE route: nothing was stopping a reader from calling them except the
      absence of a button. Now each runnable row fetches through /api/probe and
      shows what came back, so the table is evidence rather than documentation.
@@ -489,7 +489,7 @@ export function DevelopersView({
                 if (!rows.length) return null;
                 return (
                   <Fragment key={fam}>
-                    {/* Twenty-seven rows in one flat list, ordered by nothing a
+                    {/* Every row in one flat list, ordered by nothing a
                         reader could see. The families were already there in the
                         paths; they just were not drawn. */}
                     <tr>
