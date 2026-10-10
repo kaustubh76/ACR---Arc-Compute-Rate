@@ -246,6 +246,26 @@ uncarded caller with its own `chain_id`, and that is what the card is signed for
 cannot be established at all, the call goes out **anonymous** rather than carrying a
 card the gate will refuse — a lower rate-limit bucket beats a 401 on every tool.
 
+**And the override no longer wins silently**, which was the same bug wearing the
+other hat. It used to short-circuit before the gate was ever asked, so pointing it
+at the wrong chain reproduced the original failure exactly. Measured 2026-10-10
+against both live presses:
+
+```
+testnet gate (wants 5042002)   card signed 5042002  ->  200  tier=carded
+testnet gate (wants 5042002)   card signed 5042     ->  401
+mainnet gate (wants 5042)      card signed 5042002  ->  401
+mainnet gate (wants 5042)      card signed 5042     ->  200  tier=carded
+```
+
+That was reachable from this repo's own `.env`, which pins
+`ACR_ARC_CHAIN_ID=5042002` while `DEFAULT_API` is the mainnet press — so any shell
+that exports it and sets no `ACR_API` would 401 on every carded tool with no hint
+why. (`mcp/` loads no dotenv of its own, which is the only reason it had not bitten
+yet.) So the gate is asked **anyway**, and a disagreement means no card rather than
+a doomed one. An unreachable gate still honours the override: a sleeping free-tier
+press must not quietly strip a correctly-set card.
+
 | env | meaning |
 |---|---|
 | `ACR_API` | the seller to call (default `https://acr-api-mainnet.onrender.com` — the same host `/developers` renders in its config block) |
@@ -254,11 +274,60 @@ card the gate will refuse — a lower rate-limit bucket beats a 401 on every too
 | `ACR_MAX_SPEND_USDC` | per-process spend ceiling (default `0.01`). `0` means refuse every payment |
 | `ACR_ARC_RPC_URL` | the RPC `can_i_pay` reads balances from (default: the chain's public one) |
 | `ACR_AGENT_HUMAN_CLUSTER` | **opt-in** human claim: the cluster `HumanIdMirror.clusterOf` records for this key's wallet in the *current* 7-day window. A claim the chain cannot confirm is a **401**, never a silent downgrade, so leave it unset unless you have resolved that wallet |
-| `ACR_ARC_CHAIN_ID` | overrides the card's domain chain. **Leave it unset** unless you know you need it; the gate is asked instead |
+| `ACR_ARC_CHAIN_ID` | overrides the card's domain chain. **Leave it unset** unless you know you need it; the gate is asked instead. Set it to a chain the gate disagrees with and the plugin presents **no card at all** and says so once on stderr — see *The 401 this used to be* |
 | `ACR_SPEND_LOG` | where `check_spend` records each priced bill so `spend_report` can total them. Default `~/.acr/spend.jsonl`; `off` disables recording entirely. Nothing here is uploaded — see **Privacy** |
-| `ACR_ARC_PRIVATE_MAINNET` | selects Arc's private mainnet profile for the one path that spends. Leave unset unless you have been told otherwise: it changes which chain a settlement is built for |
+| `ACR_ARC_PRIVATE_MAINNET` | **inert — it changes nothing.** Kept documented so nobody sets it expecting an effect. It used to be passed to Circle's client as `arcPrivateMainnet`; `GatewayClientConfig` in the installed `@circle-fin/x402-batching` 3.5.0 is `{chain, privateKey, rpcUrl?, headers?}` and the string appears nowhere in that package's shipped code, so it was dropped on the floor at runtime (it compiled because a spread skips excess-property checks). It was unreachable anyway: both chain profiles are `privateMainnet: false` since the private-mainnet preview ended. Verified 2026-10-10 |
 | `ACR_HUMAN_AGENT_KEY` | lets `wallet_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. A demo buyer's key derives from its public label |
 | `ACR_HUMAN_NULLIFIER` | the same, for a local **dev** gate (`ACR_HUMANID_MODE=dev`): a bare nullifier. Not a spending key; anyone holding it can read that human's costs |
+
+### Running it against Arc testnet
+
+Nothing here is testnet-aware by default: `ACR_API` falls back to the mainnet
+press, so **the only thing that puts this plugin on testnet is setting it**. The
+snippet on `/developers` cannot show you this — the terminal has a whole-project
+gate forbidding the other network's values in its shipping UI
+(`apps/terminal/lib/mainnetOnly.test.ts`, eight recorded incidents) — so the
+recipe lives here.
+
+```json
+"env": {
+  "ACR_API": "https://acr-api-1fto.onrender.com",
+  "ACR_AGENT_PRIVATE_KEY": "0x<any 32 bytes>",
+  "ACR_PAYER_PRIVATE_KEY": "0x<a wallet with an open Gateway deposit on Arc testnet>",
+  "ACR_MAX_SPEND_USDC": "0.001"
+}
+```
+
+Deliberately absent: `ACR_ARC_CHAIN_ID` (that gate answers `5042002` for itself,
+and pinning the wrong one costs you the card — see above), `ACR_ARC_RPC_URL` (the
+profile's `https://rpc.testnet.arc.io` answers), and `ACR_AGENT_HUMAN_CLUSTER`
+(testnet reports `human_binding_verifiable: true`, so an unresolved claim is a
+**hard 401 on every tool**, not a downgrade).
+
+Measured against that press on 2026-10-10, with that config:
+
+| | |
+|---|---|
+| card | `/agent/whoami` → **200, tier `carded`** |
+| `can_i_pay` | **all seven rungs pass** — host, chain, card, gate, challenge, payer, funds |
+| `pay_and_read("/prints")` | **HTTP 200**, `$0.0001`, `eip155:5042002`, settlement `6a9e4799-…`, which then appeared on `payment_receipts` as seq 113 |
+| every tool | **11 of 11 answered**, and `wallet_tca` went from `seen: false` to 21 purchases / `$0.105752` once that payment was on the tape |
+
+Two things are true of this press and worth knowing before you trust a number
+from it:
+
+- **Its oracle has not posted since 2026-09-15.** All three indices answer with
+  prints **25 days old**, and `/health` shows why: `signer: "circle"` with
+  `poster_last_tx: null` while the keeper fires on schedule — the chore runs and
+  nothing lands. `get_rate` now reports that age rather than handing you the
+  number bare. `/onchain` also flickers between a value and a 404 within minutes,
+  because Arc answers `eth_getLogs` with a 429 under load; an absence there is
+  not always permanent.
+- **The carded tier works here and does not on mainnet.** `query_tape` is
+  screened by Model Armor, which fails *closed* for carded callers; the mainnet
+  press reports `credentials_present: false`, so carding it breaks that one tool
+  (handled, with `host_side: true`, and pinned by `paying.test.ts`). Testnet is
+  the press where the full carded path is exercisable.
 
 The card names no `verifyingContract` on purpose — the seller, not a contract,
 verifies it — so `audience` (`acr-index-api`, read from `GET /agent/challenge`) and

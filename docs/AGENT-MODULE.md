@@ -291,13 +291,23 @@ resolution and is handled there too.
 ## 8 · What stays unfinished, deliberately
 
 - **Deployed, and Model Armor is live in production** (2026-09-12, `main` = `797e498`, Render
-  image `2026-09-12-1617`). `/armor/info` on `acr-api-1fto.onrender.com` (the testnet host, since suspended) reported `backend: gcp`,
+  image `2026-09-12-1617`). `/armor/info` on `acr-api-1fto.onrender.com` (the testnet host — suspended 2026-09-15,
+  **resumed 2026-10-01** and answering today, see `docs/DEPLOY.md`) reported `backend: gcp`,
   `live: true`, `asia-south1/EthOnline_Project`; the service-account key rides as a Render secret
   file, since `data/` is in `.dockerignore`. `ACR_ARMOR_MODE` is `auto`, not `gcp`: with all four
   variables set it picks Model Armor, and a misconfiguration shows as a *stated* floor on
   `/armor/info` and `/ops` rather than as a 503 on carded reads. `scripts/demo_agent.py` ran all
   ten acts against the deployed host; Google refused the injection by name over the public
   internet. `ACR_ARMOR_MODE=local` plus a redeploy is the rollback.
+
+  **The two presses diverge here, and it decides where a carded agent can work.** Measured
+  2026-10-10: `/armor/info` on the testnet host reports `credentials_present: true`, `live: true`,
+  `last_invocation: SUCCESS`; on `acr-api-mainnet` it reports `credentials_present: false`,
+  `screened: 0`. The screen in front of `POST /graph/query` fails **closed** for carded callers
+  (open for anonymous ones, so a browser reader is never taken down by an expired key) — so
+  carding an agent against mainnet breaks that one route, and testnet is the press where the
+  full carded path is exercisable. `acr-mcp` handles the refusal with `host_side: true` and names
+  `/armor/info` as the proof; `mcp/src/paying.test.ts` pins it.
 
   ```bash
   curl -s https://acr-api-mainnet.onrender.com/armor/info | jq '.backend, .live, .screened'

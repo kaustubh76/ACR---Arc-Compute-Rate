@@ -266,7 +266,10 @@ export async function canIPay(opts: {
             ? `funded: ${amounts}.`
             : step === "deposit"
               ? `${amounts}. An x402 settlement spends the GATEWAY balance, not the wallet: deposit ` +
-                "into Circle Gateway first (the repo's `make circle-deposit`, or Bridge Kit)."
+                // Bridge Kit first: most readers of this sentence arrived via
+                // `npx acr-mcp` and have no clone, so a make target is not a
+                // thing they can run.
+                "into Circle Gateway first (Circle's Bridge Kit, or this repo's `make circle-deposit`)."
               : `${amounts}. This wallet holds no USDC on ${chain.name} at all — fund it, then deposit ` +
                 "into Circle Gateway.",
       });

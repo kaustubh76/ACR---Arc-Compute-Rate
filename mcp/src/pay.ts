@@ -3,8 +3,16 @@
  * Vendored from `apps/agent/src/payer.ts` (+ `receipts.decodeConfirmation`) and
  * `apps/terminal/lib/walletPayer.ts` (the two GatewayWallet fragments and
  * `fundingStep`). This package is published on its own, so it cannot relative-
- * import across the monorepo; `pay.test.ts` pins the copies against the
- * originals the same way `card.ts` is pinned against `apps/agent/src/card.ts`.
+ * import across the monorepo.
+ *
+ * WHAT PINS THESE COPIES, stated accurately after the previous version of this
+ * sentence promised a `pay.test.ts` that has never existed: `paying.test.ts`
+ * exercises `fundingStep`, the spend cap, key validation and the challenge
+ * parser against the shapes the originals produce, and `chain.test.ts` parses
+ * `acr_core/config.py` and pins the chain table field by field. The vendored
+ * GatewayWallet ABI fragments are NOT pinned against `apps/terminal` — they are
+ * two function selectors that Circle's own contract defines, and a mismatch
+ * surfaces as a failed read rather than a wrong number.
  *
  * WHAT ACTUALLY PAYS. An x402 settlement on Arc spends the payer's **Gateway
  * deposit**, not the USDC sitting in its wallet: the client signs an EIP-3009
@@ -183,11 +191,23 @@ export class GatewayPayer {
     extraHeaders?: () => Promise<Record<string, string>>,
   ): Promise<GatewayPayer> {
     const { GatewayClient } = await import("@circle-fin/x402-batching/client");
+    /* `arcPrivateMainnet` USED TO BE PASSED HERE AND WAS NEVER READ.
+       `GatewayClientConfig` in the installed @circle-fin/x402-batching 3.5.0 is
+       `{ chain, privateKey, rpcUrl?, headers? }` — nothing else — and the
+       string `arcPrivateMainnet` appears nowhere in the package's shipped JS,
+       only in our own call. It compiled because a spread skips excess-property
+       checking, and it was then dropped on the floor at runtime. Verified
+       2026-10-10 against the typings and the dist.
+       It was also unreachable: both profiles are `privateMainnet: false` since
+       the private-mainnet preview ended, so the spread never fired. `ArcChain`
+       keeps the field because `acr_core/config.py` has it and `chain.test.ts`
+       pins the two tables against each other — but nothing downstream of here
+       consumes it, and `ACR_ARC_PRIVATE_MAINNET` is documented in the README as
+       inert rather than as a switch that does something. */
     const client = new GatewayClient({
       chain: chain.gatewayChain,
       privateKey: privateKey as `0x${string}`,
       rpcUrl: chain.publicRpc,
-      ...(chain.privateMainnet ? { arcPrivateMainnet: true } : {}),
     }) as unknown as PayingClient;
     return new GatewayPayer(client.account?.address ?? "", client, chain, extraHeaders);
   }

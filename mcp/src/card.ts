@@ -102,6 +102,27 @@ export type ChainIdSource = number | (() => Promise<number | null>);
  * on, and we sign for that. `ACR_ARC_CHAIN_ID` still wins, for a fork or a local
  * gate.
  *
+ * BUT IT NO LONGER WINS SILENTLY, and that is the second half of the same bug.
+ * The override used to short-circuit before the gate was ever asked, so setting
+ * it to the wrong chain reproduced the original failure exactly — and measured
+ * 2026-10-10, both directions, against the live presses:
+ *
+ *     testnet gate (wants 5042002)   card signed 5042     ->  401
+ *     mainnet gate (wants 5042)      card signed 5042002  ->  401
+ *
+ * That is reachable from this repo's own `.env`, which pins
+ * `ACR_ARC_CHAIN_ID=5042002` while `DEFAULT_API` is the mainnet press — so any
+ * shell that exports it (`set -a; . .env`, a Makefile target) and sets no
+ * `ACR_API` gets a 401 on every carded tool and no hint why. `mcp/` loads no
+ * dotenv of its own, which is the only reason it has not bitten yet.
+ *
+ * So the gate is asked anyway, and a disagreement means NO CARD rather than a
+ * doomed one. That is not a new policy — it is the one `withCard` already states
+ * below: "a card signed for the wrong chain is a 401 on every tool, which is
+ * strictly worse than not presenting one." An anonymous caller works, on a lower
+ * rate-limit bucket. An unreachable gate still honours the override, because
+ * "the press is asleep" must not quietly drop a correctly-set card.
+ *
  * AND THERE IS NO FALLBACK, which is the point. A `FALLBACK_CHAIN_ID = 5042002`
  * used to sit above this comment, described as "only reached when neither is
  * available" — it was reached never: the failure path below returns `null`, and
@@ -120,23 +141,64 @@ export function gateChainId(
   override?: string,
 ): () => Promise<number | null> {
   const explicit = Number((override ?? "").trim());
-  if (Number.isFinite(explicit) && explicit > 0) return async () => explicit;
+  const pinned = Number.isFinite(explicit) && explicit > 0 ? explicit : null;
 
-  // Only a success is cached. Caching a failure would let one cold start on a
-  // sleeping free-tier press demote the whole session to anonymous.
-  let settled: number | null = null;
-  return async () => {
-    if (settled !== null) return settled;
+  /** What the gate says, or null if it would not say. */
+  async function ask(): Promise<number | null> {
     try {
       const res = await rawFetch(`${api.replace(/\/$/, "")}/agent/challenge`);
       const body = (await res.json().catch(() => ({}))) as { chain_id?: unknown };
       const id = Number(body?.chain_id);
-      if (Number.isFinite(id) && id > 0) {
-        settled = id;
-        return id;
-      }
+      if (Number.isFinite(id) && id > 0) return id;
     } catch {
-      /* unreachable gate — fall through */
+      /* unreachable gate */
+    }
+    return null;
+  }
+
+  // Only a settled ANSWER is cached. Caching a failure would let one cold start
+  // on a sleeping free-tier press demote the whole session to anonymous.
+  let settled: number | null = null;
+  // The refusal is cached too, separately: once the gate has contradicted the
+  // override there is nothing to re-ask, and re-asking would put an extra
+  // request in front of every single tool call for the rest of the session.
+  let contradicted = false;
+  /* One probe, however many callers. `withCard` resolves on EVERY request, so a
+     host issuing parallel tool calls on a cold session would each miss the
+     empty cache and ask the gate independently — against a free-tier press with
+     a rate limit. The non-override path always had this race; the override path
+     did not, because it never asked at all, so sharing the in-flight promise is
+     what keeps the new probe from being a regression in request volume. */
+  let inflight: Promise<number | null> | null = null;
+  return async () => {
+    if (settled !== null) return settled;
+    if (contradicted) return null;
+
+    if (!inflight) inflight = ask().finally(() => void (inflight = null));
+    const asked = await inflight;
+
+    if (pinned !== null) {
+      if (asked !== null && asked !== pinned) {
+        contradicted = true;
+        // stderr, not stdout: stdout is the JSON-RPC channel. This is the one
+        // thing a developer in this state needs told, and no tool result can
+        // carry it — every tool would simply look unauthenticated.
+        console.error(
+          `acr-mcp: ACR_ARC_CHAIN_ID=${pinned} but ${api} verifies cards for chain ${asked}. ` +
+            "A card signed for the wrong chain is a 401 on every tool, so no card will be " +
+            `presented and this session runs anonymous. Unset ACR_ARC_CHAIN_ID, or set ACR_API ` +
+            "to a press on that chain.",
+        );
+        return null;
+      }
+      // Agreed, or the gate would not say: honour the override either way.
+      settled = pinned;
+      return pinned;
+    }
+
+    if (asked !== null) {
+      settled = asked;
+      return asked;
     }
     return null;
   };

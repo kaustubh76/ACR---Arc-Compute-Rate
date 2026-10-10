@@ -70,11 +70,86 @@ test("the card's chain id comes from the gate, not from a default", async () => 
   assert.equal(seen.filter((c) => c.url.includes("/agent/challenge")).length, 1);
 });
 
-test("ACR_ARC_CHAIN_ID overrides the gate, and never probes it", async () => {
+test("ACR_ARC_CHAIN_ID still overrides the gate — when the gate does not disagree", async () => {
+  /* THIS TEST USED TO ASSERT THE OPPOSITE HALF: "and never probes it", with
+     `seen.length === 0`. That was the bug, not the feature. Short-circuiting
+     before asking meant an override pointed at the wrong chain reproduced the
+     exact 401 this whole mechanism exists to prevent — measured both directions
+     against the live presses on 2026-10-10. The override still wins; it just no
+     longer wins uncontested. */
   const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
-  const resolve = gateChainId(router({ "/agent/challenge": { body: GATE_CHALLENGE } }, seen), "https://acr.test", "31337");
+  const resolve = gateChainId(
+    router({ "/agent/challenge": { body: { ...GATE_CHALLENGE, chain_id: 31337 } } }, seen),
+    "https://acr.test",
+    "31337",
+  );
   assert.equal(await resolve(), 31337);
-  assert.equal(seen.length, 0, "an explicit id must not need the network at all");
+  assert.equal(seen.length, 1, "the gate is asked once, so a contradiction can be noticed");
+  assert.equal(await resolve(), 31337, "and the agreed answer is cached, not re-asked");
+  assert.equal(seen.length, 1);
+});
+
+test("an override the gate contradicts presents NO card, rather than a doomed one", async () => {
+  /* The measured failure: a card signed for 5042 against the 5042002 gate is
+     `401 "agent card signature does not match its agent"` on every single tool,
+     with nothing in any tool result that could explain it. Anonymous is a
+     documented working state on a lower rate-limit bucket, so it is strictly the
+     better of the two — the same judgement `withCard` already states for an
+     unresolvable chain. */
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  const warned: string[] = [];
+  const realError = console.error;
+  console.error = (...a: unknown[]) => void warned.push(a.map(String).join(" "));
+  try {
+    const resolve = gateChainId(
+      router({ "/agent/challenge": { body: GATE_CHALLENGE } }, seen), // says 5042
+      "https://acr.test",
+      "5042002",
+    );
+    assert.equal(await resolve(), null, "a contradicted override must not sign anything");
+    // Cached as a refusal: otherwise every tool call pays for another probe of a
+    // question already answered.
+    assert.equal(await resolve(), null);
+    assert.equal(seen.length, 1, "the contradiction is established once");
+  } finally {
+    console.error = realError;
+  }
+  // The one place this can be said. No tool result can carry it: every tool
+  // would simply look unauthenticated.
+  assert.equal(warned.length, 1, "exactly one warning, not one per call");
+  assert.match(warned[0], /ACR_ARC_CHAIN_ID=5042002/);
+  assert.match(warned[0], /verifies cards for chain 5042/);
+  assert.match(warned[0], /anonymous/);
+});
+
+test("however many callers, one probe", async () => {
+  /* `withCard` resolves the chain on EVERY request, so a host issuing parallel
+     tool calls on a cold session used to put one gate probe behind each of them
+     — against a free-tier press with a rate limit. Asking the gate even when an
+     override is set would have made that worse, so the in-flight promise is
+     shared. Asserted on the probe COUNT, because that is the thing that reaches
+     the network. */
+  let probes = 0;
+  const slow = async () => {
+    probes += 1;
+    await new Promise((r) => setTimeout(r, 20));
+    return { ok: true, status: 200, json: async () => GATE_CHALLENGE };
+  };
+  const resolve = gateChainId(slow as never, "https://acr.test");
+  const all = await Promise.all([resolve(), resolve(), resolve(), resolve(), resolve(), resolve()]);
+  assert.deepEqual(all, [5042, 5042, 5042, 5042, 5042, 5042]);
+  assert.equal(probes, 1, "six callers must share one probe");
+});
+
+test("an unreachable gate still honours the override, because asleep is not disagreement", async () => {
+  /* The regression the new probe could have introduced: a free-tier press that
+     is merely cold must not silently strip a correctly-set card. Only an answer
+     that CONTRADICTS counts. */
+  const dead = async () => {
+    throw new Error("ECONNRESET");
+  };
+  const resolve = gateChainId(dead as never, "https://acr.test", "5042002");
+  assert.equal(await resolve(), 5042002);
 });
 
 test("an unreachable gate yields no chain id, and is not cached as a failure", async () => {
@@ -338,6 +413,19 @@ test("pay_and_read prices the call BEFORE it authorizes anything", async () => {
     seen.every((c) => !c.url.includes("PAYMENT")),
     "a refused call must not have attempted a settlement",
   );
+  /* AND THE FUNDING CHECK SITS AFTER THE CAP, which this test now says out
+     loud. `pay_and_read` grew a balance read before `GatewayPayer.create` so
+     that a short Gateway float gets a sentence a developer can act on instead
+     of a raw SDK throw. Placed before the cap, it would put a live RPC call in
+     front of a payment that was going to be refused anyway — and this test,
+     which fakes `fetch` but cannot fake viem, would have started reaching the
+     network to prove a cap. The absence of a funding verdict here is the
+     evidence that the order is right. */
+  assert.equal(
+    (out as { funding_step?: string }).funding_step,
+    undefined,
+    "a payment refused by the cap must not have read any balance first",
+  );
 });
 
 test("pay_and_read refuses a chain it has no payment profile for", async () => {
@@ -475,9 +563,16 @@ test("get_rate reads the on-chain route, and reports an unposted oracle as a sta
   assert.equal(seen[0].url, "https://acr.test/onchain/ACR-GPU");
   assert.equal(ok.value, 0.011);
 
-  // The measured state of the testnet press: the oracle has no posted prints, so
-  // all three indices 404. That is a fact about the deployment, not a transport
-  // failure, and `{error: "HTTP 404"}` reads as the latter.
+  /* A 404 is a fact about the deployment, not a transport failure, and
+     `{error: "HTTP 404"}` reads as the latter.
+     THIS COMMENT USED TO SAY "the measured state of the testnet press: the
+     oracle has no posted prints, so all three indices 404". That stopped being
+     true: on 2026-10-10 the testnet press answered ACR-INF, ACR-GPU and
+     ACR-DATA with real values (25 days old — see the staleness test below).
+     ACR-QUERY has no print there at all, and the other three flickered between
+     a value and a 404 within ten minutes under Arc's `eth_getLogs` throttling.
+     Which is the reason this branch stays: an absence is not always permanent,
+     so it is reported as a state and never as a verdict on the deployment. */
   const none = (await callTool("get_rate", { index_id: "ACR-GPU" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/onchain/ACR-GPU": { status: 404, body: { detail: "no on-chain print for ACR-GPU" } } }),
@@ -485,6 +580,48 @@ test("get_rate reads the on-chain route, and reports an unposted oracle as a sta
   assert.equal(none.available, false);
   assert.match(none.reason, /has not been posted to/);
   assert.match(none.try_instead, /pay_and_read/, "the value is still buyable from the metered endpoint");
+});
+
+test("get_rate says how old the print is, because the payload always knew", async () => {
+  /* THE MEASURED FAILURE, 2026-10-10 against the testnet press: `get_rate`
+     returned `value: 0.4923551190903513` for ACR-INF with `posted_at`
+     1789450387 sitting in the same response — 25.05 days old, because that
+     oracle stopped on 2026-09-15 — and said nothing about it. Identical for
+     ACR-GPU and ACR-DATA. A reference rate's entire claim is that it is
+     current. The terminal reached this conclusion one commit earlier (c6b1912);
+     this is the same judgement for the surface that acts on the number. */
+  const dead = Math.floor(Date.now() / 1000) - Math.round(25.05 * 86400);
+  const stale = (await callTool("get_rate", { index_id: "ACR-INF" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/onchain/ACR-INF": { body: { value: 0.49235, posted_at: dead } } }),
+  })) as Record<string, unknown>;
+  // The press's own fields are untouched; the age arrives beside them.
+  assert.equal(stale.value, 0.49235);
+  assert.equal(stale.posted_at, dead);
+  assert.equal(stale.stale, true);
+  assert.equal(stale.freshness, "overdue");
+  assert.equal(stale.age, "25.1 days ago");
+  assert.match(String(stale.note), /past the settle window/);
+
+  // And a fresh print gets the fields with no sermon attached.
+  const fresh = (await callTool("get_rate", { index_id: "ACR-INF" }, {
+    api: "https://acr.test",
+    fetchImpl: router({
+      "/onchain/ACR-INF": { body: { value: 0.5, posted_at: Math.floor(Date.now() / 1000) - 600 } },
+    }),
+  })) as Record<string, unknown>;
+  assert.equal(fresh.stale, false);
+  assert.equal(fresh.freshness, "fresh");
+  assert.equal(fresh.note, undefined);
+
+  // A print with no stamp is unknown, never fresh: the two lead a caller to
+  // opposite conclusions.
+  const undated = (await callTool("get_rate", { index_id: "ACR-INF" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/onchain/ACR-INF": { body: { value: 0.5 } } }),
+  })) as Record<string, unknown>;
+  assert.equal(undated.freshness, "unknown");
+  assert.equal(undated.stale, false);
 });
 
 test("a window that came back empty says it is a window, not a verdict", async () => {
@@ -646,25 +783,61 @@ test("check_spend passes the press's verdict through untouched", async () => {
   const body = {
     would: { intent: "escalate", rule: "over the going market rate", recommended_intent: "refuse" },
     par: { par_usdc: 0.0004, best_usdc: 0.0001, sellers: 4 },
+    basket: { status: "ok", rows: 5, fetched_at: Math.floor(Date.now() / 1000) - 30 },
     over_rate_bp: 1781,
     vendor_supplied: false,
   };
   const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/par": { body } }),
-  })) as typeof body & { recorded_to?: unknown };
+  })) as typeof body & { recorded_to?: unknown; reference?: Record<string, unknown> };
 
-  /* `recorded_to` is the ONE field this hop adds, and it is pulled off before
-     the comparison rather than added to the expectation — so the assertion
-     still says "everything else is the press's own words". If a future edit
-     reinterprets a verdict or renames a field, this fails; if it adds a second
-     local field, it also fails, which is the point. */
-  const { recorded_to, ...passedThrough } = out;
+  /* TWO local fields now, and they are pulled off before the comparison rather
+     than added to the expectation — so the assertion still says "everything
+     else is the press's own words". If a future edit reinterprets a verdict or
+     renames a field, this fails; if it adds a THIRD local field, it also fails,
+     which is the point. The second one was added deliberately: see below. */
+  const { recorded_to, reference, ...passedThrough } = out;
   assert.deepEqual(passedThrough, body);
   assert.ok(
     typeof recorded_to === "string" || recorded_to === null,
     "check_spend must say where it recorded the bill, or that it did not",
   );
+  assert.ok(reference, "a verdict must arrive with the age of the market it was compared against");
+  assert.equal(reference.stale, false, "a 30-second-old basket is not stale");
+});
+
+test("a verdict computed against a dead market says so", async () => {
+  /* WHY THE SECOND LOCAL FIELD EXISTS. Measured against the testnet press
+     2026-10-10: `/par` answered with `basket.fetched_at` 4.07 days old, and
+     check_spend returned "over_par, 2500 bp, ESCALATE" — a recommendation to
+     act on, carrying the age of its own evidence unread in the payload. An
+     agent cannot ask a follow-up question; the answer has to carry the caveat. */
+  const body = {
+    would: { intent: "escalate" },
+    par: { par_usdc: 0.0004, best_usdc: 0.0001 },
+    basket: { status: "ok", fetched_at: Math.floor(Date.now() / 1000) - 4 * 86400 },
+    over_rate_bp: 2500,
+  };
+  const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body } }),
+  })) as { reference?: Record<string, unknown> };
+  assert.equal(out.reference?.stale, true);
+  assert.equal(out.reference?.freshness, "overdue");
+  assert.match(String(out.reference?.age), /days ago/);
+  assert.match(String(out.reference?.note), /the market basket is/);
+});
+
+test("a basket with no timestamp is unknown, not fresh", async () => {
+  /* The press has answered /par without a basket block before (a vendor-only
+     comparison). "Did not say" must not read as "said recently". */
+  const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body: { over_rate_bp: 0, par: {} } } }),
+  })) as { reference?: Record<string, unknown> };
+  assert.equal(out.reference?.freshness, "unknown");
+  assert.equal(out.reference?.stale, false, "unknown must not assert staleness either way");
 });
 
 test("check_spend is read-only, so it is always offered", () => {

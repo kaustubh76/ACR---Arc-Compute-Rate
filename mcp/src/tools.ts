@@ -16,14 +16,17 @@ import { arcChain } from "./chain.js";
 import { append as recordSpend, logPath, read as readSpendLog, report as spendReport } from "./spendLog.js";
 import {
   admits,
+  fundingStep,
   GatewayPayer,
   newLedger,
   payerAddress,
   priceFromChallenge,
+  readBalances,
   record,
   validateKey,
   type SpendLedger,
 } from "./pay.js";
+import { staleness } from "./printAge.js";
 import { canIPay, DEFAULT_GATED_ENDPOINT } from "./preflight.js";
 
 /** The press this plugin reads when nothing says otherwise.
@@ -513,10 +516,25 @@ export async function callTool(
       const body = (await readJson(f, `${api}/onchain/${String(args.index_id)}`)) as {
         error?: string;
         body?: { detail?: string };
+        posted_at?: number;
+        value?: number;
       };
-      // A press with no print is a state, not a transport failure. Say which it
-      // is: this host serves the testnet oracle, which has no posted prints, and
-      // the value is still buyable from the paid endpoint.
+      /* A press with no print is a state, not a transport failure. Say which it
+         is, and that the value is still buyable from the paid endpoint.
+
+         THIS BRANCH IS NOT "THE TESTNET BRANCH", whatever it used to say. It
+         claimed "this host serves the testnet oracle, which has no posted
+         prints" — measured false on 2026-10-10: the testnet press answers
+         ACR-INF, ACR-GPU and ACR-DATA with real values, 25 days old. ACR-QUERY
+         has no print at all there.
+         AND IT IS NOT STABLE EITHER WAY. Within ten minutes the same press
+         answered ACR-GPU with a value, then 404, then the value again — Arc
+         throttles `eth_getLogs` with a 429 and the press's read path surfaces
+         that as "no print". So neither branch is the testnet branch: a 404 here
+         may mean "never posted" OR "could not read just now", and the one thing
+         this code must not do is turn either into a confident claim about the
+         deployment. The staleness block below is what the stale-but-present
+         case actually needed. */
       if (body?.error === "HTTP 404") {
         return {
           available: false,
@@ -526,6 +544,15 @@ export async function callTool(
             `(${body.body?.detail ?? "404"}). Its oracle has not been posted to.`,
           try_instead: `pay_and_read("/prints/${String(args.index_id)}") reads the same value from the metered endpoint.`,
         };
+      }
+      /* HOW OLD THE NUMBER IS, BESIDE THE NUMBER. `posted_at` was already in
+         this payload and already ignored, which is how `get_rate("ACR-INF")`
+         came to answer 0.4923551190903513 off a print 25.05 days dead with
+         nothing said about it. An agent cannot ask a follow-up question; the
+         one answer it gets has to carry the caveat. Same judgement the terminal
+         reached in c6b1912, for the surface that actually acts on it. */
+      if (body && typeof body === "object" && !body.error) {
+        return { ...body, ...staleness(body.posted_at, "this print") };
       }
       return body;
     }
@@ -543,8 +570,15 @@ export async function callTool(
           `unit=${encodeURIComponent(unit)}` +
           `&billed_usdc=${encodeURIComponent(String(price * quantity))}` +
           `&quantity=${encodeURIComponent(String(quantity))}`;
-        const par = (await readJson(f, `${api}/par?${q}`)) as { error?: string; body?: unknown };
-        if (!par?.error) return par;
+        const par = (await readJson(f, `${api}/par?${q}`)) as {
+          error?: string;
+          body?: unknown;
+          basket?: { fetched_at?: number };
+        };
+        // The same reference, the same age — see `check_spend` below for why.
+        if (!par?.error) {
+          return { ...par, reference: staleness(par.basket?.fetched_at, "the market basket") };
+        }
         if (par.error !== "HTTP 404") {
           return {
             available: false,
@@ -687,7 +721,7 @@ export async function callTool(
         over_rate_bp?: number | null;
         verdict?: { verdict?: unknown; saving_usdc?: unknown; best_seller?: unknown };
         par?: { par_usdc?: number | null; best_usdc?: number | null; best_seller?: string | null };
-        basket?: { status?: unknown };
+        basket?: { status?: unknown; fetched_at?: number };
       };
       if (!par?.error) {
         /* RECORDED, AND SAID OUT LOUD ON THE SAME BREATH. `recorded_to` rides on
@@ -717,7 +751,18 @@ export async function callTool(
           },
           opts.env,
         );
-        return { ...par, recorded_to };
+        /* A VERDICT IS ONLY AS CURRENT AS THE MARKET IT WAS COMPARED AGAINST.
+           Measured on the testnet press 2026-10-10: `basket.fetched_at` was
+           4.07 days old while this tool returned "over_par, 2500 bp, ESCALATE"
+           — a recommendation to act, carrying the age of its own evidence
+           unread. Nested under `reference` rather than spread at the top level
+           so it cannot be confused with the age of the bill, which is the
+           caller's own. */
+        return {
+          ...par,
+          recorded_to,
+          reference: staleness(par.basket?.fetched_at, "the market basket"),
+        };
       }
       if (par.error === "HTTP 404") {
         return {
@@ -823,6 +868,42 @@ export async function callTool(
       }
       const allowed = admits(ledger, price);
       if (!allowed.ok) return { paid: false, reason: allowed.reason, price_usdc: price };
+
+      /* ASK WHERE THE MONEY IS BEFORE AUTHORIZING ANYTHING. Without this, a
+         short Gateway float is discovered as an exception out of Circle's SDK
+         and comes back as `the settlement failed: <raw SDK string>` — which
+         does not tell a developer the one thing they need, that an x402
+         settlement spends the GATEWAY balance and not the wallet. The sentence
+         for that already existed in `preflight.ts`'s funds rung and was
+         reachable only by running a second tool. A read, not a send, so it is
+         safe on this side of the authorization.
+         Unreadable balances are NOT treated as empty: "I could not ask" and
+         "it is empty" lead to opposite conclusions, so an unreadable pair falls
+         through to the attempt rather than refusing a funded payer. */
+      const payerAddr = await payerAddress(parsed.key);
+      const bal = await readBalances(chain, payerAddr);
+      if (bal.wallet !== null || bal.gateway !== null) {
+        const step = fundingStep(bal.wallet ?? 0, bal.gateway ?? 0, price);
+        if (step !== "ready") {
+          const amounts =
+            `wallet ${bal.wallet === null ? "unreadable" : `$${bal.wallet}`}, ` +
+            `Gateway ${bal.gateway === null ? "unreadable" : `$${bal.gateway}`}, price $${price}`;
+          return {
+            paid: false,
+            endpoint: path,
+            price_usdc: price,
+            payer: payerAddr,
+            funding_step: step,
+            reason:
+              step === "deposit"
+                ? `${amounts}. An x402 settlement spends the GATEWAY balance, not the wallet: ` +
+                  "deposit into Circle Gateway first (Bridge Kit, or the repo's `make circle-deposit`)."
+                : `${amounts}. This wallet holds no USDC on ${chain.name} at all — fund it, then ` +
+                  "deposit into Circle Gateway.",
+            next_step: `can_i_pay("${path}") shows the whole ladder.`,
+          };
+        }
+      }
 
       try {
         const payer = await GatewayPayer.create(parsed.key, chain, opts.extraHeaders);
