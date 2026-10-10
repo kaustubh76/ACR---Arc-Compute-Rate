@@ -807,37 +807,63 @@ test("check_spend passes the press's verdict through untouched", async () => {
   assert.equal(reference.stale, false, "a 30-second-old basket is not stale");
 });
 
-test("a verdict computed against a dead market says so", async () => {
-  /* WHY THE SECOND LOCAL FIELD EXISTS. Measured against the testnet press
-     2026-10-10: `/par` answered with `basket.fetched_at` 4.07 days old, and
-     check_spend returned "over_par, 2500 bp, ESCALATE" — a recommendation to
-     act on, carrying the age of its own evidence unread in the payload. An
-     agent cannot ask a follow-up question; the answer has to carry the caveat. */
+test("WHOSE verdict the basket's age gets: the press's, not ours", async () => {
+  /* THE FALSE ALARM THIS TEST USED TO ASSERT. The first version of it checked
+     for `stale: true, freshness: "overdue"` on a basket four days old — green,
+     because it was written to match the code, and both were wrong. `par.py`
+     judges a basket against `ANCHOR_MAX_AGE_S` (30 days, because
+     `anchors.py --fetch` is manual and "a list price does not move daily") and
+     had answered `status: "ok"` for exactly this basket. The venue's 2-hour
+     settle window governs a print, not a price list.
+     The age is still reported — it is a fact, and an agent wanting a tighter
+     rule needs the number to apply one. */
   const body = {
     would: { intent: "escalate" },
     par: { par_usdc: 0.0004, best_usdc: 0.0001 },
-    basket: { status: "ok", fetched_at: Math.floor(Date.now() / 1000) - 4 * 86400 },
+    basket: { status: "ok", fetched_at: Math.floor(Date.now() / 1000) - Math.round(4.07 * 86400) },
     over_rate_bp: 2500,
   };
   const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/par": { body } }),
   })) as { reference?: Record<string, unknown> };
-  assert.equal(out.reference?.stale, true);
-  assert.equal(out.reference?.freshness, "overdue");
+  assert.equal(out.reference?.stale, false, "the press called this basket ok; we do not overrule it");
+  assert.equal(out.reference?.status, "ok");
   assert.match(String(out.reference?.age), /days ago/);
-  assert.match(String(out.reference?.note), /the market basket is/);
+  assert.equal(out.reference?.note, undefined, "nothing to act on, so nothing said");
 });
 
-test("a basket with no timestamp is unknown, not fresh", async () => {
+test("and when the press DOES refuse the basket, the verdict is carried through", async () => {
+  /* The real signal, which the false alarm was drowning. A `STALE` basket has
+     no quotes at all, so `app.py` switches who the bill is benchmarked against
+     — which is why the note points at `benchmarked_against` rather than at the
+     age. */
+  const body = {
+    par: { par_usdc: 0.0004 },
+    basket: { status: "STALE", fetched_at: Math.floor(Date.now() / 1000) - 40 * 86400 },
+    benchmarked_against: "fleet",
+    over_rate_bp: 120,
+  };
+  const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body } }),
+  })) as { reference?: Record<string, unknown> };
+  assert.equal(out.reference?.stale, true);
+  assert.equal(out.reference?.status, "STALE");
+  assert.match(String(out.reference?.note), /benchmarked_against/);
+});
+
+test("a basket with no timestamp is not an accusation", async () => {
   /* The press has answered /par without a basket block before (a vendor-only
-     comparison). "Did not say" must not read as "said recently". */
+     comparison). "Did not say" must not read as "said recently" — and must not
+     read as stale either. */
   const out = (await callTool("check_spend", { billed_usdc: 0.02, quantity: 10, unit: "$/1k tokens" }, {
     api: "https://acr.test",
     fetchImpl: router({ "/par": { body: { over_rate_bp: 0, par: {} } } }),
   })) as { reference?: Record<string, unknown> };
-  assert.equal(out.reference?.freshness, "unknown");
-  assert.equal(out.reference?.stale, false, "unknown must not assert staleness either way");
+  assert.equal(out.reference?.stale, false, "no stamp is not a staleness claim either way");
+  assert.equal(out.reference?.age_s, null);
+  assert.match(String(out.reference?.note), /carried no timestamp/);
 });
 
 test("check_spend is read-only, so it is always offered", () => {

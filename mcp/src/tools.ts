@@ -26,7 +26,7 @@ import {
   validateKey,
   type SpendLedger,
 } from "./pay.js";
-import { staleness } from "./printAge.js";
+import { basketStaleness, printStaleness } from "./printAge.js";
 import { canIPay, DEFAULT_GATED_ENDPOINT } from "./preflight.js";
 
 /** The press this plugin reads when nothing says otherwise.
@@ -552,7 +552,7 @@ export async function callTool(
          one answer it gets has to carry the caveat. Same judgement the terminal
          reached in c6b1912, for the surface that actually acts on it. */
       if (body && typeof body === "object" && !body.error) {
-        return { ...body, ...staleness(body.posted_at, "this print") };
+        return { ...body, ...printStaleness(body.posted_at) };
       }
       return body;
     }
@@ -573,11 +573,11 @@ export async function callTool(
         const par = (await readJson(f, `${api}/par?${q}`)) as {
           error?: string;
           body?: unknown;
-          basket?: { fetched_at?: number };
+          basket?: { fetched_at?: number; status?: unknown };
         };
         // The same reference, the same age — see `check_spend` below for why.
         if (!par?.error) {
-          return { ...par, reference: staleness(par.basket?.fetched_at, "the market basket") };
+          return { ...par, reference: basketStaleness(par.basket?.fetched_at, par.basket?.status) };
         }
         if (par.error !== "HTTP 404") {
           return {
@@ -761,7 +761,7 @@ export async function callTool(
         return {
           ...par,
           recorded_to,
-          reference: staleness(par.basket?.fetched_at, "the market basket"),
+          reference: basketStaleness(par.basket?.fetched_at, par.basket?.status),
         };
       }
       if (par.error === "HTTP 404") {

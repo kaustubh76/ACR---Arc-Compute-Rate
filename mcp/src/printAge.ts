@@ -35,6 +35,29 @@ export const PRINT_WARN_AGE_S = 5400;
  *  Pinned to `PRINT_MAX_AGE_S` in `services/index_api/index_api/ops.py`. */
 export const PRINT_MAX_AGE_S = 7200;
 
+/** 30 days — and a DIFFERENT question, which is the whole reason it is here.
+ *
+ *  THE BUG THIS CONSTANT EXISTS TO UNDO. The first version of this file had one
+ *  pair of thresholds and one `staleness(stamp, what)`, where the only thing a
+ *  caller chose was a noun. So `check_spend`'s market basket was judged against
+ *  the venue's settle window, and a basket 4.07 days old came back
+ *  `stale: true, freshness: "overdue", "past the settle window (2 hr)"` — a
+ *  verdict on a boundary 360x too tight, in a sentence about a venue that does
+ *  not settle against a price list.
+ *
+ *  The press is the judge and it disagrees. `par.py` declares
+ *  `ANCHOR_MAX_AGE_S` and argues it: `anchors.py --fetch` is "network; manual,
+ *  never CI", so nothing refreshes a basket on a timer, and "a list price does
+ *  not move daily, so thirty days is generous rather than tight — the point is
+ *  that the staleness has a name". Past it `market_basket()` returns
+ *  `status="STALE"` with no quotes, which makes the basket unusable and switches
+ *  who the bill is benchmarked against.
+ *
+ *  Pinned to `ANCHOR_MAX_AGE_S` in `services/index_api/index_api/par.py`, and
+ *  `printAge.test.ts` also asserts it is not equal to the print's window — so
+ *  the two cannot quietly collapse back into one pair. */
+export const ANCHOR_MAX_AGE_S = 30 * 86_400;
+
 export type PrintFreshness = "fresh" | "late" | "overdue" | "unknown";
 
 /** How old the stamp is, and what to call that.
@@ -86,7 +109,12 @@ export function ageWords(ageS: number | null): string {
   return `${(h / 24).toFixed(1)} days ago`;
 }
 
-/** The staleness block a tool adds to its answer.
+/** The age fields every staleness block carries, whatever is being judged. */
+function ageBlock(ageS: number | null): Record<string, unknown> {
+  return { age_s: ageS, age: ageWords(ageS) };
+}
+
+/** How old an ON-CHAIN PRINT is, judged against the venue's settle window.
  *
  *  Shaped as a sibling of the payload rather than a rewrite of it: every field
  *  the press sent stays exactly where a caller already expects it, and the age
@@ -94,19 +122,18 @@ export function ageWords(ageS: number | null): string {
  *  there for a caller who wants them, and the sentence is reserved for when
  *  there is something to act on.
  *
- *  `what` names the thing that is old ("this print", "the market basket"), so
- *  one sentence can be reused by tools whose numbers go stale for different
- *  reasons.
+ *  NAMED FOR WHAT IT JUDGES, not parameterised by a noun. The version this
+ *  replaced took a `what` string and applied these thresholds to anything a
+ *  caller passed, which is how a market basket came to be measured against a
+ *  settle window. A boundary and the thing it governs belong in the same name.
  */
-export function staleness(
-  stampS: number | null | undefined,
-  what: string,
+export function printStaleness(
+  postedAt: number | null | undefined,
   nowS?: number,
 ): Record<string, unknown> {
-  const { state, ageS } = printFreshness(stampS, nowS);
+  const { state, ageS } = printFreshness(postedAt, nowS);
   const out: Record<string, unknown> = {
-    age_s: ageS,
-    age: ageWords(ageS),
+    ...ageBlock(ageS),
     freshness: state,
     stale: state === "late" || state === "overdue",
   };
@@ -114,13 +141,70 @@ export function staleness(
     // The press's own sentence, not a boundary invented here: `ops.py` judges
     // the same question and /ops renders "past the settle window".
     out.note =
-      `${what} is ${ageWords(ageS)} — past the settle window ` +
+      `this print is ${ageWords(ageS)} — past the settle window ` +
       `(${PRINT_MAX_AGE_S / 3600} hr), so it is not a current reading. ` +
       `Treat it as the last known value, not as today's.`;
   } else if (state === "late") {
-    out.note = `${what} is ${ageWords(ageS)}, past the ${PRINT_WARN_AGE_S / 60}-minute warning age but still inside the settle window.`;
+    out.note = `this print is ${ageWords(ageS)}, past the ${PRINT_WARN_AGE_S / 60}-minute warning age but still inside the settle window.`;
   } else if (state === "unknown") {
-    out.note = `${what} carried no timestamp, so its age could not be checked.`;
+    out.note = "this print carried no timestamp, so its age could not be checked.";
+  }
+  return out;
+}
+
+/** How old the MARKET BASKET is — reported, and judged by the press.
+ *
+ *  THE SPLIT THAT MATTERS. The age is ours to report: it is a fact, and an
+ *  agent that wants a tighter rule than 30 days needs the number in order to
+ *  apply one. The VERDICT is the press's: `/par` already carries
+ *  `basket.status` — `"ok"`, `"STALE"`, `"ABSENT"`, `"NO_ROWS"` — computed
+ *  against `ANCHOR_MAX_AGE_S` by the same code that decides whether the basket
+ *  is usable at all and, when it is not, switches who the bill is benchmarked
+ *  against. Two surfaces answering "is this basket stale" on two boundaries is
+ *  the thing being removed, not added.
+ *
+ *  So `status` decides, and our own window is the FALLBACK — reached only when
+ *  a press is too old to send one, which is the same deployment-skew case
+ *  `check_spend` already handles for a press with no `/par` at all.
+ */
+export function basketStaleness(
+  fetchedAt: number | null | undefined,
+  pressStatus?: unknown,
+  nowS?: number,
+): Record<string, unknown> {
+  const now = nowS ?? Math.floor(Date.now() / 1000);
+  const ageS = fetchedAt && Number.isFinite(fetchedAt) ? Math.max(0, now - fetchedAt) : null;
+  const status = typeof pressStatus === "string" ? pressStatus.trim() : "";
+  const out: Record<string, unknown> = { ...ageBlock(ageS), status: status || null };
+
+  if (status && status.toLowerCase() !== "ok") {
+    // The press refused this basket. Pass its own word through rather than
+    // re-deriving a verdict from the age — a basket can be ABSENT or NO_ROWS at
+    // any age, and those are not staleness at all.
+    out.stale = status.toUpperCase() === "STALE";
+    out.note =
+      `the press reports this basket as ${status}` +
+      (ageS === null ? "" : `, fetched ${ageWords(ageS)}`) +
+      ". Its comparison fell back to whatever `benchmarked_against` names, " +
+      "so read that before trusting the verdict.";
+    return out;
+  }
+
+  if (ageS === null) {
+    out.stale = false;
+    out.note = "the basket carried no timestamp, so its age could not be checked.";
+    return out;
+  }
+
+  // Either the press said "ok" — in which case this agrees with it by
+  // construction, since it judged the same number against the same window — or
+  // it said nothing, and this is the fallback.
+  out.stale = ageS > ANCHOR_MAX_AGE_S;
+  if (out.stale) {
+    out.note =
+      `the market basket was fetched ${ageWords(ageS)}, past the ${ANCHOR_MAX_AGE_S / 86_400}-day ` +
+      "anchor window. These prices are refreshed by hand (`anchors.py --fetch` is manual, " +
+      "never CI), so an old basket means nobody has run it recently.";
   }
   return out;
 }
