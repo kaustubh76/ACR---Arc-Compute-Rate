@@ -624,7 +624,7 @@ graph-build: graph-codegen
 	cd graph && npx graph build --network $(NETWORK)
 
 graph-test:
-	cd graph && npx graph test
+	cd graph && npm test   # pinned matchstick binary; see graph/package.json
 
 # Studio deploy is an operator step: it needs network access and a Studio key.
 #   cd graph && npx graph auth <deploy-key>
