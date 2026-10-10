@@ -215,19 +215,30 @@ jobs:
     # was unreadable".
     #
     # THIS JOB HAD NEVER PASSED, and nothing said so. `npm test` ran every test
-    # to green and then never exited: `node --import tsx --test` leaves tsx's
-    # esbuild service running, so the runner waits on a live child handle for
-    # ever. The two concluded runs on 2026-10-09 were `cancelled` at the
-    # six-hour ceiling, and the cleanup named the culprit —
-    # "Terminate orphan process: pid (2392) (esbuild)". Every other job was
-    # green, so the branch looked merely slow. Fixed by `--test-force-exit` in
-    # the package's own test script, which still exits non-zero on a failure
-    # (verified by breaking one). It passes in about a second.
+    # to green and then never exited; the two runs that reached any conclusion
+    # were `cancelled` at GitHub's six-hour ceiling, and every other job beside
+    # it was green, so the branch read as merely slow.
     #
-    # The timeout is the other half. A gate that takes six hours to tell you
-    # anything is a gate nobody waits for, and a silent cancellation reads like
-    # an infrastructure hiccup rather than a defect. Every step here is seconds;
-    # ten minutes is slack, not a budget.
+    # The cause was in the tests, not the runner, and it was a PLATFORM
+    # difference — which is why ten green local runs proved nothing.
+    # `spendLog.test.ts` needed an unwritable path to show that a failed write
+    # returns null instead of throwing, and used `/proc/nonexistent/...`.
+    # `append` calls `mkdirSync(dir, { recursive: true })` first. macOS has no
+    # `/proc`, so it fails instantly; on Linux, as root, **mkdirSync into
+    # /proc never returns**. Reproduced in a node:24-bookworm-slim container
+    # (killed at 20s having neither thrown nor created), fixed by making the
+    # path unwritable portably — a component that is a regular file, so ENOTDIR
+    # comes back at once on both platforms. The same container now runs the
+    # suite in 8s, exit 0.
+    #
+    # Two guards stay, because the six hours of silence were worse than the
+    # bug. `--test-force-exit` in the package's test script covers a future
+    # leaked handle, and does not buy the exit by hiding anything (verified: a
+    # broken threshold still reports the failures and exits 1). And this
+    # timeout, which is what turned the next hang into a ten-minute red instead
+    # of a six-hour shrug — a gate that takes six hours to tell you anything is
+    # a gate nobody waits for. Every step here is seconds; ten minutes is
+    # slack, not a budget.
     timeout-minutes: 10
     #
     # These tests fake `fetch`, which is what keeps the job hermetic and

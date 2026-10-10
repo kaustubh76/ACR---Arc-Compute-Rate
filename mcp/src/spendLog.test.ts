@@ -68,8 +68,25 @@ test("recording off writes nothing and reads empty", () => {
 test("a write that cannot happen returns null rather than throwing", () => {
   /* A read-only home, a full disk, a sandboxed host. The verdict is the
      product and the record is the bonus, so a failed write must never turn a
-     working price check into an error — it must say `recorded_to: null`. */
-  const env = { ACR_SPEND_LOG: "/proc/nonexistent/nope/spend.jsonl" };
+     working price check into an error — it must say `recorded_to: null`.
+
+     THIS TEST HUNG CI FOR WEEKS and nobody could see it. The unwritable path
+     used to be `/proc/nonexistent/nope/spend.jsonl`, and `append` calls
+     `mkdirSync(dir, { recursive: true })` before it writes. On macOS there is
+     no `/proc`, so that fails instantly and the test passes in microseconds.
+     On Linux, as root, **`mkdirSync` into `/proc` never returns** — measured
+     in a node:24-bookworm-slim container, killed at 20s having neither thrown
+     nor created. So the `mcp` job ran every test to green, never exited, and
+     was cancelled at GitHub's six-hour ceiling; five jobs beside it were green
+     and the branch looked merely slow. Ten local runs could never have found
+     it, because the bug IS the platform difference.
+
+     A path under a regular FILE is the portable way to be unwritable: a
+     non-directory component gives ENOTDIR immediately, on both platforms,
+     with no virtual filesystem in the way. Verified on Linux and macOS. */
+  const blocker = join(mkdtempSync(join(tmpdir(), "acr-log-")), "a-file-not-a-dir");
+  writeFileSync(blocker, "x");
+  const env = { ACR_SPEND_LOG: join(blocker, "spend.jsonl") };
   assert.equal(append(rec(), env), null);
 });
 
