@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { BUCKETS, MIN_RATED_N, UNIT_BY_INDEX, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, gradeOf, humanCell, humanShareInWindow, sellerLabel, sellerTerms, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
+import { BUCKETS, MIN_RATED_N, UNIT_BY_INDEX, bp, bpFromWeighted, bucketBars, bucketTotal, byWorstFirst, emptyTapeReason, gradeOf, gradedCard, humanCell, humanShareInWindow, sellerLabel, sellerTerms, sellersFromSettlements, usdc6, wad18, followedReroute, recentForPayer } from "./tape";
 
 const REPO = join(__dirname, "..", "..", "..");
 
@@ -403,4 +403,55 @@ test("sellerLabel names the fleet from its derivation, the press from its index,
 test("a settlement with no seller is skipped, never keyed as empty", () => {
   const rows = [{ ...settle(FLEET_A, "ACR-INF", "1", true, 1), seller: null }];
   assert.deepEqual(sellerTerms(rows), {});
+});
+
+// ───────────────────────────── a zero is not a clean bill
+
+test("a payer the tape has never seen is not graded, and says why", () => {
+  /* THE BUG THIS CLOSES, measured on the live site: /tape?payer=0x1111… drew
+     "SPENT $0.000000 · OVERPAID VS BENCHMARK $0.000000 · PRICED FILLS 0 / 0",
+     the overpay in breach red, for a wallet ACR has never heard of. `available`
+     is true for such a payer by design — the subgraph answered — so every
+     surface that gated on it alone rendered an audited-looking clean bill. */
+  const unseen = {
+    available: true as const, source: "subgraph", payer: "0x1", window_days: 7,
+    seen: false, note: "ACR has no record of this payer in the last 7 days.",
+    purchases: 0, benchmarked: 0, spent_usdc: 0, vw_slippage_bp: null,
+    overpaid_usdc: 0, by_seller: [], reroute: null,
+  };
+  assert.equal(gradedCard(unseen), null, "an unseen payer must not be graded");
+  assert.match(emptyTapeReason(unseen) ?? "", /no record of this payer/);
+});
+
+test("a payer with rows is graded and carries no empty reason", () => {
+  const seen = {
+    available: true as const, source: "subgraph", payer: "0x1", window_days: 7,
+    seen: true, purchases: 3, benchmarked: 1, spent_usdc: 0.00461,
+    vw_slippage_bp: -1139.8, overpaid_usdc: 0, by_seller: [], reroute: null,
+  };
+  assert.ok(gradedCard(seen));
+  assert.equal(emptyTapeReason(seen), null);
+});
+
+test("an older press that sends no `seen` is never read as a yes", () => {
+  /* The third state, and the one that would quietly reintroduce the bug. A
+     press from before 2026-10-09 omits the field; `undefined` must mean "cannot
+     tell", so a card with no rows is not graded. A card WITH rows still is —
+     there is nothing misleading about grading real fills. */
+  const base = {
+    available: true as const, source: "subgraph", payer: "0x1", window_days: 7,
+    benchmarked: 0, spent_usdc: 0, vw_slippage_bp: null, overpaid_usdc: 0,
+    by_seller: [], reroute: null,
+  };
+  assert.equal(gradedCard({ ...base, purchases: 0 }), null, "no field, no rows: do not grade");
+  assert.ok(gradedCard({ ...base, purchases: 5 }), "no field but real rows: grade it");
+  assert.match(emptyTapeReason({ ...base, purchases: 0 }) ?? "", /no priced fills/);
+});
+
+test("an unavailable tape keeps reporting its own reason", () => {
+  // The outage case must not be collapsed into the unseen case: "we could not
+  // read the tape" and "the tape has nothing for you" are different facts.
+  const down = { available: false as const, reason: "the subgraph did not answer" };
+  assert.equal(gradedCard(down), null);
+  assert.equal(emptyTapeReason(down), "the subgraph did not answer");
 });

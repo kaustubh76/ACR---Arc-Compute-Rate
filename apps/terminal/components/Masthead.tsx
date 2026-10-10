@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ChainToggle } from "./ChainToggle";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useHealth } from "@/lib/useLive";
@@ -188,6 +189,10 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
             {/* Renders only once a reader has priced their workload — quiet
                 chrome is the rule, and the invitation lives on the home page. */}
             <WorkloadChip initial={initial} />
+            {/* Weight tracks the risk of being on the wrong network: a footnote
+                on the default, a gold chip off it. Not the dateline chip, which
+                keeps reporting what ANSWERED — the two cross-check. */}
+            <ChainToggle />
             <EditionToggle />
             <StatusPill conn={conn} />
           </span>

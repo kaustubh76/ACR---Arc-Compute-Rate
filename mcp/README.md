@@ -1,33 +1,257 @@
 # ACR Machine TCA, over MCP
 
-Six read-only tools that let an MCP host (Claude Desktop, Claude Code, anything
-speaking stdio MCP) ask the ACR seller what compute actually cost a wallet, which
-seller to route to, and what the tape says — without a wallet in the loop. Nothing
-here spends money or signs a transaction.
+Eleven tools that let an MCP host (Claude Desktop, Claude Code, anything
+speaking stdio MCP) ask **whether a bill should be paid**, **whether your agent
+has been overpaying**, what compute actually cost a wallet, which seller to
+route to, what the tape says — and **whether this agent can pay for a metered
+query at all**.
+
+```bash
+npx -y acr-mcp          # no clone, no path to edit
+```
+
+**If that 404s, the package is not on npm yet** and the clone below is the way
+in — it is two commands and it is verified, not merely written down (a fresh
+checkout builds in about four seconds and its 107 tests pass). Nothing else
+differs: the same `dist/server.js`, the same env block, the same eleven tools.
+
+<details><summary>From a clone — the route that works today, and how you pin a fork</summary>
+
+`dist/` is gitignored, so a fresh clone has no binary until it builds one:
+
+```bash
+git clone https://github.com/kaustubh76/ACR---Arc-Compute-Rate.git
+cd ACR---Arc-Compute-Rate/mcp && npm ci && npm run build
+```
+
+Then point the host at the built file — `dist/server.js`, never `src/server.ts`,
+and an absolute path:
+
+```json
+{ "command": "node", "args": ["/abs/path/to/ACR---Arc-Compute-Rate/mcp/dist/server.js"] }
+```
+</details>
 
 ```json
 {
   "mcpServers": {
     "acr-tca": {
       "command": "npx",
-      "args": ["tsx", "/path/to/ACR/mcp/src/server.ts"],
+      "args": ["-y", "acr-mcp"],
       "env": {
-        "ACR_API": "https://acr-api-mainnet.onrender.com",
-        "ACR_AGENT_PRIVATE_KEY": "0x<a 32-byte key of your own>"
+        "ACR_API": "https://acr-api-1fto.onrender.com",
+        "ACR_AGENT_PRIVATE_KEY": "0x<any 32-byte key: the card, not a wallet>"
       }
     }
   }
 }
 ```
 
-| tool | what it answers |
+That is the whole setup. Ten of the eleven tools are reads, so you can paste
+this with no wallet anywhere near it. **`ACR_ARC_CHAIN_ID` is deliberately absent** —
+the card takes its chain from whichever gate `ACR_API` names, so pointing this at
+a different press needs nothing else changed. See *The 401 this used to be* below.
+
+### Why that host, and not the mainnet one
+
+**Because all eleven tools answer there and five of them do not on mainnet
+today.** Measured with `npm run smoke` against each press on 2026-10-10:
+
+| | `acr-api-1fto` (Arc testnet) | `acr-api-mainnet` (Arc) |
+|---|---|---|
+| tools answering | **12 of 12** probes | **5 of 11 did not** |
+| `wallet_tca`, `reroute_suggestion`, `seller_rating`, `query_tape` | answer | *"the subgraph did not answer"* |
+| `check_spend`, `benchmark_price` | price a real bill | that press has no `/par` yet |
+| `get_rate` | answers, and says the print is 25 days old | answers, fresh |
+
+Two operator items, not two bugs. The mainnet press's subgraph is on The Graph
+Studio's **development** URL, capped at 3,000 queries a day and counted on no
+dashboard — its own ledger reports `4044 queries this boot, 1062 errors,
+~13,272/day at that pace`, so the cap is exhausted and every subgraph-backed
+read fails for most of the day. And that press predates `/par`, so the bill
+check has no route to ask. Both are fixed by a publish-and-switch to the
+gateway with an API key, and a redeploy.
+
+**Point `ACR_API` at `https://acr-api-mainnet.onrender.com` once those land.**
+Nothing else changes: the card takes its chain from whichever gate `ACR_API`
+names. Until then the five tools above are honest about it rather than wrong —
+they say the subgraph did not answer, which is a different thing from zero.
+
+| tool | what it answers | spends? |
+|---|---|---|
+| **`check_spend`** | **should you pay this bill — the spend agent's own ten-rung ladder over any vendor's invoice, with the published prices it was judged against. No account, no key, no history with ACR** | no |
+| **`can_i_pay`** | **can this agent pay for a metered query, and if not, which of seven rungs is in the way** | no |
+| **`pay_and_read`** | buys one metered query for real and returns the data plus the settlement reference | **yes** |
+| **`payment_receipts`** | did the payment land — the settlement tape and revenue counter, narrowed to your payer | no |
+| **`spend_report`** | **the running total of every bill this machine has had checked: how many were over the going rate, by how much in bp, the worst vendor, and what was actually recoverable in USDC. The answer to "is my agent overpaying" for an agent that pays its own vendors** | no |
+| `wallet_tca` | a wallet's transaction-cost analysis **if it bought from ACR**: what it paid vs the benchmark, slippage, overpaid. A wallet ACR has never seen comes back `seen: false`, not zero. `"me"` answers the human-proof challenge and returns ONE figure across every wallet the person owns (`ACR_HUMAN_AGENT_KEY`) | no |
+| `reroute_suggestion` | the seller this payer should have bought from, and the saving | no |
+| `seller_rating` | one seller's rating, components and human depth | no |
+| `benchmark_price` | one quote priced against what the market is actually paying | no |
+| `get_rate` | the on-chain print for an index | no |
+| `query_tape` | any named subgraph operation through the seller's read proxy | no |
+
+## Should I pay this bill?
+
+`check_spend` is the one tool that works on a bill ACR has never seen. Give it the
+invoice **as the invoice is written** — the amount billed, how much you bought, and
+the unit — and it runs ACR's benchmark and the spend agent's own decision ladder
+over it, returning the verdict that agent would reach and the rule that produced it.
+
+```
+check_spend(billed_usdc: 0.47, quantity: 23, unit: "$/1k tokens",
+            vendor: "0xefe0…dF19")   # vendor optional
+```
+
+Three things worth knowing:
+
+- **The bill goes up as billed.** The press divides by the quantity itself, so you
+  are never asked to compute the per-unit price the tool exists to check. `quantity`
+  is counted *in* the unit: 23 for 23,000 tokens at `$/1k tokens`, not 23000.
+- **`vendor` changes the answer, so it is not a label.** A seller ACR operates is
+  judged against ACR's own fleet prices; anyone else against the open market. A
+  vendor is always excluded from its own comparison set, which can collapse the
+  benchmark to "no independent seller" — an answer, not a failure.
+
+  **And it can flip the verdict, which is worth seeing before it surprises you.**
+  Measured against a local press: `0.47` for 23 at `$/1k tokens` with no vendor is
+  `escalate`, *"500870 bp above the going market rate of 0.0004 across 5 published
+  prices"*. The **same bill** naming a fleet seller is `pay` — because excluding
+  that seller leaves the fleet population with nobody to compare against, so the
+  bill becomes unbenchmarked, and an unbenchmarked bill under the 1 USDC ceiling
+  passes. The verdict says so in its own words (*"unbenchmarked but under the
+  ceiling"*) and `benchmarked_against` flips `market` → `fleet`, which is why this
+  tool returns the press's payload untouched rather than reducing it to a verdict.
+  A one-word answer would have hidden the reason the word changed.
+- **Three units, and only three** — `$/1k tokens`, `$/GPU-sec`, `$/MB`. The press
+  422s anything else and names the list back in its refusal. An earlier version of
+  this plugin advertised `$/GPU-hour` and `$/GB-month`; neither exists, so two of
+  the three units it offered were an instant 422.
+
+What it does **not** check is named rather than implied: there is no meter, no
+counterparty screen, no agreement, no budget and no balance for a caller who has
+onboarded nothing, and the verdict leaves a note for each.
+
+## Is my agent overpaying?
+
+`check_spend` answers one bill. `spend_report` answers the question behind it.
+
+Every bill `check_spend` prices is appended to a file on **your** machine, and
+`spend_report` folds them into a running view: how many were over the going
+rate, by how much, which vendor is worst, and what was actually recoverable.
+
+```
+spend_report(days: 30)            # or vendor: "0x…", to narrow it
+```
+
+```jsonc
+{
+  "bills_checked": 41, "priced": 38,
+  "over_rate":  { "n": 11, "median_bp": 380, "worst_bp": 4120 },
+  "actionable": { "n": 6, "could_have_paid_usdc": 1.84,
+                  "basis": "the cheapest reachable independent offer at the time of each check" },
+  "by_vendor":  [ { "vendor": "0x…", "bills": 9, "over_rate_bp": 410.2 } ],
+  "note": "these are bills you asked ACR to price. ACR did not observe your payments."
+}
+```
+
+**Why one number is in basis points and the other in dollars.** `par` is the
+median of independent observed quotes, so "above the going rate" is a statement
+about one price in a market — real, and not money you can go and collect.
+`best` is the cheapest offer somebody actually made, so the difference from it
+is money that was available. Only the second becomes USDC. ACR's own index
+cannot price a real invoice at all: `anchors/GAP.md` puts its reference levels
+20x to 1250x off real market prices, which is why none of this is measured
+against it.
+
+**And this is a record of checks, not of payments.** ACR never sees whether you
+paid any of these bills, at what price, or at all. `wallet_tca` is the other
+half — it measures settlements ACR actually observed — and it only works for a
+wallet that bought from ACR's own sellers.
+
+## Privacy
+
+**`check_spend` sends each bill to the press.** That is how it gets priced: the
+amount, the quantity, the unit and the vendor address go to whatever `ACR_API`
+names. That was true before `spend_report` existed and it is worth saying
+plainly — if your invoice amounts are sensitive, this is the tool that transmits
+them.
+
+**`spend_report` sends nothing.** It reads a plain JSONL file on your machine
+and does the arithmetic locally. ACR does not need a copy of your vendor ledger
+to tell you what a fair price is, so it does not get one.
+
+| | |
 |---|---|
-| `my_tca` | a wallet's transaction-cost analysis: what it paid vs the benchmark, slippage, overpaid. `"me"` answers the human-proof challenge and returns ONE card across every wallet the person owns (`ACR_HUMAN_AGENT_KEY`) |
-| `reroute_suggestion` | the seller this payer should have bought from, and the saving |
-| `seller_rating` | one seller's rating, components and human depth |
-| `benchmark_price` | the index print a purchase is measured against |
-| `get_rate` | the on-chain print for an index |
-| `query_tape` | any named subgraph operation through the seller's read proxy |
+| where | `ACR_SPEND_LOG`, default `~/.acr/spend.jsonl`. The home directory, not the working directory, because an MCP server inherits its host's |
+| what | one line per priced bill: vendor, unit, quantity, amount, and the press's verdict. No keys, no cards, no addresses you did not supply |
+| who can read it | mode `0600`, created `0700`. Plain JSONL: read it, grep it, `rm` it |
+| turning it off | `ACR_SPEND_LOG=off`. Then `check_spend` answers `recorded_to: null` and `spend_report` says there is nothing to report |
+
+There is deliberately **no tool that deletes it**. A tool that erases a
+business's bill history is a tool a model will eventually try; `rm` is the
+interface.
+
+## Can my agent pay?
+
+This is the question the plugin could not answer for its first version. The six
+original tools are analytics over payments that happened somewhere else: none of
+them touched a payment-gated endpoint, so a developer who wired the server up
+never even saw a 402, and the only way to find out was to leave the agent and
+start curling.
+
+`can_i_pay` answers it as a ladder, because "no" is the useless answer. There are
+seven independent reasons a payment cannot happen, they fail in a fixed order, and
+the one that fired is the only thing you need:
+
+| rung | what it checks |
+|---|---|
+| `host` | the press answers, and says which chain it is on |
+| `chain` | that chain has a profile here, so USDC and the Gateway wallet can be located |
+| `card` | the gate **accepts** your agent card — a card it refuses 401s every other tool |
+| `gate` | the endpoint really is behind the paywall, per the gate's own `gated_endpoints` |
+| `challenge` | the 402 comes back and parses: scheme, network, asset, payTo, amount |
+| `payer` | a payer key is configured — the one thing no server can supply for you |
+| `funds` | the money is in the **Circle Gateway** balance a settlement spends from |
+
+It never answers the 402 it asks for, so nothing is spent and no key is needed to
+run it. With no payer key it still reports the other six rungs, which is the useful
+read-only state: *the gate is fine, you are not configured.*
+
+That last rung is the one that surprises people. An x402 settlement on Arc spends
+the payer's **Gateway deposit**, not the USDC in its wallet — the client signs an
+EIP-3009 authorization against the GatewayWallet. A wallet holding USDC with an
+empty Gateway balance cannot pay; it has to deposit first, and `can_i_pay` says
+`deposit` rather than `ready`.
+
+### Paying for real
+
+`pay_and_read` is the only tool that moves money, and it is **not registered at
+all** unless `ACR_PAYER_PRIVATE_KEY` is set — a tool a host can see is a tool a
+model will try.
+
+```json
+"env": {
+  "ACR_API": "https://acr-api-1fto.onrender.com",
+  "ACR_PAYER_PRIVATE_KEY": "0x<a wallet YOU control, funded into Circle Gateway>",
+  "ACR_MAX_SPEND_USDC": "0.01"
+}
+```
+
+Same press as the quickstart above, which also means **testnet USDC** — the
+faucet kind. Point it at the mainnet press and the identical call spends real
+money; the chain comes from whichever gate `ACR_API` names, and `can_i_pay`
+prints which one before anything is signed.
+
+A paid query is **$0.0001**, which is exactly the amount that makes a looping agent
+expensive without ever looking alarming. So there is a per-process cap,
+`ACR_MAX_SPEND_USDC`, defaulting to one cent; `pay_and_read` prices each call from
+the live 402 *before* authorizing anything and refuses past the cap, naming it.
+Set it to `0` to keep the tool registered but inert.
+
+Use a key you control. Never a shared or house key — `ACR_PAYER_PRIVATE_KEY` is a
+separate variable from the repo's `ACR_BUYER_PRIVATE_KEY` precisely so the two
+cannot be picked up by accident.
 
 ## It is a carded caller
 
@@ -38,26 +262,173 @@ header, and the seller answers from the **carded** tier: a rate-limit budget key
 and — on `query_tape` — Google Cloud Model Armor screening the request and the reply.
 Unset, the server is anonymous, which is a working state, not an error.
 
+### The 401 this used to be
+
+The chain id lives inside the card's EIP-712 domain, so it is part of the
+signature: sign for one chain, present it to a gate expecting another, and the gate
+recovers a different address and answers
+`401 "agent card signature does not match its agent"`.
+
+`DEFAULT_API` named the mainnet press while the chain id defaulted to Arc testnet,
+and nothing — not this README, not the snippet on `/developers` — set the variable
+that reconciled them. Measured 2026-10-08 against the config this file used to
+print: **four of five tools 401, the fifth failed downstream of it.** All 16 tests
+passed, because they fake `fetch`, and a fake gate cannot refuse a card.
+
+So the chain id is not defaulted any more. `GET /agent/challenge` answers an
+uncarded caller with its own `chain_id`, and that is what the card is signed for.
+`ACR_ARC_CHAIN_ID` still overrides, for a fork or a local gate. And when the chain
+cannot be established at all, the call goes out **anonymous** rather than carrying a
+card the gate will refuse — a lower rate-limit bucket beats a 401 on every tool.
+
+**And the override no longer wins silently**, which was the same bug wearing the
+other hat. It used to short-circuit before the gate was ever asked, so pointing it
+at the wrong chain reproduced the original failure exactly. Measured 2026-10-10
+against both live presses:
+
+```
+testnet gate (wants 5042002)   card signed 5042002  ->  200  tier=carded
+testnet gate (wants 5042002)   card signed 5042     ->  401
+mainnet gate (wants 5042)      card signed 5042002  ->  401
+mainnet gate (wants 5042)      card signed 5042     ->  200  tier=carded
+```
+
+That was reachable from this repo's own `.env`, which pins
+`ACR_ARC_CHAIN_ID=5042002` while `DEFAULT_API` is the mainnet press — so any shell
+that exports it and sets no `ACR_API` would 401 on every carded tool with no hint
+why. (`mcp/` loads no dotenv of its own, which is the only reason it had not bitten
+yet.) So the gate is asked **anyway**, and a disagreement means no card rather than
+a doomed one. An unreachable gate still honours the override: a sleeping free-tier
+press must not quietly strip a correctly-set card.
+
 | env | meaning |
 |---|---|
-| `ACR_API` | the seller to call (default `https://acr-api-mainnet.onrender.com`) |
+| `ACR_API` | the seller to call. The **default is the mainnet press** (`https://acr-api-mainnet.onrender.com`), which is the product's chain and the host `/developers` renders for a mainnet reader — but the quickstart above sets this explicitly to the testnet press, because five tools do not answer on mainnet today. See *Why that host*. Run it bare and you get the default, five tools short |
 | `ACR_AGENT_PRIVATE_KEY` | signs the card. Any 32-byte key; nothing is enrolled, nothing is spent |
+| `ACR_PAYER_PRIVATE_KEY` | **spends.** The wallet `pay_and_read` settles from. Unset → that tool is not registered, and `can_i_pay` reports the `payer` rung as the blocker |
+| `ACR_MAX_SPEND_USDC` | per-process spend ceiling (default `0.01`). `0` means refuse every payment |
+| `ACR_ARC_RPC_URL` | the RPC `can_i_pay` reads balances from (default: the chain's public one) |
 | `ACR_AGENT_HUMAN_CLUSTER` | **opt-in** human claim: the cluster `HumanIdMirror.clusterOf` records for this key's wallet in the *current* 7-day window. A claim the chain cannot confirm is a **401**, never a silent downgrade, so leave it unset unless you have resolved that wallet |
-| `ACR_ARC_CHAIN_ID` | the card's domain chain (default `5042002`, Arc testnet) |
-| `ACR_HUMAN_AGENT_KEY` | lets `my_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. A demo buyer's key derives from its public label |
+| `ACR_ARC_CHAIN_ID` | overrides the card's domain chain. **Leave it unset** unless you know you need it; the gate is asked instead. Set it to a chain the gate disagrees with and the plugin presents **no card at all** and says so once on stderr — see *The 401 this used to be* |
+| `ACR_SPEND_LOG` | where `check_spend` records each priced bill so `spend_report` can total them. Default `~/.acr/spend.jsonl`; `off` disables recording entirely. Nothing here is uploaded — see **Privacy** |
+| `ACR_ARC_PRIVATE_MAINNET` | **inert — it changes nothing.** Kept documented so nobody sets it expecting an effect. It used to be passed to Circle's client as `arcPrivateMainnet`; `GatewayClientConfig` in the installed `@circle-fin/x402-batching` 3.5.0 is `{chain, privateKey, rpcUrl?, headers?}` and the string appears nowhere in that package's shipped code, so it was dropped on the floor at runtime (it compiled because a spread skips excess-property checks). It was unreachable anyway: both chain profiles are `privateMainnet: false` since the private-mainnet preview ended. Verified 2026-10-10 |
+| `ACR_HUMAN_AGENT_KEY` | lets `wallet_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. On a fixture-backed press the roster is the demo one and the key is derivable — the testnet section above has the one line |
 | `ACR_HUMAN_NULLIFIER` | the same, for a local **dev** gate (`ACR_HUMANID_MODE=dev`): a bare nullifier. Not a spending key; anyone holding it can read that human's costs |
+
+### Running it against Arc testnet
+
+Nothing here is testnet-aware by default: `ACR_API` falls back to the mainnet
+press, so **the only thing that puts this plugin on testnet is setting it**. The
+snippet on `/developers` cannot show you this — the terminal has a whole-project
+gate forbidding the other network's values in its shipping UI
+(`apps/terminal/lib/mainnetOnly.test.ts`, eight recorded incidents) — so the
+recipe lives here.
+
+```json
+"env": {
+  "ACR_API": "https://acr-api-1fto.onrender.com",
+  "ACR_AGENT_PRIVATE_KEY": "0x<any 32 bytes>",
+  "ACR_PAYER_PRIVATE_KEY": "0x<a wallet with an open Gateway deposit on Arc testnet>",
+  "ACR_MAX_SPEND_USDC": "0.001",
+  "ACR_HUMAN_AGENT_KEY": "0x<a fixture wallet's key — see below>"
+}
+```
+
+Deliberately absent: `ACR_ARC_CHAIN_ID` (that gate answers `5042002` for itself,
+and pinning the wrong one costs you the card — see above), `ACR_ARC_RPC_URL` (the
+profile's `https://rpc.testnet.arc.io` answers), and `ACR_AGENT_HUMAN_CLUSTER`
+(testnet reports `human_binding_verifiable: true`, so an unresolved claim is a
+**hard 401 on every tool**, not a downgrade).
+
+Measured against that press on 2026-10-10, with that config:
+
+| | |
+|---|---|
+| card | `/agent/whoami` → **200, tier `carded`** |
+| `can_i_pay` | **all seven rungs pass** — host, chain, card, gate, challenge, payer, funds |
+| `pay_and_read("/prints")` | **HTTP 200**, `$0.0001`, `eip155:5042002`, settlement `6a9e4799-…`, which then appeared on `payment_receipts` as seq 113 |
+| every tool | **11 of 11 answered**, and `wallet_tca` went from `seen: false` to 21 purchases / `$0.105752` once that payment was on the tape |
+| `wallet_tca("me")` | the AgentKit proof **accepted** — `/humanid/info` `verified_proofs` 0 → 1 — returning the human's cluster and window |
+
+#### `wallet_tca("me")`, the one tool that needs a person
+
+`"me"` unions every wallet one human owns, so it needs a human proof rather than
+an address. That press verifies **AgentKit** proofs and its AgentBook is the
+**fixture** roster (`/humanid/info` → `agentbook: fixture`), whose wallets are
+derived from public labels — two humans, four wallets, `acr-buyer-1..3` for one
+person and `acr-buyer-4` for another:
+
+```bash
+ACR_HUMAN_AGENT_KEY=0x$(python3 -c 'import hashlib; print(hashlib.sha256(b"acr-buyer::acr-buyer-1").hexdigest())')
+# -> 0x674055533B05Ec3fD135fC21c4d91a4A2D3193d3, which is the testnet tape's main payer
+```
+
+These are **not people**, and that is the property that makes printing the
+recipe safe: every one is flagged `sandbox` all the way onto the chain
+(`HumanIdMirror.clusterProvenance`) and into the tape (`HumanCluster.sandbox`),
+and none holds anything worth keeping. `packages/acr_oracle_client/.../demo_humans.py`
+is the source. Do not expect this to work against a press whose `/humanid/info`
+reports a real AgentBook — there the key has to be a wallet an actual person
+registered.
+
+**Two windows, and they are not the same number.** An address takes a 30-day
+default; `"me"` takes the press's **human rotation window** (about a week),
+because a person's wallet set is only resolved per window. Asking `"me"` for 30
+days is refused — by this plugin, before it spends a nonce, naming the window to
+ask for. Measured 2026-10-10: the proof is accepted (`verified_proofs` 0 → 1 the
+first time it ran) and the answer then reports the human's cluster and
+`wallet_count`. A `wallet_count` of 0 means nobody has run the weekly
+`resolve_humans` for the current window — an operator chore, not a fault in the
+plugin, and `npm run smoke` says so in those words.
+
+Two things are true of this press and worth knowing before you trust a number
+from it:
+
+- **Its oracle has not posted since 2026-09-15.** All three indices answer with
+  prints **25 days old**, and `/health` shows why: `signer: "circle"` with
+  `poster_last_tx: null` while the keeper fires on schedule — the chore runs and
+  nothing lands. `get_rate` now reports that age rather than handing you the
+  number bare. `/onchain` also flickers between a value and a 404 within minutes,
+  because Arc answers `eth_getLogs` with a 429 under load; an absence there is
+  not always permanent.
+- **The carded tier works here and does not on mainnet.** `query_tape` is
+  screened by Model Armor, which fails *closed* for carded callers; the mainnet
+  press reports `credentials_present: false`, so carding it breaks that one tool
+  (handled, with `host_side: true`, and pinned by `paying.test.ts`). Testnet is
+  the press where the full carded path is exercisable.
 
 The card names no `verifyingContract` on purpose — the seller, not a contract,
 verifies it — so `audience` (`acr-index-api`, read from `GET /agent/challenge`) and
 a 15-minute lifetime stand in for one. `GET /agent/whoami` with the header tells you
-which tier you landed on and why.
+which tier you landed on and why, and `can_i_pay`'s `card` rung reports exactly that.
 
-Proved against production 2026-09-13: a stdio client calling `query_tape` and
-`seller_rating` with a throwaway key moved the seller's `cards_verified` counter
-14 → 17 (`GET /agent/info`).
+## Two things to know about the answers
+
+**`benchmark_price` wants a `unit`.** With one, it goes through ACR's `/par`
+benchmark and returns the verdict the spend agent itself would reach. Without one,
+all it can do is compare against the index print — and an index *level* is not a
+dollar price per unit. Asking it to price `$2.50` per GPU-hour against a level of
+`0.011` used to return a confident `slippage_bp: 2257157.1`. It now refuses that
+comparison and says why.
+
+**The default window is 30 days.** It was 7, and at 7 every payer and seller on
+both presses reported zero rows — including the addresses `/developers` printed as
+its worked examples. An empty window now carries a `hint` saying it is a window
+rather than a verdict.
+
+## Developing
 
 ```bash
-npm ci && npm test      # 16 tests; the card test pins the header on every tool's upstream call
+npm ci && npm test      # 61 hermetic tests, no network, no secrets — what CI runs
+npm run typecheck
+npm run build           # tsc → dist/, which is what `npx acr-mcp` runs
+npm run smoke           # every tool against a REAL press (needs network)
 ```
+
+`npm run smoke` is the one that matters before publishing. The unit suite fakes
+`fetch`, which is the right shape for a hermetic CI job and is why the 401 above
+survived 16 green tests — a fake gate cannot refuse a card. The smoke probe reports
+the gate's own chain id and the tier it actually granted, so it cannot pass
+identically against a press it was never pointed at.
 
 Full design: [`docs/AGENT-MODULE.md`](../docs/AGENT-MODULE.md).

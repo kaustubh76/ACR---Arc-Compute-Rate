@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { loadTerminal } from "@/lib/api";
+import { serverChain } from "@/lib/serverChain";
 import { CurveView } from "./view";
 
 export const metadata: Metadata = {
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CurvePage() {
-  const initial = await loadTerminal();
+  const chain = await serverChain();
+  const initial = await loadTerminal(chain);
   return <CurveView initial={initial} />;
 }

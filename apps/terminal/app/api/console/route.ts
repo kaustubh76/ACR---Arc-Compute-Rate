@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase, bundleSection } from "@/lib/api";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import { INDICES, PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { ConsoleResult, Envelope, X402Info } from "@/lib/types";
 
@@ -73,9 +74,10 @@ async function readBody(res: Response): Promise<unknown> {
 }
 
 /** GET — proxy /x402/info so the client can label the gate + gate the demo agent. */
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   try {
-    const res = await fetch(`${apiBase()}/x402/info`, {
+    const res = await fetch(`${apiBase(chain)}/x402/info`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2500),
     });
@@ -83,27 +85,38 @@ export async function GET() {
       const env: Envelope<X402Info | null> = {
         live: true,
         data: (await res.json()) as X402Info,
-        fetchedAt: Date.now(),
+        fetchedAt: Date.now(), chain,
       };
       return NextResponse.json(env, {
-        headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
+        headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
       });
     }
   } catch {
     /* offline */
   }
+  /* THE ARCHIVE MAY DESCRIBE THE PAYWALL BUT NOT NAME THE GATE. Everything
+     else in this section — the price, the network, which endpoints are metered
+     — is still useful when the press is unreachable, and the page labels itself
+     archived around it. `facilitator` is different: it is a claim about what is
+     live RIGHT NOW, the bundled value is `"dev"`, and rendering it put a gold
+     DEV GATE badge over the production Circle paywall on every cold start.
+     Dropped rather than corrected to `"circle"`, because that would be the same
+     mistake with a luckier value. Absent is the truth, and `ApiConsole` already
+     draws nothing for it. */
+  const archived = bundleSection(chain, "x402") ?? null;
   const env: Envelope<X402Info | null> = {
     live: false,
-    data: bundleSection("x402") ?? null,
-    fetchedAt: Date.now(),
+    data: archived ? (({ facilitator: _gate, ...rest }) => rest)(archived) : null,
+    fetchedAt: Date.now(), chain,
   };
   return NextResponse.json(env, {
-    headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
+    headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
   });
 }
 
 /** POST — the two-act x402 exchange: 402 challenge, then pay and retry. */
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   let path = "";
   let payer = "";
   let deskSession = "";
@@ -127,7 +140,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "bad desk_session" }, { status: 400 });
   }
 
-  const base = apiBase();
+  const base = apiBase(chain);
   try {
     // Act I — bare request, expect a 402 challenge.
     const r1 = await fetch(`${base}${path}`, {

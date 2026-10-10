@@ -6,6 +6,22 @@ on:
 
 jobs:
   python:
+    # EVERY JOB HERE IS CAPPED, which it was not until the `mcp` job spent
+    # twelve of fourteen runs being cancelled at GitHub's six-hour ceiling —
+    # median three hours, beside five green siblings, so it read as a slow
+    # runner rather than as the defect it was. Every other workflow in this
+    # repo was already capped (keepalive 8, futures-heartbeat 14,
+    # futures-lifecycle 10, futures-recover 10, x402-buy 12); this is the one
+    # that runs on every push and it was the one without.
+    #
+    # Each cap is sized from that job's MEASURED maximum over fourteen runs,
+    # not set uniformly: a cap that can cut a legitimate run is worse than no
+    # cap, because it teaches people to re-run red. Measured maxima were
+    # python 13.1m, subgraph 2.6m, contracts 1.5m, terminal 1.0m, agent 0.4m.
+    # python gets the widest margin: it is the only one near its ceiling and
+    # the only one whose work legitimately grows, since it runs the
+    # anvil-backed suites.
+    timeout-minutes: 25
     runs-on: ubuntu-latest
     steps:
       # Full history and tags, not the shallow default. The claim audit measures
@@ -119,6 +135,7 @@ jobs:
         run: uv run python scripts/verify_claims.py
 
   contracts:
+    timeout-minutes: 8
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,6 +148,7 @@ jobs:
   agent:
     # The buyer agent's hermetic checks: tsc + node:test with a stubbed fetch.
     # No secrets, no chain, no Circle account — the live path is runbook-only.
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,6 +169,7 @@ jobs:
     # The Next.js terminal: node:test (buy plan, connection ladder, oracle
     # codec) + a full production build. Hermetic — with no ACR_API the data
     # layer falls back to the bundled snapshot, so the build needs no network.
+    timeout-minutes: 8
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -172,6 +191,7 @@ jobs:
     # a malformed manifest, an aggregation arg naming a field that does not
     # exist, or a non-numeric aggregated field — and matchstick pins the
     # arithmetic the mappings do. Hermetic: no Studio key, no RPC, no chain.
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -204,8 +224,22 @@ jobs:
       - name: Build
         run: npx graph build
         working-directory: graph
+      # THROUGH `npm test`, NOT `npx graph test`, so the pinned binary version
+      # cannot be bypassed by the way this is invoked. `graph test` downloads a
+      # matchstick RUST BINARY and resolves its version at run time, while
+      # `matchstick-as` — the AssemblyScript library it has to match — is pinned
+      # at 0.6.0 beside it in graph/package.json. Unpinned, that lookup failed
+      # intermittently with "Failed to get matchstick binary: Invalid version.
+      # Must be a string." — BEFORE a single test ran, so the job was red
+      # without having checked anything.
+      #
+      # Measured over fourteen runs: two failures, both this. And the proof it
+      # was the lookup and not the tests is that commit 54fe886 did BOTH — its
+      # push run's subgraph passed in 1m34s while its pull_request run failed,
+      # same SHA, same code. `graph test -v 0.6.0` takes the network out of the
+      # gate's critical path; it runs all 58 tests in about 275ms.
       - name: Tests
-        run: npx graph test
+        run: npm test
         working-directory: graph
 
   mcp:
@@ -213,6 +247,39 @@ jobs:
     # tool contract: that it forwards an operation NAME and never caller-supplied
     # query text, and that "no suggestion" stays distinguishable from "the tape
     # was unreadable".
+    #
+    # THIS JOB HAD NEVER PASSED, and nothing said so. `npm test` ran every test
+    # to green and then never exited; the two runs that reached any conclusion
+    # were `cancelled` at GitHub's six-hour ceiling, and every other job beside
+    # it was green, so the branch read as merely slow.
+    #
+    # The cause was in the tests, not the runner, and it was a PLATFORM
+    # difference — which is why ten green local runs proved nothing.
+    # `spendLog.test.ts` needed an unwritable path to show that a failed write
+    # returns null instead of throwing, and used `/proc/nonexistent/...`.
+    # `append` calls `mkdirSync(dir, { recursive: true })` first. macOS has no
+    # `/proc`, so it fails instantly; on Linux, as root, **mkdirSync into
+    # /proc never returns**. Reproduced in a node:24-bookworm-slim container
+    # (killed at 20s having neither thrown nor created), fixed by making the
+    # path unwritable portably — a component that is a regular file, so ENOTDIR
+    # comes back at once on both platforms. The same container now runs the
+    # suite in 8s, exit 0.
+    #
+    # Two guards stay, because the six hours of silence were worse than the
+    # bug. `--test-force-exit` in the package's test script covers a future
+    # leaked handle, and does not buy the exit by hiding anything (verified: a
+    # broken threshold still reports the failures and exits 1). And this
+    # timeout, which is what turned the next hang into a ten-minute red instead
+    # of a six-hour shrug — a gate that takes six hours to tell you anything is
+    # a gate nobody waits for. Every step here is seconds; ten minutes is
+    # slack, not a budget.
+    timeout-minutes: 10
+    #
+    # These tests fake `fetch`, which is what keeps the job hermetic and
+    # secret-free — and is also why they cannot catch a gate REFUSING the plugin's
+    # agent card: a fake gate refuses nothing. That check is `npm run smoke`,
+    # which needs the network and a live press, so it runs before a publish
+    # rather than here. A free-tier press asleep is not a failing build.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -228,3 +295,29 @@ jobs:
       - name: Tests
         run: npm test
         working-directory: mcp
+      # `bin` points at dist/server.js, so an unbuildable package is a broken
+      # `npx acr-mcp` for everyone who pastes the config off /developers.
+      - name: Build
+        run: npm run build
+        working-directory: mcp
+      - name: The built binary speaks MCP
+        working-directory: mcp
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+            | timeout 30 node dist/server.js > /tmp/mcp-handshake.jsonl || true
+          node -e '
+            const fs = require("node:fs");
+            const lines = fs.readFileSync("/tmp/mcp-handshake.jsonl", "utf8").trim().split("\n").filter(Boolean);
+            const list = lines.map((l) => JSON.parse(l)).find((m) => m.id === 2);
+            if (!list) throw new Error("the built server never answered tools/list");
+            const names = list.result.tools.map((t) => t.name);
+            // No payer key in CI, so the one tool that spends must be withheld.
+            if (names.includes("pay_and_read")) throw new Error("pay_and_read offered with no payer key");
+            for (const t of ["can_i_pay", "wallet_tca", "spend_report", "query_tape"]) {
+              if (!names.includes(t)) throw new Error(`the built server is missing ${t}`);
+            }
+            console.log(`built server offers ${names.length} tools: ${names.join(", ")}`);
+          '

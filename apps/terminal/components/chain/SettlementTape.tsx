@@ -23,8 +23,12 @@ export function SettlementTape({
   const ledger = tape?.data ?? bundled ?? null;
   const receipts = ledger?.receipts ?? [];
   const live = Boolean(tape?.live && tape?.data);
+  // See app/tape/view.tsx: an absent route must not read as "no settlements".
   const unreachable =
-    error != null || tape?.upstream === "error" || tape?.upstream === "timeout";
+    error != null ||
+    tape?.upstream === "error" ||
+    tape?.upstream === "timeout" ||
+    tape?.upstream === "absent";
 
   if (!receipts.length) {
     return (

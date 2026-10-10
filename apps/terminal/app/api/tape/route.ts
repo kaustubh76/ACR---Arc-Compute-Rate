@@ -1,6 +1,8 @@
 import { currentWindow } from "@/lib/humans";
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import type { Envelope } from "@/lib/types";
 import { humanShareInWindow, sellerTerms, sellersFromSettlements, recentForPayer } from "@/lib/tape";
 import type {
@@ -41,8 +43,9 @@ interface ProxyEnvelope<T> {
   data?: T;
 }
 
-async function op<T>(operation: string, variables: Record<string, unknown> = {}) {
+async function op<T>(chain: ChainKey, operation: string, variables: Record<string, unknown> = {}) {
   const { data } = await postLiveMeta<ProxyEnvelope<T>>(
+    chain,
     "/graph/query",
     { operation, variables },
     OP_TIMEOUT_MS,
@@ -67,19 +70,19 @@ function busiestPayer(rows: TapeSettlement[]): string | null {
 }
 
 export async function GET(request: Request) {
+  const chain = requestChain(request);
   const url = new URL(request.url);
   const payerParam = url.searchParams.get("payer");
 
   const [rawMeta, sellersRes, settleRes, fills, opsRes] = await Promise.all([
-    op<{ _meta: { block: { number: number; timestamp: number }; hasIndexingErrors: boolean; deployment: string } }>(
-      "meta",
+    op<{ _meta: { block: { number: number; timestamp: number }; hasIndexingErrors: boolean; deployment: string } }>(chain, "meta",
     ),
-    op<{ sellers: TapeSeller[] }>("sellers", { first: 50 }),
-    op<{ settlements: TapeSettlement[] }>("settlements", { first: 200 }),
-    op<{ fills: { slippageBp: string | null; benchmarked: boolean }[] }>("futuresFills", {
+    op<{ sellers: TapeSeller[] }>(chain, "sellers", { first: 50 }),
+    op<{ settlements: TapeSettlement[] }>(chain, "settlements", { first: 200 }),
+    op<{ fills: { slippageBp: string | null; benchmarked: boolean }[] }>(chain, "futuresFills", {
       first: 200,
     }),
-    fetchLiveMeta<{ transport?: GraphTransport }>("/graph/operations", OP_TIMEOUT_MS),
+    fetchLiveMeta<{ transport?: GraphTransport }>(chain, "/graph/operations", OP_TIMEOUT_MS),
   ]);
 
   const settlements = settleRes?.settlements ?? [];
@@ -127,7 +130,7 @@ export async function GET(request: Request) {
     : null;
 
   const tcaRes = payer
-    ? await fetchLiveMeta<TcaResult>(`/tca/${payer}?days=7`, OP_TIMEOUT_MS)
+    ? await fetchLiveMeta<TcaResult>(chain, `/tca/${payer}?days=7`, OP_TIMEOUT_MS)
     : { data: null, upstream: "error" as const };
 
   /* Grades are an ENHANCEMENT, not a dependency. /rating reaches for a window
@@ -137,7 +140,7 @@ export async function GET(request: Request) {
   const ratings: Record<string, SellerRating> = {};
   await Promise.all(
     sellers.slice(0, 12).map(async (s) => {
-      const { data } = await fetchLiveMeta<SellerRating>(`/rating/${s.id}?days=7`, OP_TIMEOUT_MS);
+      const { data } = await fetchLiveMeta<SellerRating>(chain, `/rating/${s.id}?days=7`, OP_TIMEOUT_MS);
       if (data) ratings[s.id.toLowerCase()] = data;
     }),
   );
@@ -164,14 +167,10 @@ export async function GET(request: Request) {
   const env: Envelope<TapeData> = {
     live: meta != null,
     data,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream: meta != null ? "ok" : tcaRes.upstream,
   };
   return NextResponse.json(env, {
-    headers: {
-      "Cache-Control": meta
-        ? "public, s-maxage=15, stale-while-revalidate=60"
-        : "no-store",
-    },
+    headers: envelopeHeaders("public, s-maxage=15, stale-while-revalidate=60", chain, env),
   });
 }

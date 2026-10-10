@@ -37,12 +37,22 @@ from acr_oracle_client.futures import _rpc_retry, collateral_or_none
 # switch: that service is suspended and answers 503, so every check below
 # failed while the keepalive reported it as a red run nobody read.
 API = os.environ.get("ACR_API_URL", "https://acr-api-mainnet.onrender.com").rstrip("/")
-# The custom domain, from 2026-10-08. `keepalive.yml` runs this every ten
-# minutes and does NOT set the env var, so this default IS the host the
-# standing gate audits — left alone it would have kept proving the old one
-# healthy, which is true and no longer the question.
+# `keepalive.yml` runs this every ten minutes, so this default IS the host the
+# standing gate audits — and from 2026-10-08 to 10-09 it was a custom domain
+# that never resolved to the deployment. The failure was not a clean red:
+# Hostinger's parked page answers **HTTP 200** with HTML, which produced all
+# three verdicts at once. `/api/futures` passed VACUOUSLY (HTML fails to parse
+# -> `desks={}`, and the keepalive sets ACR_VERIFY_NO_VENUE=1, so the 200 alone
+# satisfied it). `/api/humanid` WARNED with a wrong-but-exculpatory reason.
+# `/api/wallet/balances` FAILED HARD, because its warn-only escape hatch is
+# `st == 404` and a parked page is a 200 — so the job went red and blamed a
+# Next route for a DNS problem.
+#
+# The keepalive now also sets ACR_TERMINAL_URL explicitly. Both, deliberately:
+# the env var makes the running workflow right today, the default makes anyone
+# invoking this by hand right too, and they become true at different times.
 TERMINAL = os.environ.get(
-    "ACR_TERMINAL_URL", "https://arccomputerate.in"
+    "ACR_TERMINAL_URL", "https://arc-compute-rate.vercel.app"
 ).rstrip("/")
 #: Free-tier hosts sleep; a cold start is slow but not a fault.
 TIMEOUT_S = float(os.environ.get("VERIFY_TIMEOUT_S", "90"))

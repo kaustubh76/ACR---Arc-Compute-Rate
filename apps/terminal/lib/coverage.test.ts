@@ -22,13 +22,20 @@ import { PLAIN_GLOSSARY, PRIMER_BEATS } from "./plainGlossary";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** repo-relative path → minimum number of edition markers (floor, not exact). */
+/** repo-relative path → minimum number of edition markers (floor, not exact).
+ *
+ *  RAISED TO ACTUAL 2026-10-10 for nine entries whose floor had stopped
+ *  holding anything — several sat at less than half the real count, so a
+ *  surface could lose twenty markers and still pass. That is the state the
+ *  comments below already call out by name on two other files; it had simply
+ *  happened again, including on two I edited this week and did not re-measure.
+ *  A floor well under actual is a floor that cannot fail. */
 const REQUIRED_COVERAGE: Record<string, number> = {
   "app/view.tsx": 2, // hero copy lives in HomeHero; the primer mount is plain-only by CSS
   // Raised from 12 against an actual 32 — twenty markers of slack, the state
   // the sellers/developers comments below call a floor that stopped holding.
   "app/index/[id]/view.tsx": 32,
-  "app/attack/view.tsx": 10,
+  "app/attack/view.tsx": 29,
   "app/curve/view.tsx": 16, // 5 -> 16: measured, plus the shop-floor disclosure
   // The tape: every figure is a measurement of how well an agent traded, so
   // both editions carry the whole page rather than the expert one plus labels.
@@ -49,17 +56,25 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/DefensibilityStrip.tsx": 3,
   "components/FuturesTeaser.tsx": 3,
   "components/TapeTeaser.tsx": 3,
-  "components/loop/LoopFlow.tsx": 10,
+  "components/loop/LoopFlow.tsx": 32,
   "components/loop/Wake.tsx": 1,
   "components/loop/TierColumns.tsx": 8,
-  "components/loop/ScreenLab.tsx": 12,
-  "components/loop/PersonNotWallet.tsx": 14,
+  "components/loop/ScreenLab.tsx": 46,
+  "components/loop/PersonNotWallet.tsx": 43,
   "app/loop/view.tsx": 4,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
   "components/WalletFunding.tsx": 6, // the balance line, deposit, bridge (busy + idle) and the bridge note
+  // The §5.9 read gate. Both editions carry the whole refusal, because a
+  // reader who cannot open a page needs the way past it in words they read.
+  // One apology, three surfaces. /spend, /traction and /check each had their
+  // own outage sentence and none could tell "this press is down" from "this
+  // press predates the route"; the markers that left those files landed here.
+  "components/WhyEmpty.tsx": 4,
+  "components/spend/ReaderCardGate.tsx": 12,
+  "components/spend/LedgerDownload.tsx": 4, // the label plus its three phases
 
-  "components/chain/PublicDesk.tsx": 14, // incl. the withdraw/exit copy
+  "components/chain/PublicDesk.tsx": 39, // incl. the withdraw/exit copy
   "components/chain/AttackTape.tsx": 10, // the estimator log speaks in both editions
   "components/chain/DeskSteps.tsx": 3, // the five step names + the wait line
   // This sat at 10 against an actual 13 — three markers of slack, which is a
@@ -72,16 +87,18 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // Measured with THIS file's own regex, which counts `<Ed>` and `<Ed\n` as
   // well as `<Ed ` — an eyeball grep for `<Ed ` undercounts by a third and is
   // how two of these floors were briefly set below actual.
-  "app/spend/view.tsx": 98, // the queue (even empty), the budgets, which chain, the six errors, and the price-check link per escalation
+  "app/spend/view.tsx": 97, // the queue (even empty), the budgets, which chain, the six errors, and the price-check link per escalation
   "app/traction/view.tsx": 49, // every figure labelled in both registers
   // The form, the three unit hints, the verdict rows, the basket state and
   // every column of the comparison table. A visitor who cannot read "$/1k
   // tokens" is exactly the visitor this page is for.
   "app/check/view.tsx": 40,
+  // two states, two registers each: the footnote and the chip.
+  "components/ChainToggle.tsx": 2,
   "components/spend/EscalationActions.tsx": 11, // the key, the buttons, why they are off without one, the note, who signs
   "components/chain/OperatorConsole.tsx": 13, // the locked + unlocked states both speak
-  "components/chain/HedgerPanel.tsx": 14, // incl. the two-addresses-one-agent copy
-  "components/ApiConsole.tsx": 8,
+  "components/chain/HedgerPanel.tsx": 36, // incl. the two-addresses-one-agent copy
+  "components/ApiConsole.tsx": 24,
   "components/WebhookActivity.tsx": 4,
   "components/chain/ChainFactsStrip.tsx": 3,
   "components/chain/ContractRegister.tsx": 10, // seven glosses, the custody note, the sim tape line
@@ -91,11 +108,11 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/OracleProvenance.tsx": 5,
   "components/chain/FinalityBadge.tsx": 3,
   "components/chain/WalletPanel.tsx": 4,
-  "components/chain/FuturesDesk.tsx": 12, // incl. the per-series contract-size panel
+  "components/chain/FuturesDesk.tsx": 27, // incl. the per-series contract-size panel
   "components/chain/FuturesTape.tsx": 3, // incl. the "you" chip on a reader's own fill
   // The 401 challenge, shown the way ApiConsole shows the 402: every label
   // dual-renders, and the "what would answer this" line has three backends.
-  "components/chain/HumanProof.tsx": 16,
+  "components/chain/HumanProof.tsx": 32,
   "components/chain/AgentCardSnippet.tsx": 12,
   "components/chain/McpSnippet.tsx": 7,
   // The shop floor, folded in from the old /exchange route. Rendered only when

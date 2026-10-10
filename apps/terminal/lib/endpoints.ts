@@ -47,7 +47,7 @@ export interface EndpointRow {
    *  body), and for the tape reads (they want a wallet in the path, and there
    *  is no sensible default to probe with). A row that explains itself wrongly
    *  is worse than one that says nothing. */
-  why?: "session" | "post" | "inbound" | "address" | "human";
+  why?: "session" | "post" | "inbound" | "address" | "business" | "human";
 }
 
 const i0 = INDICES[0];
@@ -98,15 +98,23 @@ export const ENDPOINTS: EndpointRow[] = [
      is worse than one saying nothing. */
   { method: "GET", path: "/tca/human", gate: "public", family: "market", run: null, why: "human" },
   { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, why: "address" },
-  /* The owner-facing statement. `why: "address"` for the same reason as the two
-     rows above: the path wants a business, and there is no sensible default to
-     probe with. A slug would make one up, and a made-up business on a traction
-     surface is the one thing this product cannot afford to render. */
+  /* The owner-facing statement. Not runnable for the same reason as the rows
+     above — the path wants a business and there is no sensible default to
+     probe with; a slug would make one up, and a made-up business on a traction
+     surface is the one thing this product cannot afford to render.
+
+     `why: "business"`, NOT `"address"`. These three take a registry slug, and
+     the page rendered "needs a wallet in the path" over all of them — which is
+     this register's own stated failure: "A row that explains itself wrongly is
+     worse than one that says nothing." A reader who went and found a wallet
+     address would still have nothing that works. (A treasury address IS also
+     accepted, which is presumably how the wrong word got here, but the slug is
+     what /operator/businesses hands you and what every link on the site uses.) */
   { method: "GET", path: "/operator/businesses", gate: "public", family: "market", run: "/operator/businesses" },
   { method: "GET", path: "/operator/traction", gate: "public", family: "market", run: "/operator/traction" },
-  { method: "GET", path: "/operator/statement/{business}", gate: "public", family: "market", run: null, why: "address" },
-  { method: "GET", path: "/operator/ledger/{business}", gate: "public", family: "market", run: null, why: "address" },
-  { method: "GET", path: "/operator/audit/{business}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/operator/statement/{business}", gate: "public", family: "market", run: null, why: "business" },
+  { method: "GET", path: "/operator/ledger/{business}", gate: "public", family: "market", run: null, why: "business" },
+  { method: "GET", path: "/operator/audit/{business}", gate: "public", family: "market", run: null, why: "business" },
   { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },
   { method: "POST", path: "/graph/query", gate: "public", family: "market", run: null, why: "post" },
   { method: "GET", path: "/fleet", gate: "public", family: "market", run: "/fleet" },

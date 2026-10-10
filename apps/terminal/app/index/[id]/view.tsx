@@ -33,10 +33,29 @@ export function IndexView({ initial, id }: { initial: Envelope<TerminalData>; id
   const directPrint = !env.live ? direct?.data?.prints?.[id] ?? conn.onchain?.data?.prints?.[id] : null;
 
   if (!raw) {
+    /* A 404 IS A CLAIM, and off the default chain it was being made from a
+       payload nobody had read. There is no committed bundle there
+       (`bundle: false`) and no direct-read tier, so a cold load leaves `prints`
+       empty for every id — and this page told a testnet visitor that ACR-INF
+       does not exist. `env.live` separates "we read the register and this is
+       not in it" from "we have not read it yet", and only the first is a 404.
+
+       STILL GATED ON `raw` ALONE, deliberately. page.tsx promises that "a
+       degraded payload missing a known index must NOT hide the page (the
+       client ladder can still read the print straight from ACROracle)", and
+       `directPrint` is resolved two lines up — but every line below needs
+       `raw`'s own fields, and `{...undefined, onchain}` renders a page with no
+       index id, no value and no robustness. Serving that promise needs a print
+       built from the direct read, which is more than a guard change; saying
+       the true thing is what this commit does. */
     return (
       <div className="editorial-404">
         <h1>
-          <Ed x="No such index is published." p="There is no rate by that name." />
+          {env.live ? (
+            <Ed x="No such index is published." p="There is no rate by that name." />
+          ) : (
+            <Ed x="Reading the register…" p="Looking this rate up…" />
+          )}
         </h1>
       </div>
     );

@@ -13,9 +13,9 @@ import { RegistryProof } from "@/components/chain/RegistryProof";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
-import { useMarketReceipts, useRevenue, useTerminal, useX402Info } from "@/lib/useLive";
+import { useMarketReceipts, useRevenue, useServes, useTerminal, useX402Info } from "@/lib/useLive";
 import { fmtInt, money, shortAddr } from "@/lib/format";
-import { sellerBase } from "@/lib/apiBase";
+import { sellerBase, servesPath } from "@/lib/apiBase";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import { ENDPOINTS, FAMILIES, type EndpointRow, type Family } from "@/lib/endpoints";
 import type { Envelope, MarketReceipt, TerminalData } from "@/lib/types";
@@ -38,6 +38,19 @@ interface ProbeResult {
   human_note?: string;
   /** Whether a card was sent at all — so a 401 reads as "card refused". */
   carded?: boolean;
+  /** WHICH host served this probe. Computed by the route for exactly this
+   *  reason — "so '503' is attributable to a wrong ACR_API rather than to the
+   *  press being down" — and dropped here until now. Rendered only when it
+   *  disagrees with the host this page says it is reading from: agreeing on
+   *  every row is noise, and the disagreement is the whole point.
+   *
+   *  IT IS `baseState()`, AN OBJECT, and I first declared it a string and
+   *  called `.replace()` on it — which throws inside this table's render and
+   *  blanks the page into the error boundary on any run click. `tsc` was
+   *  clean throughout, because this interface is a hand-written description of
+   *  the JSON and nothing ties it to the route's return type. The only thing
+   *  that would have caught it is clicking the button. */
+  seller?: { active?: string };
 }
 
 /** The three ways to run /agent/whoami, and the key each result is stored under.
@@ -131,10 +144,26 @@ const FAMILY_HEAD: Record<Family, React.ReactNode> = {
   ops: <Ed x="Operations" p="Housekeeping" />,
 };
 
-export function DevelopersView({ initial }: { initial: Envelope<TerminalData> }) {
+export function DevelopersView({
+  initial,
+  activeApi,
+}: {
+  initial: Envelope<TerminalData>;
+  /** The seller this page is actually reading from — see the note in page.tsx. */
+  activeApi: string;
+}) {
   const env = useTerminal(initial);
   const { revenue, refresh } = useRevenue();
   const rev = revenue?.data;
+  /* WHETHER THESE FIGURES WERE READ, which the heading below asserts in the
+     word "live". The proxy answers `live: false` with an OFFLINE literal of
+     zeros whenever the press did not answer — and off the default chain there
+     is no bundle to fall back to either, so that is every load until the press
+     wakes. Printed under "live", a zero is a claim that machines have paid us
+     nothing. This page's sibling states the rule: "`?? 0` printed '0 failing'
+     for a field the press never sent, which is this page's own
+     unread-is-not-zero rule broken in the one line that summarises it". */
+  const revenueRead = Boolean(revenue?.live);
   const info = useX402Info();
   // The gate's live advertised price (ACR_X402_PRICE_USDC) — what is PAID.
   const price = info?.data?.price_usdc ?? rev?.price_usdc ?? PRICE_FALLBACK_USDC;
@@ -149,7 +178,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
   const [loadPath, setLoadPath] = useState<string | null>(null);
 
   /* --- the endpoints table, made answerable ---
-     Twenty-two of the twenty-seven rows were inert, and every one of those is
+     Most of the rows were inert, and every one of those is
      a FREE route: nothing was stopping a reader from calling them except the
      absence of a button. Now each runnable row fetches through /api/probe and
      shows what came back, so the table is evidence rather than documentation.
@@ -162,6 +191,11 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
   const [probing, setProbing] = useState<string | null>(null);
   const [probeOut, setProbeOut] = useState<Record<string, ProbeResult>>({});
   const { tape } = useMarketReceipts();
+  /* Which of the advertised routes THIS deployment can actually answer. The
+     register above describes the product and is right; the press in front of
+     a visitor can be older. Null means the host would not say, and then every
+     row stays runnable — the behaviour before this existed. */
+  const served = useServes();
 
   const loadIntoConsole = useCallback((path: string, run: string) => {
     setSelected(path);
@@ -305,11 +339,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           and this is where a reader finds out what that means. */}
       <HumanProof />
       {/* The agent gate's sibling section: the same "ask it what it wants", and then
-          the code to satisfy it, in three languages, derived from that answer. The
-          snippets name the PUBLIC host because that is the one an agent would call;
-          without NEXT_PUBLIC_ACR_API at build time they name the dev loopback. */}
-      <AgentCardSnippet api={sellerBase()} />
-      <McpSnippet api={sellerBase()} />
+          the code to satisfy it, in three languages, derived from that answer.
+
+          These name `activeApi`, the host this page IS reading from, not
+          `sellerBase()`, the configured override. The two differ exactly when the
+          override is refused on chain identity, and on the live deployment they
+          did: the config block here handed visitors the one host the rest of the
+          page had decided was "healthy, but not serving this product". A snippet
+          that names a host the page itself will not call is worse than no snippet,
+          because it looks checked. */}
+      <AgentCardSnippet api={activeApi} />
+      <McpSnippet api={activeApi} />
 
       {/* The contracts, named where a developer looks for them. This page knew
           the chain well enough to build explorer links and never once said
@@ -338,12 +378,16 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
 
       <section className="section">
         <div className="section-head">
-          <Ed x="Machine revenue · live" p="What machines have paid us · live" className="label" />
+          {revenueRead ? (
+            <Ed x="Machine revenue · live" p="What machines have paid us · live" className="label" />
+          ) : (
+            <Ed x="Machine revenue · not read" p="What machines have paid us · not read" className="label" />
+          )}
         </div>
         <div className="lab-counters">
           <div>
             <div className="counter-value">
-              <TickerNumber text={fmtInt(rev?.paid_queries ?? 0)} />
+              {revenueRead ? <TickerNumber text={fmtInt(rev?.paid_queries ?? 0)} /> : "…"}
             </div>
             <div className="counter-label label">
               <Ed x="Paid queries" p="Questions paid for" />
@@ -351,7 +395,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           </div>
           <div>
             <div className="counter-value gold">
-              <TickerNumber text={money(rev?.revenue_usdc ?? 0, 4)} />
+              {revenueRead ? <TickerNumber text={money(rev?.revenue_usdc ?? 0, 4)} /> : "…"}
             </div>
             <div className="counter-label label">
               <Ed x="Revenue (USDC)" p="Revenue (dollars)" />
@@ -384,10 +428,19 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
           </div>
         ) : (
           <p className="muted" style={{ fontSize: 13, marginTop: 16 }}>
-            <Ed
-              x="No receipts yet this session. Run a query above and it prints here."
-              p="No receipts yet this session. Ask a question above and it prints here."
-            />
+            {/* Same rule as the counters above: "none yet" is a statement about
+                the feed, and we may not make it from a feed we did not read. */}
+            {revenueRead ? (
+              <Ed
+                x="No receipts yet this session. Run a query above and it prints here."
+                p="No receipts yet this session. Ask a question above and it prints here."
+              />
+            ) : (
+              <Ed
+                x="The revenue feed has not answered, so no receipt is shown. An unread feed is not an empty one."
+                p="We could not read the payments feed, so nothing is shown here yet."
+              />
+            )}
           </p>
         )}
       </section>
@@ -397,13 +450,17 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
       <section className="section">
         <div className="section-head">
           <Ed x="Endpoints" p="What you can ask" className="label" />
-          {/* NEXT_PUBLIC_ACR_API is inlined at build time — without it there is
-              no honest public docs URL, so render nothing rather than ship a
-              localhost link to production visitors. */}
-          {env.live && process.env.NEXT_PUBLIC_ACR_API && (
+          {/* The docs of the host this page READS FROM, for the same reason the
+              snippets below name it: NEXT_PUBLIC_ACR_API is the configured
+              override, and when it is refused on chain identity this link sent
+              visitors to the OpenAPI of a press the page never calls. Still
+              gated on `env.live`, so a page serving the archive does not link
+              live docs, and `activeApi` is always a real public host — which is
+              what the build-time-inlining note here used to be guarding. */}
+          {env.live && (
             <a
               className="section-link"
-              href={`${process.env.NEXT_PUBLIC_ACR_API}/docs`}
+              href={`${activeApi}/docs`}
               target="_blank"
               rel="noreferrer"
             >
@@ -432,7 +489,7 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                 if (!rows.length) return null;
                 return (
                   <Fragment key={fam}>
-                    {/* Twenty-seven rows in one flat list, ordered by nothing a
+                    {/* Every row in one flat list, ordered by nothing a
                         reader could see. The families were already there in the
                         paths; they just were not drawn. */}
                     <tr>
@@ -498,7 +555,22 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                               {DESC[e.path]}
                             </td>
                             <td className="mono">
-                              {act === "probe" ? (
+                              {act === "probe" && served && !servesPath(served, e.run!) ? (
+                                /* A LABEL, NOT A DISABLED BUTTON. This row is
+                                   runnable in the product and not on this
+                                   press, which is a fact about the deployment
+                                   and worth saying in those words. The page's
+                                   own rule two sections down is "Not a button
+                                   that could only ever fail", and
+                                   EscalationActions adds the other half: a
+                                   disabled control that does not say why reads
+                                   as broken. Same muted shape the register
+                                   already uses for a row that needs a wallet
+                                   or a proof. */
+                                <span className="muted" style={{ fontSize: 11.5 }}>
+                                  <Ed x="not on this press" p="not on this service" />
+                                </span>
+                              ) : act === "probe" ? (
                                 <>
                                   <button
                                     className="mini-btn"
@@ -558,6 +630,8 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
                                   ) : e.why === "address" ? (
                                     <Ed x="needs a wallet in the path" p="needs a wallet address" />
+                                  ) : e.why === "business" ? (
+                                    <Ed x="needs a business slug in the path" p="needs the name of a business" />
                                   ) : e.why === "human" ? (
                                     <Ed x="needs a proof of personhood" p="needs proof you are a real person" />
                                   ) : (
@@ -587,6 +661,23 @@ export function DevelopersView({ initial }: { initial: Envelope<TerminalData> })
                                           · {fmtInt(o.ms ?? 0)} ms
                                           {o.truncated ? " · preview" : ""}
                                         </span>
+                                        {/* ONLY WHEN IT DISAGREES. The probe
+                                            records which host served it so a
+                                            status is attributable to a host
+                                            rather than to "the press"; printed
+                                            on every row it would just repeat
+                                            the host named above. It differs
+                                            exactly when the ladder fell past
+                                            the configured override mid-session,
+                                            which is the one time a reader needs
+                                            to know a different box answered. */}
+                                        {o.seller?.active && o.seller.active !== activeApi ? (
+                                          <span className="gold">
+                                            {" · "}
+                                            <Ed x="served by " p="answered by " />
+                                            {o.seller.active.replace(/^https?:\/\//, "")}
+                                          </span>
+                                        ) : null}
                                         {/* The tier, as a badge, because this row exists to make the
                                             three tiers visible next to each other. The sentence after
                                             it is the one the human tier was built to say. */}

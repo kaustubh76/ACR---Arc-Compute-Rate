@@ -15,10 +15,30 @@ import { createPublicClient, http } from "viem";
 import { CHAIN } from "./chain";
 import { INDICES } from "./indices";
 import { bundleSection } from "./api";
+import { CHAINS, type ChainKey } from "./chainChoice";
 import { decodePrint, indexIdBytes32, type RawPrint } from "./onchainCodec";
 import type { HistoryPoint, OnchainDirectRead } from "./types";
 import { completeHistory, onchainTier } from "./futuresBook";
 import { readFailure } from "./readResult";
+
+/* THE DIRECT-READ TIER IS MAINNET-ONLY, BY CONSTRUCTION RATHER THAN BY OMISSION.
+ *
+ * Every address below is resolved from the committed bundle, which IS a mainnet
+ * snapshot (`lib/mainnetOnly.test.ts` asserts that field by field), and this
+ * module bypasses the press ladder entirely — so there is nothing between a
+ * wrong chain and a reader seeing mainnet contract state under another chain's
+ * label. This repo also holds no oracle, registry or venue address for any other
+ * network, so there is no honest reading to give.
+ *
+ * Refused rather than guessed, and refused BEFORE any client is built, so a
+ * locked-out chain makes zero RPC calls. The test asserts the call count and not
+ * just the payload: a reader that fires the request and discards the answer
+ * passes a payload assertion and still costs a round trip to the wrong chain.
+ */
+function directReadsAllowed(chain: ChainKey): boolean {
+  return CHAINS[chain].directReads;
+}
+
 
 const ORACLE_ABI = [
   {
@@ -81,19 +101,19 @@ const RPC_GAP_MS = 350;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function oracleAddress(): `0x${string}` | null {
+function oracleAddress(chain: ChainKey): `0x${string}` | null {
   const fromEnv = process.env.ACR_ORACLE_ADDRESS;
-  const fromBundle = bundleSection("chain")?.oracle_address;
+  const fromBundle = bundleSection(chain, "chain")?.oracle_address;
   const addr = fromEnv ?? fromBundle ?? null;
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? (addr as `0x${string}`) : null;
 }
 
-function rpcUrl(): string {
-  return process.env.ACR_ARC_RPC_URL ?? bundleSection("chain")?.rpc_url ?? CHAIN.rpc;
+function rpcUrl(chain: ChainKey): string {
+  return process.env.ACR_ARC_RPC_URL ?? bundleSection(chain, "chain")?.rpc_url ?? CHAIN.rpc;
 }
 
 let clientMemo: ReturnType<typeof createPublicClient> | null = null;
-function client() {
+function client(chain: ChainKey) {
   if (!clientMemo) {
     clientMemo = createPublicClient({
       // fetchOptions.cache is load-bearing: Next patches global fetch, and
@@ -101,7 +121,7 @@ function client() {
       // then serves frozen chain state (observed: prints days stale while the
       // chain was minutes fresh). `force-dynamic` does NOT cover library
       // fetches; only this opt-out does.
-      transport: http(rpcUrl(), {
+      transport: http(rpcUrl(chain), {
         timeout: 4_000,
         retryCount: 1,
         fetchOptions: { cache: "no-store" },
@@ -124,9 +144,11 @@ const PARTIAL_MEMO_MS = 8_000;
  *  rows for ONE index (`historyFor`) — a full-roster history read would blow
  *  a serverless timeout at the paced RPC rate. */
 export async function readOracleDirect(
+  chain: ChainKey,
   historyFor: string | null = null,
 ): Promise<OnchainDirectRead | null> {
-  const oracle = oracleAddress();
+  if (!directReadsAllowed(chain)) return null;
+  const oracle = oracleAddress(chain);
   if (!oracle) return null;
   if (memo && (memo.historyFor === historyFor || historyFor == null)) {
     const full = Object.keys(memo.data.prints).length === INDICES.length;
@@ -136,7 +158,7 @@ export async function readOracleDirect(
   const prints: OnchainDirectRead["prints"] = {};
   const readLatest = async (id: string): Promise<boolean> => {
     try {
-      const [raw, age] = (await client().readContract({
+      const [raw, age] = (await client(chain).readContract({
         address: oracle,
         abi: ORACLE_ABI,
         functionName: "latestPrintWithAge",
@@ -177,7 +199,7 @@ export async function readOracleDirect(
     for (const id of [historyFor]) {
       try {
         const key = indexIdBytes32(id);
-        const len = (await client().readContract({
+        const len = (await client(chain).readContract({
           address: oracle,
           abi: ORACLE_ABI,
           functionName: "historyLength",
@@ -189,7 +211,7 @@ export async function readOracleDirect(
         const points: HistoryPoint[] = [];
         for (let j = from; j < n; j++) {
           try {
-            const raw = (await client().readContract({
+            const raw = (await client(chain).readContract({
               address: oracle,
               abi: ORACLE_ABI,
               functionName: "historyAt",

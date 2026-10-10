@@ -7,7 +7,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "test": "graph test",
+    "test": "graph test -v 0.6.0",
     "deploy": "graph deploy ethonline",
     "auth": "graph auth"
   },

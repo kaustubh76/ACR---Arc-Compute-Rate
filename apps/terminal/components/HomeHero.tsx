@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
-import { fmt, fmtInt, heroFigure, serviceName } from "@/lib/format";
+import { ageWords, fmt, fmtInt, heroFigure, serviceName } from "@/lib/format";
+import { useNow } from "@/lib/useNow";
+import { freshnessClock, printFreshness, worthSaying } from "@/lib/printAge";
 import type { PrintRow, TerminalData } from "@/lib/types";
 
 /* The landing moment: Arc's dawn as a full-viewport hero. A giant live-ticking
@@ -42,10 +44,14 @@ function HeroBadge({
   onchain,
   live,
   direct,
+  postedAt,
+  nowS,
 }: {
   onchain: boolean;
   live: boolean;
   direct: boolean;
+  postedAt?: number;
+  nowS: number;
 }) {
   if (!onchain) {
     return (
@@ -54,6 +60,32 @@ function HeroBadge({
       </span>
     );
   }
+
+  /* "LIVE" IS A CLAIM ABOUT THE PRINT, NOT ABOUT THE FETCH, and it was being
+     made about the fetch. `live` means the press answered; it says nothing
+     about when the chain was last written to. Measured on the live site: this
+     badge read "on-chain · live" over a print 8.2 days old, because the press
+     wallet is empty and cannot post. The reference rate's entire claim is that
+     it is current.
+
+     Gold and NO BREATHING DOT past the settle window, which is exactly what
+     ChainStrip's keeper chip does for a stopped loop and for the same stated
+     reason: a pulse animating over something that has stopped is the one
+     signal worse than none. */
+  const { state, ageS } = printFreshness(postedAt, nowS);
+  if (onchain && worthSaying(state)) {
+    /* THE CONDITION, NOT THE NUMBER. The dateline above carries the age on
+       every page and the rate card below carries it per index, so repeating it
+       here would state one fact three times within a few inches. What the hero
+       owes a reader is the thing they cannot infer from a big confident
+       figure: that it is not current. */
+    return (
+      <span className="chip chip-gold" title={`last on-chain print ${ageWords(ageS ?? 0)}`}>
+        <Ed x="⛓ on-chain · not current" p="⛓ on the blockchain · out of date" />
+      </span>
+    );
+  }
+
   if (live) {
     return (
       <span className="chip chip-teal">
@@ -81,12 +113,20 @@ export function HomeHero({
   data,
   live,
   direct,
+  fetchedAt,
 }: {
   flagship: PrintRow;
   data: TerminalData;
   live: boolean;
   direct: boolean;
+  /** The envelope's own timestamp, so the badge can judge the print before the
+   *  client clock exists. See `freshnessClock`. */
+  fetchedAt?: number;
 }) {
+  // 0 during SSR on purpose, which `printFreshness` reads as "cannot tell":
+  // a wall-clock age rendered on the server differs from the client and breaks
+  // hydration, the rule app/ops/view.tsx and app/spend/view.tsx both follow.
+  const nowS = useNow();
   const h = heroFigure(flagship);
   const resist = resistanceRatio(data);
 
@@ -136,7 +176,16 @@ export function HomeHero({
           <div className="home-hero-idline">
             <span className="label">{flagship.index_id}</span>
             <span className="muted">{serviceName(flagship.index_id)}</span>
-            <HeroBadge onchain={h.onchain} live={live} direct={direct} />
+            <HeroBadge
+              onchain={h.onchain}
+              live={live}
+              direct={direct}
+              postedAt={flagship.onchain?.posted_at}
+              /* Not `nowS` alone: it is 0 until hydration commits, and the
+                 badge's fallback for "cannot tell" is a positive LIVE claim.
+                 See `freshnessClock`. */
+              nowS={freshnessClock(nowS, fetchedAt)}
+            />
           </div>
           <div className="home-hero-rate">
             <TickerNumber text={fmt(h.value)} roll />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,6 +35,7 @@ export const runtime = "nodejs";
 const TIMEOUT_MS = 20_000;
 
 export async function POST(request: Request) {
+  const chain = requestChain(request);
   let payload: unknown;
   try {
     payload = (await request.json())?.payload;
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
 
   let res: Response;
   try {
-    res = await fetch(`${apiBase()}/tca/human?days=7`, {
+    res = await fetch(`${apiBase(chain)}/tca/human?days=7`, {
       cache: "no-store",
       headers: { "HUMAN-PROOF": header },
       signal: AbortSignal.timeout(TIMEOUT_MS),

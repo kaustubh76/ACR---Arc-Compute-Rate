@@ -3,7 +3,10 @@
 import Link from "next/link";
 
 import { Ed } from "@/components/Ed";
+import { WhyEmpty } from "@/components/WhyEmpty";
+import { LedgerDownload } from "@/components/spend/LedgerDownload";
 import { ageWords, fmtInt, fmtPrice } from "@/lib/format";
+import { useChain } from "@/lib/useChain";
 import { useNow } from "@/lib/useNow";
 import { useTraction } from "@/lib/useLive";
 import type { TractionPayload, TractionRow } from "@/lib/types";
@@ -131,15 +134,14 @@ function BusinessRow({ r }: { r: TractionRow }) {
           <Ed x="statement" p="the summary" />
         </Link>
         {" · "}
-        {/* `download`, because beancount is a file format with tools that read
-            it — bean-check on a saved file, not a tab of plain text. */}
-        <a
-          className="section-link"
-          href={`/api/operator/ledger?business=${encodeURIComponent(r.slug)}`}
-          download={`${r.slug}.beancount`}
-        >
-          <Ed x="ledger" p="the file" />
-        </a>
+        {/* STILL A DOWNLOAD, no longer a link. beancount is a file format with
+            tools that read it — bean-check on a saved file, not a tab of plain
+            text — so `download` was right and stays the behaviour. What changed
+            is that the file can now need a credential, and an `<a>` cannot
+            carry a header: a navigation sends cookies and nothing else. See
+            components/spend/LedgerDownload.tsx for why the card did not simply
+            go in the query string. */}
+        <LedgerDownload slug={r.slug} />
       </td>
     </tr>
   );
@@ -147,6 +149,16 @@ function BusinessRow({ r }: { r: TractionRow }) {
 
 function Numbers({ t }: { t: TractionPayload }) {
   const chains = Object.entries(t.by_chain);
+  /* WHICH NETWORK THE ACTIVITY IS ON, and whether it is the one you are
+     reading. Every business in the registry is currently on the practice
+     network, so a reader on the live one sees a table with no row for it —
+     and an absent row reads as a broken page rather than as the true figure
+     it is. This page already draws that distinction for an outage ("shows
+     nothing rather than a count from a service that is not running"); a real
+     zero deserves the same care. Derived, never typed: the day a business
+     settles on the live network a row appears and the sentence stops. */
+  const here = useChain();
+  const onThisChain = chains.some(([name]) => name === here);
   return (
     <>
       <section className="section">
@@ -293,6 +305,14 @@ function Numbers({ t }: { t: TractionPayload }) {
               p="The networks are never added up, and checked is not the same as paid."
             />
           </p>
+          {!onThisChain && chains.length > 0 ? (
+            <p className="standfirst">
+              <Ed
+                x="Nothing has settled on the network you are reading. Every row above is from the other one, and that is the real figure rather than a missing one."
+                p="Nothing has happened yet on the network you are looking at. The rows above are from the other one."
+              />
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -557,12 +577,11 @@ export function TractionView() {
             above the figures it apologises for. */}
         {error && !t ? (
           <div className="panel panel-pad">
-            <p className="standfirst">
-              <Ed
-                x="The press did not answer, so this page shows nothing rather than a count from a service that is not running."
-                p="We could not reach the service, so this shows nothing rather than old numbers."
-              />
-            </p>
+            <WhyEmpty
+              upstream={error.upstream}
+              what="the spend operator"
+              plainWhat="the money agent"
+            />
           </div>
         ) : t && t.businesses.businesses === 0 ? (
           <div className="panel panel-pad">

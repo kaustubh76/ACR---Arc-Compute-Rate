@@ -11,11 +11,13 @@ import {
   bucketBars,
   bucketTotal,
   byWorstFirst,
+  emptyTapeReason,
   followedReroute,
+  gradedCard,
   humanCell,
   usdc6,
 } from "@/lib/tape";
-import type { SellerRating, SellerTerms, TapeRecentRow, TapeSeller, TcaCard } from "@/lib/tape";
+import type { SellerRating, SellerTerms, TapeRecentRow, TapeSeller } from "@/lib/tape";
 import { sellerLabel } from "@/lib/tape";
 import { deriveDemoSellers } from "@/lib/sellerKeys";
 import { useEdition } from "@/lib/useEdition";
@@ -314,11 +316,26 @@ export function TapeView() {
   const data = env?.data;
   const meta = data?.meta ?? null;
   const tca = data?.tca ?? null;
-  const card = tca && tca.available ? (tca as TcaCard) : null;
+  /* `gradedCard`, not `available`. THE BUG THIS CLOSES, measured on the live
+     site with a wallet ACR has never seen: this page drew the whole cost panel
+     — "SPENT $0.000000 · OVERPAID VS BENCHMARK $0.000000 · PRICED FILLS 0 / 0",
+     the overpay in breach red at 24px — because the subgraph answers for an
+     unknown payer and `available` only ever meant "it answered". An audited
+     clean bill for somebody with no record is the most reassuring possible
+     way to be wrong, and `PayerField` lets any visitor type any address. */
+  const card = gradedCard(tca);
+  const nothingToGrade = emptyTapeReason(tca);
   const recent = data?.recent ?? [];
   const transport = data?.transport ?? null;
   const nowS = useNow();
-  const unreachable = error != null || env?.upstream === "error" || env?.upstream === "timeout";
+  // `"absent"` included deliberately rather than left out: it has never
+  // occurred on this route, and the day it does, "we could not read it" is
+  // far closer to the truth than an empty tape presented as a fact.
+  const unreachable =
+    error != null ||
+    env?.upstream === "error" ||
+    env?.upstream === "timeout" ||
+    env?.upstream === "absent";
 
   const sellers: TapeSeller[] = data?.sellers ?? [];
   const ratings = data?.ratings ?? {};
@@ -630,19 +647,27 @@ export function TapeView() {
               p="We could not reach the record, so nothing is shown. No news is not good news."
             />
           </p>
-        ) : tca != null && !tca.available ? (
+        ) : nothingToGrade ? (
           /* The state this page could not previously express. A wallet with no
              priced fills used to fall through to "Reading settlements…" and sit
              there forever, which reads as a slow page rather than as an answer.
              "Nothing to measure" and "we could not measure" are different facts
-             and the reason says which one this is. */
+             and the reason says which one this is.
+
+             IT NOW COVERS TWO CAUSES, and it did not before: the branch was
+             gated on `!tca.available`, so it fired for a tape that could not be
+             read and never for a payer the tape simply has no rows for — the
+             commoner case by far, and the one that fell through to the cost
+             panel above. `emptyTapeReason` returns the press's own sentence for
+             whichever it is, which for an unseen payer names the window and
+             what would put them on the record. */
           <p className="muted">
             <Ed
               x="Nothing to grade for this wallet on the indexed tape: "
               p="There is nothing to check for this wallet yet: "
             />
             <span className="mono" style={{ fontSize: 13 }}>
-              {tca.reason}
+              {nothingToGrade}
             </span>
           </p>
         ) : (

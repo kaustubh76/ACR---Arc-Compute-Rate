@@ -57,8 +57,11 @@ const ALLOWED: Record<string, string> = {
     "branches on f.chainId to pick Sepolia sources for a testnet reader; a branch on " +
     "the live chain is the opposite of a stale default",
   "lib/apiBase.ts":
-    "the comment recording WHY chainMismatch() exists — a resumed testnet seller " +
-    "answering 200 served chain-5042002 data under a mainnet UI",
+    "TESTNET_SELLER, a first-class host now that one deployment serves both " +
+    "chains and a visitor picks (lib/chainChoice.ts) — addressable beside its " +
+    "mainnet twin for the same reason lib/chain.ts keeps both profiles; plus the " +
+    "comment recording WHY chainMismatch() exists, a resumed testnet seller " +
+    "answering 200 served another chain's data under a mainnet UI",
   "lib/gatewayBuyer.ts":
     "a doc comment naming the SDK's two possible chain keys (arcTestnet, arc)",
 };

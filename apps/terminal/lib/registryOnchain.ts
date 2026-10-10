@@ -4,9 +4,29 @@ import { createPublicClient, http } from "viem";
 
 import { CHAIN } from "./chain";
 import { bundleSection } from "./api";
+import { CHAINS, type ChainKey } from "./chainChoice";
 import { CLASS_BY_CODE, SERVICE_BY_CODE, nameFor, schemaFromBytes32 } from "./registryCodec";
 import { ok, unread, type Read } from "./readResult";
 import type { RegistryDirectRead } from "./types";
+
+/* THE DIRECT-READ TIER IS MAINNET-ONLY, BY CONSTRUCTION RATHER THAN BY OMISSION.
+ *
+ * Every address below is resolved from the committed bundle, which IS a mainnet
+ * snapshot (`lib/mainnetOnly.test.ts` asserts that field by field), and this
+ * module bypasses the press ladder entirely — so there is nothing between a
+ * wrong chain and a reader seeing mainnet contract state under another chain's
+ * label. This repo also holds no oracle, registry or venue address for any other
+ * network, so there is no honest reading to give.
+ *
+ * Refused rather than guessed, and refused BEFORE any client is built, so a
+ * locked-out chain makes zero RPC calls. The test asserts the call count and not
+ * just the payload: a reader that fires the request and discards the answer
+ * passes a payload assertion and still costs a round trip to the wrong chain.
+ */
+function directReadsAllowed(chain: ChainKey): boolean {
+  return CHAINS[chain].directReads;
+}
+
 
 /* Reading `AttestationRegistry` straight off Arc, on demand.
  *
@@ -74,18 +94,18 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  *  cannot turn one button press into a minute of paced RPC. */
 const MAX_SELLERS = 25;
 
-function registryAddress(): `0x${string}` | null {
-  // Same precedence as oracleAddress() in onchain.ts: the env var a deployment
+function registryAddress(chain: ChainKey): `0x${string}` | null {
+  // Same precedence as oracleAddress(chain) in onchain.ts: the env var a deployment
   // sets, else the address baked into the committed bundle, which is real.
-  const addr = process.env.ACR_REGISTRY_ADDRESS ?? bundleSection("chain")?.registry_address ?? null;
+  const addr = process.env.ACR_REGISTRY_ADDRESS ?? bundleSection(chain, "chain")?.registry_address ?? null;
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? (addr as `0x${string}`) : null;
 }
 
-function rpcUrl(): string {
-  return process.env.ACR_ARC_RPC_URL ?? bundleSection("chain")?.rpc_url ?? CHAIN.rpc;
+function rpcUrl(chain: ChainKey): string {
+  return process.env.ACR_ARC_RPC_URL ?? bundleSection(chain, "chain")?.rpc_url ?? CHAIN.rpc;
 }
 
-function client() {
+function client(chain: ChainKey) {
   // NOT memoized, unlike onchain.ts. That memo exists to share one round
   // between visitors inside a 30s window; this is a per-press read whose whole
   // product is freshness, and a cached client is one more place staleness can
@@ -94,7 +114,7 @@ function client() {
   // Next Data Cache and the button reports the same block twice. A "read it
   // now" button that repeats a block number is worse than no button at all.
   return createPublicClient({
-    transport: http(rpcUrl(), {
+    transport: http(rpcUrl(chain), {
       timeout: 6_000,
       retryCount: 1,
       fetchOptions: { cache: "no-store" },
@@ -123,12 +143,14 @@ function client() {
  *  them, and they are the substance a future surface would render. They are just
  *  no longer charged to a reader who did not ask. */
 export async function readRegistry(
+  chain: ChainKey,
   opts: { records?: boolean } = {},
 ): Promise<Read<RegistryDirectRead>> {
-  const address = registryAddress();
+  if (!directReadsAllowed(chain)) return unread("registry.chain");
+  const address = registryAddress(chain);
   if (!address) return unread("registry.address");
 
-  const c = client();
+  const c = client(chain);
   const started = Date.now();
   try {
     // The block first, so the stamp can never be NEWER than the records it

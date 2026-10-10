@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { INDICES } from "@/lib/indices";
 import { readTraderFills, readTraderPosition } from "@/lib/futuresOnchain";
 import { readHeaders, readStatus } from "@/lib/readResult";
@@ -31,9 +33,9 @@ const ACTIONS = new Set(["approve", "collateral", "trade", "withdraw", "settle",
    throttled public node, so a 20s budget turned an answer that was on its way
    into "the press is unreachable" — the desk telling a reader it is down while
    it is up. There is no cheaper tier to fall back to here, so wait for it. */
-async function forward(path: string, init: RequestInit): Promise<NextResponse> {
+async function forward(chain: ChainKey, path: string, init: RequestInit): Promise<NextResponse> {
   try {
-    const res = await fetch(`${apiBase()}${path}`, {
+    const res = await fetch(`${apiBase(chain)}${path}`, {
       ...init,
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
@@ -59,6 +61,7 @@ async function forward(path: string, init: RequestInit): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
+  const chain = requestChain(req);
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ detail: "bad body" }, { status: 400 });
 
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (typeof userId !== "string" || !USER_ID_RE.test(userId)) {
         return NextResponse.json({ detail: "bad user_id" }, { status: 400 });
       }
-      return forward("/desk/session", {
+      return forward(chain, "/desk/session", {
         method: "POST",
         body: JSON.stringify({ user_id: userId }),
       });
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (typeof token !== "string" || !TOKEN_RE.test(token)) {
         return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
       }
-      return forward("/desk/wallet", {
+      return forward(chain, "/desk/wallet", {
         method: "POST",
         body: JSON.stringify({ user_token: token }),
       });
@@ -90,7 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (typeof token !== "string" || !TOKEN_RE.test(token)) {
         return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
       }
-      return forward("/desk/faucet", {
+      return forward(chain, "/desk/faucet", {
         method: "POST",
         body: JSON.stringify({ user_token: token }),
       });
@@ -105,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       ) {
         return NextResponse.json({ detail: "bad limits request" }, { status: 400 });
       }
-      return forward("/desk/limits", {
+      return forward(chain, "/desk/limits", {
         method: "POST",
         body: JSON.stringify({ address, index_id }),
       });
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (typeof address !== "string" || !ADDR_RE.test(address)) {
         return NextResponse.json({ detail: "bad withdrawable request" }, { status: 400 });
       }
-      return forward("/desk/withdrawable", {
+      return forward(chain, "/desk/withdrawable", {
         method: "POST",
         body: JSON.stringify({ address }),
       });
@@ -125,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (typeof token !== "string" || !TOKEN_RE.test(token)) {
         return NextResponse.json({ detail: "bad user_token" }, { status: 400 });
       }
-      return forward("/desk/pass/status", {
+      return forward(chain, "/desk/pass/status", {
         method: "POST",
         body: JSON.stringify({ user_token: token }),
       });
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
       if (tx_hash !== undefined && (typeof tx_hash !== "string" || !/^(0x[0-9a-fA-F]{64})?$/.test(tx_hash))) {
         return NextResponse.json({ detail: "bad tx_hash" }, { status: 400 });
       }
-      return forward("/desk/pass/claim", {
+      return forward(chain, "/desk/pass/claim", {
         method: "POST",
         body: JSON.stringify({ user_token, tx_hash: tx_hash ?? "" }),
       });
@@ -170,7 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
         return NextResponse.json({ detail: "bad challenge request" }, { status: 400 });
       }
       const q = typeof qty === "number" && Number.isFinite(qty) ? qty : 0;
-      return forward("/desk/challenge", {
+      return forward(chain, "/desk/challenge", {
         method: "POST",
         body: JSON.stringify({
           user_token,
@@ -189,6 +192,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
+  const chain = requestChain(req);
   const q = req.nextUrl.searchParams;
   switch ((await params).action) {
     case "position": {
@@ -200,7 +204,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ acti
       // A read that failed answers 503 with no-store, never 200 with a null.
       // Serving one throttled answer from the CDN for 10s handed every visitor
       // the same wrong state and stopped the retry ever reaching the origin.
-      const r = await readTraderPosition(series, addr as `0x${string}`);
+      const r = await readTraderPosition(chain, series, addr as `0x${string}`);
       return NextResponse.json(
         r.ok ? { position: r.value } : { detail: "could not read the chain just now", unread: true },
         { status: readStatus(r), headers: readHeaders(r) },
@@ -216,7 +220,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ acti
       if (!Number.isInteger(series) || series < 0 || !ADDR_RE.test(addr)) {
         return NextResponse.json({ detail: "bad fills query" }, { status: 400 });
       }
-      const r = await readTraderFills(series, addr as `0x${string}`);
+      const r = await readTraderFills(chain, series, addr as `0x${string}`);
       return NextResponse.json(
         r.ok ? { fills: r.value } : { detail: "could not read the chain just now", unread: true },
         { status: readStatus(r), headers: readHeaders(r) },

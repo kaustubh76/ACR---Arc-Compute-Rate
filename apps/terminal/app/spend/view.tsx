@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Ed } from "@/components/Ed";
+import { WhyEmpty } from "@/components/WhyEmpty";
 import { EscalationActions } from "@/components/spend/EscalationActions";
+import { ReaderCardGate, ReaderCardNote } from "@/components/spend/ReaderCardGate";
 import { Term } from "@/components/Term";
 import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
@@ -1054,6 +1056,13 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
   // a different route. A window is a question, and 7 days was asking the wrong
   // one. Inside the proxy's 1..90 clamp, so it cannot become a slow query.
   const { statement, error: stError, refresh } = useStatement(slug, 30);
+  /* ONE PAGE, ONE EXPLANATION. The list, the statement and the ledger audit
+     all read the same press, so when it predates the operator all three fail
+     together — and each section saying so in full stacked three apologies and
+     three "switch and see it" buttons on one screen. That is the additive,
+     panel-shaped clutter this project rejects. The list is the topmost and
+     says it; the sections below stay quiet about a cause already given. */
+  const pressBehind = listError?.upstream === "absent";
   const st = statement?.data ?? null;
 
   return (
@@ -1068,6 +1077,7 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
               decoration: useNow() returns 0 during SSR on purpose, and
               rendering a wall-clock age server-side would differ from the
               client and break hydration. app/ops/view.tsx does both. */}
+          <ReaderCardNote />
           {businesses?.fetchedAt && nowS > 0 ? (
             <span className="label">
               {ageWords(Math.max(0, nowS - Math.round(businesses.fetchedAt / 1000)))}
@@ -1098,12 +1108,11 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
             woven into an element that exists rather than added as a banner. */}
         {listError && rows.length === 0 ? (
           <div className="panel panel-pad">
-            <p className="standfirst">
-              <Ed
-                x="The press did not answer, so this page is showing nothing rather than something stale."
-                p="We could not reach the service, so this shows nothing rather than old news."
-              />
-            </p>
+            <WhyEmpty
+              upstream={listError.upstream}
+              what="the spend operator"
+              plainWhat="the money agent"
+            />
           </div>
         ) : businesses?.data == null ? (
           /* NOTHING, because we have not asked yet.
@@ -1202,21 +1211,31 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
         )}
       </section>
 
-      {stError && slug ? (
+      {/* TWO DIFFERENT FAILURES, TWO DIFFERENT PAGES. "Could not be read" was
+          the only answer this page had, and it is the wrong one for a refusal:
+          it blames the press for a decision the press made correctly, and it
+          gives a reader holding the wrong card nothing to act on. `refusal` is
+          set only for 401 and 403, so with `ACR_OPERATOR_READ_SCOPE` unset
+          upstream this is exactly the branch it has always been. */}
+      {stError?.refusal && slug ? <ReaderCardGate refusal={stError.refusal} /> : null}
+      {stError && !stError.refusal && slug && !pressBehind ? (
         <section className="section">
           <div className="panel panel-pad">
-            <p className="standfirst">
-              <Ed
-                x="This statement could not be read."
-                p="We could not load this statement."
-              />
-            </p>
+            {/* Still the plain sentence when the press is merely unreachable:
+                the statement failing on its own is a different fact from the
+                whole operator being absent, and only the second has a remedy
+                worth offering. */}
+            <WhyEmpty
+              upstream={stError.upstream}
+              what="the spend operator"
+              plainWhat="the money agent"
+            />
           </div>
         </section>
       ) : null}
 
       {st ? <StatementBody st={st} onSettled={() => void refresh()} /> : null}
-      <LedgerAuditSection slug={slug} />
+      <LedgerAuditSection slug={slug} quiet={pressBehind} />
     </>
   );
 }
@@ -1248,10 +1267,35 @@ const AUDIT_WORDS: Record<string, [string, string]> = {
  *
  *  `searched` is rendered beside every `found`, because a check that looked at
  *  nothing and found nothing reads exactly like a clean book. */
-function LedgerAuditSection({ slug }: { slug: string | null }) {
-  const { ledgerAudit } = useLedgerAudit(slug);
+function LedgerAuditSection({ slug, quiet }: { slug: string | null; quiet?: boolean }) {
+  const { ledgerAudit, error } = useLedgerAudit(slug);
   const a: LedgerAudit | null = ledgerAudit?.data ?? null;
-  if (!a) return null;
+
+  /* THE ERROR USED TO BE DISCARDED HERE. The hook has always exposed it and
+     this call site destructured only the payload, so a failed audit returned
+     `null` and the whole section vanished without a word — the exact silence
+     the paragraph above calls out, one level up: a check that LOOKED at
+     nothing reads like a clean book, and a check that was never run reads
+     like no check was needed. */
+  if (!a) {
+    if (!error || !slug || quiet) return null;
+    return (
+      <section className="section">
+        <div className="section-head">
+          <h2>
+            <Ed x="What the ledger cannot check" p="What adding up cannot catch" />
+          </h2>
+        </div>
+        <div className="panel panel-pad">
+          <WhyEmpty
+            upstream={error.upstream}
+            what="the ledger audit"
+            plainWhat="these checks"
+          />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="section">

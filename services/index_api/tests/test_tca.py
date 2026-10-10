@@ -354,3 +354,65 @@ def test_no_query_asks_the_graph_for_more_than_its_hard_ceiling():
         if isinstance(text, str) and "query " in text and "{" in text:
             for n in re.findall(r"first:\s*(\d+)", text):
                 assert int(n) <= 1000, f"{name} asks first: {n}"
+
+
+# --- a payer nobody has seen is not a payer who spent nothing ----------------
+
+
+def _rollup(**kw) -> dict:
+    """One `payerDays` row, with the sums the card folds."""
+    row = {"spent": "0", "bmSpent": "0", "wSlipTenthBp": "0", "overpay": "0", "n": "0", "nAll": "0"}
+    row.update({k: str(v) for k, v in kw.items()})
+    return row
+
+
+def test_an_unseen_payer_is_marked_unseen_and_told_why():
+    """THE CONFIDENT ZERO, pinned.
+
+    A wallet with no mirrored settlements used to answer `available: true,
+    purchases: 0, spent_usdc: 0.0, overpaid_usdc: 0.0` and nothing else — which
+    reads as a clean bill of health and means "I have never heard of you".
+    Measured against production: an arbitrary address answered exactly that, and
+    so did two real payers taken from `/marketplace/receipts`, because this
+    surface reads mirrored on-chain settlements and those are a different payer
+    set. A stranger pointing this at their own agent gets the most reassuring
+    possible answer about money ACR never saw.
+    """
+    card = tca_mod._card({"payerDays": [], "settlements": []}, 7)
+    assert card["available"] is True, "the subgraph answered; this is not an outage"
+    assert card["seen"] is False
+    assert card["purchases"] == 0
+    assert "no record of this payer" in card["note"]
+    # The note has to name the way OUT, not just the absence.
+    assert "/par" in card["note"]
+    # AND IT MUST NOT OVERCLAIM. `nAll` is summed over day rows filtered by
+    # `day_gte`, so this is "not in this window", never "never". A payer who
+    # bought 90 days ago and asked for 7 lands here too, and telling them ACR
+    # has no record of them at all would be the same confident falsehood one
+    # level down. The window and the way to widen it both have to be in the
+    # sentence.
+    assert "last 7 days" in card["note"]
+    assert "Widening `days`" in card["note"]
+
+
+def test_a_payer_on_the_record_is_seen_and_carries_no_note():
+    """The other half, so `seen` cannot quietly become a constant. A note on a
+    payer with real settlements would be noise on the answer that works."""
+    card = tca_mod._card(
+        {"payerDays": [_rollup(spent=4410, bmSpent=4410, wSlipTenthBp=-11398 * 441, n=1, nAll=3)],
+         "settlements": []},
+        7,
+    )
+    assert card["seen"] is True
+    assert card["purchases"] == 3
+    assert "note" not in card
+
+
+def test_unseen_is_decided_by_purchases_not_by_spend():
+    """A settlement of zero USDC is still a settlement — ACR saw it. Keying
+    `seen` on `spent_usdc` would call that payer a stranger, which is the same
+    conflation this field exists to end."""
+    card = tca_mod._card({"payerDays": [_rollup(nAll=1)], "settlements": []}, 7)
+    assert card["spent_usdc"] == 0.0
+    assert card["seen"] is True, "nAll is the evidence, not the money"
+    assert "note" not in card

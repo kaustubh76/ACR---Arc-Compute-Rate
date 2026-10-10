@@ -22,6 +22,16 @@
  *  learn it, and public — it is in the README and in every x402 receipt. */
 export const MAINNET_SELLER = "https://acr-api-mainnet.onrender.com";
 
+/** The deployed testnet seller, for the same reason and on the same terms.
+ *
+ *  ACR has partners who work on Arc testnet, so one deployment serves both and a
+ *  visitor chooses (`lib/chainChoice.ts`). That makes this host a first-class
+ *  part of the product rather than a leftover — which is the distinction
+ *  `lib/mainnetOnly.test.ts` cares about. It stays addressable here, next to its
+ *  mainnet twin, for the same reason `lib/chain.ts` keeps both profiles: moving
+ *  the default must not delete the network this was proven on. */
+export const TESTNET_SELLER = "https://acr-api-1fto.onrender.com";
+
 /** The local seller `make api` serves. */
 export const LOCAL_SELLER = "http://127.0.0.1:8000";
 
@@ -71,6 +81,39 @@ export function sellerCandidates(configured: string, published: string): string[
  */
 export function isHostFailure(status: number): boolean {
   return status >= 500;
+}
+
+/** Does a host that serves `served` have a route for this concrete path?
+ *
+ *  WHY THIS EXISTS. A press that predates a feature answers **404** for its
+ *  routes — a precise, healthy answer — and the terminal collapsed that into
+ *  "the press did not answer". Measured on the live site: the mainnet press
+ *  serves 44 routes and answers 404 for `/par` and all five `/operator/*`,
+ *  while /spend and /traction told a visitor the service was not running. It
+ *  was running. Saying so wrongly is worse than saying nothing, because a
+ *  reader who believes the product is down does not try the thing that works.
+ *
+ *  A 404 ALONE CANNOT TELL YOU WHICH IT IS. `/operator/statement/nobody` is
+ *  also a 404, and that one really is "no such business". So the question is
+ *  put to the host's own `/openapi.json`: a 404 on a path it does not list is
+ *  a deployment that predates the route; a 404 on a path it does list is an
+ *  ordinary not-found. Reading the spec rather than pattern-matching a `detail`
+ *  string is also what makes this self-maintaining — the message disappears on
+ *  its own the moment the host is redeployed, with no code change.
+ *
+ *  Templated segments match anything: `/operator/statement/{business}` serves
+ *  `/operator/statement/acr-fleet`. Query strings are not part of a path.
+ */
+export function servesPath(served: Iterable<string>, concrete: string): boolean {
+  const want = concrete.split("?")[0].split("/").filter(Boolean);
+  for (const template of served) {
+    const got = template.split("/").filter(Boolean);
+    if (got.length !== want.length) continue;
+    if (got.every((seg, i) => (seg.startsWith("{") && seg.endsWith("}")) || seg === want[i])) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Whether a seller answering with `hostChainId` may serve a build made for

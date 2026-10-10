@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { apiBase } from "@/lib/api";
+import { apiBase, servedPaths } from "@/lib/api";
+import { servesPath } from "@/lib/apiBase";
+import { cardHeader, requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export const dynamic = "force-dynamic";
 const BUSINESS = /^(0x[0-9a-fA-F]{40}|[a-z0-9][a-z0-9-]{0,40})$/;
 
 export async function GET(req: Request) {
+  const chain = requestChain(req);
   const url = new URL(req.url);
   const business = (url.searchParams.get("business") ?? "").trim();
   if (!BUSINESS.test(business)) {
@@ -44,12 +47,50 @@ export async function GET(req: Request) {
     // longer walk than a statement. Still bounded — an unbounded fetch in a
     // route handler is a held connection, not a patient one.
     const res = await fetch(
-      `${apiBase()}/operator/ledger/${encodeURIComponent(business)}?days=${days}`,
-      { cache: "no-store", signal: AbortSignal.timeout(10_000) },
+      `${apiBase(chain)}/operator/ledger/${encodeURIComponent(business)}?days=${days}`,
+      { cache: "no-store", signal: AbortSignal.timeout(10_000), headers: cardHeader(req) },
     );
+    /* A REFUSAL IS NOT A BAD GATEWAY. Collapsing 401 into 502 would tell a
+       reader the press is broken when the press is working exactly as
+       configured, and would hide the sentence that says what to do about it. So
+       401 and 403 keep their status and their body — the same narrow pair the
+       JSON proxies pass through, and for the same reason.
+
+       THE HEADER IS WHY THIS DOWNLOAD IS NOT A LINK ANY MORE. `<a href download>`
+       cannot carry a header, so with the gate on the old link 401ed and
+       delivered the refusal as a downloaded file. /traction now fetches this
+       with the card and saves the body as a Blob. */
+    if (res.status === 401 || res.status === 403) {
+      const detail = await res.text();
+      return new NextResponse(detail, {
+        status: res.status,
+        headers: {
+          "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+          ...(res.headers.get("WWW-Authenticate")
+            ? { "WWW-Authenticate": res.headers.get("WWW-Authenticate") as string }
+            : {}),
+          "Cache-Control": "no-store",
+        },
+      });
+    }
     if (!res.ok) {
+      /* A 404 HERE MEANS TWO THINGS, and the download button was reading it as
+         one. The press answers 404 both for a route it does not have and for
+         `no business registered as 'x'` (app.py:1636), and this proxy passed
+         both through identically — so an unknown slug would have told a reader
+         "ledger · not on this press", blaming a deployment for their typo.
+         Unreachable today, because the button only renders for businesses the
+         press itself just listed, but it is the distinction `servesPath` exists
+         to make and this was the one place still collapsing it. */
+      const served = res.status === 404 ? await servedPaths(chain) : null;
+      const absent = served !== null && !servesPath(served, `/operator/ledger/${business}`);
       return NextResponse.json(
-        { error: `the press answered ${res.status}` },
+        {
+          error: absent
+            ? "this press has no ledger route"
+            : `the press answered ${res.status}`,
+          ...(absent ? { upstream: "absent" } : {}),
+        },
         { status: res.status === 404 ? 404 : 502, headers: { "Cache-Control": "no-store" } },
       );
     }

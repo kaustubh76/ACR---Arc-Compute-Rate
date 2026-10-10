@@ -4,6 +4,7 @@ import { Masthead } from "@/components/Masthead";
 import { ChainStrip } from "@/components/ChainStrip";
 import { Colophon } from "@/components/Colophon";
 import { peekTerminal } from "@/lib/api";
+import { serverChain } from "@/lib/serverChain";
 import { editionBootScript } from "@/lib/edition";
 import "./globals.css";
 
@@ -51,9 +52,20 @@ export const metadata: Metadata = {
   // this is what every page's canonical URL is built from, so it was the one
   // line that would have kept advertising the old host indefinitely.
   //
-  // The apex, not `www`: `www.arccomputerate.in` 307s here (next.config.mjs),
-  // so naming www would canonicalise to a redirect.
-  metadataBase: new URL("https://arccomputerate.in"),
+  // BACK ON THE VERCEL HOST, 2026-10-09. The custom domain was never serving:
+  // Vercel reported it `verified: true` while its DNS still pointed at
+  // Hostinger, which answers a parked-domain page with **HTTP 200**. Paired
+  // with `alternates: { canonical: "./" }` below, this line was telling every
+  // crawler that the real copy of all eleven routes lived on that parked page —
+  // and because it answers 200 rather than 404, a crawler would consolidate
+  // onto it and drop the deployment that actually works.
+  //
+  // Kept in step with `app/robots.ts` and `marketplace.PROVIDER_WEBSITE` by
+  // `tests/test_canonical_host.py`. That gate compares the four places to each
+  // other and none of them to reality, so it was green throughout — which is
+  // the lesson, not a complaint: a host is verified by fetching it and reading
+  // what comes back.
+  metadataBase: new URL("https://arc-compute-rate.vercel.app"),
   title: "ACR · The Arc Compute Rate",
   description:
     "The reference rate for machine commerce: benchmarks from Arc payment exhaust, published hourly on-chain with their attack cost.",
@@ -91,14 +103,21 @@ export const dynamic = "force-dynamic";
 // or bundled snapshot), so HTML flushes immediately and each page's own
 // loadTerminal() streams in behind its loading.tsx skeleton. The client SWR
 // layer upgrades the shell to live data within one fetch.
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const initial = peekTerminal();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read before the shell paints so <html data-chain> is server-rendered and the
+  // client adopts it with no flash — unlike data-edition, whose truth lives in
+  // localStorage where the server cannot see it and which therefore needs a
+  // pre-paint script. Reading cookies here is what makes every route dynamic;
+  // they are all force-dynamic already, so nothing moves.
+  const chain = await serverChain();
+  const initial = peekTerminal(chain);
   return (
     // suppressHydrationWarning: the edition boot script may stamp
     // data-edition="plain" on <html> before hydration (next-themes pattern);
     // it is the only attribute the server does not render.
     <html
       lang="en"
+      data-chain={chain}
       className={`${display.variable} ${body.variable} ${eyebrow.variable} ${mono.variable}`}
       suppressHydrationWarning
     >

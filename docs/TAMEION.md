@@ -13,9 +13,14 @@ dated, pays what clears policy, escalates what is not its call, and writes a
 double-entry ledger a human can open.
 
 **Where the pages are, stated exactly, because three documents used to disagree.**
-The terminal **is** deployed — <https://arccomputerate.in> answers 200, and so do
-`/spend` and `/traction`. What those two pages show in production is *nothing*, and the reason is a
-host split rather than a bug:
+The terminal **is** deployed — <https://arc-compute-rate.vercel.app> answers 200,
+and so do `/spend` and `/traction`. What those two pages show in production is
+*nothing*, and the reason is a host split rather than a bug:
+
+> This paragraph named `arccomputerate.in` and cited its 200 as the proof, from
+> 2026-10-08 to 10-09. The 200 was real and meant nothing: that name never
+> resolved to this deployment and the 200 came from Hostinger's parked-domain
+> page. A status code cannot tell you *which* server answered.
 
 | | |
 |---|---|

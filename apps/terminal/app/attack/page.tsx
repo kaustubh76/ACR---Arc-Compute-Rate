@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeRoom } from "@/components/ThemeRoom";
 import { loadTerminal } from "@/lib/api";
+import { serverChain } from "@/lib/serverChain";
 import { AttackView } from "./view";
 
 export const metadata: Metadata = {
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AttackPage() {
-  const initial = await loadTerminal();
+  const chain = await serverChain();
+  const initial = await loadTerminal(chain);
   return (
     <>
       <ThemeRoom />

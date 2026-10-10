@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LOCAL_SELLER, MAINNET_SELLER, chainMismatch, isHostFailure, publishedSeller, sellerBase, sellerCandidates } from "./apiBase";
+import { LOCAL_SELLER, MAINNET_SELLER, chainMismatch, isHostFailure, publishedSeller, sellerBase, sellerCandidates, servesPath } from "./apiBase";
 
 /* The default that matters is the one nobody sets. Eight places spelled
    `?? "http://127.0.0.1:8000"`, which is wrong in the only place it is ever
@@ -139,4 +139,58 @@ test("a build with no known chain polices nothing", () => {
   for (const build of [0, -1, NaN]) {
     assert.equal(chainMismatch(build, 5042002), null);
   }
+});
+
+// ───────────────────── does this host have the route at all?
+
+test("servesPath matches a templated route against a concrete one", () => {
+  const served = ["/health", "/par", "/operator/statement/{business}", "/tca/{payer}", "/tca/human"];
+  assert.ok(servesPath(served, "/par"));
+  assert.ok(servesPath(served, "/par?unit=%24%2F1k%20tokens&billed_usdc=1"), "a query is not part of the path");
+  assert.ok(servesPath(served, "/operator/statement/acr-fleet"));
+  assert.ok(servesPath(served, "/operator/statement/acr-fleet?days=30"));
+  assert.ok(servesPath(served, "/tca/0xabc"));
+});
+
+test("servesPath says no for a route this host simply does not have", () => {
+  /* The live case: the mainnet press serves 44 routes and none of these. It
+     answers 404 — healthily — and the terminal used to report that as "the
+     press did not answer", which told a visitor a running service was down. */
+  const served = ["/health", "/prints", "/tca/{payer}"];
+  assert.equal(servesPath(served, "/par"), false);
+  assert.equal(servesPath(served, "/operator/traction"), false);
+  assert.equal(servesPath(served, "/operator/statement/acr-fleet"), false);
+});
+
+test("a template does not match across segment boundaries", () => {
+  // `{business}` is one segment. Without this, `/operator/statement/a/b` would
+  // look served, and a genuine 404 would be mislabelled as a present route.
+  const served = ["/operator/statement/{business}"];
+  assert.equal(servesPath(served, "/operator/statement/a/b"), false);
+  assert.equal(servesPath(served, "/operator/statement"), false);
+});
+
+test("a host that lists the route keeps its ordinary 404", () => {
+  /* THE DISTINCTION THIS IS FOR. An unknown business on a press that HAS the
+     route is a real not-found and must not be reported as a stale deployment —
+     otherwise every typo in a slug would blame the operator's image. */
+  const served = ["/operator/statement/{business}"];
+  assert.ok(servesPath(served, "/operator/statement/nobody"), "the route exists; the business does not");
+});
+
+test("the availability check and the ledger's 404 agree about one host", () => {
+  /* THE CONFLATION THIS CLOSES. The press answers 404 both for a route it does
+     not have and for `no business registered as 'x'`. `/developers` uses this
+     to decide whether to offer a run button and the ledger proxy uses it to
+     decide whether "not on this press" is the honest label — so they must
+     reach the same verdict from the same list, or the page will offer a button
+     for a route the download already calls missing. */
+  const press = ["/health", "/operator/ledger/{business}", "/operator/traction"];
+  assert.ok(servesPath(press, "/operator/ledger/acr-fleet"), "the route exists");
+  assert.ok(servesPath(press, "/operator/ledger/nobody"), "and still exists for a bad slug");
+  assert.equal(servesPath(press, "/par"), false, "this one genuinely is not here");
+
+  const older = ["/health", "/prints"];
+  assert.equal(servesPath(older, "/operator/ledger/acr-fleet"), false);
+  assert.equal(servesPath(older, "/operator/traction"), false);
 });

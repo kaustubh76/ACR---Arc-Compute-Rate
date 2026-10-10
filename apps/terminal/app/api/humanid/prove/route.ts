@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { DEMO_HUMAN_LABEL, demoKey } from "@/lib/agentcard";
 
 /** Which demo person to prove as. `fleet` is one human resolved to THREE wallets
@@ -45,8 +47,8 @@ export interface ProveResult {
   note: string | null;
 }
 
-async function get(path: string, headers: Record<string, string> = {}) {
-  return fetch(`${apiBase()}${path}`, {
+async function get(chain: ChainKey, path: string, headers: Record<string, string> = {}) {
+  return fetch(`${apiBase(chain)}${path}`, {
     cache: "no-store",
     headers: { accept: "application/json", ...headers },
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -54,6 +56,7 @@ async function get(path: string, headers: Record<string, string> = {}) {
 }
 
 export async function POST(request: Request) {
+  const chain = requestChain(request);
   let body: { as?: unknown } = {};
   try {
     body = (await request.json()) as { as?: unknown };
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
   const out: ProveResult = { status: null, address: null, body: null, replay_status: null, replay_detail: null, note: null };
   try {
     // 1 · the challenge
-    const first = await get(`${RESOURCE}?days=${DAYS}`);
+    const first = await get(chain, `${RESOURCE}?days=${DAYS}`);
     if (first.status !== 401) {
       out.status = first.status;
       out.note = first.ok ? "the gate answered without asking for a proof" : `the gate answered ${first.status}`;
@@ -87,13 +90,13 @@ export async function POST(request: Request) {
 
     // 2 · sign it, with the demo human's key, here
     const key = await demoKey(label);
-    const host = apiBase().replace(/^https?:\/\//, "");
+    const host = apiBase(chain).replace(/^https?:\/\//, "");
     const { header, address } = await signHumanChallenge({ privateKey: key, nonce: challenge.nonce, resource: RESOURCE, host });
     out.address = address;
     const headerName = challenge.header || "HUMAN-PROOF";
 
     // 3 · present it
-    const second = await get(`${RESOURCE}?days=${DAYS}`, { [headerName]: header });
+    const second = await get(chain, `${RESOURCE}?days=${DAYS}`, { [headerName]: header });
     out.status = second.status;
     out.body = (await second.json().catch(() => null)) as Record<string, unknown> | null;
     if (!second.ok) {
@@ -102,7 +105,7 @@ export async function POST(request: Request) {
     }
 
     // 4 · replay it — the nonce must be spent
-    const third = await get(`${RESOURCE}?days=${DAYS}`, { [headerName]: header });
+    const third = await get(chain, `${RESOURCE}?days=${DAYS}`, { [headerName]: header });
     out.replay_status = third.status;
     const rb = (await third.json().catch(() => null)) as { detail?: string } | null;
     out.replay_detail = rb?.detail ?? null;

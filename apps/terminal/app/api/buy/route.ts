@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
 import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient, SPEND_CAP_USDC } from "@/lib/gatewayBuyer";
 import { buyerAllowedOn, chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
@@ -11,14 +12,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET — is a funded buyer available, and is the seller on the real Circle gate? */
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   let gate: "dev" | "circle" | null = null;
   let network: string | null = null;
   try {
-    const res = await fetch(`${apiBase()}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
+    const res = await fetch(`${apiBase(chain)}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (res.ok) {
       const j = (await res.json()) as X402Info;
-      gate = j.facilitator;
+      gate = j.facilitator ?? null;
       network = j.network ?? null;
     }
   } catch {
@@ -43,6 +45,7 @@ export async function GET() {
  *  seller's gated endpoints. Synchronous (serverless-safe): runs the payments
  *  and returns the full trace; the client renders/toasts each result. */
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   if (!buyerConfigured()) {
     return NextResponse.json(
       { detail: "no funded buyer: set ACR_BUYER_PRIVATE_KEY (a funded EOA with an open Gateway deposit)" },
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
     /* defaults */
   }
 
-  const base = apiBase();
+  const base = apiBase(chain);
 
   // The real buyer only makes sense against the real Circle gate — the dev
   // mock gate emits a 402 the Gateway SDK won't recognize as a batching option.
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
     const info = await fetch(`${base}/x402/info`, { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (info.ok) {
       const j = (await info.json()) as X402Info;
-      gate = j.facilitator;
+      gate = j.facilitator ?? null;
       network = j.network ?? null;
       gatewayChain = j.gateway_chain ?? null;
       privateMainnet = Boolean(j.private_mainnet);

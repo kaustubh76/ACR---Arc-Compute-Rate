@@ -9,7 +9,11 @@
    say "press unreachable" instead. */
 
 import useSWR from "swr";
+import { apiKey, sameChain, type ChainKey } from "./chainChoice";
+import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
+import { useChain } from "./useChain";
 
+import type { Refusal } from "./api";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
@@ -39,16 +43,133 @@ import type {
 
 export class FetchError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The press's own refusal, when the proxy passed one through — the 401
+   *  challenge object or a 403's sentence. Undefined for every other failure,
+   *  which is how a caller tells "you may not read this" from "this is down". */
+  refusal?: Refusal;
+  /** What the proxy said about the host: `"absent"` when the press answered
+   *  404 and its own spec does not list the route, i.e. a deployment that
+   *  predates the feature rather than a service that is down. Carried so a
+   *  view can say which, because "it is not running" sends a reader away from
+   *  the network where it is. */
+  upstream?: Envelope<unknown>["upstream"];
+  constructor(message: string, status: number, refusal?: Refusal, upstream?: Envelope<unknown>["upstream"]) {
     super(message);
     this.status = status;
+    if (refusal) this.refusal = refusal;
+    if (upstream) this.upstream = upstream;
   }
+}
+
+/** Whether a status is this reader being refused rather than something failing.
+ *
+ *  USED TO STOP RETRYING. `RETRY` below backs off six times over about two
+ *  minutes, which is right for a cold press and wrong for a credential: a card
+ *  the press has refused will be refused identically six more times, and the
+ *  reader watches a spinner instead of reading the sentence that tells them what
+ *  to claim. Mirrors `isRefusal` in lib/api.ts, same two statuses. */
+export function isRefusal(status: number): boolean {
+  return status === 401 || status === 403;
 }
 
 export const fetcher = async (url: string) => {
   const res = await fetch(url);
-  if (!res.ok) throw new FetchError(`${res.status} ${url}`, res.status);
+  if (!res.ok) {
+    /* THE REFUSAL HAS TO SURVIVE THE THROW. `fetcher` dropped the body on every
+       error, which was invisible while no upstream could refuse a read; now the
+       press answers four different sentences and the one the reader needs is in
+       there. Parsed defensively: a 502 from an edge is HTML, and an unparseable
+       body must still throw the status rather than throw a parse error. */
+    /* Both the refusal and the upstream verdict are read from the one body.
+       `upstream` is what tells a view "this press predates the route" from
+       "this press is down", and the proxies have always stamped it — nothing
+       read it, so every failure read as an outage. */
+    let refusal: Refusal | undefined;
+    let upstream: Envelope<unknown>["upstream"];
+    try {
+      const body = (await res.json()) as {
+        refusal?: Refusal;
+        detail?: unknown;
+        upstream?: Envelope<unknown>["upstream"];
+      };
+      upstream = body?.upstream;
+      if (isRefusal(res.status)) {
+        refusal = body?.refusal ?? { status: res.status, detail: body?.detail ?? null };
+      }
+    } catch {
+      if (isRefusal(res.status)) refusal = { status: res.status, detail: null };
+    }
+    throw new FetchError(`${res.status} ${url}`, res.status, refusal, upstream);
+  }
   return res.json();
+};
+
+/** `fetcherFor`, plus this tab's card on the wire.
+ *
+ *  Only the per-business reads use it. `/operator/businesses` and
+ *  `/operator/traction` are counts, they stay public in both flag states, and
+ *  sending a credential to fetch a public aggregate would be a credential sent
+ *  for no reason.
+ *
+ *  THE CARD IS NOT IN THE KEY. It is read here, at fetch time, from the tab's
+ *  store — so SWR's cache key stays the URL and a bearer token never reaches a
+ *  URL, an access log or a CDN cache key. `setReaderCard` is what revalidates
+ *  when it changes; the trade and the one property it depends on ("one card per
+ *  tab") are written out in lib/readerCard.ts. */
+export const cardFetcherFor = (chain: ChainKey) => async (url: string) => {
+  const card = readerCardNow();
+  const res = await fetch(url, { headers: cardHeaders(card) });
+  if (!res.ok) {
+    /* Both the refusal and the upstream verdict are read from the one body.
+       `upstream` is what tells a view "this press predates the route" from
+       "this press is down", and the proxies have always stamped it — nothing
+       read it, so every failure read as an outage. */
+    let refusal: Refusal | undefined;
+    let upstream: Envelope<unknown>["upstream"];
+    try {
+      const body = (await res.json()) as {
+        refusal?: Refusal;
+        detail?: unknown;
+        upstream?: Envelope<unknown>["upstream"];
+      };
+      upstream = body?.upstream;
+      if (isRefusal(res.status)) {
+        refusal = body?.refusal ?? { status: res.status, detail: body?.detail ?? null };
+      }
+    } catch {
+      if (isRefusal(res.status)) refusal = { status: res.status, detail: null };
+    }
+    throw new FetchError(`${res.status} ${url}`, res.status, refusal, upstream);
+  }
+  const body = await res.json();
+  if (!sameChain(body, chain)) {
+    const got = String((body as { chain?: unknown } | null)?.chain);
+    throw new FetchError(`chain mismatch on ${url}: asked ${chain}, got ${got}`, 409);
+  }
+  return body;
+};
+
+/** A fetcher that refuses an answer from the wrong chain.
+ *
+ *  THE GUARD THAT HOLDS WHEN PREVENTION FAILS. The chain is in the cookie (for
+ *  the server render) and in the URL (so a shared cache keys on it), and either
+ *  can be defeated by a layer nobody predicted — sixteen of these routes answer
+ *  with `Cache-Control: public, s-maxage=…`, and Vercel's CDN keys on URL alone.
+ *  So every envelope carries the chain that produced it, and this compares it
+ *  against the chain that was asked for. The 409 travels through the existing
+ *  RETRY policy, so a surface shows its own error state rather than another
+ *  chain's numbers — which matters doubly because that policy sets
+ *  `keepPreviousData: true`.
+ *
+ *  A MISSING stamp is a mismatch, not a default: "I do not know which chain this
+ *  is" must never render as mainnet. */
+export const fetcherFor = (chain: ChainKey) => async (url: string) => {
+  const body = await fetcher(url);
+  if (!sameChain(body, chain)) {
+    const got = String((body as { chain?: unknown } | null)?.chain);
+    throw new FetchError(`chain mismatch on ${url}: asked ${chain}, got ${got}`, 409);
+  }
+  return body;
 };
 
 /* Shared resilience policy: retry transient failures with capped exponential
@@ -59,12 +180,23 @@ const RETRY = {
   keepPreviousData: true,
   errorRetryCount: 6,
   onErrorRetry: (
-    _err: unknown,
+    err: unknown,
     _key: string,
     _config: unknown,
     revalidate: (opts: { retryCount: number }) => void,
     { retryCount }: { retryCount: number },
   ) => {
+    // A refused credential is not a transient failure. Retrying it six times
+    // shows a spinner where the page should be showing the press's own sentence
+    // about what to claim, and asks the press to re-verify a signature it has
+    // already rejected. `setReaderCard` revalidates when the card changes,
+    // which is the only event that could change this answer.
+    if (err instanceof FetchError && isRefusal(err.status)) return;
+    /* Nor is a route this deployment does not have. Retrying it six times over
+       about two minutes leaves the submit button on /check flickering between
+       "Pricing…" and "Price this bill" while the answer sits below it, and the
+       press is not going to grow the route while the reader waits. */
+    if (err instanceof FetchError && err.upstream === "absent") return;
     if (retryCount >= 6) return;
     const delay = Math.min(30_000, 2_000 * 2 ** retryCount);
     setTimeout(() => revalidate({ retryCount }), delay);
@@ -72,7 +204,8 @@ const RETRY = {
 } as const;
 
 export function useTerminal(initial?: Envelope<TerminalData>): Envelope<TerminalData> {
-  const { data } = useSWR<Envelope<TerminalData>>("/api/terminal", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<TerminalData>>(apiKey("/api/terminal", chain), fetcherFor(chain), {
     refreshInterval: 15_000,
     fallbackData: initial,
     ...RETRY,
@@ -81,7 +214,8 @@ export function useTerminal(initial?: Envelope<TerminalData>): Envelope<Terminal
 }
 
 export function useRevenue(initial?: Envelope<RevenueData>) {
-  const { data, mutate } = useSWR<Envelope<RevenueData>>("/api/revenue", fetcher, {
+  const chain = useChain();
+  const { data, mutate } = useSWR<Envelope<RevenueData>>(apiKey("/api/revenue", chain), fetcherFor(chain), {
     refreshInterval: 10_000,
     fallbackData: initial,
     ...RETRY,
@@ -93,7 +227,8 @@ export function useRevenue(initial?: Envelope<RevenueData>) {
  *  briskly so a Circle "Send test" ping shows up promptly. `error` set means
  *  the proxy itself is unreachable (distinct from a live-and-empty feed). */
 export function useWebhooks() {
-  const { data, error } = useSWR<Envelope<WebhookFeed>>("/api/webhooks", fetcher, {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<WebhookFeed>>(apiKey("/api/webhooks", chain), fetcherFor(chain), {
     refreshInterval: 8_000,
     ...RETRY,
   });
@@ -102,7 +237,8 @@ export function useWebhooks() {
 
 /** The x402 gate descriptor — labels the console + gates the demo agent. */
 export function useX402Info() {
-  const { data } = useSWR<Envelope<X402Info | null>>("/api/console", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<X402Info | null>>(apiKey("/api/console", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -112,7 +248,8 @@ export function useX402Info() {
 
 /** The marketplace listings — the catalog changes rarely (price/config). */
 export function useCatalog() {
-  const { data } = useSWR<Envelope<CatalogData | null>>("/api/marketplace/catalog", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<CatalogData | null>>(apiKey("/api/marketplace/catalog", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -122,9 +259,10 @@ export function useCatalog() {
 
 /** The settlement tape — every paid query prints here, so poll like a ticker. */
 export function useMarketReceipts() {
+  const chain = useChain();
   const { data, error } = useSWR<Envelope<MarketReceiptsData | null>>(
-    "/api/marketplace/receipts",
-    fetcher,
+    apiKey("/api/marketplace/receipts", chain),
+    fetcherFor(chain),
     { refreshInterval: 5_000, ...RETRY },
   );
   return { tape: data, error: error as Error | undefined };
@@ -139,7 +277,8 @@ export function useMarketReceipts() {
  *  acts on a mandate, not on every tick, so a 4s refresh would spend requests
  *  watching a number that changes a few times an hour. */
 export function useHedger() {
-  const { data, error } = useSWR<Envelope<HedgerState>>("/api/hedger", fetcher, {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<HedgerState>>(apiKey("/api/hedger", chain), fetcherFor(chain), {
     refreshInterval: (latest) => (latest?.live ? 15_000 : 60_000),
     ...RETRY,
   });
@@ -147,7 +286,8 @@ export function useHedger() {
 }
 
 export function useFutures() {
-  const { data, error } = useSWR<Envelope<FuturesRoster>>("/api/futures", fetcher, {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<FuturesRoster>>(apiKey("/api/futures", chain), fetcherFor(chain), {
     refreshInterval: (latest) =>
       latest?.data?.source === "chain" ? 30_000 : latest?.live ? 4_000 : 15_000,
     ...RETRY,
@@ -158,7 +298,8 @@ export function useFutures() {
 /** The mode oracle: gate + chain + poster status. Drives the StatusPill and
  *  live checklists; null data offline (the pill degrades honestly). */
 export function useHealth() {
-  const { data } = useSWR<Envelope<HealthData | null>>("/api/health", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<HealthData | null>>(apiKey("/api/health", chain), fetcherFor(chain), {
     refreshInterval: 30_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -185,7 +326,8 @@ export function useHealth() {
  *  "the press is down" and "there is no screen" must not render the same, which is
  *  the same rule `useHumanId` exists to keep. */
 export function useGate() {
-  const { data } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<GateData>>(apiKey("/api/gate", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -196,7 +338,8 @@ export function useGate() {
 /** The same envelope with a refresh handle, for a surface that just CHANGED the
  *  counters it renders (the screen lab) and should not wait a minute to show it. */
 export function useGateLive() {
-  const { data, mutate } = useSWR<Envelope<GateData>>("/api/gate", fetcher, {
+  const chain = useChain();
+  const { data, mutate } = useSWR<Envelope<GateData>>(apiKey("/api/gate", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -205,7 +348,8 @@ export function useGateLive() {
 }
 
 export function useClusters() {
-  const { data } = useSWR<Envelope<ClustersData | null>>("/api/humanid/clusters", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<ClustersData | null>>(apiKey("/api/humanid/clusters", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -214,7 +358,8 @@ export function useClusters() {
 }
 
 export function useHumanId() {
-  const { data } = useSWR<Envelope<HumanIdData>>("/api/humanid", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<HumanIdData>>(apiKey("/api/humanid", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -227,9 +372,10 @@ export function useHumanId() {
  *  while the terminal feed is live (null key = zero extra load on the healthy
  *  path). */
 export function useOnchainPrints(enabled: boolean) {
+  const chain = useChain();
   const { data } = useSWR<Envelope<OnchainDirectRead | null>>(
-    enabled ? "/api/onchain" : null,
-    fetcher,
+    enabled ? apiKey("/api/onchain", chain) : null,
+    fetcherFor(chain),
     { refreshInterval: 60_000, revalidateOnFocus: false, ...RETRY },
   );
   return data;
@@ -239,9 +385,10 @@ export function useOnchainPrints(enabled: boolean) {
  *  rows for ONE index — feeds the index-detail chart when the press is down.
  *  Same discipline: null key while live. */
 export function useOnchainHistory(indexId: string, enabled: boolean) {
+  const chain = useChain();
   const { data } = useSWR<Envelope<OnchainDirectRead | null>>(
-    enabled ? `/api/onchain?history=${encodeURIComponent(indexId)}` : null,
-    fetcher,
+    enabled ? apiKey(`/api/onchain?history=${encodeURIComponent(indexId)}`, chain) : null,
+    fetcherFor(chain),
     { refreshInterval: 120_000, revalidateOnFocus: false, ...RETRY },
   );
   return data;
@@ -250,7 +397,8 @@ export function useOnchainHistory(indexId: string, enabled: boolean) {
 /** The floor buyer's run — polls fast only while queries are being bought,
  * so the tape and counters tick in near-real-time during a run. */
 export function useBuyerRun() {
-  const { data, mutate } = useSWR<Envelope<BuyerRunStatus | null>>("/api/demo/buyer", fetcher, {
+  const chain = useChain();
+  const { data, mutate } = useSWR<Envelope<BuyerRunStatus | null>>(apiKey("/api/demo/buyer", chain), fetcherFor(chain), {
     refreshInterval: (latest) => (latest?.data?.state === "running" ? 700 : 0),
     revalidateOnFocus: true,
     ...RETRY,
@@ -261,7 +409,8 @@ export function useBuyerRun() {
 /** Readiness of the REAL Circle buyer: is a funded key present AND the seller
  *  on the Circle gate? Drives whether the "LIVE buyer" control appears. */
 export function useBuyerReady() {
-  const { data } = useSWR<LiveBuyResponse>("/api/buy", fetcher, {
+  const chain = useChain();
+  const { data } = useSWR<LiveBuyResponse>(apiKey("/api/buy", chain), fetcherFor(chain), {
     refreshInterval: 30_000,
     revalidateOnFocus: false,
     ...RETRY,
@@ -273,7 +422,8 @@ export function useBuyerReady() {
  *  steadily; the exchange calls `refresh` right after a live settlement so the
  *  deposit is seen ticking down. */
 export function useBalances() {
-  const { data, error, mutate } = useSWR<Envelope<BalancesData>>("/api/circle/balances", fetcher, {
+  const chain = useChain();
+  const { data, error, mutate } = useSWR<Envelope<BalancesData>>(apiKey("/api/circle/balances", chain), fetcherFor(chain), {
     refreshInterval: 12_000,
     ...RETRY,
   });
@@ -290,7 +440,8 @@ export function useBalances() {
  *  the `useHedger` cadence: enough to prove the page is connected, cheap
  *  enough for a free-tier press. */
 export function useAttackRun() {
-  const { data, mutate } = useSWR<Envelope<AttackStatus>>("/api/attack/status", fetcher, {
+  const chain = useChain();
+  const { data, mutate } = useSWR<Envelope<AttackStatus>>(apiKey("/api/attack/status", chain), fetcherFor(chain), {
     refreshInterval: (latest) => (latest?.data?.state === "running" ? 700 : 20_000),
     revalidateOnFocus: true,
     ...RETRY,
@@ -312,8 +463,9 @@ export function useAttackRun() {
  * "no settlements" when the subgraph is unreachable would report an outage as a
  * quiet market, which is the failure the tape exists to make impossible. */
 export function useTape(payer?: string) {
-  const key = payer ? `/api/tape?payer=${payer}` : "/api/tape";
-  const { data, error, mutate } = useSWR<Envelope<TapeData>>(key, fetcher, {
+  const chain = useChain();
+  const key = apiKey(payer ? `/api/tape?payer=${payer}` : "/api/tape", chain);
+  const { data, error, mutate } = useSWR<Envelope<TapeData>>(key, fetcherFor(chain), {
     refreshInterval: 30_000,
     revalidateOnFocus: true,
     ...RETRY,
@@ -322,7 +474,8 @@ export function useTape(payer?: string) {
 }
 
 export function useOps() {
-  const { data, error, mutate } = useSWR<Envelope<OpsLedger | null>>("/api/ops", fetcher, {
+  const chain = useChain();
+  const { data, error, mutate } = useSWR<Envelope<OpsLedger | null>>(apiKey("/api/ops", chain), fetcherFor(chain), {
     refreshInterval: 60_000,
     revalidateOnFocus: true,
     ...RETRY,
@@ -330,26 +483,63 @@ export function useOps() {
   return { ledger: data, error: error as Error | undefined, refresh: mutate };
 }
 
+/** Which routes the press behind this chain actually has.
+ *
+ *  Not what the product serves — `lib/endpoints.ts` says that, and is pinned
+ *  against the press's own `app.openapi()`. This is which of them the
+ *  DEPLOYMENT in front of this visitor can answer today, so a page does not
+ *  offer a control that could only fail.
+ *
+ *  `data: null` is "the host would not say", and a caller must treat that as
+ *  "cannot tell" rather than "serves nothing": the right fallback is to offer
+ *  everything, which is what the page did before this existed.
+ *
+ *  Polls slowly. A route set changes on a redeploy, not on a request, and the
+ *  proxy caches it for a minute anyway.
+ */
+export function useServes() {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<string[] | null>>(
+    apiKey("/api/serves", chain),
+    fetcherFor(chain),
+    { refreshInterval: 300_000, revalidateOnFocus: false, ...RETRY },
+  );
+  /* `[]` IS NOT AN ANSWER. `data?.data ?? null` turned a present-but-empty
+     path list into a truthy empty array, and the one consumer reads
+     `served && !servesPath(served, run)` — so every runnable row on
+     /developers would have gone dark at once. "The host would not say" and
+     "the host serves nothing" are the same distinction this whole mechanism
+     exists to make, and I collapsed it in the accessor. */
+  const paths = data?.data;
+  return paths && paths.length > 0 ? paths : null;
+}
+
 /** Who the operator runs for. Slow-moving (onboarding is a commit), so this
  *  polls gently — the page is not waiting on it to change. */
 export function useBusinesses() {
+  const chain = useChain();
   const { data, error, mutate } = useSWR<Envelope<BusinessesPayload | null>>(
-    "/api/operator/businesses",
-    fetcher,
+    apiKey("/api/operator/businesses", chain),
+    fetcherFor(chain),
     { refreshInterval: 300_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { businesses: data, error: error as Error | undefined, refresh: mutate };
+  return { businesses: data, error: error as FetchError | undefined, refresh: mutate };
 }
 
 /** One business's Spend Statement. `null` slug means "nothing selected yet",
  *  and SWR is given a null key so it does not fetch a statement for nobody. */
 export function useStatement(slug: string | null, days = 7) {
+  const chain = useChain();
+  // Subscribed, not merely read: a pasted card must re-render this hook's
+  // consumers, and `setReaderCard`'s revalidation only refetches — it does not
+  // by itself tell React that the refusal on screen is now stale.
+  useReaderCard();
   const { data, error, mutate } = useSWR<Envelope<Statement | null>>(
-    slug ? `/api/operator/statement?business=${encodeURIComponent(slug)}&days=${days}` : null,
-    fetcher,
+    slug ? apiKey(`/api/operator/statement?business=${encodeURIComponent(slug)}&days=${days}`, chain) : null,
+    cardFetcherFor(chain),
     { refreshInterval: 30_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { statement: data, error: error as Error | undefined, refresh: mutate };
+  return { statement: data, error: error as FetchError | undefined, refresh: mutate };
 }
 
 /** One bill, priced against published third-party prices — the /check page.
@@ -369,9 +559,10 @@ export function useStatement(slug: string | null, days = 7) {
  *  check is in flight the previous verdict stays on screen rather than
  *  flashing empty, which is what `readResult.keepLast` exists to say. */
 export function useParCheck(query: string | null) {
+  const chain = useChain();
   const { data, error, isLoading, mutate } = useSWR<Envelope<ParCheck | null>>(
-    query ? `/api/par?${query}` : null,
-    fetcher,
+    query ? apiKey(`/api/par?${query}`, chain) : null,
+    fetcherFor(chain),
     { ...RETRY, refreshInterval: 0, revalidateOnFocus: false },
   );
   return {
@@ -385,21 +576,24 @@ export function useParCheck(query: string | null) {
 /** One business's ledger audit. Polls beside the statement it sits with,
  *  because both answer the same question: is this book telling the truth now. */
 export function useLedgerAudit(slug: string | null, days = 90) {
+  const chain = useChain();
+  useReaderCard();
   const { data, error, mutate } = useSWR<Envelope<LedgerAudit | null>>(
-    slug ? `/api/operator/audit?business=${encodeURIComponent(slug)}&days=${days}` : null,
-    fetcher,
+    slug ? apiKey(`/api/operator/audit?business=${encodeURIComponent(slug)}&days=${days}`, chain) : null,
+    cardFetcherFor(chain),
     { refreshInterval: 60_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { ledgerAudit: data, error: error as Error | undefined, refresh: mutate };
+  return { ledgerAudit: data, error: error as FetchError | undefined, refresh: mutate };
 }
 
 /** The traction numbers. Slow-moving and cheap to recompute, so this polls
  *  gently — nobody is watching it tick. */
 export function useTraction() {
+  const chain = useChain();
   const { data, error, mutate } = useSWR<Envelope<TractionPayload | null>>(
-    "/api/operator/traction",
-    fetcher,
+    apiKey("/api/operator/traction", chain),
+    fetcherFor(chain),
     { refreshInterval: 120_000, revalidateOnFocus: true, ...RETRY },
   );
-  return { traction: data, error: error as Error | undefined, refresh: mutate };
+  return { traction: data, error: error as FetchError | undefined, refresh: mutate };
 }

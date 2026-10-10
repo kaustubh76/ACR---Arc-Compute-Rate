@@ -30,6 +30,11 @@ interface ProveResult {
   address: string | null;
   body: {
     available?: boolean;
+    /** See `gradedCard` in lib/tape.ts. `available` means the subgraph
+     *  answered; `seen` means it had rows. A cluster with no settlements in
+     *  the window is `available: true, seen: false` and every figure zero. */
+    seen?: boolean;
+    note?: string;
     reason?: string;
     human?: { cluster?: string; window?: number; wallet_count?: number };
     purchases?: number;
@@ -145,7 +150,7 @@ export function HumanProof() {
                 <Ed x="window" p="week" /> {proof.body.human?.window ?? "…"} · {proof.body.human?.wallet_count ?? "…"}{" "}
                 <Ed x="wallets, never listed" p="wallets, and it never says which" />
               </Row>
-              {proof.body.available ? (
+              {proof.body.available && proof.body.seen !== false ? (
                 <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>
                   {proof.body.purchases} <Ed x="purchases" p="buys" /> · ${(proof.body.spent_usdc ?? 0).toFixed(5)} ·{" "}
                   {proof.body.vw_slippage_bp ?? "…"} bp <Ed x="slippage" p="over the going rate" /> · ${(proof.body.overpaid_usdc ?? 0).toFixed(6)}{" "}
@@ -158,7 +163,12 @@ export function HumanProof() {
                   ) : null}
                 </Row>
               ) : (
-                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>{proof.body.reason ?? "…"}</Row>
+                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>{/* `note` FIRST. On the unseen path the press sends `note` and no
+    `reason` — `reason` only exists on the Unavailable shape — so this
+    rendered a bare ellipsis exactly where the press had written a
+    sentence naming the window and what would put a cluster on the
+    record. Its twin, PersonNotWallet, already does this. */}
+                {proof.body.note ?? proof.body.reason ?? "…"}</Row>
               )}
               <Row label={<Ed x="replayed" p="used twice" />}>
                 <span className={proof.replay_status === 401 ? "green" : "vermilion"}>{proof.replay_status ?? "…"}</span>{" "}

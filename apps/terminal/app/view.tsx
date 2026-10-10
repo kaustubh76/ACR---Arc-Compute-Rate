@@ -27,9 +27,20 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
   });
 
   if (!prints.length) {
+    /* "AWAITING THE FIRST PRINT" IS A CLAIM ABOUT THE PRODUCT, and it was being
+       made from a payload nobody had read. Off the default chain there is no
+       committed bundle to stand in (`bundle: false`), so `emptyTerminal` gives
+       `prints: {}` for the whole cold start — measured at 18-19s — and the
+       landing page said no rate had ever been published. The index has printed
+       hourly since September. `env.live` is what separates "none yet" from
+       "not read yet", and only the first is ours to assert. */
     return (
       <div className="awaiting">
-        <Ed x="Awaiting the first print" p="Waiting for the first rate" />
+        {env.live ? (
+          <Ed x="Awaiting the first print" p="Waiting for the first rate" />
+        ) : (
+          <Ed x="Reading the latest print…" p="Fetching the latest rate…" />
+        )}
       </div>
     );
   }
@@ -39,7 +50,13 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
 
   return (
     <>
-      <HomeHero flagship={flagship} data={env.data} live={env.live} direct={directLive} />
+      <HomeHero
+        flagship={flagship}
+        data={env.data}
+        live={env.live}
+        direct={directLive}
+        fetchedAt={env.fetchedAt}
+      />
 
       <PlainPrimer />
 

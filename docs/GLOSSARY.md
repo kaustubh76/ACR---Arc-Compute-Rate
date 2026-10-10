@@ -6,7 +6,7 @@
 > **plain-words ①→⑩ walkthrough** at the bottom.
 >
 > **Live in the product:** the Terminal renders this glossary at
-> [arccomputerate.in/companion](https://arccomputerate.in/companion)
+> [arc-compute-rate.vercel.app/companion](https://arc-compute-rate.vercel.app/companion)
 > ("The Reader's Companion"), and the masthead's one-click **plain** edition
 > re-sets every page of the paper in this register — same numbers, plain words
 > (`apps/terminal/lib/plainGlossary.ts` is the distilled, coverage-tested subset).
@@ -429,7 +429,7 @@ and it proves its own tamper-resistance.
 - **LIVE on Arc mainnet** — ACR is not just buildable, it's **running in production**
   on Arc's public network (chain 5042), since 2026-09-27. *The shop is open, not just
   built — and the money is real.*
-- **Vercel** — the host serving the Terminal (`arccomputerate.in`). *The
+- **Vercel** — the host serving the Terminal (`arc-compute-rate.vercel.app`). *The
   landlord for the storefront website.*
 - **Render** — the host serving the seller API (`acr-api-mainnet.onrender.com`), which
   posts a Circle-signed oracle price every hour. *The landlord for the back office.*
@@ -649,12 +649,21 @@ and it proves its own tamper-resistance.
   `sandbox` onto the chain and into every count. `make prove-human` runs the whole path with
   nothing secret — judge-runnable. *Showing a ticket that proves a person is behind the robot,
   without showing the person.*
-- **the MCP server (`mcp/`) · `my_tca` · `query_tape` · `skills/acr-analyst`** — six read-only
-  tools any MCP host (Claude, for one) can call: a wallet's TCA, a reroute suggestion, a seller's
-  rating, the benchmark, the on-chain rate, and any named subgraph operation. Every call carries
-  an agent card; `my_tca("me")` signs the AgentKit challenge. The analyst skill is the same tape
-  explained to an agent in English — "Ask the Tape". *A phrasebook and a phone line so an AI
-  assistant can ask the market what things cost.*
+- **the MCP server (`mcp/`) · `check_spend` · `spend_report` · `can_i_pay` · `wallet_tca` ·
+  `query_tape` · `skills/acr-analyst`** —
+  eleven tools any MCP host (Claude, for one) can call: one vendor invoice priced against the
+  going rate and the running total of every invoice priced on that machine, a wallet's TCA (for a
+  wallet that bought from ACR; one it has never seen answers `seen: false`, not zero), a
+  reroute suggestion, a
+  seller's rating, the benchmark, the on-chain rate, any named subgraph operation, and — the one
+  the surface could not answer at all for its first version — whether this agent can actually pay
+  for a metered query, reported as seven rungs so the one in the way is named. `can_i_pay` asks the
+  paywall for a price and declines to answer it, so it spends nothing and needs no key;
+  `pay_and_read` does settle, and is not registered unless a payer key is set. Every call carries
+  an agent card, signed for the chain the gate itself names; `wallet_tca("me")` signs the AgentKit
+  challenge. The analyst skill is the same tape explained to an agent in English — "Ask the Tape".
+  *A phrasebook and a phone line so an AI assistant can ask the market what things cost — and find
+  out whether it can afford to.*
 - **the loop closes** — settlement → mirrored on chain → indexed by the subgraph → measured as
   TCA → decided as a reroute → paid as the next Circle Gateway nanopayment, which is itself a
   settlement. Nothing in the chain is asserted; each link is a public record the next one reads.

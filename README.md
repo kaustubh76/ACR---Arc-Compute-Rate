@@ -3,7 +3,7 @@
 [![ci](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml/badge.svg)](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![chain: Arc mainnet 5042](https://img.shields.io/badge/chain-Arc%20mainnet%205042-0c8599)](https://explorer.arc.io)
-[![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arccomputerate.in)
+[![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arc-compute-rate.vercel.app)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab)](pyproject.toml)
 [![Solidity 0.8.24](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/foundry.toml)
 
@@ -40,8 +40,8 @@ Arc **mainnet**, chain `5042`, since 2026-09-27:
 
 | | |
 |---|---|
-| **Terminal (dashboard)** | https://arccomputerate.in |
-| **The loop, drivable** | [arccomputerate.in/loop](https://arccomputerate.in/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
+| **Terminal (dashboard)** | https://arc-compute-rate.vercel.app |
+| **The loop, drivable** | [arc-compute-rate.vercel.app/loop](https://arc-compute-rate.vercel.app/loop) — drive the reroute, screen a message through Google Cloud Model Armor, prove a person (`make verify-loop` asserts all of it) |
 | **Seller API (x402-gated)** | https://acr-api-mainnet.onrender.com — answers from the mainnet launch; see [`docs/MAINNET_RUNBOOK.md`](docs/MAINNET_RUNBOOK.md) §5 for what is still outstanding |
 | **Documentation** | [`docs/README.md`](docs/README.md) — start with [`methodology.md`](docs/methodology.md) |
 
@@ -154,7 +154,7 @@ is also the native gas token at eighteen, and
 | **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |
 | **What a balanced ledger misses** | `GET /operator/audit/{business}` — the six errors a trial balance cannot see, each searched for by name and reported with what it searched |
-| **Is one bill fair?** | `GET /par?unit=…&billed_usdc=…&quantity=…` — one invoice against published list prices from sellers we do not operate, each row carrying the page it came from, the line quoted and the date it was read. No account and no key: it is the only surface here a stranger can exercise. Rendered by the [`/check`](https://arccomputerate.in/check) page, and **absent from both deployed images** today, so the page refuses rather than guessing (`make verify-drift`) |
+| **Is one bill fair?** | `GET /par?unit=…&billed_usdc=…&quantity=…` — one invoice against published list prices from sellers we do not operate, each row carrying the page it came from, the line quoted and the date it was read. No account and no key: it is the only surface here a stranger can exercise. Rendered by the [`/check`](https://arc-compute-rate.vercel.app/check) page, and **absent from both deployed images** today, so the page refuses rather than guessing (`make verify-drift`) |
 | **The delta Canteen judges** | `git diff tameion-baseline..HEAD --stat` — the window's start is a tag, not a claim |
 | **Prove it** | `make verify-operator` |
 
@@ -209,8 +209,13 @@ make recompute                    # re-derive the index from the indexed tape an
 ```
 
 **Ask the Tape** in natural language: [`skills/acr-analyst/SKILL.md`](skills/acr-analyst/SKILL.md)
-(a schema map for any agent, usable with The Graph's Subgraph MCP) and [`mcp/`](mcp/README.md),
-six read-only tools for any MCP host — `reroute_suggestion`, `seller_rating`, `query_tape`…
+(a schema map for any agent, usable with The Graph's Subgraph MCP) and [`mcp/`](mcp/README.md) —
+`npx -y acr-mcp`, eleven tools for any MCP host. Ten are reads (`reroute_suggestion`,
+`seller_rating`, `query_tape`…) including **`check_spend`**, which runs the spend agent's own
+ladder over any vendor's invoice, **`spend_report`**, which totals every bill it has priced on
+that machine, and **`can_i_pay`**, which answers "can this agent pay for a metered query, and if
+not which rung is in the way" without spending anything; the eleventh settles one for real, and is
+not registered unless a payer key is set.
 Substreams is N/A on Arc (Studio-only), stated rather than skipped.
 
 ### World — humans, not wallets
@@ -220,7 +225,7 @@ Distinguishing a bot from **an agent acting for a real, unique human**, durably:
 - **One budget per person, not per wallet.** An agent's signed card may claim the human
   cluster `HumanIdMirror` records for its wallet this week; the gate confirms it on chain
   and meters every wallet that person owns as one. Try it on
-  [`/developers`](https://arccomputerate.in/developers) — *as a demo human* →
+  [`/developers`](https://arc-compute-rate.vercel.app/developers) — *as a demo human* →
   `tier: human`.
 - **A proof, verified, then one TCA across all of a person's wallets** — runnable by anyone
   with nothing secret (the demo buyers' keys derive from public labels):
@@ -275,7 +280,7 @@ Everything runs **credential-free**. With no Circle or Arc keys set, the tape fa
 ## New here — the two-minute path
 
 1. **Read** [`docs/methodology.md`](docs/methodology.md) — what the number is, how it is recovered, and what it costs to move. The full index is [`docs/README.md`](docs/README.md).
-2. **Open** the [Terminal](https://arccomputerate.in). Hit the **plain** toggle in the masthead to re-set the entire site in beginner English; [`/companion`](https://arccomputerate.in/companion) is the glossary.
+2. **Open** the [Terminal](https://arc-compute-rate.vercel.app). Hit the **plain** toggle in the masthead to re-set the entire site in beginner English; [`/companion`](https://arc-compute-rate.vercel.app/companion) is the glossary.
 3. **Verify** the claims rather than trusting them:
    ```bash
    make verify-live      # every pillar, checked against the live deployment
@@ -290,7 +295,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **112** real Gateway x402 settlements from **3 distinct payers** (**30** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **1315 py** · **217 forge** · **219 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **1332 py** · **217 forge** · **282 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -305,7 +310,7 @@ Suites, all green and re-measured on every push: **1315 py** · **217 forge** ·
 | [`apps/agent/`](apps/agent) | The machine buyer (TypeScript, Circle Gateway `x402-batching` client) |
 | [`redteam/`](redteam) | The wash-flow adversary used to attack our own index |
 | [`graph/`](graph) | The `acr-tape` subgraph: settlements benchmarked in the mapping, humans per window (The Graph, Studio) |
-| [`mcp/`](mcp) | Six read-only MCP tools — Machine TCA for any MCP host, carded |
+| [`mcp/`](mcp) | Eleven MCP tools — Machine TCA, a per-invoice price check, a running spend report and a payment self-check for any MCP host, carded. Packaged as `acr-mcp` (v0.3.0, `npm run release` publishes it) |
 | [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
 | [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
 | [`hackathon/`](hackathon) | The two hackathon submissions this began as — preserved, not maintained |

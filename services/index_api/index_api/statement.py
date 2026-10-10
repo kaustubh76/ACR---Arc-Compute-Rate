@@ -624,11 +624,23 @@ def build_statement(
         if card.get("available"):
             context = {
                 "available": True,
+                # WHETHER THE TAPE HAS EVER SEEN THIS TREASURY, forwarded rather
+                # than dropped. This dict is rebuilt by hand from the card, and
+                # leaving `seen` out meant a treasury with no settlements
+                # rendered `Purchases 0` and `Against the index —` on /spend as
+                # though it had been measured and found clean. The statement's
+                # own "No indexed history for this treasury yet." copy sits on
+                # the `available: false` branch and so could never fire for it.
+                "seen": card.get("seen"),
                 "purchases": card.get("purchases"),
                 "benchmarked": card.get("benchmarked"),
                 "spent_usdc": card.get("spent_usdc"),
                 "vw_slippage_bp": card.get("vw_slippage_bp"),
                 "basis": "ACR arrival print, bp only",
+                # The CARD's own note is deliberately not forwarded: it explains
+                # an absence, and this field explains the bp denomination. Two
+                # different sentences for two different facts — `seen` is what
+                # tells a reader which one applies.
                 "note": (
                     "bp against the published index, which is scale-invariant. "
                     "USDC savings on this statement come from observed quotes "

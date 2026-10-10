@@ -39,30 +39,23 @@ const nextConfig = {
     return [
       { source: "/exchange", destination: "/curve", permanent: false },
       { source: "/sellers", destination: "/developers#register", permanent: false },
-      /* www -> apex, so one host is canonical and the other sends you to it.
+      /* A third redirect lived here until 2026-10-09: www -> apex for the
+       * custom domain, so that one host would be canonical.
        *
-       * HERE RATHER THAN IN VERCEL'S DOMAIN SETTINGS, which can also do this.
-       * A dashboard redirect is invisible from the repository, untestable in
-       * CI, and lost the next time somebody re-creates the project — and this
-       * file already carries the reasoning for the other two redirects, so a
-       * reader finds all three in one place. It costs one function invocation
-       * on a path almost nobody takes.
+       * REMOVED BECAUSE IT WAS DEAD IN BOTH DIRECTIONS. Its `has` matched the
+       * Host header against `www.<custom domain>`, which cannot match a request
+       * to the Vercel alias — so it never fired for real traffic — and that
+       * hostname never reached Vercel's edge anyway, because the domain's DNS
+       * was never moved off Hostinger's parking. Zero invocations, zero value.
        *
-       * `has` matches the Host header, so this fires only for www and leaves
-       * the apex and the still-live `arc-compute-rate.vercel.app` alone. The
-       * `:path*` capture keeps the deep link: www.../curve lands on /curve,
-       * not the homepage, which is the difference between a redirect and a
-       * dead end.
+       * Worse than useless, in fact: had the DNS later been half-fixed — www
+       * pointed at Vercel, apex not — this rule would have taken the one host
+       * that worked and redirected it to a parked page. Dead config that only
+       * becomes wrong is still a liability.
        *
-       * 307 to match the other two: this is a product decision about which
-       * host is canonical, and a 308 is cached by the browser indefinitely.
+       * The canonical host now lives in exactly the places that are checked
+       * against each other by `tests/test_canonical_host.py`, and nowhere else.
        */
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.arccomputerate.in" }],
-        destination: "https://arccomputerate.in/:path*",
-        permanent: false,
-      },
     ];
   },
 };

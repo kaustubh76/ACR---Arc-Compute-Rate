@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { CHAIN } from "@/lib/chain";
 import { apiBase } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { CARD_HEADER, mintCard, throwawayKey } from "@/lib/agentcard";
 import { TEXT_CAP, matchedFilters, verdictOf, type ScreenVerdict } from "@/lib/screen";
 import { SCREEN_THROTTLE, Throttle, callerKey } from "@/lib/throttle";
@@ -38,12 +40,12 @@ let held: HeldCard | null = null;
 let heldKey: `0x${string}` | null = null;
 const throttle = new Throttle(SCREEN_THROTTLE);
 
-async function card(): Promise<string> {
+async function card(chain: ChainKey): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (held && held.expiresAt - now > REMINT_MARGIN_S) return held.header;
   heldKey ??= await throwawayKey();
   type Challenge = { audience?: string; chain_id?: number };
-  const ch: Challenge = await fetch(`${apiBase()}/agent/challenge`, {
+  const ch: Challenge = await fetch(`${apiBase(chain)}/agent/challenge`, {
     cache: "no-store",
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -62,9 +64,9 @@ async function card(): Promise<string> {
   return minted.header;
 }
 
-async function armorCounts(): Promise<{ screened: number; blocked: number } | null> {
+async function armorCounts(chain: ChainKey): Promise<{ screened: number; blocked: number } | null> {
   try {
-    const r = await fetch(`${apiBase()}/armor/info`, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const r = await fetch(`${apiBase(chain)}/armor/info`, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
     const j = (await r.json()) as { screened?: number; blocked?: number };
     return { screened: Number(j.screened ?? 0), blocked: Number(j.blocked ?? 0) };
   } catch {
@@ -87,6 +89,7 @@ export interface ScreenResult {
 }
 
 export async function POST(request: Request) {
+  const chain = requestChain(request);
   let body: { text?: unknown; carded?: unknown } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -114,15 +117,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const before = await armorCounts();
+  const before = await armorCounts(chain);
   const started = Date.now();
   let status: number | null = null;
   let answer: unknown = null;
   let note: string | null = null;
   try {
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
-    if (carded) headers[CARD_HEADER] = await card();
-    const res = await fetch(`${apiBase()}/graph/query`, {
+    if (carded) headers[CARD_HEADER] = await card(chain);
+    const res = await fetch(`${apiBase(chain)}/graph/query`, {
       method: "POST",
       cache: "no-store",
       headers,
@@ -136,7 +139,7 @@ export async function POST(request: Request) {
     note = timedOut ? "the press did not answer in time. It sleeps between visits, so press again" : "the press is unreachable";
   }
   const ms = Date.now() - started;
-  const after = await armorCounts();
+  const after = await armorCounts(chain);
   const screenedDelta = before && after ? after.screened - before.screened : null;
   const blockedDelta = before && after ? after.blocked - before.blocked : null;
 

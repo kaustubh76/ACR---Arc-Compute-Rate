@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Ed } from "./Ed";
 import { Term } from "./Term";
-import { bp, followedReroute, humanCell, type TcaCard } from "@/lib/tape";
+import { bp, followedReroute, gradedCard, humanCell } from "@/lib/tape";
 import { useTape } from "@/lib/useLive";
 
 /* The tape, on the landing page. Sibling of FuturesTeaser, same shape: a head
@@ -30,7 +30,11 @@ const HEAD = (
 export function TapeTeaser() {
   const { tape } = useTape();
   const data = tape?.data;
-  const tca = data?.tca && data.tca.available ? (data.tca as TcaCard) : null;
+  // `gradedCard`, not `available`: the subgraph answers for a wallet it has
+  // never heard of, and this teaser printed "0 purchases benchmarked" on the
+  // landing page as a result. Returning null is what this component's own
+  // header already claims it does when the tape has nothing.
+  const tca = gradedCard(data?.tca);
   if (!tca) return null;
 
   const live = Boolean(tape?.live);

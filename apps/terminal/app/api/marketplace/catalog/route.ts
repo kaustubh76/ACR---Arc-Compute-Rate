@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { bundleSection, fetchLiveMeta } from "@/lib/api";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { CatalogData, Envelope } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const { data, upstream } = await fetchLiveMeta<CatalogData>("/marketplace/catalog");
-  const bundled = bundleSection("marketplace")?.catalog ?? null;
+export async function GET(req: Request) {
+  const chain = requestChain(req);
+  const { data, upstream } = await fetchLiveMeta<CatalogData>(chain, "/marketplace/catalog");
+  const bundled = bundleSection(chain, "marketplace")?.catalog ?? null;
   const env: Envelope<CatalogData | null> = data
-    ? { live: true, data, fetchedAt: Date.now(), upstream }
-    : { live: false, data: bundled, fetchedAt: Date.now(), upstream };
+    ? { live: true, data, fetchedAt: Date.now(), chain, upstream }
+    : { live: false, data: bundled, fetchedAt: Date.now(), chain, upstream };
   return NextResponse.json(env, {
-    headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=300" },
+    headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
   });
 }

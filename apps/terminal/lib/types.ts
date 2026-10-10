@@ -313,7 +313,24 @@ export interface Envelope<T> {
   live: boolean;
   data: T;
   fetchedAt: number;
-  upstream?: "ok" | "error" | "timeout";
+  /** `"absent"` means the host answered 404 and its own `/openapi.json` does
+   *  not list the route: a deployment that predates the feature, not a
+   *  failure. Distinguished because telling a visitor a running service is
+   *  down sends them away from the one that works. */
+  upstream?: "ok" | "error" | "timeout" | "absent";
+  /** Which chain answered — `"mainnet"` or `"testnet"`.
+   *
+   *  The last line of defence behind the cookie and the URL param. One
+   *  deployment serves both chains, and sixteen route handlers answer with a
+   *  shared `Cache-Control: public, s-maxage=…` that Vercel's CDN keys on URL
+   *  alone, so prevention can be defeated by any cache layer nobody predicted.
+   *  The client compares this against what it asked for and refuses to render a
+   *  mismatch (`sameChain()` in lib/chainChoice.ts).
+   *
+   *  Optional only so the conversion could land route by route; every proxy
+   *  stamps it. An absent value is treated as a mismatch, not as the default —
+   *  "I don't know which chain this is" must not render as "mainnet". */
+  chain?: "mainnet" | "testnet";
 }
 
 /** Payload of /api/onchain — settlement-grade prints read straight from
@@ -430,7 +447,19 @@ export interface RevenueData {
 }
 
 export interface X402Info {
-  facilitator: "dev" | "circle";
+  /** Which paywall answered — and OPTIONAL, because "we could not ask" is a
+   *  third state that used to be rendered as the first.
+   *
+   *  Measured on the live site 2026-10-10: the front page read
+   *  `LIVE · DEV GATE` in gold over the production Circle paywall. `/api/console`
+   *  gives the press 2.5s and falls back to the archived bundle, whose
+   *  `x402.facilitator` is `"dev"` — true when that bundle was cut, false now —
+   *  so a cold Render start turned "unreachable" into a confident claim about
+   *  which gate was live. It also flipped `agentAllowed`, which keys on
+   *  `mode === "dev"`.
+   *  `ApiConsole` already renders no badge when this is absent, which is the
+   *  honest answer; the type just never allowed it to be. */
+  facilitator?: "dev" | "circle";
   price_usdc: number;
   scheme: string;
   network: string;
@@ -647,6 +676,26 @@ export interface WebhookFeed {
 
 /** Enriched /health — drives the StatusPill and live checklists. Loosely
  *  typed: the pill degrades gracefully if a field is missing. */
+/** The spend operator's standing, as /health now reports it (`app.py:807`).
+ *
+ *  TYPED, AND DELIBERATELY NOT RENDERED IN THE MASTHEAD. `/ops` already shows
+ *  it — "The spend operator" — and on the live mainnet `ACR_OPERATOR_AUTORUN`
+ *  is `off`, so a chip beside the keeper's would print a true and useless
+ *  "off" on every page of the site. This project rejects additive chrome; what
+ *  was missing was the declaration, so the field is findable by the next person
+ *  who has a reason to show it. That reason is not "it exists". */
+export interface OperatorStatus {
+  mode?: string;
+  every_s?: number;
+  max_per_tick?: number;
+  checked_at?: number | null;
+  checked_age_s?: number | null;
+  verdict?: string | null;
+  fired_at?: number | null;
+  fired_age_s?: number | null;
+  next_due_s?: number | null;
+}
+
 export interface HealthData {
   status?: string;
   gate?: "dev" | "circle" | string;
@@ -660,6 +709,8 @@ export interface HealthData {
   poster_last_tx?: string | null;
   attestor_address?: string | null;
   keeper?: KeeperStatus | null;
+  /** See OperatorStatus: declared so it is findable, not rendered in the strip. */
+  operator?: OperatorStatus | null;
   [k: string]: unknown;
 }
 

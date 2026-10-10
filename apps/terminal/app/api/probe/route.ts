@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard } from "@/lib/agentcard";
+import { CARD_HEADER, DEMO_HUMAN_LABEL, MAX_CARD, demoKey, mintCard } from "@/lib/agentcard";
 import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
+import { requestChain } from "@/lib/envelope";
+import type { ChainKey } from "@/lib/chainChoice";
 import { chainFacts } from "@/lib/chain";
 import { RUNNABLE } from "@/lib/endpoints";
 
 /* POST /api/probe — call one free endpoint and report what came back.
  *
- * The endpoints table listed twenty-seven routes and let a reader run five of
- * them. The other twenty-two are FREE, so there was never a reason beyond the
+ * The endpoints table listed every route and let a reader run only the five
+ * paid ones. The rest are FREE, so there was never a reason beyond the
  * absence of this route: a public GET needs no payment, no wallet and no
  * session, and a reader who can see the answer arrive stops having to take the
  * documentation's word for it.
@@ -47,10 +49,9 @@ const MAX_BODY = 1400;
  *  has to survive, and 5s (the console's budget) would fail every time. */
 const TIMEOUT_MS = 12_000;
 
-/** A card is ~600 bytes of base64. Anything much larger is not a card. */
-const MAX_CARD = 2048;
 
 export async function POST(req: NextRequest) {
+  const chain = requestChain(req);
   let path = "";
   let agentCard: string | undefined;
   let asDemoHuman = false;
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (asDemoHuman) {
-    const minted = await demoHumanCard();
+    const minted = await demoHumanCard(chain);
     if (!minted) {
       return NextResponse.json(
         { path, detail: "the demo human is not resolved this window. Run `make resolve-humans` and try again" },
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   const started = Date.now();
   try {
-    const { res } = await sellerFetch(path, {
+    const { res } = await sellerFetch(chain, path, {
       cache: "no-store",
       headers: { accept: "application/json", ...(agentCard ? { [CARD_HEADER]: agentCard } : {}) },
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
         ms: Date.now() - started,
         // Which host served this probe, so "503" is attributable to a wrong
         // ACR_API rather than to the press being down.
-        seller: baseState(),
+        seller: baseState(chain),
         // The tier, parsed here, so the page does not have to read it back out of a
         // truncated preview string. Only /agent/whoami answers with one; elsewhere
         // it is simply absent. `carded` is whether a card was SENT, so a 401 on a
@@ -147,7 +148,7 @@ function whoamiOf(text: string): { tier?: string; ident_kind?: string; human_not
 /** A card for the demo human, signed on the server with a key derived from a
  *  public label. Null when that wallet has no cluster in the current window, which
  *  is the honest answer after a rotation rather than a card the gate would refuse. */
-async function demoHumanCard(): Promise<string | null> {
+async function demoHumanCard(chain: ChainKey): Promise<string | null> {
   const key = await demoKey(DEMO_HUMAN_LABEL);
   const { privateKeyToAccount } = await import("viem/accounts");
   const wallet = privateKeyToAccount(key).address.toLowerCase();
@@ -155,8 +156,7 @@ async function demoHumanCard(): Promise<string | null> {
   // Ask the press which cluster the chain records for this wallet right now. The
   // `humans` operation returns clusters with their wallets for the current window.
   type Cluster = { id: string; window: string; payers?: Array<{ id: string } | string>; wallets?: Array<{ id: string } | string> };
-  const { data } = await postLiveMeta<{ available: boolean; data?: { humanClusters: Cluster[] } }>(
-    "/graph/query", { operation: "humans", variables: { first: 50 } }, TIMEOUT_MS,
+  const { data } = await postLiveMeta<{ available: boolean; data?: { humanClusters: Cluster[] } }>(chain, "/graph/query", { operation: "humans", variables: { first: 50 } }, TIMEOUT_MS,
   );
   const clusters = data?.data?.humanClusters ?? [];
   const mine = clusters.find((c) =>
@@ -168,7 +168,7 @@ async function demoHumanCard(): Promise<string | null> {
   // on the page makes the same argument, and a demo that hardcoded what the gate
   // accepts would keep working after the gate changed.
   type Challenge = { audience?: string; chain_id?: number };
-  const challenge: Challenge = await sellerFetch("/agent/challenge", {
+  const challenge: Challenge = await sellerFetch(chain, "/agent/challenge", {
     cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS),
   }).then(({ res }) => res.json() as Promise<Challenge>).catch((): Challenge => ({}));
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { AgentGateInfo, ArmorInfo, GateData } from "@/lib/gate";
 import type { Envelope } from "@/lib/types";
 
@@ -24,10 +25,11 @@ export const runtime = "nodejs";
 
 const TIMEOUT_MS = 9_000;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const chain = requestChain(req);
   const [agentRes, armorRes] = await Promise.all([
-    fetchLiveMeta<AgentGateInfo>("/agent/info", TIMEOUT_MS),
-    fetchLiveMeta<ArmorInfo>("/armor/info", TIMEOUT_MS),
+    fetchLiveMeta<AgentGateInfo>(chain, "/agent/info", TIMEOUT_MS),
+    fetchLiveMeta<ArmorInfo>(chain, "/armor/info", TIMEOUT_MS),
   ]);
 
   const data: GateData = { agent: agentRes.data, armor: armorRes.data };
@@ -38,14 +40,13 @@ export async function GET() {
   const env: Envelope<GateData> = {
     live,
     data,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now(), chain,
     upstream: live ? "ok" : (agentRes.upstream === "ok" ? armorRes.upstream : agentRes.upstream),
   };
   return NextResponse.json(env, {
-    headers: {
-      // Configuration, not market data. Cached harder than the tape, which turns
-      // over every block; the counters move but nothing decides on them quickly.
-      "Cache-Control": live ? "public, s-maxage=60, stale-while-revalidate=300" : "no-store",
-    },
+    // Configuration, not market data. Cached harder than the tape, which turns
+    // over every block; the counters move but nothing decides on them quickly.
+    // Through `chainHeaders` so a non-default chain is never stored shared.
+    headers: envelopeHeaders("public, s-maxage=60, stale-while-revalidate=300", chain, env),
   });
 }

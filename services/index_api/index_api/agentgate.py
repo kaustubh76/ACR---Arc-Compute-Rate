@@ -30,6 +30,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 
@@ -40,9 +41,11 @@ from acr_oracle_client.agentcard import (
     CLOCK_SKEW_S,
     MAX_TTL_S,
     ROLES,
+    ZERO32,
     AgentCard,
     decode_header,
     recover_agent,
+    scope_hash,
 )
 from acr_oracle_client.humanid import HumanIdMirrorClient, current_window
 from fastapi import Header, HTTPException, Request
@@ -347,6 +350,110 @@ def reset_gate() -> None:
     global _gate
     _gate = None
 
+
+
+#: The env var that turns per-business read authorisation on. Unset or falsey is
+#: today's behaviour EXACTLY: `require_business_read` returns before looking at
+#: anything, and every response is byte-identical. Flagged rather than switched
+#: because the first person to discover a mis-scoped gate must not be whoever
+#: opened the page.
+SCOPE_ENV = "ACR_OPERATOR_READ_SCOPE"
+
+
+def scope_enforced() -> bool:
+    """Whether the scope on a card is checked against anything.
+
+    Reported by `GET /agent/whoami`, which carried a hardcoded `False` for as
+    long as the answer was always false. It is a real question now, so it gets a
+    real answer — and two things assert it (`test_agent_http.py` and
+    `scripts/demo_agent.py`), which is what stops it drifting back into a
+    constant.
+    """
+    return (os.environ.get(SCOPE_ENV, "").strip().lower() not in ("", "0", "false", "off"))
+
+
+def business_read_scope(slug: str) -> str:
+    """The scope string a card must claim to read one business's detail.
+
+    THE FIRST MEMBER OF A VOCABULARY THAT HAD NONE. `scopeHash` has been in the
+    signature since the card shipped and checked against nothing; the hashing
+    convention was already settled and tested (`agentcard.scope_hash`: keccak of
+    the sorted, de-duplicated, comma-joined list, and the zero word for empty).
+    What was missing was a single agreed string. This is it, and it is reused
+    rather than re-derived so a card minted by any of the four existing encoders
+    verifies without changing them.
+    """
+    return f"read:business:{slug}"
+
+
+def require_business_read(agent: VerifiedAgent | None, business) -> None:
+    """Admit a reader to one business's detail, or refuse and say which refusal.
+
+    THERE WAS NO ADMISSION PRIMITIVE IN THIS MODULE. `optional_agent` is an
+    UPGRADE — it moves a caller to a better rate-limit bucket and admits
+    everyone — and its own docstring says so. This is the other thing, and it is
+    called explicitly from the handler rather than hidden behind a `Depends`
+    because a control that decides who sees a vendor list should read at the
+    place it applies.
+
+    FOUR CAUSES, FOUR ANSWERS. A gate that says "denied" to four different
+    problems is a gate nobody can configure: the holder of a good card scoped to
+    the wrong business, and the holder of no card at all, need different next
+    steps. Expiry, signature, audience and role are not re-checked here — they
+    already happened in `verify()` and are covered there; this is the step after
+    a card is known good.
+
+    `scopeHash` is ONE-WAY, so this can only ever test a candidate scope set for
+    equality. That is the right shape for "may this card read business X" — we
+    compute the expected hash per request — and it cannot answer "which
+    businesses may this card read". Nothing should be built expecting the second.
+    """
+    if not scope_enforced():
+        return
+
+    want_scope = business_read_scope(business.slug)
+    want_hash = scope_hash([want_scope]).lower()
+
+    if agent is None:
+        raise AgentCardRequired(
+            {
+                "error": "agent card required",
+                "scheme": "agentcard",
+                "header": CARD_HEADER,
+                "challenge": "/agent/challenge",
+                "scope": want_scope,
+                # CAPITALISED, because these are rendered as standalone
+                # sentences. /spend prints `reason` as its own paragraph under
+                # the headline, and a lowercase opener read as a fragment of a
+                # sentence that was not there. Seen in a screenshot of the built
+                # page, not in the JSON, which is where it looked fine.
+                "reason": (
+                    "This business's detail is readable by its treasury or by an address it "
+                    "has nominated. Mint a card claiming the scope above and present it in "
+                    f"the {CARD_HEADER} header."
+                ),
+            }
+        )
+
+    if agent.card.scope_hash.lower() != want_hash:
+        claimed = "nothing" if agent.card.scope_hash.lower() == ZERO32 else "another scope"
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"This card claims {claimed}, not {want_scope!r}. A card is scoped to one "
+                "business; mint a separate one per business rather than reusing a card."
+            ),
+        )
+
+    if not business.may_read(agent.card.agent):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "This card is correctly scoped but is signed by an address this business has "
+                "not nominated. It must be signed by the business's treasury, or by an address "
+                "in its `readers` list — which is a commit, not an API call."
+            ),
+        )
 
 async def optional_agent(
     request: Request,

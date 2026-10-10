@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmt, fmtPrice } from "./format";
+import { ageWords, fmt, fmtPrice } from "./format";
 
 /* The bug this file exists for.
 
@@ -62,4 +62,27 @@ test("a negative price is formatted on its magnitude, not rejected", () => {
 test("decimals stay inside the clamp for absurd magnitudes", () => {
   assert.equal(fmtPrice(123456), "123,456.00"); // floor at 2dp
   assert.ok(fmtPrice(1e-12).length < 20); // ceiling at 9dp, not 13
+});
+
+test("ageWords says days once an age is genuinely old", () => {
+  /* READ OFF THE LIVE DATELINE 2026-10-10: the print chip said
+     `LAST PRINT 606 HR AGO`. True, and it makes a reader do long division to
+     learn the one thing that chip exists to tell them — that the reference
+     rate is not current.
+     Only the print chip and a long-dead keeper reach this tier; the three
+     fetch-age call sites (/ops, /spend, /traction) report seconds and never
+     cross it, which is why this was safe to change in one place. */
+  assert.equal(ageWords(47 * 3600), "47 hr ago", "inside two days, hours are still the clearer unit");
+  assert.equal(ageWords(49 * 3600), "2.0 days ago");
+  assert.equal(ageWords(Math.round(25.25 * 86400)), "25.3 days ago");
+
+  // The boundary, asserted from both sides so neither becomes a gap.
+  assert.match(ageWords(48 * 3600 - 60), /hr ago$/);
+  assert.match(ageWords(48 * 3600 + 60), /days ago$/);
+
+  // The tiers below are untouched, including the one word that is not an age.
+  assert.equal(ageWords(30), "just now");
+  assert.equal(ageWords(1800), "30 min ago");
+  assert.equal(ageWords(null), "unread");
+  assert.equal(ageWords(null, true), "not yet");
 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { TractionPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,19 +28,19 @@ export const dynamic = "force-dynamic";
    `s-maxage=60, stale-while-revalidate=120` unconditionally, so an edge that
    caught the press mid-sleep would keep serving that emptiness for two minutes
    after it woke. A successful read still caches; a failed one never does. */
-export async function GET() {
-  const { data, upstream } = await fetchLiveMeta<TractionPayload>(
-    "/operator/traction",
+export async function GET(req: Request) {
+  const chain = requestChain(req);
+  const { data, upstream } = await fetchLiveMeta<TractionPayload>(chain, "/operator/traction",
     12_000,
   );
   if (!data) {
     return NextResponse.json(
-      { live: false, data: null, fetchedAt: Date.now(), upstream, error: "the press did not answer" },
+      { live: false, data: null, fetchedAt: Date.now(), chain, upstream, error: "the press did not answer" },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
   return NextResponse.json(
-    { live: true, data, fetchedAt: Date.now(), upstream },
-    { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } },
+    { live: true, data, fetchedAt: Date.now(), chain, upstream },
+    { headers: envelopeHeaders("public, s-maxage=60, stale-while-revalidate=120", chain, { live: true }) },
   );
 }

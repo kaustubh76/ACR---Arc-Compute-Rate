@@ -358,7 +358,7 @@ def build() -> None:
 
     # ---------- H · VERIFICATION ----------
     zone(2240, 1590, 560, 300, "H · VERIFICATION", GRAY)
-    card("h_tests", 2260, 1642, 510, 180, "TESTS · 1315 py + 217 forge + 219 terminal + 35 agent",
+    card("h_tests", 2260, 1642, 510, 180, "TESTS · 1332 py + 217 forge + 282 terminal + 35 agent",
          ["6 CI jobs: python · contracts · agent · terminal · subgraph · mcp", "anvil-gated on-chain integration · eval gate",
           "workflows: heartbeat · lifecycle · recover · keepalive · x402-buy",
           "glossary gate · ruff · make deck · hermetic conftest (Circle mocked)"], GRAY, body_size=11)
@@ -380,7 +380,7 @@ def build() -> None:
           "real x402 settled via Circle Gateway · durable receipts",
           "attack-cost-per-bp on EVERY print · 50–560× vs naive-VWAP",
           "100% Foundry invariants passing",
-          "1315 py · 217 forge · 219 terminal · 35 agent — green"], INK, body_size=12)
+          "1332 py · 217 forge · 282 terminal · 35 agent — green"], INK, body_size=12)
 
     # ---------- PLAIN ENGLISH glossary panel ----------
     zone(2860, 1090, 620, 800, "PLAIN ENGLISH  ·  read the jargon", GOLD)
@@ -500,7 +500,7 @@ def build() -> None:
          ["buyer reads ITS OWN /tca before paying",
           "drops the worst seller, pays the suggested one first",
           "Circle Gateway nanopayment → ReceiptMirror → subgraph → /tca",
-          "mcp/: 6 tools (reroute_suggestion · my_tca('me') · query_tape)",
+          "mcp/: 11 tools (check_spend · spend_report · wallet_tca('me'))",
           "skills/acr-analyst: Ask the Tape, in English"], PURPLE, body_size=12)
 
     # ---------- 7-week roadmap ----------
