@@ -85,6 +85,21 @@ export interface ToolDef {
 const ADDRESS = { type: "string", description: "an 0x address" };
 const DAYS = { type: "number", description: `window in days (default ${DEFAULT_DAYS})` };
 
+/** The same, for the two tools that also accept `"me"`.
+ *
+ *  A SEPARATE SCHEMA because the cap is real and belongs in front of the model
+ *  rather than in a refusal it has to provoke: `/tca/human` resolves a person's
+ *  wallet set per rotation window and cannot describe a longer one, so `"me"`
+ *  tops out there while an address does not. `seller_rating` keeps plain `DAYS`
+ *  — it has no such limit, and saying otherwise would narrow it for no reason. */
+const DAYS_OR_WINDOW = {
+  type: "number",
+  description:
+    `window in days (default ${DEFAULT_DAYS} for an address). For target "me" the default and ` +
+    "the maximum are the press's human rotation window instead — about a week — because a " +
+    "person's wallet set is only resolved per window. Ask for more and this says so.",
+};
+
 export const TOOLS: ToolDef[] = [
   {
     /* NAMED FOR WHAT IT GRADES. This was `my_tca`, and "my" was wrong twice
@@ -112,7 +127,7 @@ export const TOOLS: ToolDef[] = [
           description:
             'an 0x address, or "me" for the calling human\'s own wallets unioned together',
         },
-        days: DAYS,
+        days: DAYS_OR_WINDOW,
       },
       required: ["target"],
     },
@@ -132,7 +147,7 @@ export const TOOLS: ToolDef[] = [
           type: "string",
           description: 'an 0x address, or "me" for the calling human\'s own wallets unioned together',
         },
-        days: DAYS,
+        days: DAYS_OR_WINDOW,
       },
       required: ["target"],
     },
@@ -349,14 +364,94 @@ async function readJson(
  * own World credential, and this plugin has no access to one. Saying so beats
  * returning something that looks like a verified answer and is not.
  */
+/** The rotation window a human's wallet set is resolved per, in days.
+ *
+ *  A FALLBACK, not the answer: `/humanid/info` states the press's own
+ *  `rotation_window_days`, and that is what gets used when it can be read. This
+ *  number exists so an unreachable info route degrades to the documented window
+ *  rather than to `DEFAULT_DAYS`, which cannot work at all (below).
+ */
+export const HUMAN_WINDOW_DAYS = 7;
+
+/** What window this press resolves humans per, and whether it actually said. */
+async function humanWindowDays(
+  f: Fetchish,
+  api: string,
+): Promise<{ days: number; stated: boolean }> {
+  try {
+    const res = await f(`${api}/humanid/info`);
+    // `ok` first: a refusal body is not a statement about the window, and a
+    // field read off an error page would be a measurement of nothing.
+    if (res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { rotation_window_days?: unknown };
+      const n = Number(body?.rotation_window_days);
+      if (Number.isFinite(n) && n > 0) return { days: n, stated: true };
+    }
+  } catch {
+    /* unreachable info route */
+  }
+  return { days: HUMAN_WINDOW_DAYS, stated: false };
+}
+
+/** TCA for the human behind the agent, over the window their wallet set exists in.
+ *
+ *  `askedDays` is NULL when the caller named no window, which is the whole
+ *  reason this takes a nullable instead of the resolved `days` every other tool
+ *  uses.
+ *
+ *  THE BUG THAT MADE THIS NECESSARY, measured against the live testnet press
+ *  2026-10-10. `DEFAULT_DAYS` is 30 — widened from 7 because at 7 every wallet
+ *  and seller reported zero rows. But `/tca/human` CANNOT answer 30: a human's
+ *  wallet set is resolved per rotation window, and the press refuses anything
+ *  longer with "a human's wallet set is resolved per 7d rotation window and
+ *  cannot describe a longer one; asked for 30d". So `wallet_tca("me")` and
+ *  `reroute_suggestion({target:"me"})` could not succeed at their own defaults,
+ *  ever — the proof was minted, the gate accepted it (`verified_proofs` 0 → 1),
+ *  and then the request was refused over an argument the plugin chose itself.
+ *
+ *  No test could see it: the suite's gate answers `available: true` whatever
+ *  `days` says. Third instance of the same lesson in this package — a stub
+ *  refuses nothing.
+ */
 async function humanTca(
   f: Fetchish,
   api: string,
-  days: number,
+  askedDays: number | null,
   nullifier?: string,
   humanKey?: string,
 ): Promise<unknown> {
+  const win = await humanWindowDays(f, api);
+
+  /* Refused HERE rather than at the press, and only when the press STATED the
+     window. A local refusal saves minting a credential for a request that
+     cannot be answered; acting on the fallback instead would risk refusing a
+     window a different deployment genuinely allows, so an unread window defers
+     to the press, whose own sentence is a good one. */
+  if (askedDays !== null && win.stated && askedDays > win.days) {
+    return {
+      available: false,
+      window_days: win.days,
+      reason:
+        `a human's wallet set is resolved per ${win.days}-day rotation window, so ${askedDays} ` +
+        `days cannot be described. Ask for ${win.days} or fewer. (A single wallet has no such ` +
+        "limit — pass an address instead of \"me\" for a longer history.)",
+    };
+  }
+
+  // Not `DEFAULT_DAYS`: see above. A caller who named no window gets the only
+  // one that can work, and `window_days` on the answer says which it was.
+  const days = askedDays ?? win.days;
   const url = `${api}/tca/human?days=${days}`;
+
+  /* The window travels with the answer. A caller who passed no `days` is used to
+     `DEFAULT_DAYS` of 30 everywhere else in this plugin and would otherwise read
+     a 7-day figure as a 30-day one — a silent narrowing, which is its own kind
+     of wrong answer. */
+  const stamp = (body: unknown): unknown =>
+    body && typeof body === "object" && !Array.isArray(body)
+      ? { ...(body as Record<string, unknown>), window_days: days }
+      : body;
+
   const challenge = await f(url);
   const body = (await challenge.json().catch(() => ({}))) as {
     nonce?: string;
@@ -364,7 +459,7 @@ async function humanTca(
     header?: string;
     resource?: string;
   };
-  if (challenge.ok) return body; // already authorized upstream
+  if (challenge.ok) return stamp(body); // already authorized upstream
   if (!body?.nonce) return { available: false, reason: "the gate issued no challenge", body };
   const header = body.header ?? "HUMAN-PROOF";
 
@@ -378,13 +473,16 @@ async function humanTca(
         available: false,
         reason:
           "this gate verifies AgentKit proofs: set ACR_HUMAN_AGENT_KEY to the key of a wallet " +
-          "registered in AgentBook (a demo buyer's key derives from its public label), and " +
-          "the plugin signs the challenge for you. ACR_HUMAN_NULLIFIER is for the dev gate only.",
+          "registered in AgentBook, and the plugin signs the challenge for you. " +
+          "ACR_HUMAN_NULLIFIER is for the dev gate only. On a press whose /humanid/info reports " +
+          "`agentbook: fixture`, the roster is the demo one and a wallet's key is " +
+          'sha256("acr-buyer::<label>") over labels acr-buyer-1..4 — sandbox identities, flagged ' +
+          "sandbox on-chain, holding nothing. See the testnet section of acr-mcp's README.",
         challenge: body,
       };
     }
     const proof = await signAgentKitChallenge(humanKey, body.nonce, body.resource ?? "/tca/human", api);
-    return readJson(f, url, { [header]: proof });
+    return stamp(await readJson(f, url, { [header]: proof }));
   }
   if (!nullifier) {
     return {
@@ -396,7 +494,7 @@ async function humanTca(
       challenge: body,
     };
   }
-  return readJson(f, url, { [header]: `humanid ${nullifier}:${body.nonce}` });
+  return stamp(await readJson(f, url, { [header]: `humanid ${nullifier}:${body.nonce}` }));
 }
 
 /** A CAIP-122 message naming the gate's nonce and resource, signed EIP-191 by the
@@ -482,20 +580,26 @@ export async function callTool(
 ): Promise<unknown> {
   const api = (opts.api ?? DEFAULT_API).replace(/\/$/, "");
   const f = opts.fetchImpl ?? (globalThis.fetch as unknown as Fetchish);
-  const days = typeof args.days === "number" ? args.days : DEFAULT_DAYS;
+  const asked = typeof args.days === "number" ? args.days : null;
+  const days = asked ?? DEFAULT_DAYS;
 
   switch (name) {
     case "wallet_tca": {
-      const body =
-        String(args.target) === "me"
-          ? await humanTca(f, api, days, opts.nullifier, opts.humanKey)
-          : await readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
+      /* `null` means "the caller named no window". The human path cannot use
+         DEFAULT_DAYS and resolves its own — so the generic window hint, which
+         would quote 30 days at an answer measured over 7, is applied to the
+         wallet path only. The human answers carry `window_days` and their own
+         specific refusals instead. */
+      if (String(args.target) === "me") {
+        return humanTca(f, api, asked, opts.nullifier, opts.humanKey);
+      }
+      const body = await readJson(f, `${api}/tca/${String(args.target)}?days=${days}`);
       return withWindowHint(body, days, (b) => countedZero(b.purchases));
     }
 
     case "reroute_suggestion": {
       const tca = (await (String(args.target) === "me"
-        ? humanTca(f, api, days, opts.nullifier, opts.humanKey)
+        ? humanTca(f, api, asked, opts.nullifier, opts.humanKey)
         : readJson(f, `${api}/tca/${String(args.target)}?days=${days}`))) as {
         available?: boolean;
         reroute?: unknown;

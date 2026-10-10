@@ -22,6 +22,7 @@ import { callTool, DEFAULT_API, toolsFor, type Fetchish } from "../src/tools.js"
 
 const api = (process.env.ACR_API ?? DEFAULT_API).replace(/\/$/, "");
 const payerKey = (process.env.ACR_PAYER_PRIVATE_KEY ?? "").trim() || undefined;
+const humanKey = (process.env.ACR_HUMAN_AGENT_KEY ?? "").trim() || undefined;
 const cardKey = (process.env.ACR_AGENT_PRIVATE_KEY ?? "").trim();
 
 const rawFetch = globalThis.fetch as unknown as Fetchish;
@@ -256,6 +257,38 @@ function probesFor(PAYER: string, SELLER: string): Probe[] {
   { tool: "query_tape", args: { operation: "settlements", variables: { first: 3 } } },
   { tool: "can_i_pay", args: {} },
   { tool: "payment_receipts", args: { limit: 3 } },
+  /* THE HUMAN PATH, which no stub can witness. `tools.test.ts` signs an
+     AgentKit challenge and recovers the address from the signature — a complete
+     proof of the WIRE FORM against a gate that verifies nothing. Whether a real
+     verifier accepts it is a different question, and the testnet press answered
+     it for the first time on 2026-10-10: `/humanid/info` `verified_proofs` went
+     0 → 1. Same argument as the card and the payment; this is the third and
+     last credential in the plugin to get a live witness.
+     Only probed when a key is lent, like the card — the tool is useless and the
+     refusal is correct without one, and that refusal is already unit-tested. */
+  ...(humanKey
+    ? [
+        {
+          tool: "wallet_tca",
+          args: { target: "me" },
+          /* `wallet_count: 0` is NOT a tool failure. It means nobody has run the
+             weekly `resolve_humans` for the current rotation window, so the
+             on-chain mirror maps this human to no wallets — an operator chore,
+             named by the press, and the honest thing for a probe to report
+             rather than to fail on. */
+          tolerate: (o: Record<string, unknown>) =>
+            typeof o.reason === "string" && /no wallets are resolved/.test(o.reason)
+              ? `proof accepted; no wallets resolved in window ${String(
+                  (o.human as { window?: unknown } | undefined)?.window ?? "?",
+                )} — run resolve_humans`
+              : null,
+          note: (o: Record<string, unknown>) =>
+            `human ${String((o.human as { cluster?: string } | undefined)?.cluster ?? "?").slice(0, 10)}… · ` +
+            `${String((o.human as { wallet_count?: unknown } | undefined)?.wallet_count ?? "?")} wallets · ` +
+            `window ${String(o.window_days ?? "?")}d`,
+        } as Probe,
+      ]
+    : []),
   ];
 }
 
@@ -323,6 +356,7 @@ async function main(): Promise<void> {
   );
   console.log(`  card             ${cardKey ? `configured → tier ${who.body.tier ?? "?"} (HTTP ${who.status})` : "none (anonymous)"}`);
   console.log(`  payer key        ${payerKey ? "configured" : "none — pay_and_read withheld"}`);
+  console.log(`  human key        ${humanKey ? "configured — wallet_tca(\"me\") probed" : "none — the human path is not probed"}`);
   console.log(`  tools offered    ${toolsFor(payerKey !== undefined).length}`);
 
   if (cardKey && who.status === 401) {
@@ -346,7 +380,7 @@ async function main(): Promise<void> {
   for (const p of PROBES) {
     let out: unknown;
     try {
-      out = await callTool(p.tool, p.args, { api, fetchImpl, payerKey });
+      out = await callTool(p.tool, p.args, { api, fetchImpl, payerKey, humanKey });
     } catch (err) {
       out = { error: `threw: ${String(err).slice(0, 160)}` };
     }

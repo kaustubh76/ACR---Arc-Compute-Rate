@@ -277,7 +277,7 @@ press must not quietly strip a correctly-set card.
 | `ACR_ARC_CHAIN_ID` | overrides the card's domain chain. **Leave it unset** unless you know you need it; the gate is asked instead. Set it to a chain the gate disagrees with and the plugin presents **no card at all** and says so once on stderr — see *The 401 this used to be* |
 | `ACR_SPEND_LOG` | where `check_spend` records each priced bill so `spend_report` can total them. Default `~/.acr/spend.jsonl`; `off` disables recording entirely. Nothing here is uploaded — see **Privacy** |
 | `ACR_ARC_PRIVATE_MAINNET` | **inert — it changes nothing.** Kept documented so nobody sets it expecting an effect. It used to be passed to Circle's client as `arcPrivateMainnet`; `GatewayClientConfig` in the installed `@circle-fin/x402-batching` 3.5.0 is `{chain, privateKey, rpcUrl?, headers?}` and the string appears nowhere in that package's shipped code, so it was dropped on the floor at runtime (it compiled because a spread skips excess-property checks). It was unreachable anyway: both chain profiles are `privateMainnet: false` since the private-mainnet preview ended. Verified 2026-10-10 |
-| `ACR_HUMAN_AGENT_KEY` | lets `wallet_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. A demo buyer's key derives from its public label |
+| `ACR_HUMAN_AGENT_KEY` | lets `wallet_tca("me")` answer the **AgentKit** gate (production): the key of a wallet registered in AgentBook. The plugin signs each challenge (CAIP-122, EIP-191) in-process; the key never leaves it. On a fixture-backed press the roster is the demo one and the key is derivable — the testnet section above has the one line |
 | `ACR_HUMAN_NULLIFIER` | the same, for a local **dev** gate (`ACR_HUMANID_MODE=dev`): a bare nullifier. Not a spending key; anyone holding it can read that human's costs |
 
 ### Running it against Arc testnet
@@ -294,7 +294,8 @@ recipe lives here.
   "ACR_API": "https://acr-api-1fto.onrender.com",
   "ACR_AGENT_PRIVATE_KEY": "0x<any 32 bytes>",
   "ACR_PAYER_PRIVATE_KEY": "0x<a wallet with an open Gateway deposit on Arc testnet>",
-  "ACR_MAX_SPEND_USDC": "0.001"
+  "ACR_MAX_SPEND_USDC": "0.001",
+  "ACR_HUMAN_AGENT_KEY": "0x<a fixture wallet's key — see below>"
 }
 ```
 
@@ -312,6 +313,38 @@ Measured against that press on 2026-10-10, with that config:
 | `can_i_pay` | **all seven rungs pass** — host, chain, card, gate, challenge, payer, funds |
 | `pay_and_read("/prints")` | **HTTP 200**, `$0.0001`, `eip155:5042002`, settlement `6a9e4799-…`, which then appeared on `payment_receipts` as seq 113 |
 | every tool | **11 of 11 answered**, and `wallet_tca` went from `seen: false` to 21 purchases / `$0.105752` once that payment was on the tape |
+| `wallet_tca("me")` | the AgentKit proof **accepted** — `/humanid/info` `verified_proofs` 0 → 1 — returning the human's cluster and window |
+
+#### `wallet_tca("me")`, the one tool that needs a person
+
+`"me"` unions every wallet one human owns, so it needs a human proof rather than
+an address. That press verifies **AgentKit** proofs and its AgentBook is the
+**fixture** roster (`/humanid/info` → `agentbook: fixture`), whose wallets are
+derived from public labels — two humans, four wallets, `acr-buyer-1..3` for one
+person and `acr-buyer-4` for another:
+
+```bash
+ACR_HUMAN_AGENT_KEY=0x$(python3 -c 'import hashlib; print(hashlib.sha256(b"acr-buyer::acr-buyer-1").hexdigest())')
+# -> 0x674055533B05Ec3fD135fC21c4d91a4A2D3193d3, which is the testnet tape's main payer
+```
+
+These are **not people**, and that is the property that makes printing the
+recipe safe: every one is flagged `sandbox` all the way onto the chain
+(`HumanIdMirror.clusterProvenance`) and into the tape (`HumanCluster.sandbox`),
+and none holds anything worth keeping. `packages/acr_oracle_client/.../demo_humans.py`
+is the source. Do not expect this to work against a press whose `/humanid/info`
+reports a real AgentBook — there the key has to be a wallet an actual person
+registered.
+
+**Two windows, and they are not the same number.** An address takes a 30-day
+default; `"me"` takes the press's **human rotation window** (about a week),
+because a person's wallet set is only resolved per window. Asking `"me"` for 30
+days is refused — by this plugin, before it spends a nonce, naming the window to
+ask for. Measured 2026-10-10: the proof is accepted (`verified_proofs` 0 → 1 the
+first time it ran) and the answer then reports the human's cluster and
+`wallet_count`. A `wallet_count` of 0 means nobody has run the weekly
+`resolve_humans` for the current window — an operator chore, not a fault in the
+plugin, and `npm run smoke` says so in those words.
 
 Two things are true of this press and worth knowing before you trust a number
 from it:

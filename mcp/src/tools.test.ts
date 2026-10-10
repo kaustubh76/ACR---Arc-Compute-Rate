@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { signAgentKitChallenge, callTool, DEFAULT_API, DEFAULT_DAYS, TOOLS, toolsFor, UNIT_SANITY_BP } from "./tools.js";
+import { signAgentKitChallenge, callTool, DEFAULT_API, DEFAULT_DAYS, HUMAN_WINDOW_DAYS, TOOLS, toolsFor, UNIT_SANITY_BP } from "./tools.js";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -115,13 +115,32 @@ test("an unknown tool names the ones that exist", async () => {
   assert.ok(out.tools.includes("wallet_tca"));
 });
 
-/** The human gate: a 401 carrying a nonce, then the answer. */
-function humanGate(union: unknown, seen: Array<{ url: string; headers?: Record<string, string> }> = []) {
-  let calls = 0;
+/** The human gate: `/humanid/info` states the rotation window, then `/tca/human`
+ *  answers a 401 carrying a nonce, then the answer.
+ *
+ *  ROUTED BY PATH, NOT BY CALL COUNT, and that mattered. This stub used to
+ *  return the 401 to whichever request arrived first — so when `humanTca` began
+ *  asking `/humanid/info` for the window (because `DEFAULT_DAYS` of 30 is a
+ *  window `/tca/human` cannot answer), the info request consumed the challenge
+ *  and every assertion about the sequence shifted by one. A stub that answers by
+ *  arrival order agrees with the press only as long as nobody adds a request.
+ *
+ *  `windowDays: null` simulates a press whose info route states no window at
+ *  all, which is the case the local refusal must NOT act on. */
+function humanGate(
+  union: unknown,
+  seen: Array<{ url: string; headers?: Record<string, string> }> = [],
+  opts: { windowDays?: number | null } = {},
+) {
+  let tcaCalls = 0;
   return async (url: string, init?: { headers?: Record<string, string> }) => {
     seen.push({ url, headers: init?.headers });
-    calls += 1;
-    if (calls === 1) {
+    if (url.includes("/humanid/info")) {
+      const body = opts.windowDays === null ? {} : { rotation_window_days: opts.windowDays ?? 7 };
+      return { ok: true, status: 200, json: async () => body };
+    }
+    tcaCalls += 1;
+    if (tcaCalls === 1) {
       return {
         ok: false,
         status: 401,
@@ -131,6 +150,10 @@ function humanGate(union: unknown, seen: Array<{ url: string; headers?: Record<s
     return { ok: true, status: 200, json: async () => union };
   };
 }
+
+/** Just the `/tca/human` calls, which is what the sequence assertions are about. */
+const tcaCalls = (seen: Array<{ url: string; headers?: Record<string, string> }>) =>
+  seen.filter((c) => c.url.includes("/tca/human"));
 
 test('wallet_tca("me") answers the challenge rather than reusing a static credential', async () => {
   const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
@@ -143,12 +166,104 @@ test('wallet_tca("me") answers the challenge rather than reusing a static creden
       nullifier: "0xnull",
     },
   );
-  assert.deepEqual(out, { available: true, human: { wallet_count: 3 } });
-  // Two calls: take a challenge, then answer THAT nonce. The nonce is
-  // single-use, so a credential held across calls would stop working.
-  assert.equal(seen.length, 2);
-  assert.equal(seen[0].url, "https://acr.test/tca/human?days=7");
-  assert.equal(seen[1].headers?.["HUMAN-PROOF"], "humanid 0xnull:n0nce");
+  // `window_days` rides on every human answer: a caller who named no window
+  // would otherwise read a 7-day figure as the 30-day one every other tool
+  // returns. Here the window WAS named, and it is echoed.
+  assert.deepEqual(out, { available: true, human: { wallet_count: 3 }, window_days: 7 });
+  // Two calls to the gate: take a challenge, then answer THAT nonce. The nonce
+  // is single-use, so a credential held across calls would stop working.
+  const gated = tcaCalls(seen);
+  assert.equal(gated.length, 2);
+  assert.equal(gated[0].url, "https://acr.test/tca/human?days=7");
+  assert.equal(gated[1].headers?.["HUMAN-PROOF"], "humanid 0xnull:n0nce");
+});
+
+test('wallet_tca("me") asks the window the press can answer, not DEFAULT_DAYS', async () => {
+  /* THE BUG, FOUND AGAINST THE LIVE TESTNET PRESS 2026-10-10. `DEFAULT_DAYS` is
+     30 — widened from 7 because at 7 every wallet and seller reported zero rows.
+     `/tca/human` cannot answer 30: a human's wallet set is resolved per rotation
+     window, and the press refuses anything longer. So this tool, and
+     `reroute_suggestion({target:"me"})`, could not succeed at their own defaults
+     — ever. The proof was minted, the gate accepted it, and the request was then
+     refused over an argument the plugin chose itself.
+     No stub could catch it: the gate above answers `available: true` whatever
+     `days` says. The third time in this package that a fake gate refused
+     nothing. */
+  assert.equal(DEFAULT_DAYS, 30, "if this changes, re-read why the human path cannot use it");
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  await callTool(
+    "wallet_tca",
+    { target: "me" }, // no `days` — the path that was broken
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen, { windowDays: 7 }), nullifier: "0xnull" },
+  );
+  for (const call of tcaCalls(seen)) {
+    assert.ok(call.url.includes("days=7"), `asked for ${call.url}, which the press cannot answer`);
+    assert.ok(!call.url.includes("days=30"), "DEFAULT_DAYS must never reach /tca/human");
+  }
+});
+
+test("the window comes from the press, not from a constant here", async () => {
+  /* `HUMAN_WINDOW_DAYS` is a fallback for an unreadable info route, not the
+     answer. A deployment that rotates on a different cadence must be followed,
+     or this plugin narrows someone's history for no reason. */
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  await callTool(
+    "wallet_tca",
+    { target: "me" },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen, { windowDays: 3 }), nullifier: "0xnull" },
+  );
+  assert.ok(tcaCalls(seen).every((c) => c.url.includes("days=3")), "the press said 3; we asked 3");
+  assert.notEqual(HUMAN_WINDOW_DAYS, 3, "the fallback must not be what made this pass");
+});
+
+test("an over-window ask is refused before a credential is minted", async () => {
+  /* A proof is single-use and cheap but not free, and the press's refusal is
+     knowable in advance once it has stated its window. So: no challenge, no
+     signature, and a sentence that names the number to ask for. */
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  const out = (await callTool(
+    "wallet_tca",
+    { target: "me", days: 30 },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen, { windowDays: 7 }), nullifier: "0xnull" },
+  )) as { available: boolean; reason: string; window_days: number };
+  assert.equal(out.available, false);
+  assert.equal(out.window_days, 7);
+  assert.match(out.reason, /7-day rotation window/);
+  assert.match(out.reason, /Ask for 7 or fewer/);
+  assert.match(out.reason, /pass an address instead/, "the longer history is still reachable, and says how");
+  assert.equal(tcaCalls(seen).length, 0, "nothing was asked of the gate, so no nonce was spent");
+});
+
+test("an unstated window DEFERS to the press rather than refusing on a guess", async () => {
+  /* The half that keeps the local refusal honest. If the info route says
+     nothing, our 7 is an assumption — and refusing a 30-day ask on an
+     assumption would deny a window some other deployment genuinely allows. The
+     press's own sentence is a good one; let it speak. */
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  const out = (await callTool(
+    "wallet_tca",
+    { target: "me", days: 30 },
+    { api: "https://acr.test", fetchImpl: humanGate({ available: true }, seen, { windowDays: null }), nullifier: "0xnull" },
+  )) as { available: boolean };
+  assert.equal(out.available, true, "the request went through to the press");
+  assert.ok(tcaCalls(seen).length > 0, "the gate was asked");
+  assert.ok(tcaCalls(seen).every((c) => c.url.includes("days=30")), "and asked for what the caller wanted");
+});
+
+test('reroute_suggestion({target:"me"}) goes through the same window', async () => {
+  // Same helper, same bug, and it would have been missed by fixing only
+  // wallet_tca: both cases call `humanTca`.
+  const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
+  await callTool(
+    "reroute_suggestion",
+    { target: "me" },
+    {
+      api: "https://acr.test",
+      fetchImpl: humanGate({ available: true, reroute: null }, seen, { windowDays: 7 }),
+      nullifier: "0xnull",
+    },
+  );
+  assert.ok(tcaCalls(seen).every((c) => c.url.includes("days=7")));
 });
 
 test('wallet_tca("me") sends the credential in a header, never in the URL', async () => {
@@ -232,11 +347,15 @@ test('wallet_tca("me") signs an AgentKit challenge when the gate asks for one', 
   }));
   const key = `0x${"42".repeat(32)}`;
   const seen: Array<{ url: string; headers?: Record<string, string> }> = [];
-  let calls = 0;
+  // Routed by path, for the reason `humanGate` above spells out.
+  let gated = 0;
   const gate = async (url: string, init?: { headers?: Record<string, string> }) => {
     seen.push({ url, headers: init?.headers });
-    calls += 1;
-    if (calls === 1) {
+    if (url.includes("/humanid/info")) {
+      return { ok: true, status: 200, json: async () => ({ rotation_window_days: 7 }) };
+    }
+    gated += 1;
+    if (gated === 1) {
       return {
         ok: false,
         status: 401,
@@ -249,7 +368,7 @@ test('wallet_tca("me") signs an AgentKit challenge when the gate asks for one', 
     available: boolean;
   };
   assert.equal(out.available, true);
-  const header = seen[1].headers?.["HUMAN-PROOF"];
+  const header = tcaCalls(seen)[1].headers?.["HUMAN-PROOF"];
   assert.ok(header, "the proof rides in the header the challenge named");
   const payload = JSON.parse(Buffer.from(header!, "base64").toString()) as {
     address: `0x${string}`; nonce: string; uri: string; signedMessage: string; signature: `0x${string}`;
