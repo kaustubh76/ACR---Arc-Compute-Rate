@@ -16,17 +16,50 @@ test("the MCP config names the API this page looks at, and is JSON a host can pa
   assert.ok(JSON.parse(payJson).mcpServers["acr-tca"], "the paying config must parse too");
 });
 
-test("the config installs the published package, with no path for a visitor to edit", () => {
+test("the config is one a visitor can paste unedited, with no path in it", () => {
+  /* RENAMED, because the old title asserted something that is not true. It read
+     "the config installs the published package" and justified itself with "the
+     published package name, so there is nothing to clone" — and `npm view
+     acr-mcp` is a 404: it has never been published. The CONSTRAINT this test
+     holds is still exactly right (a snippet whose point is that it pastes
+     unedited must not carry a placeholder path), so the assertions stand. Only
+     the claim about the registry goes, because a green test whose comment
+     states a falsehood is how a reader concludes everything is fine.
+     What a 404 means is now said on the page itself, pinned below. */
   const s = snippets("https://acr.test");
   for (const tab of [s.config, s.pay]) {
     assert.match(tab, /"npx"/);
-    assert.match(tab, /"-y", "acr-mcp"/, "the published package name, so there is nothing to clone");
+    assert.match(tab, /"-y", "acr-mcp"/, "the package name a host resolves, once it is on npm");
     // It used to say `["tsx", "/path/to/ACR/mcp/src/server.ts"]`: a placeholder
     // path, in a package that was `private: true` and had no bin, so pasting this
     // could not work without first cloning the monorepo and editing the string.
     assert.ok(!tab.includes("/path/to/"), "a placeholder path is not a config a visitor can paste");
     assert.ok(!/\.ts"/.test(tab), "a host runs the built binary, not TypeScript source");
   }
+});
+
+test("the page says what a 404 from that command means", () => {
+  /* The clause is in JSX, not in `snippets()`, so it is pinned by a scan of the
+     source — the same mechanism `coverage.test.ts`, `chainWiring.test.ts` and
+     `mainnetOnly.test.ts` use for invariants no unit test can reach.
+     WHY IT NEEDS PINNING AT ALL: this page hands a reader two pasteable configs
+     built around a command that 404s today, and the gap between "the page is
+     proud of npx" and "npx cannot work yet" is invisible from inside the
+     snippet tests above. If the clause is ever deleted while the package is
+     still unpublished, the dead end comes back silently. Once it ships the
+     sentence stops being relevant, and deleting it then is a deliberate act
+     that has to come here first. */
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "components", "chain", "McpSnippet.tsx"),
+    "utf8",
+  );
+  assert.match(src, /Not on npm yet/, "the expert edition must say the package is not published");
+  assert.match(src, /mcp\/README\.md/, "and point at the file that carries the clone and build");
+  assert.match(
+    src,
+    /p="If that command is not found/,
+    "the plain edition needs its own sentence, not the expert one",
+  );
 });
 
 test("every tool the server registers is named on this page", () => {

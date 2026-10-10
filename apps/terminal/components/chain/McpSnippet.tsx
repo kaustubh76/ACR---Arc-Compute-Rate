@@ -141,6 +141,21 @@ export function McpSnippet({ api }: { api: string }) {
           <Ed x="install" p="install" />
         </span>
         <span className="mono">npx -y acr-mcp</span>
+        {/* WHAT A 404 MEANS, said once, in the row that already exists.
+            Measured 2026-10-10: `npm view acr-mcp` is a 404 — the package has
+            never been published — while this row, both configs above and two
+            READMEs all tell a reader to run it. So the command this page is
+            proudest of is the one that cannot work, and nothing here said why.
+            A clause rather than a panel, because additive chrome is what this
+            project rejects; and phrased so it simply stops being relevant once
+            the package ships, rather than becoming wrong. */}
+        <Ed
+          as="span"
+          className="muted"
+          style={{ marginLeft: 8 }}
+          x="Not on npm yet, so a 404 here is expected. mcp/README.md has the clone and build."
+          p="If that command is not found, the code can be downloaded and built instead. The repo's mcp folder explains how."
+        />
       </div>
 
       <div style={{ marginTop: 14, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
