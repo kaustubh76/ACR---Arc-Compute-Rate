@@ -177,3 +177,20 @@ test("a host that lists the route keeps its ordinary 404", () => {
   const served = ["/operator/statement/{business}"];
   assert.ok(servesPath(served, "/operator/statement/nobody"), "the route exists; the business does not");
 });
+
+test("the availability check and the ledger's 404 agree about one host", () => {
+  /* THE CONFLATION THIS CLOSES. The press answers 404 both for a route it does
+     not have and for `no business registered as 'x'`. `/developers` uses this
+     to decide whether to offer a run button and the ledger proxy uses it to
+     decide whether "not on this press" is the honest label — so they must
+     reach the same verdict from the same list, or the page will offer a button
+     for a route the download already calls missing. */
+  const press = ["/health", "/operator/ledger/{business}", "/operator/traction"];
+  assert.ok(servesPath(press, "/operator/ledger/acr-fleet"), "the route exists");
+  assert.ok(servesPath(press, "/operator/ledger/nobody"), "and still exists for a bad slug");
+  assert.equal(servesPath(press, "/par"), false, "this one genuinely is not here");
+
+  const older = ["/health", "/prints"];
+  assert.equal(servesPath(older, "/operator/ledger/acr-fleet"), false);
+  assert.equal(servesPath(older, "/operator/traction"), false);
+});

@@ -13,9 +13,9 @@ import { RegistryProof } from "@/components/chain/RegistryProof";
 import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
-import { useMarketReceipts, useRevenue, useTerminal, useX402Info } from "@/lib/useLive";
+import { useMarketReceipts, useRevenue, useServes, useTerminal, useX402Info } from "@/lib/useLive";
 import { fmtInt, money, shortAddr } from "@/lib/format";
-import { sellerBase } from "@/lib/apiBase";
+import { sellerBase, servesPath } from "@/lib/apiBase";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import { ENDPOINTS, FAMILIES, type EndpointRow, type Family } from "@/lib/endpoints";
 import type { Envelope, MarketReceipt, TerminalData } from "@/lib/types";
@@ -38,6 +38,19 @@ interface ProbeResult {
   human_note?: string;
   /** Whether a card was sent at all — so a 401 reads as "card refused". */
   carded?: boolean;
+  /** WHICH host served this probe. Computed by the route for exactly this
+   *  reason — "so '503' is attributable to a wrong ACR_API rather than to the
+   *  press being down" — and dropped here until now. Rendered only when it
+   *  disagrees with the host this page says it is reading from: agreeing on
+   *  every row is noise, and the disagreement is the whole point.
+   *
+   *  IT IS `baseState()`, AN OBJECT, and I first declared it a string and
+   *  called `.replace()` on it — which throws inside this table's render and
+   *  blanks the page into the error boundary on any run click. `tsc` was
+   *  clean throughout, because this interface is a hand-written description of
+   *  the JSON and nothing ties it to the route's return type. The only thing
+   *  that would have caught it is clicking the button. */
+  seller?: { active?: string };
 }
 
 /** The three ways to run /agent/whoami, and the key each result is stored under.
@@ -169,6 +182,11 @@ export function DevelopersView({
   const [probing, setProbing] = useState<string | null>(null);
   const [probeOut, setProbeOut] = useState<Record<string, ProbeResult>>({});
   const { tape } = useMarketReceipts();
+  /* Which of the advertised routes THIS deployment can actually answer. The
+     register above describes the product and is right; the press in front of
+     a visitor can be older. Null means the host would not say, and then every
+     row stays runnable — the behaviour before this existed. */
+  const served = useServes();
 
   const loadIntoConsole = useCallback((path: string, run: string) => {
     setSelected(path);
@@ -515,7 +533,22 @@ export function DevelopersView({
                               {DESC[e.path]}
                             </td>
                             <td className="mono">
-                              {act === "probe" ? (
+                              {act === "probe" && served && !servesPath(served, e.run!) ? (
+                                /* A LABEL, NOT A DISABLED BUTTON. This row is
+                                   runnable in the product and not on this
+                                   press, which is a fact about the deployment
+                                   and worth saying in those words. The page's
+                                   own rule two sections down is "Not a button
+                                   that could only ever fail", and
+                                   EscalationActions adds the other half: a
+                                   disabled control that does not say why reads
+                                   as broken. Same muted shape the register
+                                   already uses for a row that needs a wallet
+                                   or a proof. */
+                                <span className="muted" style={{ fontSize: 11.5 }}>
+                                  <Ed x="not on this press" p="not on this service" />
+                                </span>
+                              ) : act === "probe" ? (
                                 <>
                                   <button
                                     className="mini-btn"
@@ -604,6 +637,23 @@ export function DevelopersView({
                                           · {fmtInt(o.ms ?? 0)} ms
                                           {o.truncated ? " · preview" : ""}
                                         </span>
+                                        {/* ONLY WHEN IT DISAGREES. The probe
+                                            records which host served it so a
+                                            status is attributable to a host
+                                            rather than to "the press"; printed
+                                            on every row it would just repeat
+                                            the host named above. It differs
+                                            exactly when the ladder fell past
+                                            the configured override mid-session,
+                                            which is the one time a reader needs
+                                            to know a different box answered. */}
+                                        {o.seller?.active && o.seller.active !== activeApi ? (
+                                          <span className="gold">
+                                            {" · "}
+                                            <Ed x="served by " p="answered by " />
+                                            {o.seller.active.replace(/^https?:\/\//, "")}
+                                          </span>
+                                        ) : null}
                                         {/* The tier, as a badge, because this row exists to make the
                                             three tiers visible next to each other. The sentence after
                                             it is the one the human tier was built to say. */}

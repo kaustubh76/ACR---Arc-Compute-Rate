@@ -71,12 +71,16 @@ export function LedgerDownload({ slug }: { slug: string }) {
         return;
       }
       if (res.status === 404) {
-        /* NOT "RETRY". A 404 here is the press having no ledger route, and
-           `res.status` was being read and thrown away while all three of 404,
-           502 and 504 collapsed into a button inviting an action that cannot
-           succeed. The proxy beside this one already refuses to flatten a
-           refusal into a bad gateway for the same reason. */
-        setPhase("absent");
+        /* NOT "RETRY" — but only when the route is genuinely missing. A 404 is
+           also how the press says `no business registered as 'x'`, so the
+           proxy makes the distinction (it asks the host's own spec) and this
+           reads its verdict rather than guessing from the status. Saying "not
+           on this press" about a bad slug would blame a deployment for a typo.
+           `res.status` used to be read and thrown away here while 404, 502 and
+           504 all collapsed into a button inviting an action that could not
+           succeed. */
+        const why = (await res.json().catch(() => null)) as { upstream?: string } | null;
+        setPhase(why?.upstream === "absent" ? "absent" : "failed");
         return;
       }
       if (!res.ok) {

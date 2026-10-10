@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { apiBase } from "@/lib/api";
+import { apiBase, servedPaths } from "@/lib/api";
+import { servesPath } from "@/lib/apiBase";
 import { cardHeader, requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
@@ -73,8 +74,23 @@ export async function GET(req: Request) {
       });
     }
     if (!res.ok) {
+      /* A 404 HERE MEANS TWO THINGS, and the download button was reading it as
+         one. The press answers 404 both for a route it does not have and for
+         `no business registered as 'x'` (app.py:1636), and this proxy passed
+         both through identically — so an unknown slug would have told a reader
+         "ledger · not on this press", blaming a deployment for their typo.
+         Unreachable today, because the button only renders for businesses the
+         press itself just listed, but it is the distinction `servesPath` exists
+         to make and this was the one place still collapsing it. */
+      const served = res.status === 404 ? await servedPaths(chain) : null;
+      const absent = served !== null && !servesPath(served, `/operator/ledger/${business}`);
       return NextResponse.json(
-        { error: `the press answered ${res.status}` },
+        {
+          error: absent
+            ? "this press has no ledger route"
+            : `the press answered ${res.status}`,
+          ...(absent ? { upstream: "absent" } : {}),
+        },
         { status: res.status === 404 ? 404 : 502, headers: { "Cache-Control": "no-store" } },
       );
     }

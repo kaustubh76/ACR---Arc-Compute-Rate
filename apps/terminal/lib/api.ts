@@ -156,24 +156,55 @@ async function identityProblem(rig: Rig, base: string): Promise<string | null> {
  *  evidence, the same rule `identityProblem` applies to a missing chain id.
  */
 async function routeAbsent(rig: Rig, base: string, path: string): Promise<boolean> {
-  let served = rig.serves.get(base);
-  if (served === undefined) {
-    served = null;
-    try {
-      const res = await fetch(`${base}/openapi.json`, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(6000),
-      });
-      if (res.ok) {
-        const spec = (await res.json()) as { paths?: Record<string, unknown> };
-        if (spec?.paths) served = new Set(Object.keys(spec.paths));
-      }
-    } catch {
-      /* unreadable: stays null, and the caller reports an ordinary failure */
-    }
-    rig.serves.set(base, served);
-  }
+  const served = await specFor(rig, base);
   return served !== null && !servesPath(served, path);
+}
+
+/** The paths a host says it serves, fetched once and remembered.
+ *
+ *  FACTORED OUT BECAUSE IT HAS TWO READERS AND THEY MUST AGREE. `routeAbsent`
+ *  asks it after a 404 to decide what to call the failure; `servedPaths` asks
+ *  it up front so a page can avoid offering a control that could only fail.
+ *  Two copies of this fetch would be two answers to "does this host have that
+ *  route", and the UI would eventually show a button for a route the error
+ *  path already knows is missing.
+ *
+ *  `null` means the spec could not be read, which is NOT "serves nothing".
+ *  Both callers treat it as "cannot tell" and fall back to today's behaviour —
+ *  the same rule `identityProblem` applies to a missing chain id.
+ */
+async function specFor(rig: Rig, base: string): Promise<Set<string> | null> {
+  const known = rig.serves.get(base);
+  if (known !== undefined) return known;
+  let served: Set<string> | null = null;
+  try {
+    const res = await fetch(`${base}/openapi.json`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const spec = (await res.json()) as { paths?: Record<string, unknown> };
+      if (spec?.paths) served = new Set(Object.keys(spec.paths));
+    }
+  } catch {
+    /* unreadable: stays null, and every caller reports "cannot tell" */
+  }
+  rig.serves.set(base, served);
+  return served;
+}
+
+/** Which paths this chain's press serves, or null if it would not say.
+ *
+ *  For a surface that advertises runnable endpoints: /developers lists what the
+ *  PRODUCT serves (`lib/endpoints.ts`, pinned against `app.openapi()`), and
+ *  that register is right even when the deployment behind it is older. Which of
+ *  those a visitor can actually run today is a different, per-host fact, and
+ *  this is it.
+ */
+export async function servedPaths(chain: ChainKey): Promise<string[] | null> {
+  const rig = rigFor(chain);
+  const served = await specFor(rig, rig.ladder.state().active);
+  return served === null ? null : [...served];
 }
 
 export function apiBase(chain: ChainKey): string {

@@ -664,6 +664,26 @@ export interface WebhookFeed {
 
 /** Enriched /health — drives the StatusPill and live checklists. Loosely
  *  typed: the pill degrades gracefully if a field is missing. */
+/** The spend operator's standing, as /health now reports it (`app.py:807`).
+ *
+ *  TYPED, AND DELIBERATELY NOT RENDERED IN THE MASTHEAD. `/ops` already shows
+ *  it — "The spend operator" — and on the live mainnet `ACR_OPERATOR_AUTORUN`
+ *  is `off`, so a chip beside the keeper's would print a true and useless
+ *  "off" on every page of the site. This project rejects additive chrome; what
+ *  was missing was the declaration, so the field is findable by the next person
+ *  who has a reason to show it. That reason is not "it exists". */
+export interface OperatorStatus {
+  mode?: string;
+  every_s?: number;
+  max_per_tick?: number;
+  checked_at?: number | null;
+  checked_age_s?: number | null;
+  verdict?: string | null;
+  fired_at?: number | null;
+  fired_age_s?: number | null;
+  next_due_s?: number | null;
+}
+
 export interface HealthData {
   status?: string;
   gate?: "dev" | "circle" | string;
@@ -677,6 +697,8 @@ export interface HealthData {
   poster_last_tx?: string | null;
   attestor_address?: string | null;
   keeper?: KeeperStatus | null;
+  /** See OperatorStatus: declared so it is findable, not rendered in the strip. */
+  operator?: OperatorStatus | null;
   [k: string]: unknown;
 }
 

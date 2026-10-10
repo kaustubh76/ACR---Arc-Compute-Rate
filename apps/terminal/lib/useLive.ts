@@ -483,6 +483,37 @@ export function useOps() {
   return { ledger: data, error: error as Error | undefined, refresh: mutate };
 }
 
+/** Which routes the press behind this chain actually has.
+ *
+ *  Not what the product serves — `lib/endpoints.ts` says that, and is pinned
+ *  against the press's own `app.openapi()`. This is which of them the
+ *  DEPLOYMENT in front of this visitor can answer today, so a page does not
+ *  offer a control that could only fail.
+ *
+ *  `data: null` is "the host would not say", and a caller must treat that as
+ *  "cannot tell" rather than "serves nothing": the right fallback is to offer
+ *  everything, which is what the page did before this existed.
+ *
+ *  Polls slowly. A route set changes on a redeploy, not on a request, and the
+ *  proxy caches it for a minute anyway.
+ */
+export function useServes() {
+  const chain = useChain();
+  const { data } = useSWR<Envelope<string[] | null>>(
+    apiKey("/api/serves", chain),
+    fetcherFor(chain),
+    { refreshInterval: 300_000, revalidateOnFocus: false, ...RETRY },
+  );
+  /* `[]` IS NOT AN ANSWER. `data?.data ?? null` turned a present-but-empty
+     path list into a truthy empty array, and the one consumer reads
+     `served && !servesPath(served, run)` — so every runnable row on
+     /developers would have gone dark at once. "The host would not say" and
+     "the host serves nothing" are the same distinction this whole mechanism
+     exists to make, and I collapsed it in the accessor. */
+  const paths = data?.data;
+  return paths && paths.length > 0 ? paths : null;
+}
+
 /** Who the operator runs for. Slow-moving (onboarding is a commit), so this
  *  polls gently — the page is not waiting on it to change. */
 export function useBusinesses() {
