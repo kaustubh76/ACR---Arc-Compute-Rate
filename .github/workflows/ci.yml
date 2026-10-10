@@ -214,6 +214,22 @@ jobs:
     # query text, and that "no suggestion" stays distinguishable from "the tape
     # was unreadable".
     #
+    # THIS JOB HAD NEVER PASSED, and nothing said so. `npm test` ran every test
+    # to green and then never exited: `node --import tsx --test` leaves tsx's
+    # esbuild service running, so the runner waits on a live child handle for
+    # ever. The two concluded runs on 2026-10-09 were `cancelled` at the
+    # six-hour ceiling, and the cleanup named the culprit —
+    # "Terminate orphan process: pid (2392) (esbuild)". Every other job was
+    # green, so the branch looked merely slow. Fixed by `--test-force-exit` in
+    # the package's own test script, which still exits non-zero on a failure
+    # (verified by breaking one). It passes in about a second.
+    #
+    # The timeout is the other half. A gate that takes six hours to tell you
+    # anything is a gate nobody waits for, and a silent cancellation reads like
+    # an infrastructure hiccup rather than a defect. Every step here is seconds;
+    # ten minutes is slack, not a budget.
+    timeout-minutes: 10
+    #
     # These tests fake `fetch`, which is what keeps the job hermetic and
     # secret-free — and is also why they cannot catch a gate REFUSING the plugin's
     # agent card: a fake gate refuses nothing. That check is `npm run smoke`,
