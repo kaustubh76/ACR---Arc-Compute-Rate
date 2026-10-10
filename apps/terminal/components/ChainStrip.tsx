@@ -4,8 +4,10 @@ import { chainFacts, isMainnet } from "@/lib/chain";
 import { RATING_WINDOW_DAYS } from "@/lib/humans";
 import { deskTier, formatOi } from "@/lib/futuresBook";
 import { ageWords, editionLabel, publishedAt } from "@/lib/format";
+import { PRINT_MAX_AGE_S, printFreshness, worthSaying } from "@/lib/printAge";
 import { useConnection } from "@/lib/useConnection";
 import { useEdition } from "@/lib/useEdition";
+import { useNow } from "@/lib/useNow";
 import { useFutures, useHealth, useHumanId } from "@/lib/useLive";
 import { Ed } from "./Ed";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -76,9 +78,13 @@ const TIER_CHIP: Record<
 const KEEPER_STALE_S = 300;
 
 export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
+  // 0 during SSR by design, which `printFreshness` reads as "cannot tell" —
+  // so the chip simply does not render until the client has a clock. The
+  // keeper chip beside it needs none because the press computes its age.
   const conn = useConnection(initial);
   const health = useHealth();
   const env = conn.env;
+  const nowS = useNow();
   const c = chainFacts(env.data.chain);
   const prints = Object.values(env.data.prints);
   const ts = prints.length ? Math.max(...prints.map((p) => p.ts)) : 0;
@@ -248,6 +254,42 @@ export function ChainStrip({ initial }: { initial: Envelope<TerminalData> }) {
         }
       >
         <Ed x="human count out of date" p="the people count is out of date" />
+      </span>,
+    );
+  }
+
+  /* HOW OLD THE PRINT ITSELF IS, said on every page while it is late.
+   *
+   *  Measured on the live site 2026-10-10: the dateline read "PUBLISHED
+   *  05:18:03 UTC" with no date, over a chain write 8.2 days old, because the
+   *  press wallet is at 0.005 USDC against a 1.0 floor and cannot post. /ops
+   *  reported it correctly and /ops is linked only from the footer. Every
+   *  figure on this site is derived from the print, so a reader who does not
+   *  know its age does not know the age of anything.
+   *
+   *  Quiet until it is news. An hourly print forty minutes old is the system
+   *  working, and a chip on every reading would be furniture rather than a
+   *  signal — the same reason the keeper chip above says nothing until its
+   *  chore stops. Gold and no breathing dot, for that chip's stated reason. */
+  const newestPost = prints.reduce<number>(
+    (max, p) => Math.max(max, p.onchain?.posted_at ?? 0),
+    0,
+  );
+  const print = printFreshness(newestPost || undefined, nowS);
+  if (worthSaying(print.state)) {
+    const words = ageWords(print.ageS ?? 0, plain);
+    parts.push(
+      <span
+        key="print-stale"
+        className="chip chip-gold"
+        title={
+          plain
+            ? `The last rate written to the blockchain was ${words}. Newer readings on this page come from the service, not the chain.`
+            : `last on-chain print ${words}, past the ${Math.round(PRINT_MAX_AGE_S / 60)}-minute settle window — the venue cannot settle against it. /ops names the cause.`
+        }
+      >
+        <Ed x="last print " p="last written " />
+        {words}
       </span>,
     );
   }
