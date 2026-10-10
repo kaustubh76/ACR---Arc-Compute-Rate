@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  freshnessClock,
   PRINT_MAX_AGE_S,
   PRINT_WARN_AGE_S,
   printFreshness,
@@ -75,4 +76,45 @@ test("a clock behind the print does not produce a negative age", () => {
   const r = printFreshness(1_791_000_100, 1_791_000_000);
   assert.equal(r.ageS, 0);
   assert.equal(r.state, "fresh");
+});
+
+test("the hydration frame has a clock, so a stale print cannot flash as live", () => {
+  /* THE FLASH, caught in the live DOM on 2026-10-10 by reading the same page
+     twice 0.4s apart and getting opposite badges. `useNow()` returns 0 for the
+     SSR and hydration frames by design, `printFreshness` correctly calls that
+     `unknown` — and `HomeHero`'s badge falls through on `unknown` to its
+     unconditional `on-chain · live` chip WITH A BREATHING DOT. So the front
+     page claimed a 25-day-old print was live for the whole hydration frame,
+     pulsing over a loop that had stopped, which this project elsewhere calls
+     the one signal worse than none.
+     Neither function was wrong; the WIRING was. The envelope's `fetchedAt` is
+     data rather than a wall clock, so it is identical on both sides of
+     hydration and cannot reintroduce the mismatch that made `useNow()` return
+     0 in the first place. */
+  const fetchedAtMs = 1_800_000_000_000;
+  const atFetch = Math.floor(fetchedAtMs / 1000);
+
+  assert.equal(freshnessClock(0, fetchedAtMs), atFetch, "no client clock: judge against the envelope");
+  const stale = printFreshness(atFetch - 25 * 86400, freshnessClock(0, fetchedAtMs));
+  assert.equal(stale.state, "overdue", "a stale print must read stale from the first paint");
+  assert.equal(worthSaying(stale.state), true, "…so the badge is qualified, not LIVE");
+
+  // The live clock wins once it exists: the age keeps growing in an open tab.
+  assert.equal(freshnessClock(atFetch + 999, fetchedAtMs), atFetch + 999);
+
+  // With neither, still 0 — `unknown`, never a fabricated now.
+  assert.equal(freshnessClock(0, undefined), 0);
+  assert.equal(freshnessClock(0, 0), 0);
+  assert.equal(printFreshness(atFetch, freshnessClock(0, undefined)).state, "unknown");
+});
+
+test("the hero asks for that clock rather than the bare one", () => {
+  // A source scan, because the defect was in the wiring: both functions
+  // behaved exactly as documented.
+  const src = readFileSync(join(__dirname, "..", "components", "HomeHero.tsx"), "utf8");
+  assert.match(
+    src,
+    /nowS=\{freshnessClock\(nowS, fetchedAt\)\}/,
+    "HomeHero must judge the print against the envelope when the client clock is 0",
+  );
 });

@@ -50,6 +50,32 @@ export function printFreshness(
   return { state: "fresh", ageS };
 }
 
+/** The clock to judge a print against, when a wall clock may not exist yet.
+ *
+ *  THE FLASH THIS FIXES, caught in the live DOM on 2026-10-10 by reading the
+ *  same page twice. `useNow()` returns 0 for the SSR and hydration frames on
+ *  purpose — a wall-clock age rendered on the server differs from the client
+ *  and breaks hydration — and `printFreshness` correctly calls that `unknown`.
+ *  But `HomeHero`'s badge falls through on `unknown` to its unconditional
+ *  `on-chain · live` chip, with a breathing dot. So for the whole hydration
+ *  frame the front page claimed a 25-day-old print was live, over exactly the
+ *  pulse this project calls "the one signal worse than none". Two reads 0.4s
+ *  apart landed either side of the commit and disagreed, which is how it
+ *  surfaced.
+ *
+ *  The envelope's `fetchedAt` solves it without reintroducing the mismatch: it
+ *  is DATA, identical on the server and in the hydration frame, so the right
+ *  chip renders from the first paint. Once the live clock is running it wins,
+ *  because then the age keeps growing while the tab stays open.
+ *
+ *  `nowS || …` and not `??`: `useNow()`'s server value is 0, not null.
+ */
+export function freshnessClock(nowS: number, fetchedAtMs?: number): number {
+  if (nowS > 0) return nowS;
+  const s = Math.floor((fetchedAtMs ?? 0) / 1000);
+  return s > 0 ? s : 0;
+}
+
 /** Whether the age should be shown at all.
  *
  *  Only when it is news. An hourly print that is forty minutes old is working

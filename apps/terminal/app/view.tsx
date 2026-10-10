@@ -50,7 +50,13 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
 
   return (
     <>
-      <HomeHero flagship={flagship} data={env.data} live={env.live} direct={directLive} />
+      <HomeHero
+        flagship={flagship}
+        data={env.data}
+        live={env.live}
+        direct={directLive}
+        fetchedAt={env.fetchedAt}
+      />
 
       <PlainPrimer />
 

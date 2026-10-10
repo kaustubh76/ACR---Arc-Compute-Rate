@@ -5,7 +5,7 @@ import { TickerNumber } from "@/components/TickerNumber";
 import { Ed } from "@/components/Ed";
 import { ageWords, fmt, fmtInt, heroFigure, serviceName } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
-import { printFreshness, worthSaying } from "@/lib/printAge";
+import { freshnessClock, printFreshness, worthSaying } from "@/lib/printAge";
 import type { PrintRow, TerminalData } from "@/lib/types";
 
 /* The landing moment: Arc's dawn as a full-viewport hero. A giant live-ticking
@@ -113,11 +113,15 @@ export function HomeHero({
   data,
   live,
   direct,
+  fetchedAt,
 }: {
   flagship: PrintRow;
   data: TerminalData;
   live: boolean;
   direct: boolean;
+  /** The envelope's own timestamp, so the badge can judge the print before the
+   *  client clock exists. See `freshnessClock`. */
+  fetchedAt?: number;
 }) {
   // 0 during SSR on purpose, which `printFreshness` reads as "cannot tell":
   // a wall-clock age rendered on the server differs from the client and breaks
@@ -177,7 +181,10 @@ export function HomeHero({
               live={live}
               direct={direct}
               postedAt={flagship.onchain?.posted_at}
-              nowS={nowS}
+              /* Not `nowS` alone: it is 0 until hydration commits, and the
+                 badge's fallback for "cannot tell" is a positive LIVE claim.
+                 See `freshnessClock`. */
+              nowS={freshnessClock(nowS, fetchedAt)}
             />
           </div>
           <div className="home-hero-rate">
