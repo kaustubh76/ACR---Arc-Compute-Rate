@@ -141,21 +141,22 @@ export function McpSnippet({ api }: { api: string }) {
           <Ed x="install" p="install" />
         </span>
         <span className="mono">npx -y acr-mcp</span>
-        {/* WHAT A 404 MEANS, said once, in the row that already exists.
-            Measured 2026-10-10: `npm view acr-mcp` is a 404 — the package has
-            never been published — while this row, both configs above and two
-            READMEs all tell a reader to run it. So the command this page is
-            proudest of is the one that cannot work, and nothing here said why.
-            A clause rather than a panel, because additive chrome is what this
-            project rejects; and phrased so it simply stops being relevant once
-            the package ships, rather than becoming wrong. */}
-        <Ed
-          as="span"
-          className="muted"
-          style={{ marginLeft: 8 }}
-          x="Not on npm yet, so a 404 here is expected. mcp/README.md has the clone and build."
-          p="If that command is not found, the code can be downloaded and built instead. The repo's mcp folder explains how."
-        />
+        {/* THIS ROW CARRIED A CLAUSE FOR ONE DAY, and the clause is gone because
+            the thing it explained is fixed. On 2026-10-10 `npm view acr-mcp`
+            was a 404 — the package had never been published — while this row,
+            both configs above and two READMEs all told a reader to run it. So
+            the clause said "Not on npm yet, so a 404 here is expected" and
+            pointed at the clone route.
+            `acr-mcp@0.3.0` published that evening and `npx -y acr-mcp` now
+            answers `tools/list` from a clean cache, so the sentence became
+            false and came out the same hour. Recorded here rather than silently
+            deleted, because the mistake worth not repeating is the FORM: I
+            wrote the README's version as a conditional ("if that 404s…") which
+            survives publishing untouched, and this one as a flat assertion,
+            which publishing made wrong. `mcpsnippet.test.ts` now holds the
+            inverse — that this page does not claim the package is unpublished.
+            The clone route is still documented in mcp/README.md, for pinning a
+            fork. */}
       </div>
 
       <div style={{ marginTop: 14, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>

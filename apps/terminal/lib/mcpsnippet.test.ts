@@ -38,28 +38,32 @@ test("the config is one a visitor can paste unedited, with no path in it", () =>
   }
 });
 
-test("the page says what a 404 from that command means", () => {
-  /* The clause is in JSX, not in `snippets()`, so it is pinned by a scan of the
-     source — the same mechanism `coverage.test.ts`, `chainWiring.test.ts` and
-     `mainnetOnly.test.ts` use for invariants no unit test can reach.
-     WHY IT NEEDS PINNING AT ALL: this page hands a reader two pasteable configs
-     built around a command that 404s today, and the gap between "the page is
-     proud of npx" and "npx cannot work yet" is invisible from inside the
-     snippet tests above. If the clause is ever deleted while the package is
-     still unpublished, the dead end comes back silently. Once it ships the
-     sentence stops being relevant, and deleting it then is a deliberate act
-     that has to come here first. */
+test("the page never claims the package is unpublished", () => {
+  /* THE GATE INVERTED, which is the point of keeping one here at all.
+     For one day this page carried a clause reading "Not on npm yet, so a 404
+     here is expected", because `npm view acr-mcp` really was a 404 while the
+     page handed out two configs built around `npx -y acr-mcp`. A test then
+     asserted that clause EXISTED, so it could not be dropped while the dead
+     end was real.
+     `acr-mcp@0.3.0` published on 2026-10-10 and `npx -y acr-mcp` answers
+     `tools/list` from a clean cache, so the claim became false and the clause
+     came out. This holds the other direction: the page must not re-acquire a
+     sentence asserting the package is missing from npm. A published package
+     described as unpublished is the same class of defect as an archive naming
+     the live gate, or a 25-day-old print badged LIVE — a surface asserting
+     something it has not checked. */
   const src = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "..", "components", "chain", "McpSnippet.tsx"),
     "utf8",
   );
-  assert.match(src, /Not on npm yet/, "the expert edition must say the package is not published");
-  assert.match(src, /mcp\/README\.md/, "and point at the file that carries the clone and build");
-  assert.match(
-    src,
-    /p="If that command is not found/,
-    "the plain edition needs its own sentence, not the expert one",
-  );
+  for (const claim of [/x="Not on npm yet/, /p="If that command is not found/]) {
+    assert.ok(
+      !claim.test(src),
+      `acr-mcp is published; this page must not say otherwise (${claim})`,
+    );
+  }
+  // And the command it does advertise is still the published one.
+  assert.match(src, /npx -y acr-mcp/, "the install row must still name the package");
 });
 
 test("every tool the server registers is named on this page", () => {
