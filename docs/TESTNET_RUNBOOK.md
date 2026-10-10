@@ -468,3 +468,58 @@ requires. That is the desk working correctly, not a partial failure.
 Both survived earlier runs because the first live trade happened in the same
 page session as the deposit. **Re-run `make desk-e2e` after any change to the
 desk's phase machine** — endpoint checks cannot see either of these.
+
+## The weekly human resolution — and why it is stuck
+
+`HumanIdMirror` mints a cluster id **per 7-day window**, so a wallet resolved in
+window *N* has no cluster in *N+1* and nothing errors when it rolls. The chore is
+`make resolve-humans ARGS=--dry-run`, then `ARGS=--commit`. Current window is
+**2962** (windows are absolute — `floor(unix / 604800)` — and roll every Thursday
+00:00 UTC).
+
+**As of 2026-10-10 neither signer can run it, and the two failures look nothing
+alike.**
+
+1. **The Circle poster wallet is refused.** The dry run dies in
+   `DeveloperAccountApi->get_public_key` with `{"code":3,"message":"Forbidden"}`,
+   before it reads anything on chain. `build_role_signer("poster")` prefers the
+   role's own Circle wallet whenever `ACR_CIRCLE_WALLET_ID` is set and
+   deliberately will **not** fall back to the ambient `ACR_POSTER_PRIVATE_KEY`
+   (`signer.py:290-298` records why: that ambient key is how every venue script
+   came to sign as a raw EOA on a host with full Circle credentials).
+2. **The local key is not authorized.** Blanking `ACR_CIRCLE_WALLET_ID` for one
+   invocation does reach `ACR_POSTER_PRIVATE_KEY` — address
+   `0x1547B0d3C334F264D28B087566B512AB5CD85379`, which is the **mainnet** press
+   wallet — and the script stops with *"is not in the mirror's signer set. Every
+   `record()` would revert 'bad signer'."*
+
+Either one of these closes it:
+
+```bash
+# (a) restore the Circle credential, then:
+make resolve-humans ARGS=--dry-run && make resolve-humans ARGS=--commit
+
+# (b) or the mirror's owner (0x33189c643774ED2713EbFf5A6923e5fa42b96eE8)
+#     authorizes the local poster once:
+cast send 0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5 'setSigner(address,bool)' \
+  0x1547B0d3C334F264D28B087566B512AB5CD85379 true \
+  --rpc-url $ACR_ARC_RPC_URL --private-key <owner key>
+```
+
+**Check the mirror is on the chain you think before believing "not
+authorized".** `.env` is a mix — `ACR_ARC_CHAIN_ID=5042002` with a testnet RPC,
+but a mainnet poster key — and a wrong mirror address produces the *same*
+refusal for an entirely different reason. `eth_getCode` settles it:
+`0x7f41faA38F…` holds **3064 bytes on testnet and 0 on mainnet**, so the
+configured address is right for the chain in play.
+
+**What it costs while it is stuck.** `/api/humanid` serves `n: 0` and the
+dateline's humans chip vanishes — and in `acr-mcp`, `wallet_tca("me")` returns
+`wallet_count: 0` *with the proof accepted*: `/humanid/info` `verified_proofs`
+climbs, the human's cluster comes back (`0x252e31d6…`, window 2962), and no
+wallets are mapped to it. An accepted credential over an empty answer is the
+most confusing shape available, so `npm run smoke` reports it as "proof
+accepted; no wallets resolved in window N — run resolve_humans" rather than as a
+pass. Run the chore **before** the tape moves on: `Settlement.human` is stamped
+at finalize and the entity is immutable, so a payer that settles while
+unresolved counts as non-human for ever.
