@@ -39,7 +39,7 @@ and an absolute path:
       "command": "npx",
       "args": ["-y", "acr-mcp"],
       "env": {
-        "ACR_API": "https://acr-api-mainnet.onrender.com",
+        "ACR_API": "https://acr-api-1fto.onrender.com",
         "ACR_AGENT_PRIVATE_KEY": "0x<any 32-byte key: the card, not a wallet>"
       }
     }
@@ -51,6 +51,31 @@ That is the whole setup. Ten of the eleven tools are reads, so you can paste
 this with no wallet anywhere near it. **`ACR_ARC_CHAIN_ID` is deliberately absent** —
 the card takes its chain from whichever gate `ACR_API` names, so pointing this at
 a different press needs nothing else changed. See *The 401 this used to be* below.
+
+### Why that host, and not the mainnet one
+
+**Because all eleven tools answer there and five of them do not on mainnet
+today.** Measured with `npm run smoke` against each press on 2026-10-10:
+
+| | `acr-api-1fto` (Arc testnet) | `acr-api-mainnet` (Arc) |
+|---|---|---|
+| tools answering | **12 of 12** probes | **5 of 11 did not** |
+| `wallet_tca`, `reroute_suggestion`, `seller_rating`, `query_tape` | answer | *"the subgraph did not answer"* |
+| `check_spend`, `benchmark_price` | price a real bill | that press has no `/par` yet |
+| `get_rate` | answers, and says the print is 25 days old | answers, fresh |
+
+Two operator items, not two bugs. The mainnet press's subgraph is on The Graph
+Studio's **development** URL, capped at 3,000 queries a day and counted on no
+dashboard — its own ledger reports `4044 queries this boot, 1062 errors,
+~13,272/day at that pace`, so the cap is exhausted and every subgraph-backed
+read fails for most of the day. And that press predates `/par`, so the bill
+check has no route to ask. Both are fixed by a publish-and-switch to the
+gateway with an API key, and a redeploy.
+
+**Point `ACR_API` at `https://acr-api-mainnet.onrender.com` once those land.**
+Nothing else changes: the card takes its chain from whichever gate `ACR_API`
+names. Until then the five tools above are honest about it rather than wrong —
+they say the subgraph did not answer, which is a different thing from zero.
 
 | tool | what it answers | spends? |
 |---|---|---|
@@ -207,11 +232,16 @@ model will try.
 
 ```json
 "env": {
-  "ACR_API": "https://acr-api-mainnet.onrender.com",
+  "ACR_API": "https://acr-api-1fto.onrender.com",
   "ACR_PAYER_PRIVATE_KEY": "0x<a wallet YOU control, funded into Circle Gateway>",
   "ACR_MAX_SPEND_USDC": "0.01"
 }
 ```
+
+Same press as the quickstart above, which also means **testnet USDC** — the
+faucet kind. Point it at the mainnet press and the identical call spends real
+money; the chain comes from whichever gate `ACR_API` names, and `can_i_pay`
+prints which one before anything is signed.
 
 A paid query is **$0.0001**, which is exactly the amount that makes a looping agent
 expensive without ever looking alarming. So there is a per-process cap,
@@ -273,7 +303,7 @@ press must not quietly strip a correctly-set card.
 
 | env | meaning |
 |---|---|
-| `ACR_API` | the seller to call (default `https://acr-api-mainnet.onrender.com` — the same host `/developers` renders in its config block) |
+| `ACR_API` | the seller to call. The **default is the mainnet press** (`https://acr-api-mainnet.onrender.com`), which is the product's chain and the host `/developers` renders for a mainnet reader — but the quickstart above sets this explicitly to the testnet press, because five tools do not answer on mainnet today. See *Why that host*. Run it bare and you get the default, five tools short |
 | `ACR_AGENT_PRIVATE_KEY` | signs the card. Any 32-byte key; nothing is enrolled, nothing is spent |
 | `ACR_PAYER_PRIVATE_KEY` | **spends.** The wallet `pay_and_read` settles from. Unset → that tool is not registered, and `can_i_pay` reports the `payer` rung as the blocker |
 | `ACR_MAX_SPEND_USDC` | per-process spend ceiling (default `0.01`). `0` means refuse every payment |
