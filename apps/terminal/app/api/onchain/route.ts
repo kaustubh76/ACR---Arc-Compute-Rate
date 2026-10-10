@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readOracleDirect } from "@/lib/onchain";
 import type { Envelope, OnchainDirectRead } from "@/lib/types";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 
 /* Settlement-grade prints read straight from ACROracle with viem — answers
    even when the FastAPI press is cold. Cached at the CDN: prints move hourly,
@@ -34,6 +34,6 @@ export async function GET(req: NextRequest) {
      `private, no-store` off the default chain — and a hoisted const is how
      this one escaped the gate that checks exactly that. */
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
+    headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
   });
 }

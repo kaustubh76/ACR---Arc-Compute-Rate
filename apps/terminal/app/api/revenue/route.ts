@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bundleSection, fetchLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { Envelope, RevenueData } from "@/lib/types";
 
@@ -15,6 +15,6 @@ export async function GET(req: Request) {
     ? { live: true, data, fetchedAt: Date.now(), chain, upstream }
     : { live: false, data: bundleSection(chain, "revenue") ?? OFFLINE, fetchedAt: Date.now(), chain, upstream };
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=3, stale-while-revalidate=15", chain),
+    headers: envelopeHeaders("public, s-maxage=3, stale-while-revalidate=15", chain, env),
   });
 }

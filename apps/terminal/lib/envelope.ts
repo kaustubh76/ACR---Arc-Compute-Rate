@@ -147,6 +147,42 @@ export function chainHeaders(directive: string, chain: ChainKey): Record<string,
   return { "Cache-Control": sharedCache(directive, chain) };
 }
 
+/** The same, but a FALLBACK is never cached.
+ *
+ *  THE RULE IS NOT NEW — `readHeaders` in lib/readResult.ts has stated it since
+ *  it was written: "a failed read must NEVER be cached. Serving one throttled
+ *  answer from the CDN for ten seconds turns a transient blip into a shared,
+ *  confident lie — every visitor in that window gets the same wrong state, and
+ *  the retry that would have fixed it never reaches the origin." Three routes
+ *  followed it. Eleven had a single exit that sent the cacheable directive
+ *  whatever the envelope said.
+ *
+ *  MEASURED, on the deployed site: `/api/terminal?chain=mainnet` answered
+ *  `live: false` on three consecutive reads with an identical `fetchedAt`,
+ *  serving an archived ACR-INF print **12.13 days old**, while that press had a
+ *  print 55 minutes old and answered directly in 0.65s. Its `/terminal/data`
+ *  measured 180s (hung), 34.1s, then 0.65s across three calls against a 5000ms
+ *  budget — so a cold Render start loses, the cushion is correct, and caching
+ *  the cushion is what turned one lost race into the front page for everyone
+ *  for the next ~35 seconds.
+ *
+ *  IT TAKES THE ENVELOPE, NOT A BOOLEAN, deliberately. A boolean is a thing you
+ *  can pass the wrong way round and never notice, and this particular mistake
+ *  does not fail loudly — it caches a lie and looks fine. The envelope already
+ *  knows.
+ *
+ *  Only the default chain was ever exposed: `sharedCache` downgrades the other
+ *  to `private, no-store` already. Confirmed live — every testnet route answered
+ *  `private, no-store` and every mainnet one `public`.
+ */
+export function envelopeHeaders(
+  directive: string,
+  chain: ChainKey,
+  env: { live: boolean },
+): Record<string, string> {
+  return env.live ? chainHeaders(directive, chain) : { "Cache-Control": "no-store" };
+}
+
 /** The headers for an upstream refusal this hop is passing through.
  *
  *  A 401 WITHOUT `WWW-Authenticate` IS NOT A 401. RFC 9110 requires the header

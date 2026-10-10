@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { baseState, fetchLive } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { HealthData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const chain = requestChain(req);
   const data = await fetchLive<HealthData>(chain, "/health");
-  return NextResponse.json(
-    {
+  const env = {
       live: Boolean(data),
       data: data ?? null,
       fetchedAt: Date.now(), chain,
@@ -19,7 +18,8 @@ export async function GET(req: Request) {
          service for two days and every route quietly served the archive; the
          only reason it survived that long is that nothing reported it. */
       seller: baseState(chain),
-    },
-    { headers: chainHeaders("public, s-maxage=10, stale-while-revalidate=60", chain) },
-  );
+  };
+  return NextResponse.json(env, {
+    headers: envelopeHeaders("public, s-maxage=10, stale-while-revalidate=60", chain, env),
+  });
 }

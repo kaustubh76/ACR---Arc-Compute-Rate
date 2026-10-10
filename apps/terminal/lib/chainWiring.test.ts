@@ -142,19 +142,33 @@ test("a shared cache directive is never hand-written past the chain", () => {
      about the no-envelope ledger below.
 
      The rule, stated instead of pattern-matched: a shared directive may appear
-     in a handler only as an argument to `chainHeaders`, which is what
-     downgrades it on a non-default chain. So every occurrence of the directive
-     must sit on a line that also calls it. */
+     in a handler only as an argument to a helper that downgrades it on a
+     non-default chain. So every occurrence of the directive must sit on a line
+     that calls one.
+
+     TWO HELPERS NOW SATISFY IT, which is why this looks for either.
+     `envelopeHeaders` is the stricter of the two — it calls `chainHeaders` and
+     additionally refuses to cache a response whose envelope is not live — and
+     every route proxying an envelope was converted to it after the front page
+     was measured serving a 12-day-old archived print from the edge. The test
+     below holds that stricter rule; this one holds the chain half, so that a
+     future handler using plain `chainHeaders` for a response that has no
+     envelope at all is still covered. */
   const raw = ROUTES.filter((f) => {
     const src = readFileSync(f, "utf8");
     return src
       .split("\n")
-      .some((line) => line.includes("public, s-maxage") && !line.includes("chainHeaders("));
+      .some(
+        (line) =>
+          line.includes("public, s-maxage") &&
+          !line.includes("chainHeaders(") &&
+          !line.includes("envelopeHeaders("),
+      );
   }).map((f) => relative(ROOT, f));
   assert.deepEqual(
     raw,
     [],
-    "route a shared directive through chainHeaders(directive, chain):\n  " + raw.join("\n  "),
+    "route a shared directive through chainHeaders/envelopeHeaders:\n  " + raw.join("\n  "),
   );
 });
 
@@ -171,4 +185,59 @@ test("the client keys every proxy call on the chain, and verifies the answer", (
   const calls = [...src.matchAll(/useSWR[<(]/g)].length;
   const keyed = [...src.matchAll(/apiKey\(/g)].length;
   assert.ok(keyed >= calls, `${calls} useSWR calls but only ${keyed} apiKey() calls`);
+});
+
+/** Handlers that send a shared directive and genuinely cannot serve a fallback,
+ *  each with the reason. Derived from what the scan FLAGS, never from what I
+ *  expect it to — this file's own first ledger listed thirteen handlers of
+ *  which twelve exempted nothing. */
+const MAY_CACHE_UNCONDITIONALLY: Record<string, string> = {};
+
+test("a shared directive is never sent with a fallback", () => {
+  /* MEASURED ON THE DEPLOYED SITE, which is the only place this was visible:
+     `/api/terminal?chain=mainnet` answered `live: false` on three consecutive
+     reads with an identical `fetchedAt`, serving an archived print 12.13 days
+     old — while that press had one 55 minutes old and answered in 0.65s. Its
+     `/terminal/data` measured 180s (hung), 34.1s, then 0.65s against a 5000ms
+     budget. So a cold Render start loses, the cushion is right, and caching the
+     cushion put one lost race on the front page for everyone for ~35 seconds.
+
+     The rule predates this gate: `readHeaders` in lib/readResult.ts has always
+     said a failed read must never be cached, or a transient blip becomes "a
+     shared, confident lie". Three routes followed it; eleven had a single exit
+     that sent the cacheable directive whatever the envelope said. `sharedCache`
+     limited the blast radius to the DEFAULT chain, which is why it only ever
+     showed on mainnet — the page everyone lands on.
+
+     So: a shared directive may reach a response only through `envelopeHeaders`,
+     which reads the envelope's own `live`. Taking the envelope rather than a
+     boolean is deliberate; a boolean can be passed the wrong way round and this
+     mistake does not fail loudly, it caches a lie and looks fine. */
+  const offenders = ROUTES.filter((f) => {
+    const rel = relative(ROOT, f);
+    if (rel in MAY_CACHE_UNCONDITIONALLY) return false;
+    const src = readFileSync(f, "utf8");
+    return src
+      .split("\n")
+      .some((line) => line.includes("public, s-maxage") && !line.includes("envelopeHeaders("));
+  }).map((f) => relative(ROOT, f));
+  assert.deepEqual(
+    offenders,
+    [],
+    "send a shared directive through envelopeHeaders(directive, chain, env):\n  " + offenders.join("\n  "),
+  );
+});
+
+test("the may-cache ledger carries no entry it does not need", () => {
+  const stale = Object.keys(MAY_CACHE_UNCONDITIONALLY).filter((rel) => {
+    try {
+      const src = readFileSync(join(ROOT, rel), "utf8");
+      return !src
+        .split("\n")
+        .some((line) => line.includes("public, s-maxage") && !line.includes("envelopeHeaders("));
+    } catch {
+      return true; // the file is gone; the entry outlived it
+    }
+  });
+  assert.deepEqual(stale, [], `delete these — they exempt nothing: ${stale.join(", ")}`);
 });

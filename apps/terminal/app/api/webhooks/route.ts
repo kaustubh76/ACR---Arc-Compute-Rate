@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { Envelope, WebhookFeed } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,6 @@ export async function GET(req: Request) {
     ? { live: true, data, fetchedAt: Date.now(), chain, upstream }
     : { live: false, data: OFFLINE, fetchedAt: Date.now(), chain, upstream };
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=3, stale-while-revalidate=15", chain),
+    headers: envelopeHeaders("public, s-maxage=3, stale-while-revalidate=15", chain, env),
   });
 }

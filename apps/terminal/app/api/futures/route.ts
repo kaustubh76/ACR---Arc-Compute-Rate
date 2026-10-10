@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bundleSection, fetchLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import { readFuturesDirect } from "@/lib/futuresOnchain";
 import type { Envelope, FuturesRoster } from "@/lib/types";
 
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
       upstream,
     };
     return NextResponse.json(env, {
-      headers: chainHeaders("public, s-maxage=3, stale-while-revalidate=15", chain),
+      headers: envelopeHeaders("public, s-maxage=3, stale-while-revalidate=15", chain, env),
     });
   }
 
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       upstream,
     };
     return NextResponse.json(env, {
-      headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=120", chain),
+      headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=120", chain, env),
     });
   }
 
@@ -67,6 +67,6 @@ export async function GET(req: Request) {
     upstream,
   };
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=3, stale-while-revalidate=15", chain),
+    headers: envelopeHeaders("public, s-maxage=3, stale-while-revalidate=15", chain, env),
   });
 }

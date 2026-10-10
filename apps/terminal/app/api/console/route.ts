@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase, bundleSection } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import { INDICES, PRICE_FALLBACK_USDC } from "@/lib/indices";
 import type { ConsoleResult, Envelope, X402Info } from "@/lib/types";
 
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
         fetchedAt: Date.now(), chain,
       };
       return NextResponse.json(env, {
-        headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
+        headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
       });
     }
   } catch {
@@ -110,7 +110,7 @@ export async function GET(req: Request) {
     fetchedAt: Date.now(), chain,
   };
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
+    headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=300", chain, env),
   });
 }
 

@@ -1,7 +1,7 @@
 import { currentWindow } from "@/lib/humans";
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { ChainKey } from "@/lib/chainChoice";
 import type { Envelope } from "@/lib/types";
 import { humanShareInWindow, sellerTerms, sellersFromSettlements, recentForPayer } from "@/lib/tape";
@@ -171,8 +171,6 @@ export async function GET(request: Request) {
     upstream: meta != null ? "ok" : tcaRes.upstream,
   };
   return NextResponse.json(env, {
-    headers: meta
-      ? chainHeaders("public, s-maxage=15, stale-while-revalidate=60", chain)
-      : { "Cache-Control": "no-store" },
+    headers: envelopeHeaders("public, s-maxage=15, stale-while-revalidate=60", chain, env),
   });
 }

@@ -5,6 +5,7 @@ import { MAINNET_SELLER, TESTNET_SELLER } from "./apiBase";
 import { CHAIN, CHAIN_TESTNET, chainFacts, isMainnet } from "./chain";
 import { CHAINS, CHAIN_KEYS, CHAIN_PARAM, DEFAULT_CHAIN, apiKey, chainCandidates, emptyChainFacts, emptyTerminal, parseChainKey, resolveChain, sameChain } from "./chainChoice";
 import { readHeaders, sharedCache } from "./readResult";
+import { envelopeHeaders } from "./envelope";
 import { ok, unread } from "./readResult";
 
 test("the default chain is mainnet, and the registry agrees with the profiles", () => {
@@ -208,5 +209,38 @@ test("an off-default chain never falls back to the default chain's money", () =>
     test.usdc_address.toLowerCase(),
     "USDC is a predeploy and IS the same on both; recorded so the next reader " +
       "does not mistake that for the fallback having worked",
+  );
+});
+
+test("envelopeHeaders caches an answer and never a fallback", () => {
+  /* MEASURED ON THE DEPLOYED SITE: `/api/terminal?chain=mainnet` answered
+     `live: false` on three consecutive reads with an identical `fetchedAt`,
+     serving an archived ACR-INF print 12.13 days old — while that press had a
+     print 55 minutes old and answered directly in 0.65s. Its `/terminal/data`
+     measured 180s (hung), 34.1s, then 0.65s against a 5000ms budget, so a cold
+     Render start loses and the cushion is correct. Caching the cushion is what
+     turned one lost race into the front page for everyone for ~35s.
+     The rule itself is older than this function — `readHeaders` states it:
+     a failed read must never be cached, or a transient blip becomes "a shared,
+     confident lie". */
+  const PUB = "public, s-maxage=5, stale-while-revalidate=30";
+
+  // An answer on the default chain: cached, exactly as before.
+  assert.deepEqual(envelopeHeaders(PUB, "mainnet", { live: true }), { "Cache-Control": PUB });
+
+  // A fallback on the default chain: NOT cached. This is the whole fix — and
+  // `no-store`, not merely `private`, because the point is that the next
+  // request must reach the origin and retry.
+  assert.deepEqual(envelopeHeaders(PUB, "mainnet", { live: false }), { "Cache-Control": "no-store" });
+
+  // The non-default chain was never exposed, and still is not, either way.
+  assert.equal(envelopeHeaders(PUB, "testnet", { live: true })["Cache-Control"], "private, no-store");
+  assert.equal(envelopeHeaders(PUB, "testnet", { live: false })["Cache-Control"], "no-store");
+
+  // It agrees with the older statement of the same rule.
+  assert.equal(
+    envelopeHeaders("public, s-maxage=10, stale-while-revalidate=30", "mainnet", { live: false })["Cache-Control"],
+    readHeaders({ ok: false, why: "upstream" })["Cache-Control"],
+    "two helpers, one rule: a failed read is never cached",
   );
 });

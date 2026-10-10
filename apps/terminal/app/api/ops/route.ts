@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLive } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { OpsLedger } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -15,15 +15,16 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const chain = requestChain(req);
   const data = await fetchLive<OpsLedger>(chain, "/ops/verify");
-  return NextResponse.json(
-    {
+  const env = {
       live: Boolean(data),
       data: data ?? null,
       fetchedAt: Date.now(), chain,
-    },
+  };
+  return NextResponse.json(
+    env,
     // Short cache: the ledger only recomputes every 15 minutes upstream, so
     // this exists to spare the press repeated proxying, not to hide staleness
     // (the payload carries its own `at`, which the page renders).
-    { headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=120", chain) },
+    { headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=120", chain, env) },
   );
 }

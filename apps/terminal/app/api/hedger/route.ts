@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { bundleSection, fetchLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { Envelope, HedgerState } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       upstream,
     };
     return NextResponse.json(env, {
-      headers: chainHeaders("public, s-maxage=5, stale-while-revalidate=20", chain),
+      headers: envelopeHeaders("public, s-maxage=5, stale-while-revalidate=20", chain, env),
     });
   }
 
@@ -58,6 +58,6 @@ export async function GET(req: Request) {
     upstream,
   };
   return NextResponse.json(env, {
-    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=120", chain),
+    headers: envelopeHeaders("public, s-maxage=30, stale-while-revalidate=120", chain, env),
   });
 }

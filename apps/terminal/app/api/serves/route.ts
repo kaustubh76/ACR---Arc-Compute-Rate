@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { servedPaths } from "@/lib/api";
-import { chainHeaders, envelope, requestChain } from "@/lib/envelope";
+import { envelope, envelopeHeaders, requestChain } from "@/lib/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +31,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const chain = requestChain(req);
   const paths = await servedPaths(chain);
-  return NextResponse.json(envelope(paths, { live: paths !== null, chain }), {
+  const env = envelope(paths, { live: paths !== null, chain });
+  return NextResponse.json(env, {
     // Slow-moving: a deployment's route set changes on a redeploy, not on a
     // request. Cached longer than a reading, and still revalidated, so the
     // page stops advertising a route within the minute of it appearing.
-    headers: chainHeaders("public, s-maxage=60, stale-while-revalidate=300", chain),
+    headers: envelopeHeaders("public, s-maxage=60, stale-while-revalidate=300", chain, env),
   });
 }

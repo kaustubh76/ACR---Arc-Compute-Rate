@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
-import { chainHeaders, requestChain } from "@/lib/envelope";
+import { envelopeHeaders, requestChain } from "@/lib/envelope";
 import type { AgentGateInfo, ArmorInfo, GateData } from "@/lib/gate";
 import type { Envelope } from "@/lib/types";
 
@@ -47,8 +47,6 @@ export async function GET(req: Request) {
     // Configuration, not market data. Cached harder than the tape, which turns
     // over every block; the counters move but nothing decides on them quickly.
     // Through `chainHeaders` so a non-default chain is never stored shared.
-    headers: live
-      ? chainHeaders("public, s-maxage=60, stale-while-revalidate=300", chain)
-      : { "Cache-Control": "no-store" },
+    headers: envelopeHeaders("public, s-maxage=60, stale-while-revalidate=300", chain, env),
   });
 }
