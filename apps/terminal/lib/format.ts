@@ -147,7 +147,16 @@ export function ageWords(ageS: number | null, plain = false): string {
   if (ageS < 90) return "just now";
   const m = Math.round(ageS / 60);
   if (m < 90) return `${m} min ago`;
-  return `${Math.round(m / 60)} hr ago`;
+  if (m < 48 * 60) return `${Math.round(m / 60)} hr ago`;
+  /* PAST TWO DAYS, SAY DAYS. Read off the live dateline 2026-10-10: the print
+     chip said `LAST PRINT 606 HR AGO`. True, and it makes a reader do long
+     division to learn the one thing the chip exists to tell them. The three
+     fetch-age call sites never reach this tier (they report seconds), so it
+     changes exactly the two places where an age is genuinely old: the print
+     chip and a keeper that has been dead for days.
+     One decimal, because 25.2 is a different fact from 25 when the question is
+     whether anyone has noticed. */
+  return `${(m / 1440).toFixed(1)} days ago`;
 }
 
 /** The same, for an absolute epoch-seconds stamp against a live clock.

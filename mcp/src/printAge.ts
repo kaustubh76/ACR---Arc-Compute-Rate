@@ -92,12 +92,13 @@ export function worthSaying(state: PrintFreshness): boolean {
 
 /** An age a reader can hold in their head.
  *
- *  DELIBERATELY NOT the terminal's `ageWords`, and the pin test does not require
- *  it to be: that one tops out at `hr ago`, which turned the measured 25-day
- *  testnet print into "601 hr ago". A chip in a masthead is read by someone who
- *  already knows the print is hourly; a tool result is read by an agent with no
- *  such context, and "25 days ago" is the version that makes the decision
- *  obvious. The THRESHOLDS are what must not drift, and those are pinned.
+ *  THE TERMINAL NOW AGREES, and this comment used to explain why it did not.
+ *  It said the divergence was deliberate because that copy "tops out at `hr
+ *  ago`" — true when written, and the reason was always weak: seeing
+ *  `LAST PRINT 606 HR AGO` on the live dateline made the case for itself, so
+ *  `apps/terminal/lib/format.ts` grew the same tier the same day. Kept as its
+ *  own function rather than pinned to that one, because this package publishes
+ *  standalone; the THRESHOLDS are what must not drift, and those are pinned.
  */
 export function ageWords(ageS: number | null): string {
   if (ageS == null) return "age unknown";
