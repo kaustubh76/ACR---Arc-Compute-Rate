@@ -161,3 +161,24 @@ test("a failed read is never cached, on either chain", () => {
   }
   assert.match(readHeaders(ok(1))["Cache-Control"], /public, s-maxage/);
 });
+
+test("the cushion is shaped like the payload it stands in for", () => {
+  /* IT WAS NOT, AND A CAST HID IT. `emptyTerminal` built
+     `attack: {runs, summary}` behind an `as unknown as TerminalData`, while
+     the type says `{per_index, series, usdc_burned, n_adversarial}` — so
+     `app/attack/view.tsx` read `.series.length` off undefined and threw during
+     the server render. Testnet has `bundle: false`, so this object IS what a
+     visitor gets while the press wakes.
+
+     The cast is gone, so `tsc` now enforces this. The test states the shape
+     anyway, because the next person to reach for a cast here should have to
+     delete an assertion that says why there isn't one. */
+  for (const chain of ["mainnet", "testnet"] as const) {
+    const t = emptyTerminal(chain);
+    assert.ok(Array.isArray(t.attack.series), "series must be an array to be measured");
+    assert.ok(Array.isArray(t.attack.per_index));
+    assert.equal(t.attack.series.length, 0, "empty, not absent");
+    assert.equal(t.attack.usdc_burned, 0);
+    assert.equal(t.attack.n_adversarial, 0);
+  }
+});

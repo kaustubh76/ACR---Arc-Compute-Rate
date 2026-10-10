@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta, postLiveMeta } from "@/lib/api";
-import { requestChain } from "@/lib/envelope";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 import type { ChainKey } from "@/lib/chainChoice";
 import { countHumans, currentWindow } from "@/lib/humans";
 import type { HumanClusterRow, HumanIdData, HumanIdInfo } from "@/lib/humans";
@@ -85,10 +85,11 @@ export async function GET(req: Request) {
     upstream: live ? "ok" : infoRes.upstream,
   };
   return NextResponse.json(env, {
-    headers: {
-      // A 7-day window does not change quickly; the Sandbox flag does not change
-      // at all. Cached harder than the tape, which turns over every block.
-      "Cache-Control": live ? "public, s-maxage=60, stale-while-revalidate=300" : "no-store",
-    },
+    // A 7-day window does not change quickly; the Sandbox flag does not change
+    // at all. Cached harder than the tape, which turns over every block, and
+    // through `chainHeaders` so it is never shared across chains.
+    headers: live
+      ? chainHeaders("public, s-maxage=60, stale-while-revalidate=300", chain)
+      : { "Cache-Control": "no-store" },
   });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchLiveMeta } from "@/lib/api";
-import { requestChain } from "@/lib/envelope";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 import type { AgentGateInfo, ArmorInfo, GateData } from "@/lib/gate";
 import type { Envelope } from "@/lib/types";
 
@@ -44,10 +44,11 @@ export async function GET(req: Request) {
     upstream: live ? "ok" : (agentRes.upstream === "ok" ? armorRes.upstream : agentRes.upstream),
   };
   return NextResponse.json(env, {
-    headers: {
-      // Configuration, not market data. Cached harder than the tape, which turns
-      // over every block; the counters move but nothing decides on them quickly.
-      "Cache-Control": live ? "public, s-maxage=60, stale-while-revalidate=300" : "no-store",
-    },
+    // Configuration, not market data. Cached harder than the tape, which turns
+    // over every block; the counters move but nothing decides on them quickly.
+    // Through `chainHeaders` so a non-default chain is never stored shared.
+    headers: live
+      ? chainHeaders("public, s-maxage=60, stale-while-revalidate=300", chain)
+      : { "Cache-Control": "no-store" },
   });
 }

@@ -2,6 +2,7 @@
 
 import { Ed } from "@/components/Ed";
 import { UNITS, isUnit, INDEX_FOR_UNIT, type Unit } from "@/lib/indices";
+import { WhyEmpty } from "@/components/WhyEmpty";
 import { rateChip } from "@/lib/rateChip";
 import { useParCheck } from "@/lib/useLive";
 import type { ParCheck, ParQuote } from "@/lib/types";
@@ -755,21 +756,22 @@ export function CheckView() {
                   x="That bill could not be read, so nothing was priced. Check the amount and the quantity."
                   p="We could not read that bill, so we priced nothing. Check the numbers."
                 />
-              ) : error.upstream === "absent" ? (
-                /* "Try again shortly" was false here: a route that does not
-                   exist does not appear by waiting. Still not a verdict on the
-                   bill, which is the distinction this block exists for. */
-                <Ed
-                  x="This deployment of the press has no benchmark to ask, so nothing was priced. Waiting will not change that."
-                  p="The service here is an older build with no price check. Waiting will not help."
-                />
-              ) : (
-                <Ed
-                  x="The press did not answer, so nothing was priced. This is our outage, not a verdict on the bill."
-                  p="We could not reach our own service, so we checked nothing. Try again shortly."
-                />
-              )}
+              ) : null}
             </p>
+            {/* A DEAD END UNTIL NOW, on the surface that most needed a way out.
+                This page hand-rolled its own absent sentence while /spend and
+                /traction used `WhyEmpty` — so a stranger arriving with a bill,
+                on the default chain, where /par does not exist, was told the
+                truth and given nowhere to go. `WhyEmpty` carries the switch.
+                The 422 above stays its own branch: a bill we could not read is
+                a fact about the bill, and no chain change fixes it. */}
+            {error.status !== 422 ? (
+              <WhyEmpty
+                upstream={error.upstream}
+                what="this benchmark"
+                plainWhat="the price check"
+              />
+            ) : null}
           </div>
         </section>
       ) : null}

@@ -163,7 +163,12 @@ export function HumanProof() {
                   ) : null}
                 </Row>
               ) : (
-                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>{proof.body.reason ?? "…"}</Row>
+                <Row label={<Ed x="one bill, all wallets" p="one bill for all of them" />}>{/* `note` FIRST. On the unseen path the press sends `note` and no
+    `reason` — `reason` only exists on the Unavailable shape — so this
+    rendered a bare ellipsis exactly where the press had written a
+    sentence naming the window and what would put a cluster on the
+    record. Its twin, PersonNotWallet, already does this. */}
+                {proof.body.note ?? proof.body.reason ?? "…"}</Row>
               )}
               <Row label={<Ed x="replayed" p="used twice" />}>
                 <span className={proof.replay_status === 401 ? "green" : "vermilion"}>{proof.replay_status ?? "…"}</span>{" "}

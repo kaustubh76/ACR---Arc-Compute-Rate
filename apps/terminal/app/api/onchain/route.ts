@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readOracleDirect } from "@/lib/onchain";
 import type { Envelope, OnchainDirectRead } from "@/lib/types";
-import { requestChain } from "@/lib/envelope";
+import { chainHeaders, requestChain } from "@/lib/envelope";
 
 /* Settlement-grade prints read straight from ACROracle with viem — answers
    even when the FastAPI press is cold. Cached at the CDN: prints move hourly,
@@ -12,8 +12,6 @@ export const dynamic = "force-dynamic";
 // Paced RPC reads (the public Arc RPC throttles bursts): a history read takes
 // ~12s worst case — give the function headroom beyond Vercel's 10s default.
 export const maxDuration = 30;
-
-const CACHE = "public, s-maxage=30, stale-while-revalidate=300";
 
 export async function GET(req: NextRequest) {
   const chain = requestChain(req);
@@ -31,5 +29,11 @@ export async function GET(req: NextRequest) {
     fetchedAt: Date.now(), chain,
     upstream: data != null ? "ok" : "error",
   };
-  return NextResponse.json(env, { headers: { "Cache-Control": CACHE } });
+  /* Inlined rather than hoisted, like every other compliant route. The
+     directive has to reach `chainHeaders`, which downgrades it to
+     `private, no-store` off the default chain — and a hoisted const is how
+     this one escaped the gate that checks exactly that. */
+  return NextResponse.json(env, {
+    headers: chainHeaders("public, s-maxage=30, stale-while-revalidate=300", chain),
+  });
 }

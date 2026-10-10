@@ -187,13 +187,25 @@ export function emptyChainFacts(chain: ChainKey): ChainFactsData {
  *  `chainFacts(undefined)` falls back to the mainnet profile field by field, so
  *  an empty payload would make `isMainnet()` true and print "Arc mainnet" over a
  *  testnet session. Carrying a real chain block is what forecloses that, and it
- *  is why this returns a populated `chain` rather than an empty object. */
+ *  is why this returns a populated `chain` rather than an empty object.
+ *
+ *  NO `as unknown as` CAST, AND THAT IS THE POINT. There was one, and under it
+ *  `attack` was built as `{runs, summary}` while the type says
+ *  `{per_index, series, usdc_burned, n_adversarial}` — so `app/attack/view.tsx`
+ *  read `archived.series.length` off `undefined` and threw during the SERVER
+ *  render. Testnet sets `bundle: false`, so this cushion is exactly what a
+ *  visitor gets while the press wakes, which was measured at 18-19s, on the
+ *  page `/companion` sends plain-edition readers to first.
+ *
+ *  A cast that silences the one check that would have caught it is worse than
+ *  no helper. Removing it cost one corrected literal and now the compiler
+ *  enumerates anything a future field adds. */
 export function emptyTerminal(chain: ChainKey): TerminalData {
   return {
     prints: {},
-    attack: { runs: [], summary: null },
+    attack: { per_index: [], series: [], usdc_burned: 0, n_adversarial: 0 },
     chain: emptyChainFacts(chain),
-  } as unknown as TerminalData;
+  };
 }
 
 /** Whether an envelope answered for the chain that was asked for.

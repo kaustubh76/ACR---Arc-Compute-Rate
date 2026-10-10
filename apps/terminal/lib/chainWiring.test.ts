@@ -132,9 +132,24 @@ test("a shared cache directive is never hand-written past the chain", () => {
      into a handler would let one visitor's chain be served to the next. It has to
      go through `chainHeaders`, which downgrades a non-default chain to
      `private, no-store`. */
+  /* THE FIRST VERSION OF THIS MATCHED NOTHING, which is worse than not having
+     it. It looked for the exact shape `"Cache-Control": "public, s-maxage…`,
+     and every compliant route passes the directive as the FIRST ARGUMENT to
+     `chainHeaders(...)` while every offender hoists it to a const or picks it
+     with a ternary — so the regex found zero files out of 36 and four real
+     violations went through. A gate that cannot fail is a gate that is not
+     being run, and this file spends two paragraphs on exactly that lesson
+     about the no-envelope ledger below.
+
+     The rule, stated instead of pattern-matched: a shared directive may appear
+     in a handler only as an argument to `chainHeaders`, which is what
+     downgrades it on a non-default chain. So every occurrence of the directive
+     must sit on a line that also calls it. */
   const raw = ROUTES.filter((f) => {
     const src = readFileSync(f, "utf8");
-    return /"Cache-Control": "public, s-maxage/.test(src);
+    return src
+      .split("\n")
+      .some((line) => line.includes("public, s-maxage") && !line.includes("chainHeaders("));
   }).map((f) => relative(ROOT, f));
   assert.deepEqual(
     raw,
