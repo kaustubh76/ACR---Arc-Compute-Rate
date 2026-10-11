@@ -8,6 +8,7 @@ import { TapeTeaser } from "@/components/TapeTeaser";
 import { PrintsTable } from "@/components/PrintsTable";
 import { PlainPrimer } from "@/components/PlainPrimer";
 import { WorkloadRow } from "@/components/WorkloadRow";
+import { EmbedRow } from "@/components/EmbedRow";
 import { Ed } from "@/components/Ed";
 import { useConnection } from "@/lib/useConnection";
 import type { Envelope, TerminalData } from "@/lib/types";
@@ -56,6 +57,7 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
         live={env.live}
         direct={directLive}
         fetchedAt={env.fetchedAt}
+        history={env.data.history?.[flagship.index_id]}
       />
 
       <PlainPrimer />
@@ -64,12 +66,17 @@ export function FixingView({ initial }: { initial: Envelope<TerminalData> }) {
           from every route, and the anchor must clear the sticky masthead. */}
       <section className="section anchor-target" id="fixing">
         <div className="section-head">
+          {/* The label grows, so the two quiet entries (price it for yourself,
+              carry it somewhere else) sit together at the right edge rather
+              than being spaced out across the head. */}
           <Ed
             x="Today’s fixing · all three indices"
             p="Today’s official rates · all three services"
             className="label"
+            style={{ flex: 1 }}
           />
           <WorkloadRow />
+          <EmbedRow />
         </div>
         <div className="hero">
           {prints.map((p) => (

@@ -13,6 +13,17 @@ const nextConfig = {
   // that moved is the quietest kind of breakage — the build still succeeds.
   serverExternalPackages: ["@circle-fin/x402-batching"],
 
+  /* The two preview-image routes (/og/home, /og/check) set their text in the
+   * vendored Plex Mono faces under assets/fonts, read from disk at request
+   * time by `lib/ogFonts.ts`. The file tracer follows the `readFile` it can
+   * see; this pins the folder so a refactor cannot quietly un-trace it. A
+   * font that failed to ship would 500 every unfurl, and nothing on the page
+   * would show it. */
+  outputFileTracingIncludes: {
+    "/og/home": ["./assets/fonts/**/*"],
+    "/og/check": ["./assets/fonts/**/*"],
+  },
+
   /* Two routes were removed and their links did not go with them.
    *
    * `/sellers` (the registry page) and `/exchange` (folded into /curve as the

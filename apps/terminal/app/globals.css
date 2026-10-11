@@ -660,6 +660,9 @@ a.chip:hover,
   z-index: 1;
   width: 100%;
   max-width: 62ch;
+  /* A size container, so the print below can be sized to THIS column rather
+     than to the window. See .home-hero-rate and lib/heroFit.test.ts. */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -692,11 +695,29 @@ a.chip:hover,
 .home-hero-rate {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: clamp(64px, 13vw, 184px);
+  /* Sized to the column, not the viewport. The old viewport unit capped at
+     184px on every laptop while the column stayed at 62ch, so seven glyphs
+     of Plex Mono (0.57em each after tracking) needed 735px of 679px and the
+     headline wrapped to "0.4953" over a lone "3". 23cqi puts seven glyphs at
+     92% of the column at any width; nowrap turns the remaining failure mode
+     into a visible overflow instead of a silent second line. Pinned by
+     lib/heroFit.test.ts. */
+  font-size: clamp(64px, 23cqi, 184px);
+  white-space: nowrap;
   line-height: 0.94;
   letter-spacing: -0.03em;
   color: var(--sand);
   text-shadow: var(--glow-gold);
+  /* Scrubbable (components/HomeHero.tsx): a horizontal reading line, with
+     vertical panning left to the page so a phone can still scroll past it. */
+  touch-action: pan-y;
+  cursor: ew-resize;
+  outline: none;
+}
+.home-hero-rate:focus-visible {
+  outline: 1px solid var(--validator);
+  outline-offset: 10px;
+  border-radius: 6px;
 }
 .home-hero-unit {
   font-family: var(--mono);

@@ -63,6 +63,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/loop/PersonNotWallet.tsx": 43,
   "app/loop/view.tsx": 4,
   "components/WorkloadRow.tsx": 8, // the editor: trigger, three field labels, done, privacy line
+  "components/EmbedRow.tsx": 8, // the embed row: trigger, three forms, copy/copied, the live line, done
   "components/WorkloadChip.tsx": 1, // one label; the figure itself is a number, outside <Ed>
   "components/WalletFunding.tsx": 6, // the balance line, deposit, bridge (busy + idle) and the bridge note
   // The §5.9 read gate. Both editions carry the whole refusal, because a
@@ -154,6 +155,8 @@ const EXEMPT: Record<string, string> = {
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
   "app/check/page.tsx": "metadata only — a price check has no answer until a visitor types one",
+  "app/og/home/route.tsx": "a preview image has one edition, the expert one; it is a picture, not a page",
+  "app/og/check/route.tsx": "a preview image has one edition, the expert one; it is a picture, not a page",
   "app/index/[id]/page.tsx": "metadata only",
   "app/companion/page.tsx": "the reader's companion IS the plain voice — one register",
   "components/Ed.tsx": "edition machinery",

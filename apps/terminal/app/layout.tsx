@@ -6,6 +6,7 @@ import { Colophon } from "@/components/Colophon";
 import { peekTerminal } from "@/lib/api";
 import { serverChain } from "@/lib/serverChain";
 import { editionBootScript } from "@/lib/edition";
+import { OG_BASE, OG_SIZE } from "@/lib/og";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -74,20 +75,37 @@ export const metadata: Metadata = {
   // itself rather than all of them collapsing onto the homepage.
   alternates: { canonical: "./" },
   openGraph: {
-    type: "website",
-    siteName: "ACR · The Arc Compute Rate",
-    locale: "en_US",
+    ...OG_BASE,
     // Deliberately no title/description: Next inherits them from the LEAF
     // segment, so /attack unfurls as "Attack Lab · ACR" instead of every route
     // unfurling as the homepage.
+    //
+    // THE IMAGE IS A ROUTE, NOT A FILE. Until 2026-10-11 this said "text-only
+    // card, no generated image", because `next/og` would have fetched a font
+    // at build time and CI keeps the build hermetic. Both halves are now
+    // answered without giving up either: the Plex Mono faces are vendored
+    // (assets/fonts, OFL) and read from disk at request time, and the image is
+    // a dynamic route handler (`app/og/home/route.tsx`) rather than the
+    // `opengraph-image` file convention. The convention would have been
+    // simpler and wrong twice over: a root-level file image overrides every
+    // child page's own image, so /check could never unfurl with its verdict,
+    // and a generated image is prerendered at build unless something makes it
+    // dynamic, which would bake one build-time number into every share.
+    //
+    // `/og/` rather than `/api/og`: robots.txt disallows /api/, and Twitter's
+    // unfurler honours robots when it fetches a card image.
+    //
+    // A page that overrides `openGraph` to carry a better image must spread
+    // OG_BASE back in: Next replaces this object, it does not merge it.
+    images: [
+      {
+        url: "/og/home",
+        ...OG_SIZE,
+        alt: "ACR-INF, the Arc Compute Rate for inference, with how old the print is",
+      },
+    ],
   },
-  // Text-only card, no generated image. `next/og` renders in Noto Sans, not
-  // Space Grotesk, and getting the real face in means fetching a .ttf at build
-  // time — CI keeps this build hermetic on purpose. Discord and Slack render a
-  // compact card from title + description + domain + the favicon, which now
-  // exists. A static app/opengraph-image.png can be dropped in later with no
-  // code and no runtime.
-  twitter: { card: "summary" },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {

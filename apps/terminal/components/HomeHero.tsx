@@ -6,7 +6,10 @@ import { Ed } from "@/components/Ed";
 import { ageWords, fmt, fmtInt, heroFigure, serviceName } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
 import { freshnessClock, printFreshness, worthSaying } from "@/lib/printAge";
-import type { PrintRow, TerminalData } from "@/lib/types";
+import { scrubCaption } from "@/lib/scrub";
+import { useEdition } from "@/lib/useEdition";
+import { useScrub } from "@/lib/useScrub";
+import type { HistoryPoint, PrintRow, TerminalData } from "@/lib/types";
 
 /* The landing moment: Arc's dawn as a full-viewport hero. A giant live-ticking
    flagship rate over the signature rising-sun/arc field, the thesis line, and
@@ -114,6 +117,7 @@ export function HomeHero({
   live,
   direct,
   fetchedAt,
+  history,
 }: {
   flagship: PrintRow;
   data: TerminalData;
@@ -122,6 +126,9 @@ export function HomeHero({
   /** The envelope's own timestamp, so the badge can judge the print before the
    *  client clock exists. See `freshnessClock`. */
   fetchedAt?: number;
+  /** The flagship's estimator series, the same one its card's sparkline
+   *  draws. With it, the print can be scrubbed through its last day. */
+  history?: HistoryPoint[];
 }) {
   // 0 during SSR on purpose, which `printFreshness` reads as "cannot tell":
   // a wall-clock age rendered on the server differs from the client and breaks
@@ -129,6 +136,24 @@ export function HomeHero({
   const nowS = useNow();
   const h = heroFigure(flagship);
   const resist = resistanceRatio(data);
+  const plain = useEdition() === "plain";
+
+  /* SCRUBBING THE PRINT. Pointer across the number, or the arrow keys once it
+     has focus, rolls the digits through the last 24 fixings of the estimator
+     series and docks a caption in the unit line; leaving restores the live
+     print. The charts' own crosshair rule, on the one number that had none.
+
+     The honesty seam, and how it is kept: the big figure is the ON-CHAIN print
+     when there is one, while the series is the ESTIMATOR's (the sparkline's),
+     so a scrubbed value is not a print and the badge that describes the print
+     must not sit above it. While scrubbing, the badge is the sim chip and the
+     caption says "est. (sim)", in the unit line's own existing vocabulary. */
+  const points = (history ?? []).slice(-24);
+  const { idx, elRef, onPointerMove, onPointerLeave, onKeyDown, onBlur } = useScrub<HTMLDivElement>(
+    points.length,
+  );
+  const picked = idx != null ? points[idx] : null;
+  const cap = idx != null ? scrubCaption(points, idx) : null;
 
   return (
     <section className="home-hero" aria-label="Arc Compute Rate · live fixing">
@@ -176,23 +201,64 @@ export function HomeHero({
           <div className="home-hero-idline">
             <span className="label">{flagship.index_id}</span>
             <span className="muted">{serviceName(flagship.index_id)}</span>
-            <HeroBadge
-              onchain={h.onchain}
-              live={live}
-              direct={direct}
-              postedAt={flagship.onchain?.posted_at}
-              /* Not `nowS` alone: it is 0 until hydration commits, and the
-                 badge's fallback for "cannot tell" is a positive LIVE claim.
-                 See `freshnessClock`. */
-              nowS={freshnessClock(nowS, fetchedAt)}
-            />
+            {picked ? (
+              <span className="chip chip-sim">
+                <Ed x="est. (sim) · history" p="our estimate · earlier" />
+              </span>
+            ) : (
+              <HeroBadge
+                onchain={h.onchain}
+                live={live}
+                direct={direct}
+                postedAt={flagship.onchain?.posted_at}
+                /* Not `nowS` alone: it is 0 until hydration commits, and the
+                   badge's fallback for "cannot tell" is a positive LIVE claim.
+                   See `freshnessClock`. */
+                nowS={freshnessClock(nowS, fetchedAt)}
+              />
+            )}
           </div>
-          <div className="home-hero-rate">
-            <TickerNumber text={fmt(h.value)} roll />
+          <div
+            ref={elRef}
+            className="home-hero-rate"
+            tabIndex={points.length > 1 ? 0 : -1}
+            role="group"
+            aria-label={
+              plain
+                ? "the last 24 rates: move across the number, or use the arrow keys"
+                : "the last 24 fixings: scrub across the print, or use the arrow keys"
+            }
+            onPointerMove={onPointerMove}
+            onPointerLeave={onPointerLeave}
+            onKeyDown={onKeyDown}
+            onBlur={onBlur}
+          >
+            <TickerNumber text={fmt(picked ? picked.value : h.value)} roll quiet={picked != null} />
           </div>
-          <div className="home-hero-unit">
-            {flagship.unit}
-            {h.onchain ? <span className="muted"> · est. (sim) {fmt(flagship.value)}</span> : null}
+          <div className="home-hero-unit" aria-live="polite">
+            {cap ? (
+              <>
+                <Ed x="est. (sim) · Fixing " p="our estimate · rate " />
+                {cap.label}
+                {" · "}
+                {cap.ago === 0 ? (
+                  <Ed x="the newest" p="the newest" />
+                ) : (
+                  <>
+                    {cap.ago}{" "}
+                    <Ed
+                      x={cap.ago === 1 ? "fixing ago" : "fixings ago"}
+                      p={cap.ago === 1 ? "print ago" : "prints ago"}
+                    />
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {flagship.unit}
+                {h.onchain ? <span className="muted"> · est. (sim) {fmt(flagship.value)}</span> : null}
+              </>
+            )}
           </div>
         </div>
 
@@ -234,9 +300,12 @@ export function HomeHero({
             <Link href="/curve#desk" className="btn">
               <Ed x="Open the desk →" p="Place a real trade →" />
             </Link>
-            <span className="home-hero-scroll" aria-hidden>
+            {/* The cue was `aria-hidden` and not a link: it pointed at the
+                fixing and could not take anyone there. `#fixing` already
+                clears the sticky masthead (`anchor-target`). */}
+            <a href="#fixing" className="home-hero-scroll">
               <Ed x="today’s fixing ↓" p="today’s rates ↓" />
-            </span>
+            </a>
           </div>
         </div>
       </div>

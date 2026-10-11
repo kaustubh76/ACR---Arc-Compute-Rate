@@ -3,6 +3,7 @@
 import { Ed } from "@/components/Ed";
 import { UNITS, isUnit, INDEX_FOR_UNIT, type Unit } from "@/lib/indices";
 import { WhyEmpty } from "@/components/WhyEmpty";
+import { NO_BENCHMARK_WHY, fmtBp, fmtUsd } from "@/lib/parCopy";
 import { rateChip } from "@/lib/rateChip";
 import { useParCheck } from "@/lib/useLive";
 import type { ParCheck, ParQuote } from "@/lib/types";
@@ -48,20 +49,8 @@ const UNIT_HINT: Record<Unit, { x: string; p: string }> = {
   },
 };
 
-function fmtUsd(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "…";
-  if (n === 0) return "0";
-  // Six significant figures, not a fixed width: these numbers run from
-  // 0.000002 to 4.00, and a fixed two decimals renders most of them as 0.00.
-  // The same mistake once gave ACR-DATA's mid and ask two significant figures
-  // and printed them identically.
-  return n.toPrecision(6).replace(/\.?0+$/, "");
-}
-
-function fmtBp(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "…";
-  return `${n >= 0 ? "+" : ""}${n.toFixed(0)} bp`;
-}
+// `fmtUsd` and `fmtBp` moved to `lib/parCopy.ts`: the preview image a shared
+// link unfurls with prints the same figures and must print them the same way.
 
 
 function Form({
@@ -370,25 +359,10 @@ function Comparison({ quotes }: { quotes: ParQuote[] }) {
  *  page that renders "no verdict" for all four causes is telling a reader who
  *  typed a correct bill that they did something wrong. */
 function NoBenchmark({ reason, sellers }: { reason: string; sellers: number }) {
-  const why: Record<string, { x: string; p: string }> = {
-    NO_QUOTES: {
-      x: "No published price was found for this unit at all, so there is nothing to compare against.",
-      p: "We found no prices for this kind of work, so we cannot say.",
-    },
-    ONE_SELLER: {
-      x: "Only one price was found. One offer is not a market, and comparing a price to itself would be a number pretending to be a measurement.",
-      p: "We only found one price. One price is not a market, so we will not pretend.",
-    },
-    NO_INDEPENDENT_SELLER: {
-      x: "Every price found belongs to a seller this deployment operates, so a comparison would be us grading ourselves.",
-      p: "All the prices we found are our own, so this check would mean nothing.",
-    },
-    NO_QUANTITY: {
-      x: "Without a quantity there is no per-unit price, and a whole bill cannot be compared with a rate.",
-      p: "We need to know how much you bought before we can compare.",
-    },
-  };
-  const copy = why[reason];
+  // The sentences live in `lib/parCopy.ts` now, because the preview image a
+  // shared link unfurls with renders the same absence and must say the same
+  // thing about it.
+  const copy = NO_BENCHMARK_WHY[reason];
   return (
     <div className="panel panel-pad">
       <p className="standfirst">
@@ -406,6 +380,28 @@ function NoBenchmark({ reason, sellers }: { reason: string; sellers: number }) {
         <Ed x="independent price(s) found" p="prices found" />
       </p>
     </div>
+  );
+}
+
+/** The verdict is its own address: the form writes the query into the URL on
+ *  submit and reads it back on load, so sharing a verdict is copying the page.
+ *  One button, beside the thing being shared. The same clipboard pattern as
+ *  `McpSnippet`; when the clipboard is blocked the address bar still has it. */
+function CopyLink() {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard?.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard blocked: the address bar still has the link */
+    }
+  }
+  return (
+    <button type="button" className="mini-btn" onClick={copy}>
+      {copied ? <Ed x="copied" p="copied" /> : <Ed x="copy link" p="copy link" />}
+    </button>
   );
 }
 
@@ -448,8 +444,11 @@ function Verdict({ c, requestPath }: { c: ParCheck; requestPath: string }) {
           <h2>
             <Ed x="The verdict" p="The answer" />
           </h2>
-          <span className={chip.cls}>
-            <Ed x={chip.x} p={chip.p} />
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span className={chip.cls}>
+              <Ed x={chip.x} p={chip.p} />
+            </span>
+            <CopyLink />
           </span>
         </div>
 

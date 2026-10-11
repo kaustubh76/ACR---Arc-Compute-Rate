@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,18 +25,23 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const API = join(ROOT, "app", "api");
+/* The preview-image handlers live outside /api/ (robots.txt disallows it and
+   Twitter's unfurler honours that when fetching a card), and they are `.tsx`
+   because they return JSX. They answer for a chain all the same, so the
+   ledger reaches them too. */
+const OG = join(ROOT, "app", "og");
 
 function routeFiles(dir: string): string[] {
   const out: string[] = [];
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) out.push(...routeFiles(full));
-    else if (name === "route.ts") out.push(full);
+    else if (name === "route.ts" || name === "route.tsx") out.push(full);
   }
   return out;
 }
 
-const ROUTES = routeFiles(API);
+const ROUTES = [...routeFiles(API), ...(existsSync(OG) ? routeFiles(OG) : [])];
 
 /** Handlers that legitimately never build an `Envelope`, each with the reason.
  *  Adding to this map is a conscious act that leaves an argument behind. */

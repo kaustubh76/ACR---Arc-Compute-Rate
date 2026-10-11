@@ -21,10 +21,16 @@ function Digit({ ch }: { ch: string }) {
 export function TickerNumber({
   text,
   roll = false,
+  quiet = false,
   className = "",
 }: {
   text: string;
   roll?: boolean;
+  /** No newswire flash on change. The flash means "this just updated", and a
+   *  reader scrubbing the hero through its history is changing the text
+   *  themselves, many times a second: the digits still roll, the underline
+   *  stays dark. */
+  quiet?: boolean;
   className?: string;
 }) {
   const prev = useRef(text);
@@ -39,7 +45,10 @@ export function TickerNumber({
     }
   }, [text]);
 
-  const cls = `tick${flash ? " tick-flash" : ""}${className ? ` ${className}` : ""}`;
+  // `quiet` is applied at render, not in the effect: the effect is the one
+  // the compiler lint already tolerates as written, and a quiet ticker simply
+  // never wears the class.
+  const cls = `tick${flash && !quiet ? " tick-flash" : ""}${className ? ` ${className}` : ""}`;
   if (!roll) return <span className={cls}>{text}</span>;
   return (
     <span className={cls}>

@@ -113,6 +113,10 @@ export function WorkloadRow() {
         <div
           style={{
             flexBasis: "100%",
+            // Below both triggers, whichever opened: the head now holds a
+            // second one (EmbedRow), and without this the other trigger would
+            // wrap under this row on its own line.
+            order: 10,
             display: "flex",
             flexWrap: "wrap",
             alignItems: "center",

@@ -163,9 +163,13 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
     <div className={`masthead-shell${scrolled ? " scrolled" : ""}`}>
       <header className="masthead container">
         <div className="masthead-top">
-          <div className="nameplate">
+          {/* A nameplate is the oldest link on the web, and this one was a div:
+              a reader who clicked the masthead to go home got nothing. The
+              global anchor rule already inherits colour and drops the
+              underline, so the link wears the nameplate's own styling. */}
+          <Link href="/" className="nameplate">
             ACR <em>· Arc Compute Rate</em>
-          </div>
+          </Link>
           <Ed
             x="the reference rate for machine commerce"
             p="the going rate for machine work, in plain words"
