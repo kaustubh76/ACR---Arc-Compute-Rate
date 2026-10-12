@@ -1,59 +1,78 @@
 "use client";
 
 import { setChain, useChain } from "@/lib/useChain";
+import type { ChainKey } from "@/lib/chainChoice";
 import { Ed } from "@/components/Ed";
 
-/* Which network this reader is on, and the way back.
+/* Which network this reader is on, and the way across.
  *
- * ASYMMETRIC ON PURPOSE, and that is the design decision. The edition toggle
- * beside it is a `.segmented` pair because expert and plain are equal and
- * permanent — neither is a detour. The two networks are not equal: the product
- * is the default one and the other is a partner sandbox. A second segmented
- * control here would claim they were interchangeable, and would be the additive,
- * panel-shaped chrome this project rejects. So the control's weight tracks the
- * RISK OF BEING ON THE WRONG ONE: a muted footnote on the default, a loud gold
- * chip off it, because a partner demoing play money must not be able to miss it.
+ * A SEGMENTED PAIR, LIKE THE EDITION TOGGLE BESIDE IT — and that reverses an
+ * earlier, documented decision, so the reason belongs here. The first version
+ * was deliberately asymmetric: a muted `testnet →` footnote on the default
+ * chain and a gold chip off it, on the argument that a segmented pair would
+ * claim the two networks were interchangeable. Measured in production on
+ * 2026-10-12, the cost of that was a control that never named the network the
+ * reader was ON (it only ever offered the other one), rendered at 55% ink with
+ * no background, and carried no `aria-pressed` — so neither a sighted reader nor
+ * a screen reader could read the current state off the control itself. The owner
+ * asked for it to read as an active toggle, and the switch is now the same shape
+ * as EXPERT | PLAIN: both options named, the current one lit.
  *
- * BOTH LABELS ARE RENDERED AND CSS PICKS ONE, which is not a style choice — it
- * is the only correct way to do this here. `useChain()`'s server snapshot is the
- * constant default, deliberately: a chain is per request, and a module value
- * written during SSR would be one visitor's chain applied to the next one's
- * render on a warm lambda. So the server cannot branch on it, and a React-driven
- * label flashed "switch to testnet" at a reader who was already on testnet until
- * hydration corrected it — a flash of wrong state on the one control whose whole
- * job is to make the wrong network obvious. Measured in the built app, not
- * reasoned about.
+ * WHAT THE OLD DESIGN WAS RIGHT ABOUT, AND KEEPS. Being on testnet must still be
+ * impossible to miss: its lit side is GOLD (the sandbox colour), not the navy a
+ * lit MAINNET or EXPERT gets, so the two networks are visibly not equals even in
+ * a symmetric control.
  *
- * The fix is the house mechanism: `app/layout.tsx` server-renders
- * `<html data-chain>`, both branches ship, and `globals.css` reveals the right
- * one. Exactly how `.ed-x` / `.ed-p` already serve the edition, and for exactly
- * the same reason.
+ * THE LIT SIDE IS CSS'S JOB, keyed on `<html data-chain>`, which `app/layout.tsx`
+ * server-renders from the request's cookie. Exactly how `.edition-seg` keys on
+ * `data-edition`, and for the reason the original comment measured: `useChain()`'s
+ * server snapshot is the constant default (a chain is per request, and a module
+ * value written during SSR would leak one visitor's chain into the next render on
+ * a warm lambda), so a React-driven highlight flashed the wrong network until
+ * hydration.
  *
- * AND IT IS NOT THE DATELINE. `ChainStrip` keeps printing the network from the
- * payload the press actually answered with. Deliberate redundancy: this says what
- * you ASKED for, the dateline says what ANSWERED, and a reader can see any
- * disagreement. Making the dateline the control would collapse the fact and the
- * switch into one object and destroy the cross-check.
+ * `aria-pressed` is the one thing CSS cannot set, so it comes from the `chain`
+ * PROP — `initial.chain` from the masthead, the per-request envelope the layout
+ * built from that same cookie. A prop is request-scoped, unlike the module value
+ * above, so it is right on the first paint. The envelope field is optional, so
+ * the hydrated value stands in when it is absent rather than a guessed default.
+ *
+ * AND IT IS STILL NOT THE DATELINE. `ChainStrip` keeps printing the network from
+ * the payload the press actually answered with: this says what you ASKED for,
+ * the dateline says what ANSWERED, and a reader can see any disagreement.
  */
 
-export function ChainToggle() {
-  // Read only for the CLICK, never for the label. After hydration this is the
-  // real chain, which is all the handler needs; the label is CSS's job above.
-  const chain = useChain();
+export function ChainToggle({ chain }: { chain?: ChainKey }) {
+  const hydrated = useChain();
+  const active = chain ?? hydrated;
+
+  // Clicking the lit side is a no-op: `setChain` hard-reloads (see
+  // lib/useChain.ts for why it must), and reloading onto the same network would
+  // be a page load that changes nothing.
+  const pick = (next: ChainKey) => () => {
+    if (next !== active) setChain(next);
+  };
 
   return (
-    <button
-      type="button"
-      className="chain-switch"
-      onClick={() => setChain(chain === "mainnet" ? "testnet" : "mainnet")}
-      aria-label="switch network"
-    >
-      <span className="chain-on-default">
-        <Ed x="testnet →" p="practice network →" />
-      </span>
-      <span className="chain-off-default">
-        <Ed x="testnet · leave →" p="practice network · go back →" />
-      </span>
-    </button>
+    <span className="segmented chain-seg" role="group" aria-label="network">
+      <button
+        type="button"
+        className="seg-word on-main"
+        aria-pressed={active === "mainnet"}
+        title="the product's network · real USDC"
+        onClick={pick("mainnet")}
+      >
+        <Ed x="mainnet" p="real network" />
+      </button>
+      <button
+        type="button"
+        className="seg-word on-test"
+        aria-pressed={active === "testnet"}
+        title="the partner sandbox · practice money"
+        onClick={pick("testnet")}
+      >
+        <Ed x="testnet" p="practice network" />
+      </button>
+    </span>
   );
 }

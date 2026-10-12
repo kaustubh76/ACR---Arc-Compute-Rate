@@ -193,10 +193,12 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
             {/* Renders only once a reader has priced their workload — quiet
                 chrome is the rule, and the invitation lives on the home page. */}
             <WorkloadChip initial={initial} />
-            {/* Weight tracks the risk of being on the wrong network: a footnote
-                on the default, a gold chip off it. Not the dateline chip, which
-                keeps reporting what ANSWERED — the two cross-check. */}
-            <ChainToggle />
+            {/* MAINNET | TESTNET, the same shape as the edition pair beside it,
+                with testnet's lit side gold so the sandbox is never mistaken
+                for the product. `initial.chain` is this request's envelope, so
+                aria-pressed is right on the first paint. Not the dateline chip,
+                which keeps reporting what ANSWERED — the two cross-check. */}
+            <ChainToggle chain={initial.chain} />
             <EditionToggle />
             <StatusPill conn={conn} />
           </span>

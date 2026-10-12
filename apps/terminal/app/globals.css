@@ -1443,10 +1443,65 @@ table.sheet.sheet-checks td:nth-child(3) {
   .nav-links a {
     flex: 0 0 auto;
   }
-  .nav-right {
-    margin-left: 8px;
+  /* TWO ROWS, BECAUSE ONE STOPPED FITTING. This block was budgeted for two
+     pinned controls (the edition toggle and the status pill). The network
+     switch was added later into the same fixed-width, nowrap row, and nobody
+     re-measured: at 390px the nav offers 342px and that row needed 437, so the
+     page scrolled sideways AND the link strip was squeezed to 32px — the seven
+     page links were effectively invisible on a phone. Measured in production
+     2026-10-12. The MAINNET | TESTNET pair is wider again (505), so the row
+     had to stop pretending.
+
+     Row 1: the scrolling link strip, with the status pill pinned at its end —
+     a status light, glanced at, belongs with the navigation it qualifies.
+     Row 2: the two toggles, right-aligned — the controls a reader acts on.
+     `display: contents` lets the pill and the toggles join `.nav`'s own flex
+     line so they can sit on different rows, and `.nav::after` is the line
+     break. Two rows and not three, because a sticky header taller than this
+     eats the screen on every page (the reason this block exists at all). */
+  /* `.masthead .nav`, for the same source-order reason as `.nav .nav-right`
+     below: a `.nav { gap: 14px }` in the 760px block sits LATER in this file and
+     wins every tie, so a plain `.nav` here never set the gap at all.
+     Row gap 0 because the zero-height line break is a line of its own and a
+     row-gap would be paid twice; row 2 carries its own top margin instead. */
+  .masthead .nav {
+    flex-wrap: wrap;
+    gap: 0 10px;
+  }
+  /* `.nav .nav-right`, not `.nav-right`: the base `.nav-right` rule sits
+     ~1,400 lines BELOW this block, and a media query adds no specificity, so
+     the later base rule won every tie and this declaration was silently dead.
+     The block's previous `.nav-right` rule (nowrap, margin-left: 8px) had been
+     dead the same way, which is part of how the phone row drifted unchecked. */
+  .nav .nav-right {
+    display: contents;
+  }
+  /* Basis 0, not auto. With `auto` the strip's basis is its CONTENT width
+     (864px of links), which can never share a line with anything, so it took
+     row 1 alone and pushed the pill down — measured: links 366px wide, header
+     236px. At 0 it grows into whatever the pill leaves and scrolls the rest. */
+  .nav-links {
+    order: 1;
+    flex: 1 1 0;
+  }
+  .nav .nav-pulse {
+    order: 2;
     flex: 0 0 auto;
-    flex-wrap: nowrap;
+    margin-left: 0;
+  }
+  .nav::after {
+    content: "";
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+  }
+  .nav-right > :not(.nav-pulse) {
+    order: 4;
+    flex: 0 0 auto;
+    margin-top: 8px;
+  }
+  .nav-right > :first-child:not(.nav-pulse) {
+    margin-left: auto;
   }
   /* The header is shorter here than on desktop, and the desktop value would
      drop a deep link (the hero's own "Open the desk →") underneath it. */
@@ -2746,57 +2801,44 @@ html[data-edition-turn] .plain-only {
   }
 }
 
-/* the network switch — a footnote on the default chain, a chip off it.
-   Borrowed from `.segmented button`'s reset rather than invented: same eyebrow
-   type, same muted ink, so on the default chain it reads as chrome and not as a
-   control competing with the edition toggle beside it. Off the default it also
-   carries `.chip chip-gold`, which supplies its own border and colour. */
-.chain-switch {
-  border: 0;
-  background: transparent;
-  padding: 7px 4px;
-  font-family: var(--eyebrow);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ether-45);
-  cursor: pointer;
-  transition: color var(--dur-1) var(--ease-quart);
+/* the network switch — MAINNET | TESTNET, the same `.segmented` frame as the
+   edition pair beside it. Which side is lit is decided HERE, keyed on the
+   `<html data-chain>` the server rendered from the request's cookie, exactly as
+   `.edition-seg` keys on `data-edition`: React cannot know the chain during SSR
+   without leaking one visitor's network into the next render, so a React-driven
+   highlight would flash the wrong network until hydration.
+
+   The two lit states are deliberately NOT the same colour. Mainnet lights navy,
+   identical to a lit EXPERT, because it is the product and reads as normal.
+   Testnet lights GOLD, the sandbox colour the old chip used, because being on
+   the practice network must stay impossible to miss even in a symmetric
+   control. */
+.chain-seg .seg-word {
+  padding: 7px 12px;
 }
-.chain-switch:hover {
+.chain-seg button:focus-visible {
+  outline: 1px solid var(--validator);
+  outline-offset: -2px;
+}
+.chain-seg button.on-main {
+  background: var(--protocol);
   color: var(--sand);
 }
-.chain-switch:focus-visible {
-  outline: 1px solid var(--validator);
-  outline-offset: 2px;
+[data-chain="testnet"] .chain-seg button.on-main {
+  background: transparent;
+  color: var(--ether-70);
 }
-/* Which label shows is CSS's job, keyed on the attribute the SERVER rendered —
-   the same mechanism `.ed-x` / `.ed-p` use for the edition, and for the same
-   reason: `useChain()`'s server snapshot is the constant default, so a
-   React-driven label flashed the wrong state until hydration. Both branches
-   ship; one is revealed. */
-.chain-off-default {
-  display: none;
-}
-[data-chain="testnet"] .chain-on-default {
-  display: none;
-}
-[data-chain="testnet"] .chain-off-default {
-  display: inline;
-}
-
-/* Off the default network the footnote becomes a chip, because being on the
-   wrong one must be impossible to miss. Borrowing `.chip`'s look here rather
-   than toggling the class in React keeps the whole control server-renderable. */
-[data-chain="testnet"] .chain-switch {
-  padding: 4px 10px;
-  border: 1px solid rgba(233, 161, 63, 0.55);
-  border-radius: 999px;
+[data-chain="testnet"] .chain-seg button.on-test {
   background: var(--gold-wash);
   color: var(--sand);
+  box-shadow: inset 0 0 0 1px rgba(233, 161, 63, 0.55);
 }
-[data-chain="testnet"] .chain-switch:hover {
-  border-color: var(--gold);
+[data-chain="testnet"] .chain-seg {
+  border-color: rgba(233, 161, 63, 0.55);
+}
+/* The unlit side is the control: it is the only one a click does anything to. */
+.chain-seg button:hover {
+  color: var(--sand);
 }
 
 /* masthead: the toggle rides with the status pill as one right-aligned unit */
