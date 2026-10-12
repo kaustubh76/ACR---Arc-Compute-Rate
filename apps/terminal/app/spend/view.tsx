@@ -472,8 +472,8 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
               </span>
               {" "}
               <Ed
-                x="A demonstration, so the queue, the meter and the counterparty check can be seen working. Hand-written decisions, and excluded from every number on the traction page."
-                p="A demo, so you can see how it works. Made-up decisions, and left out of every real count."
+                x="A demonstration, so the queue, the meter and the counterparty check can be seen working. Invented bills, decided by the real ladder, and excluded from every number on the traction page."
+                p="A demo, so you can see how it works. Made-up bills, decided by the real rules, and left out of every real count."
               />
             </p>
           </div>

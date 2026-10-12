@@ -20,6 +20,7 @@ for f in docs/*.md; do b=$(basename "$f"); [ "$b" = README.md ] && continue
 
 | Doc | Why |
 |---|---|
+| **[WALKTHROUGH.md](WALKTHROUGH.md)** | **Judging this? Start here.** Seven stops in order, ten minutes: what to click, what you should see, which chain each one is on, and what is real versus a demonstration. |
 | **[TAMEION.md](TAMEION.md)** | The spend operator: an agent holds a business's USDC inside an on-chain budget, meters what was consumed, benchmarks every price, screens the counterparty, pays what clears policy and escalates the rest. The four decisions worth arguing with, and what is live on which chain. **Read this if you want to know what ACR is FOR**; the rest of this index is how it works. |
 
 This sat under "Run it — operating the system", between two runbooks, which said

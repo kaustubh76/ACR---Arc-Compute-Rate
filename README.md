@@ -157,6 +157,7 @@ is also the native gas token at eighteen, and
 
 | | |
 |---|---|
+| **Judging this?** | [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md): seven stops in order, ten minutes, what to click and what you should see |
 | **Who it runs for** | [`GET /operator/traction`](https://acr-api-1fto.onrender.com/operator/traction) — every figure counted from the registry and the decision log at request time, never maintained by hand. Served from the **testnet** API (chain `5042002`) — the `/traction` page renders it, but only against a press that carries the operator, and the mainnet image does not yet (`make verify-drift`) |
 | **One business's money** | [`GET /operator/statement/acr-fleet`](https://acr-api-1fto.onrender.com/operator/statement/acr-fleet) — the statement, the budgets read from the contract, and the queue waiting on its owner. Rendered by the `/spend` page, against the same testnet press |
 | **The ledger** | `GET /operator/ledger/{business}` — beancount, every transaction summing to zero. Downloads from the ledger link on each `/traction` row |

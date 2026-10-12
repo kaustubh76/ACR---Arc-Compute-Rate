@@ -39,7 +39,7 @@
       ],
       "onboarded_at": 1790866800,
       "sandbox": true,
-      "note": "A demonstration so the escalation queue, the meter, the counterparty screen and the dry-run labelling can all be seen working. Hand-written decisions, not a real business, excluded from every traction number. No PolicyWallet on purpose: inventing contract state would make the page's own sentence about reading budgets from the contract false, and `spends: false` is both true here and the state the real business is in until a wallet is funded."
+      "note": "A demonstration so the escalation queue, the meter, the counterparty screen and the dry-run labelling can all be seen working. Invented bills decided by the real ladder (scripts/gen_sandbox_decisions.py, checked in CI), not a real business, excluded from every traction number. No PolicyWallet on purpose: inventing contract state would make the page's own sentence about reading budgets from the contract false, and `spends: false` is both true here and the state the real business is in until a wallet is funded."
     }
   ]
 }

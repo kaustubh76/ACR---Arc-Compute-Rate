@@ -1,5 +1,8 @@
 # Tameion — the spend operator
 
+> **Judging this?** [WALKTHROUGH.md](WALKTHROUGH.md) is the ten-minute path through the
+> live product, in order. This page is the argument behind it.
+
 *Canteen × Circle × Arc, 27 September – 10 October 2026. This file is maintained
 during the event; the frozen material from earlier events lives in
 [`hackathon/`](../hackathon/).*
