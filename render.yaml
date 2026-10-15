@@ -590,32 +590,30 @@ services:
       # read six routes short the whole time. So this line says what Render
       # serves right now.
       #
-      # 2026-10-12-1118 is BUILT, PUSHED and VERIFIED BY RUNNING IT, and is the
-      # next pin. It is the first image carrying the `acr-operator` registry row
-      # and the `usdc()` entry in POLICY_ABI (54df1cc) — `balance_usdc()` had
-      # never once worked against a real contract without it. Verified in that
-      # image rather than trusting the build:
-      #   docker run -p 8097:8000 --platform linux/amd64 …:2026-10-12-1118
-      #   /openapi.json         -> 50 routes, 5 of them /operator/*, /par present
-      #   /operator/businesses  -> 3 rows: acr-fleet, sandbox, acr-operator
-      #                            (the running 10-09 image serves 2 — this is
-      #                            the witness the old image provably fails)
-      #   POLICY_ABI            -> usdc() declared
-      # `docker images` reports 352MB against the older pins' 1.56GB for the
-      # buildkit-attestation reason recorded on the block above. It is not a
-      # broken build; running the container is what settles it.
+      # 2026-10-14-1339 since 2026-10-15, the image the testnet press runs. This
+      # line said 10-09-1755 while Render ran 10-13-0541: a second declaration
+      # that outlived what it declared, found by `render_pin.py show`.
+      #
+      # WHY IT MOVED. This host is DEFAULT_API, so it answers mainnet for the
+      # hosted MCP server (whenever acr-api-mainnet lacks /par) and for the Aomi
+      # App. 10-13-0541 predates #61, and while Arc mainnet throttled it reported
+      # every throttled read as `404 no on-chain print`: 5 of 6 /onchain/ACR-INF
+      # reads on 2026-10-15, so get_rate failed for agents on the default URL.
+      # On 10-14-1339 the same reads went 10 of 10 to 200.
       #
       # The swap is TWO calls, and a plain deploy is not one of them — a POST to
       # /deploys on a pinned service re-pulls the same tag and changes nothing:
-      #   render services update srv-db28nc97lnhs73e1tgfg \
-      #     --image docker.io/kaushtubh02/acr-api:2026-10-12-1118 --confirm
-      #   render deploys create srv-db28nc97lnhs73e1tgfg --wait
+      #   scripts/render_pin.py pin srv-db28nc97lnhs73e1tgfg <image:tag>
+      #   POST /v1/services/srv-db28nc97lnhs73e1tgfg/deploys, then
+      #   scripts/render_pin.py assert srv-db28nc97lnhs73e1tgfg <image:tag>
+      # (plain RENDER_API_KEY owns this service, not the _PYPI_WORKSPACE one).
       # Both archive preflights were run against this host first and both came
-      # back 0 rows at risk (19 decisions, all 19 already in the repo archive;
-      # 0 live receipts). THAT ORDER IS NOT OPTIONAL on a plan with no disk:
-      # the decision log and the receipt log are erased by the deploy and
-      # rehydrate only from what ships inside the image.
-      url: docker.io/kaushtubh02/acr-api:2026-10-09-1755
+      # back 0 rows at risk (19 decisions, all 19 already in the image's
+      # archive; 0 live receipts), and both route lists were the same 50.
+      # THAT ORDER IS NOT OPTIONAL on a plan with no disk: the decision log and
+      # the receipt log are erased by the deploy and rehydrate only from what
+      # ships inside the image. Rollback: 2026-10-13-0541.
+      url: docker.io/kaushtubh02/acr-api:2026-10-14-1339
     healthCheckPath: /health
     envVars:
       # --- the chain, and the addresses the block above leaves empty ---------
