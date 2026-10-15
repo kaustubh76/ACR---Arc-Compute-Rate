@@ -8,6 +8,7 @@ import type { ChainKey } from "@/lib/chainChoice";
 import { UNITS, type Unit } from "@/lib/indices";
 import type { ParQuery } from "@/lib/parQuery";
 import type { MarketReceipt } from "@/lib/types";
+import { usePlaygroundInputs } from "@/lib/usePlayground";
 import {
   ACR_MCP_VERSION,
   CLIENTS,
@@ -15,11 +16,9 @@ import {
   EXAMPLES,
   HOSTED_TOOLS,
   LOCAL_ONLY,
-  PLAYGROUND_KEY,
   isRemoteClient,
   liveSubjects,
   mcpUrl,
-  parseSaved,
   readInputs,
   readingOf,
   remoteSetup,
@@ -254,21 +253,6 @@ ${aomiBill}
   };
 }
 
-/* The reader's own values, kept in their browser. Read through
-   useSyncExternalStore so the server render (and hydration) uses the defaults
-   and the saved values arrive one render later, with no mismatch. */
-function subscribeStorage(fn: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("storage", fn);
-  return () => window.removeEventListener("storage", fn);
-}
-function readStorage(): string | null {
-  try {
-    return window.localStorage.getItem(PLAYGROUND_KEY);
-  } catch {
-    return null;
-  }
-}
 const noSubscribe = () => () => {};
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -318,18 +302,10 @@ export interface McpSnippetProps {
 export function McpSnippet({ api, chain = "mainnet", origin = null, price = null, receipts = null, hostedTools = null }: McpSnippetProps) {
   const chainName = chain === "testnet" ? CHAIN_TESTNET.name : CHAIN.name;
 
-  const saved = useSyncExternalStore(subscribeStorage, readStorage, () => null);
-  const [edits, setEdits] = useState<PlaygroundInputs | null>(null);
-  const inputs = edits ?? parseSaved(saved);
-  const set = <K extends keyof PlaygroundInputs>(k: K, v: PlaygroundInputs[K]) => {
-    const next = { ...inputs, [k]: v };
-    setEdits(next);
-    try {
-      window.localStorage.setItem(PLAYGROUND_KEY, JSON.stringify(next));
-    } catch {
-      /* private mode: the values just are not remembered */
-    }
-  };
+  /* The visitor's values, shared with the endpoint table below (lib/usePlayground.ts). */
+  const [inputs, update] = usePlaygroundInputs();
+  const set = <K extends keyof PlaygroundInputs>(k: K, v: PlaygroundInputs[K]) =>
+    update({ [k]: v } as Partial<PlaygroundInputs>);
 
   /* The origin the page was served from. The server knows it; the browser
      confirms it after hydration, so a proxy that rewrote the host cannot hand

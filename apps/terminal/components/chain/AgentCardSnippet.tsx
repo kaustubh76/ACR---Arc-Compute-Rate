@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { Ed } from "@/components/Ed";
+import { normaliseCard } from "@/lib/agentcard";
+import { readCardCheck, type CardVerdict } from "@/lib/cardCheck";
 
 /* How an agent calls this — shown, in three languages, from the gate's own answer.
  *
@@ -108,6 +110,44 @@ export function AgentCardSnippet({ api }: { api: string }) {
   const [note, setNote] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>("py");
   const [copied, setCopied] = useState(false);
+  /* "Check your card": the visitor's own AGENT-CARD value, sent once through
+     /api/probe to GET /agent/whoami and read back. Component state only:
+     never stored, never put in a URL. */
+  const [draft, setDraft] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [verdict, setVerdict] = useState<CardVerdict | null>(null);
+  const draftIsCard = normaliseCard(draft) !== null;
+
+  async function checkCard() {
+    setChecking(true);
+    setVerdict(null);
+    try {
+      /* The gate's chain id rides along, so a refused card can be told the one
+         number it most often gets wrong, without the reader first having to
+         press "Ask the gate" above. */
+      const gateChain = ch
+        ? Promise.resolve<number | null>(ch.chain_id)
+        : fetch("/api/probe", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ path: "/agent/challenge" }),
+          })
+            .then((r) => r.json() as Promise<{ body?: string }>)
+            .then((o) => (o.body ? Number((JSON.parse(o.body) as { chain_id?: unknown }).chain_id) || null : null))
+            .catch(() => null);
+      const res = await fetch("/api/probe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: "/agent/whoami", agent_card: draft }),
+      });
+      const out = (await res.json()) as { status?: number; body?: string; detail?: string };
+      setVerdict(readCardCheck(res.status, out, Math.floor(Date.now() / 1000), await gateChain));
+    } catch {
+      setVerdict({ kind: "unreachable", reason: "could not reach the press from here. Press again" });
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function ask() {
     setAsking(true);
@@ -163,6 +203,75 @@ export function AgentCardSnippet({ api }: { api: string }) {
       >
         <Ed x="Ask the gate what it wants" p="Ask what it needs" />
       </button>
+
+      {/* CHECK YOUR OWN CARD. The gate explains every refusal; the page used to
+          offer only a card it minted itself, so a team testing their agent had
+          to read 401s off their own logs to learn what the gate made of it. */}
+      <div className="register-row is-stacked" style={{ fontSize: 13, marginTop: 12 }}>
+        <span className="muted">
+          <Ed x="check your card" p="check your robot's ID" />
+        </span>
+        <span>
+          <input
+            type="text"
+            className="mono"
+            aria-label="your agent card header value"
+            placeholder="eyJjYXJkIjp7… (the AGENT-CARD header value, never a private key)"
+            value={draft}
+            spellCheck={false}
+            autoComplete="off"
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setVerdict(null);
+            }}
+            style={{ width: "100%", maxWidth: 520 }}
+          />
+          {draft.trim() && !draftIsCard ? (
+            <span className="muted" style={{ display: "block", fontSize: 12, color: "var(--breach)" }}>
+              <Ed
+                x="Not a card: paste the AGENT-CARD header value itself, base64 that starts eyJ."
+                p="That is not an ID card. Paste the value that starts with eyJ."
+              />
+            </span>
+          ) : null}
+        </span>
+        <span>
+          <button type="button" className="mini-btn green" onClick={checkCard} disabled={!draftIsCard || checking}>
+            {checking ? <Ed x="checking…" p="checking…" /> : <Ed x="check it" p="check it" />}
+          </button>
+        </span>
+      </div>
+      {verdict ? (
+        <div role="status" style={{ marginTop: 4 }}>
+          {verdict.kind === "accepted" ? (
+            <>
+              <Row label={<Ed x="the gate says" p="the gate says" />}>
+                <span className="green">{verdict.tier}</span>
+                {verdict.identKind ? ` · ${verdict.identKind}` : null}
+              </Row>
+              <Row label={<Ed x="agent" p="robot" />}>{verdict.agent ?? "…"}</Row>
+              <Row label={<Ed x="role · audience" p="kind · made out to" />}>
+                {verdict.role ?? "…"} · {verdict.audience ?? "…"}
+              </Row>
+              <Row label={<Ed x="expires in" p="good for" />}>{verdict.expiresInS === null ? "…" : `${verdict.expiresInS}s`}</Row>
+              {verdict.humanNote ? <Row label={<Ed x="human claim" p="real-person claim" />}>{verdict.humanNote}</Row> : null}
+            </>
+          ) : verdict.kind === "anonymous" ? (
+            <Row label={<Ed x="the gate says" p="the gate says" />}>
+              <Ed x="anonymous: the card did not reach the gate" p="no ID seen: the card did not arrive" />
+            </Row>
+          ) : verdict.kind === "refused" ? (
+            <>
+              <Row label={<Ed x="refused" p="refused" />}>
+                <span className="vermilion">{verdict.reason}</span>
+              </Row>
+              {verdict.hint ? <Row label={<Ed x="what to change" p="what to fix" />}>{verdict.hint}</Row> : null}
+            </>
+          ) : (
+            <Row label={<Ed x="no answer" p="no answer" />}>{verdict.reason}</Row>
+          )}
+        </div>
+      ) : null}
 
       {ch && (
         <div style={{ marginTop: 14 }}>

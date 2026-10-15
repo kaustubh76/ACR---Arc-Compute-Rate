@@ -13,7 +13,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { DEFAULT_API, TOOLS as PACKAGE_TOOLS } from "acr-mcp";
 
-import { annotate, checkArgs, handleMcp, hostedPress, MAX_BATCH, type HostedDeps } from "./mcpHosted";
+import { annotate, callsATool, checkArgs, handleMcp, hostedPress, MAX_BATCH, type HostedDeps } from "./mcpHosted";
 import { ACR_MCP_VERSION, HOSTED_TOOLS, LOCAL_ONLY } from "./mcpPlayground";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -51,7 +51,7 @@ function stubPress(opts: { throws?: boolean } = {}) {
 }
 
 function deps(p = stubPress(), chain: HostedDeps["chain"] = "testnet"): HostedDeps {
-  return { chain, press: async () => PRESS, fetchImpl: p.f as never, retryDelayMs: 0 };
+  return { chain, press: async () => PRESS, quickPress: () => PRESS, fetchImpl: p.f as never, retryDelayMs: 0 };
 }
 
 let id = 0;
@@ -262,4 +262,31 @@ test("only the route imports the server side; the browser never does", () => {
     .map((f) => f.slice(TERMINAL.length + 1))
     .filter((f) => !allowed.has(f));
   assert.deepEqual(found, [], "Node-only code would land in a client bundle");
+});
+
+test("the handshake never waits on a press; only a tool call resolves one", async () => {
+  let resolved = 0;
+  const p = stubPress();
+  const d: HostedDeps = {
+    chain: "testnet",
+    press: async () => {
+      resolved += 1;
+      return PRESS;
+    },
+    quickPress: () => "https://quick.test",
+    fetchImpl: p.f as never,
+    retryDelayMs: 0,
+  };
+  const init = await handleMcp(
+    post(msg("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } })),
+    d,
+  );
+  assert.equal(init.headers.get("x-acr-press"), "quick.test", "the handshake names the quick guess");
+  await handleMcp(post(msg("tools/list")), d);
+  await handleMcp(post([msg("tools/list"), msg("ping")]), d);
+  assert.equal(resolved, 0, "a handshake waited on the press");
+  await handleMcp(post(msg("tools/call", { name: "get_rate", arguments: { index_id: "ACR-INF" } })), d);
+  assert.equal(resolved, 1, "a tool call must resolve the real press");
+  assert.equal(callsATool([msg("tools/list"), msg("tools/call")]), true);
+  assert.equal(callsATool({ method: "initialize" }), false);
 });

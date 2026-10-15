@@ -34,7 +34,7 @@
 import { useSyncExternalStore } from "react";
 import { mutate } from "swr";
 
-import { CARD_HEADER, MAX_CARD } from "./agentcard";
+import { CARD_HEADER, normaliseCard } from "./agentcard";
 
 const STORE = "acr-reader-card";
 
@@ -123,47 +123,8 @@ export function cardHeaders(card: string): Record<string, string> {
   return card_ ? { [CARD_HEADER]: card_ } : {};
 }
 
-/** The card as it will be SENT, or null if it is not one.
- *
- *  WHAT THIS CLOSES. The first version checked `card.trim()` and then sent the
- *  untrimmed string. Not exploitable — HTTP strips trailing whitespace from a
- *  header value, and undici refuses outright any value with a CR or LF inside
- *  it, which is a layer below this one — but it is the validate-one-thing,
- *  send-another shape, and the only reason it was harmless is a property of a
- *  library two hops away. One function now decides both, so the two cannot
- *  disagree whatever the layers below do.
- *
- *  Trailing whitespace is TRIMMED, not refused: a card pasted out of a terminal
- *  arrives with a newline on it, and refusing that would be refusing the normal
- *  way of getting one here. */
-export function normaliseCard(raw: string): string | null {
-  const v = raw.trim();
-  if (!v || v.length > MAX_CARD) return null;
-  // Standard base64's alphabet — `+/`, not `-_`. Both encoders are plain base64
-  // (`b64encode` in agentcard.py, `btoa` in lib/agentcard.ts), and writing this
-  // as base64url first would have refused any card containing a `+` or a `/`
-  // while passing 200 of 200 real cards: a `+` needs a byte at a position
-  // ≡2 mod 3 to be `>` or `~`, and a card's JSON is hex, a slug, a signature.
-  if (!/^[A-Za-z0-9+/=]+$/.test(v)) return null;
-
-  /* AND IT MUST LOOK LIKE A CARD, not merely like base64. This is the half the
-     charset cannot do: hex is a SUBSET of base64's alphabet, so `0x` followed
-     by sixty-four hex characters passes a charset check — which means a reader
-     who pasted a PRIVATE KEY into this field would have had it sent to the
-     press, by a control whose own copy says "never a private key". It would
-     have been refused there and logged on the way.
-
-     A card is base64 of `{"card":…`, so every one of them begins `eyJj`;
-     measured over 100 freshly minted cards, the prefix was `eyJj` every time.
-     `eyJ` is required rather than `eyJj` because that is the part fixed by the
-     grammar (base64 of `{"`) rather than by today's key order. */
-  return v.startsWith("eyJ") ? v : null;
-}
-
-/** Whether a pasted string could be a card at all — for enabling the button and
- *  for telling a reader who pasted a curl command that they did. One rule, in
- *  `normaliseCard`, so the page can never enable a button on a value the sender
- *  would then drop. */
-export function looksLikeCard(card: string): boolean {
-  return normaliseCard(card) !== null;
-}
+/* `normaliseCard` and `looksLikeCard` moved to lib/agentcard.ts so a route
+   handler (/api/probe, which now refuses a malformed card instead of quietly
+   calling anonymously) can share the one rule without importing this
+   client-only module. Re-exported, so every caller here is unchanged. */
+export { looksLikeCard, normaliseCard } from "./agentcard";

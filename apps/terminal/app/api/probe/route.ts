@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { CARD_HEADER, DEMO_HUMAN_LABEL, MAX_CARD, demoKey, mintCard } from "@/lib/agentcard";
+import { CARD_HEADER, DEMO_HUMAN_LABEL, demoKey, mintCard, normaliseCard } from "@/lib/agentcard";
 import { baseState, postLiveMeta, sellerFetch } from "@/lib/api";
 import { requestChain } from "@/lib/envelope";
+import { runnablePath } from "@/lib/probePath";
 import { CHAINS, type ChainKey } from "@/lib/chainChoice";
-import { RUNNABLE } from "@/lib/endpoints";
 
 /* POST /api/probe — call one free endpoint and report what came back.
  *
@@ -23,6 +23,9 @@ import { RUNNABLE } from "@/lib/endpoints";
  * again, and matched EXACTLY: no prefix matching, so no traversal, and a path
  * the register does not mark runnable cannot be reached through here even if
  * the press would serve it. Same discipline as app/api/console/route.ts.
+ * The one widening is lib/probePath.ts: a visitor's own wallet in `/tca/{payer}`
+ * and `/rating/{seller}`, and their own bill in `/par`, each parsed and rebuilt
+ * from validated parts, so the string that reaches the press is never theirs.
  *
  * TWO OPTIONAL FIELDS LET A VISITOR FEEL THE AGENT GATE rather than read about it:
  *
@@ -51,22 +54,40 @@ const TIMEOUT_MS = 12_000;
 
 export async function POST(req: NextRequest) {
   const chain = requestChain(req);
-  let path = "";
+  let raw = "";
   let agentCard: string | undefined;
+  let cardGiven = false;
   let asDemoHuman = false;
   try {
     const body = await req.json();
-    path = String(body.path ?? "");
-    if (typeof body.agent_card === "string" && body.agent_card.length <= MAX_CARD) {
-      agentCard = body.agent_card;
+    raw = String(body.path ?? "");
+    if (body.agent_card !== undefined && body.agent_card !== null && body.agent_card !== "") {
+      cardGiven = true;
+      agentCard = typeof body.agent_card === "string" ? (normaliseCard(body.agent_card) ?? undefined) : undefined;
     }
     asDemoHuman = body.as === "demo-human";
   } catch {
     /* invalid JSON — rejected by the allowlist below */
   }
-  if (!RUNNABLE.has(path)) {
+  /* The exact allowlist, plus the visitor's own wallet or bill in the three
+     templated reads, rebuilt from parsed parts (lib/probePath.ts). */
+  const path = runnablePath(raw);
+  if (!path) {
     return NextResponse.json(
-      { detail: `not runnable from here: ${path.slice(0, 80)}` },
+      { detail: `not runnable from here: ${raw.slice(0, 80)}` },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+  /* A card that was GIVEN and is not one is refused, not dropped. Dropping it
+     sent the call anonymously, and the page then reported "anonymous" for a
+     card the reader believed they had presented: the opposite of the truth. */
+  if (cardGiven && !agentCard) {
+    return NextResponse.json(
+      {
+        path,
+        detail:
+          "not an agent card: paste the AGENT-CARD header value, base64 of {\"card\":…, at most 2048 characters (never a private key)",
+      },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }

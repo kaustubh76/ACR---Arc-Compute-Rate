@@ -23,6 +23,8 @@ async function handle(req: Request): Promise<Response> {
     chain,
     websiteUrl: `${url.origin}/developers#mcp`,
     log: (line) => console.log(line),
+    // No network: what the handshake names before any tool is called.
+    quickPress: () => hostedPress(chain, baseState(chain).active, null),
     press: async () => {
       const { active } = baseState(chain);
       if (chain === "testnet") return hostedPress(chain, active, null);

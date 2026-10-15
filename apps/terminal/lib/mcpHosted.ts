@@ -256,12 +256,23 @@ function jsonRpcError(status: number, code: number, message: string, extra: Reco
 
 export interface HostedDeps {
   chain: ChainKey;
-  /** Resolved lazily, so OPTIONS and GET never wake a press. */
+  /** Resolved lazily, and only for a message that calls a tool: OPTIONS, GET,
+   *  `initialize` and `tools/list` never wait on a press. */
   press: () => Promise<string>;
+  /** A no-network guess at the same press, for messages that do not call a
+   *  tool (it names the host in the instructions and the x-acr-press header).
+   *  Defaults to the package's own default press. */
+  quickPress?: () => string;
   fetchImpl?: Fetchish;
   retryDelayMs?: number;
   websiteUrl?: string;
   log?: (line: string) => void;
+}
+
+/** Whether a JSON-RPC message, or any message in a batch, calls a tool. */
+export function callsATool(msg: unknown): boolean {
+  const one = (m: unknown) => Boolean(m && typeof m === "object" && (m as { method?: unknown }).method === "tools/call");
+  return Array.isArray(msg) ? msg.some(one) : one(msg);
 }
 
 /** The whole endpoint, as a Request → Response function a route (or a test)
@@ -299,11 +310,19 @@ export async function handleMcp(req: Request, deps: HostedDeps): Promise<Respons
   headers.set("content-type", "application/json");
   const normalized = new Request(req.url, { method: "POST", headers, body: JSON.stringify(parsed) });
 
+  /* A client adding this URL shakes hands (initialize, tools/list) before it
+     calls anything, and some give up on a slow handshake. Resolving the press
+     for those meant a mainnet route-list read (up to 6 s) and, on a sleeping
+     press, worse, for messages that never touch it. */
   let api: string;
-  try {
-    api = await deps.press();
-  } catch {
-    api = DEFAULT_API;
+  if (callsATool(parsed)) {
+    try {
+      api = await deps.press();
+    } catch {
+      api = DEFAULT_API;
+    }
+  } else {
+    api = deps.quickPress?.() ?? DEFAULT_API;
   }
   const server = buildServer({
     chain: deps.chain,

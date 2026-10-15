@@ -47,7 +47,13 @@ export interface EndpointRow {
    *  body), and for the tape reads (they want a wallet in the path, and there
    *  is no sensible default to probe with). A row that explains itself wrongly
    *  is worse than one that says nothing. */
-  why?: "session" | "post" | "inbound" | "address" | "business" | "human";
+  why?: "session" | "post" | "inbound" | "business" | "human";
+  /** Whose value the probe puts in the path: the VISITOR's (their agent's
+   *  wallet, a seller, their bill), typed into the MCP section on /developers,
+   *  else the live example. `/api/probe` accepts these through
+   *  lib/probePath.ts, which rebuilds the path from validated parts. These rows
+   *  used to say "needs a wallet in the path" and offer nothing to run. */
+  fill?: "payer" | "seller" | "bill";
 }
 
 const i0 = INDICES[0];
@@ -78,7 +84,7 @@ export const ENDPOINTS: EndpointRow[] = [
   // The indexed tape. Public reads over an allowlist of named operations —
   // the query text lives server-side, so a caller names an operation rather
   // than sending GraphQL, and the read key is never exposed.
-  { method: "GET", path: "/tca/{payer}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/tca/{payer}", gate: "public", family: "market", run: null, fill: "payer" },
   /* Runnable, unlike its neighbours, because every parameter is a literal a
      probe can supply — and because the one thing worth demonstrating here is
      that a stranger's bill gets a real answer with no onboarding at all. The
@@ -89,6 +95,7 @@ export const ENDPOINTS: EndpointRow[] = [
     gate: "public",
     family: "market",
     run: "/par?unit=%24%2F1k%20tokens&billed_usdc=0.02&quantity=10",
+    fill: "bill",
   },
   /* Free like the rest of the marketplace reads, so `gate` is honestly "public":
      that field names the PAYMENT gate and nothing is charged here. What stands
@@ -97,7 +104,7 @@ export const ENDPOINTS: EndpointRow[] = [
      true of it. The register's own rule is that a row explaining itself wrongly
      is worse than one saying nothing. */
   { method: "GET", path: "/tca/human", gate: "public", family: "market", run: null, why: "human" },
-  { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, why: "address" },
+  { method: "GET", path: "/rating/{seller}", gate: "public", family: "market", run: null, fill: "seller" },
   /* The owner-facing statement. Not runnable for the same reason as the rows
      above — the path wants a business and there is no sensible default to
      probe with; a slug would make one up, and a made-up business on a traction

@@ -19,6 +19,9 @@ import { fmtInt, money, shortAddr } from "@/lib/format";
 import { sellerBase, servesPath } from "@/lib/apiBase";
 import { PRICE_FALLBACK_USDC } from "@/lib/indices";
 import { ENDPOINTS, FAMILIES, type EndpointRow, type Family } from "@/lib/endpoints";
+import { liveSubjects, readInputs } from "@/lib/mcpPlayground";
+import { ADDRESS, parPath } from "@/lib/parQuery";
+import { usePlaygroundInputs } from "@/lib/usePlayground";
 import type { Envelope, MarketReceipt, TerminalData } from "@/lib/types";
 
 /** What /api/probe answers with. `detail` replaces the rest on a refusal or a
@@ -207,6 +210,28 @@ export function DevelopersView({
      row stays runnable — the behaviour before this existed. */
   const served = useServes();
 
+  /* THE VISITOR'S OWN VALUES. The wallet, seller and bill rows run with what
+     they typed into the MCP section above (lib/usePlayground.ts), else with the
+     live example, and say which. These rows used to read "needs a wallet in the
+     path" and offer nothing; /api/probe now accepts them through
+     lib/probePath.ts, which rebuilds the path from validated parts. */
+  const [inputs] = usePlaygroundInputs();
+  const mine = readInputs(inputs);
+  const vendor = ADDRESS.test(inputs.vendor.trim()) ? inputs.vendor.trim() : null;
+  const subjects = liveSubjects(chainKey, tape?.data?.receipts ?? null);
+  const runFor = (e: EndpointRow): { path: string; subject: string | null; yours: boolean } | null => {
+    if (e.fill === "payer") {
+      const w = mine.wallet ?? subjects.payer;
+      return { path: `/tca/${w}?days=${mine.wallet ? 30 : subjects.days}`, subject: w, yours: Boolean(mine.wallet) };
+    }
+    if (e.fill === "seller") {
+      const v = vendor ?? subjects.seller;
+      return { path: `/rating/${v}?days=${vendor ? 30 : subjects.days}`, subject: v, yours: Boolean(vendor) };
+    }
+    if (e.fill === "bill" && mine.bill) return { path: parPath(mine.bill), subject: null, yours: true };
+    return e.run ? { path: e.run, subject: null, yours: false } : null;
+  };
+
   const loadIntoConsole = useCallback((path: string, run: string) => {
     setSelected(path);
     setLoadPath(run + "#" + Date.now());
@@ -277,7 +302,10 @@ export function DevelopersView({
    *  shows the 402 before anything is paid; a free one runs right here. */
   const fire = (e: EndpointRow) => {
     if (e.console) loadIntoConsole(e.path, e.console);
-    else if (e.run) void probe(e.path, e.run);
+    else {
+      const r = runFor(e);
+      if (r) void probe(e.path, r.path);
+    }
   };
 
   return (
@@ -531,7 +559,8 @@ export function DevelopersView({
                       const out = probeOut[e.path];
                       // A paid row goes to the console (it has to show the 402
                       // before anything is paid); a free row runs right here.
-                      const act = e.console ? "console" : e.run ? "probe" : null;
+                      const act = e.console ? "console" : e.run || e.fill ? "probe" : null;
+                      const run = act === "probe" ? runFor(e) : null;
                       const sold = paid ? salesFor(e.path, tape?.data?.receipts).length : 0;
                       return (
                         <Fragment key={e.path}>
@@ -583,7 +612,7 @@ export function DevelopersView({
                               {DESC[e.path]}
                             </td>
                             <td className="mono">
-                              {act === "probe" && served && !servesPath(served, e.run!) ? (
+                              {act === "probe" && served && run && !servesPath(served, run.path) ? (
                                 /* A LABEL, NOT A DISABLED BUTTON. This row is
                                    runnable in the product and not on this
                                    press, which is a fact about the deployment
@@ -604,12 +633,19 @@ export function DevelopersView({
                                     className="mini-btn"
                                     onClick={(ev) => {
                                       ev.stopPropagation();
-                                      void probe(e.path, e.run!);
+                                      if (run) void probe(e.path, run.path);
                                     }}
-                                    disabled={probing !== null}
+                                    disabled={probing !== null || !run}
                                   >
                                     {probing === e.path ? "…" : "run"}
                                   </button>
+                                  {e.fill && run ? (
+                                    <span className="muted" style={{ fontSize: 11.5 }}>
+                                      {" "}
+                                      {run.subject ? `${shortAddr(run.subject)} ` : null}
+                                      {run.yours ? <Ed x="yours" p="yours" /> : <Ed x="example" p="example" />}
+                                    </span>
+                                  ) : null}
                                   {e.path === "/agent/whoami" ? (
                                     <>
                                       {" "}
@@ -656,8 +692,6 @@ export function DevelopersView({
                                     <Ed x="Circle calls this" p="Circle calls this" />
                                   ) : e.why === "post" ? (
                                     <Ed x="POST · needs a body" p="needs a form filled in" />
-                                  ) : e.why === "address" ? (
-                                    <Ed x="needs a wallet in the path" p="needs a wallet address" />
                                   ) : e.why === "business" ? (
                                     <Ed x="needs a business slug in the path" p="needs the name of a business" />
                                   ) : e.why === "human" ? (
