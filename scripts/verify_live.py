@@ -134,6 +134,21 @@ GATED = ["/prints/ACR-INF", "/curve/ACR-INF", "/vol/ACR-INF", "/seller-scores/AC
 UNGATED = ["/onchain/ACR-INF", "/marketplace/catalog", "/revenue", "/x402/info"]
 ROUTES = ["/", "/curve", "/developers"]
 
+#: The hosted MCP server (`apps/terminal/app/api/mcp`), the URL an agent adds with
+#: no install. Its unit tests stub the press, so nothing here checked that the
+#: DEPLOYED one answers: a broken endpoint would have left this whole run green
+#: while every agent that connected to it got an error. These are the tools it
+#: must offer. The two it must never offer need the agent's own machine:
+#: `pay_and_read` signs a payment with a local key, `spend_report` reads a local
+#: ledger file.
+HOSTED_MCP_TOOLS = frozenset({
+    "check_spend", "wallet_tca", "reroute_suggestion", "payment_receipts", "seller_rating",
+    "benchmark_price", "get_rate", "query_tape", "can_i_pay",
+})
+HOSTED_MCP_LOCAL_ONLY = frozenset({"pay_and_read", "spend_report"})
+#: The example bill /developers runs (`EXAMPLE_BILL` in lib/mcpPlayground.ts).
+HOSTED_MCP_BILL = {"unit": "$/1k tokens", "billed_usdc": 0.47, "quantity": 23}
+
 _failures: list[str] = []
 _warnings: list[str] = []
 
@@ -1072,6 +1087,102 @@ def verify_terminal(live_series: dict | None) -> None:
     )
 
 
+def mcp_rpc(chain_id: int, method: str, params: dict | None = None) -> tuple[int, dict | None]:
+    """One JSON-RPC call to the hosted MCP server for `chain_id`. No Accept
+    header, on purpose: a client that sends none must be answered too."""
+    body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
+    return post(terminal_url("/api/mcp", chain_id), body)
+
+
+def tool_answer(body: dict | None) -> tuple[dict | None, str]:
+    """A `tools/call` reply as (the tool's JSON answer, why there is none).
+
+    Three ways to fail look like success at the HTTP layer. A JSON-RPC error
+    arrives with status 200. A failed tool is a RESULT with `isError`. A refusal
+    the tool explains (bad arguments, a press that cannot answer) is a result
+    without `isError`, carrying `available: false` and a reason. A gate that read
+    only the status code would pass all three.
+    """
+    body = body or {}
+    result = body.get("result")
+    if not isinstance(result, dict):
+        err = body.get("error") if isinstance(body.get("error"), dict) else {}
+        return None, f"no result ({err.get('message') or 'unparseable reply'})"
+    text = next(
+        (c.get("text") for c in result.get("content") or [] if isinstance(c, dict) and c.get("type") == "text"),
+        "",
+    ) or ""
+    if result.get("isError"):
+        return None, f"tool error: {text[:90]}"
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return None, f"not JSON: {text[:90]}"
+    if not isinstance(answer, dict):
+        return None, f"not an object: {text[:90]}"
+    if answer.get("available") is False:
+        return None, f"refused: {str(answer.get('reason') or 'no reason given')[:90]}"
+    return answer, ""
+
+
+def verify_hosted_mcp(settings) -> None:
+    print("\nhosted MCP — the endpoint an agent adds with no install")
+    cid = int(settings.arc_chain_id)
+    testnet = cid == TESTNET_CHAIN_ID
+
+    status, body = mcp_rpc(cid, "initialize", {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "acr-verify-live", "version": "1"},
+    })
+    info = ((body or {}).get("result") or {}).get("serverInfo") or {}
+    title = str(info.get("title") or "")
+    # The title names the chain the server answers for. A testnet URL answered
+    # by the mainnet server is the failure the `?chain=` param exists to prevent.
+    check(
+        status == 200 and info.get("name") == "acr-tca" and ("Testnet" in title) == testnet,
+        f"handshake -> {status}, {title or 'no serverInfo'}",
+    )
+
+    status, body = mcp_rpc(cid, "tools/list")
+    tools = ((body or {}).get("result") or {}).get("tools") or []
+    offered = {t.get("name") for t in tools if isinstance(t, dict)}
+    missing = sorted(HOSTED_MCP_TOOLS - offered)
+    local = sorted(HOSTED_MCP_LOCAL_ONLY & offered)
+    check(
+        status == 200 and not missing and not local,
+        f"tools/list -> {status}, {len(offered)} tool(s)"
+        + (f" — MISSING {', '.join(missing)}" if missing else "")
+        + (f" — OFFERS {', '.join(local)}, which need the agent's own machine" if local else ""),
+    )
+
+    # The identity check. Every print carries the oracle that holds it, and a
+    # label can say testnet while the press behind it reads mainnet.
+    _, body = mcp_rpc(cid, "tools/call", {"name": "get_rate", "arguments": {"index_id": "ACR-INF"}})
+    rate, why = tool_answer(body)
+    seen = str((rate or {}).get("oracle") or "")
+    want = str(settings.oracle_address or "")
+    if rate is None:
+        check(False, f"get_rate ACR-INF -> {why}")
+    else:
+        check(
+            bool(want) and seen.lower() == want.lower(),
+            f"get_rate ACR-INF = {rate.get('value')}, from oracle {seen[:10]}…"
+            + ("" if seen.lower() == want.lower()
+               else f" — but this chain's oracle is {want[:10] or 'unset'}…: the hosted server reads another chain"),
+        )
+
+    _, body = mcp_rpc(cid, "tools/call", {"name": "check_spend", "arguments": HOSTED_MCP_BILL})
+    spend, why = tool_answer(body)
+    verdict = (spend or {}).get("verdict") or {}
+    check(
+        spend is not None and verdict.get("benchmarked") is True,
+        "check_spend on the /developers example bill -> "
+        + (str(verdict.get("verdict") or "benchmarked") if spend is not None and verdict.get("benchmarked")
+           else why or f"not benchmarked: {verdict.get('reason') or 'no verdict'}"),
+    )
+
+
 def tape_cause(freshness: dict | None) -> str:
     """Why an empty tape is empty. The press states when it last READ the tape
     (`FuturesReader.freshness`): never means the read is failing (a throttled
@@ -1329,6 +1440,7 @@ def main() -> None:
     section(verify_revenue, s)
     section(verify_hedger, s)
     section(verify_terminal, live)
+    section(verify_hosted_mcp, s)
     section(verify_funding, w3, s)
     section(verify_crons, w3)
     section(verify_route_drift)
