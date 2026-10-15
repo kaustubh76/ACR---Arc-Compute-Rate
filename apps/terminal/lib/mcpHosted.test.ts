@@ -138,6 +138,27 @@ test("an argument that would steer a press URL is refused before any fetch", asy
   assert.equal(checkArgs("wallet_tca", { target: "0xc2903b52a3ad365fd237b78389a2fde99e886999" }), null);
 });
 
+test("a fractional day or limit is refused in words, not forwarded to a press that 422s", async () => {
+  // The press parses `days` and `limit` as integers. A fraction used to pass the
+  // range check and come back as the press's raw `int_parsing` 422 (measured on
+  // the deployed server, 2026-10-15).
+  const target = "0xc2903b52a3ad365fd237b78389a2fde99e886999";
+  for (const [name, args] of [
+    ["wallet_tca", { target, days: 7.5 }],
+    ["reroute_suggestion", { target, days: 0.5 }],
+    ["seller_rating", { seller: target, days: 29.9 }],
+    ["payment_receipts", { payer: target, limit: 2.5 }],
+  ] as const) {
+    const p = stubPress();
+    const { isError, text } = await call(name, args, deps(p));
+    assert.equal(isError, true, `${name} ${JSON.stringify(args)} was accepted`);
+    assert.match(text, /whole number/);
+    assert.equal(p.calls.length, 0, `${name} reached the press`);
+  }
+  assert.equal(checkArgs("wallet_tca", { target, days: 30 }), null);
+  assert.equal(checkArgs("payment_receipts", { limit: 100 }), null);
+});
+
 test("nothing from this server's environment reaches a caller", async () => {
   const before = { rpc: process.env.ACR_ARC_RPC_URL, key: process.env.ACR_PAYER_PRIVATE_KEY };
   process.env.ACR_ARC_RPC_URL = "https://secret.test/key-abc";

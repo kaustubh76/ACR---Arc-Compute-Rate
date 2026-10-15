@@ -83,10 +83,14 @@ export function checkArgs(name: string, args: Record<string, unknown>): string |
     if (v === undefined || v === null || v === "") return required ? `${k} is required` : null;
     return typeof v === "string" && ADDRESS.test(v.trim()) ? null : `${k} must be a 0x wallet address (40 hex characters)`;
   };
+  // Whole numbers only: the press parses `days` and `limit` as integers, and a
+  // fraction let through here came back as its raw `int_parsing` 422.
   const bounded = (k: string, lo: number, hi: number): string | null => {
     const v = a[k];
     if (v === undefined || v === null) return null;
-    return typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? null : `${k} must be a number from ${lo} to ${hi}`;
+    return typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi
+      ? null
+      : `${k} must be a whole number from ${lo} to ${hi}`;
   };
   switch (name) {
     case "wallet_tca":
