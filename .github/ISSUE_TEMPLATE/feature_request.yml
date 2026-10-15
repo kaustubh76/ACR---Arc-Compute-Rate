@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose something ACR should do or expose.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: The proposal
+      description: What should exist. An endpoint, a tool, a field, a page.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: who
+    attributes:
+      label: Who you are building as
+      options:
+        - An agent or agent developer buying compute
+        - A seller of compute
+        - A trader or hedger
+        - A business running spend through the operator
+        - A researcher (methodology)
+        - Other

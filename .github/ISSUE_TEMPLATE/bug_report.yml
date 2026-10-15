@@ -1,0 +1,57 @@
+name: Bug report
+description: Something ACR does is wrong, broken, or says something untrue.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      description: Where did you see it?
+      options:
+        - Terminal (arc-compute-rate.vercel.app)
+        - Seller API (x402-gated)
+        - acr-mcp (MCP server)
+        - Contracts (on chain)
+        - Subgraph / The Graph
+        - Buyer or hedger agent
+        - Estimator / Python packages
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: chain
+    attributes:
+      label: Chain
+      options:
+        - Arc mainnet (5042)
+        - Arc testnet (5042002)
+        - Local (anvil)
+        - Not chain-specific
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Paste the exact sentence, response body, or error. A blank or a raw code is itself a bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command, URL, or click path. A curl line is ideal.
+      render: shell
+  - type: input
+    id: tx
+    attributes:
+      label: Transaction hash or explorer link
+      description: If there is one. Never paste a seed phrase or private key.

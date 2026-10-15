@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use ACR or its methodology, please cite it as below."
+title: "ACR: The Arc Compute Rate"
+abstract: >-
+  A manipulation-resistant on-chain reference rate for machine compute on
+  Circle's Arc. A state-space estimator recovers a constant-quality price from
+  batched, adversarial x402 payment exhaust, publishes it hourly as EIP-712
+  signed prints with an attack-cost-per-basis-point, and settles a cash-settled
+  futures venue against it. The methodology is in docs/methodology.md.
+type: software
+authors:
+  - family-names: Agrawal
+    given-names: Kaustubh
+repository-code: "https://github.com/kaustubh76/ACR---Arc-Compute-Rate"
+url: "https://arc-compute-rate.vercel.app"
+license: MIT
+date-released: "2026-09-27"
+keywords:
+  - reference rate
+  - price index
+  - state-space estimation
+  - market manipulation
+  - x402
+  - Arc
+  - USDC
+  - agentic payments

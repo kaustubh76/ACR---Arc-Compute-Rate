@@ -6,6 +6,9 @@
 [![terminal: live](https://img.shields.io/badge/terminal-live-2f9e44)](https://arc-compute-rate.vercel.app)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-3776ab)](pyproject.toml)
 [![Solidity 0.8.24](https://img.shields.io/badge/solidity-0.8.24-363636)](contracts/foundry.toml)
+[![npm: acr-mcp](https://img.shields.io/npm/v/acr-mcp?label=acr-mcp&color=cb3837)](https://www.npmjs.com/package/acr-mcp)
+[![release](https://img.shields.io/github/v/release/kaustubh76/ACR---Arc-Compute-Rate?display_name=tag&sort=date)](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/releases)
+[![Node 24](https://img.shields.io/badge/node-24-5fa04e)](.nvmrc)
 
 > **A live, on-chain reference rate for machine compute.**
 > *"Machine commerce just got its SOFR — and it prints its own attack cost."*
@@ -383,6 +386,15 @@ Stated here rather than discovered. The full trust model — who can do what, an
 | [`docs/TAMEION.md`](docs/TAMEION.md) | The Tameion spend operator: the delta, what is live, and the four decisions worth arguing with |
 
 The full index, including the runbooks, is [`docs/README.md`](docs/README.md).
+
+---
+
+## Contributing
+
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md): setup, the gates CI enforces, and how releases are tagged.
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md). Vulnerabilities go privately
+through [`SECURITY.md`](SECURITY.md). What changed and when is in [`CHANGELOG.md`](CHANGELOG.md), and every
+milestone and package version is a [tag](https://github.com/kaustubh76/ACR---Arc-Compute-Rate/tags).
 
 ---
 
