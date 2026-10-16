@@ -391,3 +391,60 @@ class HumanIdMirrorClient:
                 message["sandbox"], v, r, s_,
             )
         )
+
+
+# --- one window's resolution, shared by the script and the press ------------
+# `scripts/resolve_humans.py` was the only place this loop lived, and `scripts/`
+# is not in the press image, so a host holding every credential the chore needs
+# still could not run it. On 2026-10-16 the last resolved window was 2958, five
+# weeks back: a weekly laptop chore had simply stopped happening.
+
+from collections.abc import Iterable, Iterator  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+
+
+@dataclass(frozen=True)
+class Resolution:
+    """What happened to one wallet in one window."""
+
+    wallet: str
+    nullifier: str
+    cluster: bytes
+    sandbox: bool
+    #: "already" (on chain, skipped), "recorded" (broadcast), "dry-run" (signed only).
+    status: str
+    tx: str | None = None
+
+
+def roster_pairs(book) -> list[tuple[str, str, bool]] | None:
+    """(wallet, nullifier, sandbox) for every wallet of every human the book can
+    list, or None when it cannot list its humans (World Chain's AgentBook)."""
+    roster = book.roster()
+    if roster is None:
+        return None
+    return [(w, h.nullifier, h.sandbox) for h in roster for w in h.wallets]
+
+
+def resolve_window(
+    client: HumanIdMirrorClient,
+    pairs: Iterable[tuple[str, str, bool]],
+    salt: str,
+    window: int,
+    *,
+    dry_run: bool,
+) -> Iterator[Resolution]:
+    """Record each wallet's cluster for ``window``, skipping any already on chain.
+
+    A generator, so a caller can report each wallet as its transaction lands: a
+    Circle-signed record blocks for up to two minutes, and four of them in
+    silence reads as a hang. Idempotent by construction (`cluster_of` is read
+    first, and the contract makes an identical repeat a no-op), so a rerun after
+    a partial failure finishes the job instead of duplicating it.
+    """
+    for wallet, nullifier, sandbox in pairs:
+        cluster = cluster_id(nullifier, salt, window)
+        if client.cluster_of(wallet, window) == cluster:
+            yield Resolution(wallet, nullifier, cluster, sandbox, "already")
+            continue
+        tx = client.record(wallet, cluster, window, sandbox, dry_run=dry_run)
+        yield Resolution(wallet, nullifier, cluster, sandbox, "dry-run" if dry_run else "recorded", tx)

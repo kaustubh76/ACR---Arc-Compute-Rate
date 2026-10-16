@@ -136,6 +136,52 @@ class LocalKeySigner:
         return w3.to_hex(w3.eth.send_raw_transaction(raw))  # 0x-prefixed hash
 
 
+class CircleAuthError(RuntimeError):
+    """Circle refused the API key: one sentence instead of the SDK's traceback.
+
+    On 2026-10-16 `make resolve-humans ARGS=--commit` ended in sixty lines of SDK
+    output and `403 {"code":3,"message":"Forbidden"}`, with nothing naming the
+    cause: a testnet `.env` holding a `LIVE_API_KEY`.
+    """
+
+
+#: Circle's key prefixes. Arc mainnet takes LIVE keys; every other chain TEST ones.
+_CIRCLE_KEY_KINDS = ("TEST_API_KEY", "LIVE_API_KEY")
+
+
+def circle_key_mismatch(api_key: str, chain_id: int) -> str | None:
+    """Why this Circle key cannot serve this chain, or None.
+
+    Judged from the key's own prefix, so it costs no call and catches the case
+    Circle only answers with a bare 403. An unrecognised shape is not judged:
+    Circle will say what it thinks, and guessing here could refuse a good key.
+    The key itself is never echoed.
+    """
+    from acr_core.mainnet_guard import MAINNET_CHAIN_ID
+
+    kind = (api_key or "").strip().split(":", 1)[0]
+    if kind not in _CIRCLE_KEY_KINDS:
+        return None
+    mainnet = int(chain_id) == MAINNET_CHAIN_ID
+    want = "LIVE_API_KEY" if mainnet else "TEST_API_KEY"
+    if kind == want:
+        return None
+    return (
+        f"ACR_CIRCLE_API_KEY is a {kind}, but chain {int(chain_id)} is Arc "
+        f"{'mainnet' if mainnet else 'testnet'}, which needs a {want}: Circle answers 403 Forbidden "
+        f"to every wallet call. Use this chain's key (the {'mainnet press' if mainnet else 'testnet press acr-api'} "
+        "holds one in Render)."
+    )
+
+
+def _is_circle_auth_refusal(exc: BaseException) -> bool:
+    """The SDK's ForbiddenException / UnauthorizedException, recognised by name or
+    HTTP status so the SDK need not be importable to tell."""
+    return type(exc).__name__ in ("ForbiddenException", "UnauthorizedException") or getattr(
+        exc, "status", None
+    ) in (401, 403)
+
+
 @runtime_checkable
 class CircleClient(Protocol):
     """The minimal surface ``CircleWalletSigner`` needs — stable and fully mockable.
@@ -177,24 +223,36 @@ class CircleWalletSigner:
             )
         return self._client
 
+    def _call(self, method: str, *args):
+        """One Circle call, with a refused key turned into a CircleAuthError."""
+        try:
+            return getattr(self._get_client(), method)(*args)
+        except Exception as exc:
+            if not _is_circle_auth_refusal(exc):
+                raise
+            status = getattr(exc, "status", None) or ("403" if "Forbidden" in type(exc).__name__ else "401")
+            raise CircleAuthError(
+                f"Circle refused the API key (HTTP {status}) for wallet {self.wallet_id[:8]}…: the key is "
+                "revoked, or it belongs to the other environment (a TEST key cannot reach a mainnet wallet, "
+                "nor a LIVE key a testnet one)."
+            ) from exc
+
     @property
     def address(self) -> str:
         if self._address is None:
-            self._address = self._get_client().wallet_address(self.wallet_id)
+            self._address = self._call("wallet_address", self.wallet_id)
         return self._address
 
     def sign_typed_data(self, domain, types, message, primary_type):
         doc = full_eip712_json(domain, types, primary_type, message)
-        sig_hex = self._get_client().sign_typed_data(self.wallet_id, json.dumps(doc))
+        sig_hex = self._call("sign_typed_data", self.wallet_id, json.dumps(doc))
         sig = bytes.fromhex(sig_hex[2:] if sig_hex.startswith("0x") else sig_hex)
         return split_signature(sig)
 
     def send_transaction(self, w3, tx: dict) -> str:
         data = tx["data"]
         call_data = data if isinstance(data, str) else "0x" + bytes(data).hex()
-        return self._get_client().contract_execution(
-            self.wallet_id, tx["to"], call_data, str(uuid.uuid4())
-        )
+        return self._call("contract_execution", self.wallet_id, tx["to"], call_data, str(uuid.uuid4()))
 
 
 class _RealCircleClient:  # pragma: no cover - requires the Circle SDK + live creds

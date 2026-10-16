@@ -37,7 +37,8 @@ import sys
 
 from acr_core import get_settings
 from acr_oracle_client.agentbook import build_agentbook
-from acr_oracle_client.humanid import HumanIdMirrorClient, cluster_id
+from acr_oracle_client.humanid import HumanIdMirrorClient, cluster_id, resolve_window, roster_pairs
+from acr_oracle_client.signer import CircleAuthError, CircleWalletSigner, circle_key_mismatch
 from acr_tape import graph_query
 
 #: The payers the tape actually has. AgentBook answers "who is this wallet?",
@@ -76,11 +77,11 @@ def _from_tape(book, s, limit: int) -> list[tuple[str, str, bool]]:
 
 def _from_roster(book) -> list[tuple[str, str, bool]]:
     """Every wallet of every human the book can enumerate."""
-    roster = book.roster()
-    if roster is None:
+    pairs = roster_pairs(book)
+    if pairs is None:
         print("  this book cannot be enumerated — use --from-tape")
         return []
-    return [(w, h.nullifier, h.sandbox) for h in roster for w in h.wallets]
+    return pairs
 
 
 def main() -> int:
@@ -113,11 +114,28 @@ def main() -> int:
         print("  ✗ no signer — set ACR_POSTER_PRIVATE_KEY or the Circle poster wallet")
         return 1
 
+    # A Circle key of the other environment gets a bare 403 for every call, and its
+    # own prefix already says so: checked before anything is asked of Circle.
+    if isinstance(client.signer, CircleWalletSigner):
+        why = circle_key_mismatch(s.circle_api_key or "", s.arc_chain_id)
+        if why:
+            print(f"  ✗ {why}")
+            return 1
+
     window = client.chain_window()
     if window is None:
         print(f"  ✗ cannot reach {client.rpc_url} — resolving nobody")
         return 1
 
+    try:
+        return _resolve(client, s, window, dry_run, args)
+    except CircleAuthError as exc:
+        # Was sixty lines of SDK traceback on 2026-10-16. The sentence names the cause.
+        print(f"  ✗ {exc}")
+        return 1
+
+
+def _resolve(client, s, window: int, dry_run: bool, args) -> int:
     authorized = client.signer_authorized()
     if authorized is False:
         print(f"  ✗ {client.signer.address} is not in the mirror's signer set.")
@@ -155,15 +173,14 @@ def main() -> int:
         tag = "sandbox" if sandbox else "orb-verified"
         print(f"\n  human ••••{nullifier[-3:]} · {tag} · {len(wallets)} wallet(s)")
         print(f"    cluster 0x{cluster.hex()}")
-        for wallet in wallets:
-            already = client.cluster_of(wallet, window)
-            if already == cluster:
-                print(f"    = {wallet}  already resolved")
+        group = [(w, nullifier, sandbox) for w in wallets]
+        for r in resolve_window(client, group, s.humanid_salt, window, dry_run=dry_run):
+            if r.status == "already":
+                print(f"    = {r.wallet}  already resolved")
                 skipped += 1
-                continue
-            tx = client.record(wallet, cluster, window, sandbox, dry_run=dry_run)
-            print(f"    + {wallet}  {tx or '(not broadcast)'}")
-            wrote += 1
+            else:
+                print(f"    + {r.wallet}  {r.tx or '(not broadcast)'}")
+                wrote += 1
 
     if not by_nullifier:
         print("\n  ✓ nothing to resolve — no wallet the book recognises")
