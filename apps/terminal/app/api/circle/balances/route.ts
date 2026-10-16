@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { requestChain } from "@/lib/envelope";
+import { publicError } from "@/lib/readResult";
 import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient } from "@/lib/gatewayBuyer";
 import type { BalancesData, Envelope, WalletBalance, X402Info } from "@/lib/types";
@@ -75,6 +76,6 @@ export async function GET(req: Request) {
     };
     return NextResponse.json(env);
   } catch (e) {
-    return off(`balance read failed: ${String((e as Error).message).slice(0, 160)}`);
+    return off(`balance read failed: ${publicError(e)}`);
   }
 }

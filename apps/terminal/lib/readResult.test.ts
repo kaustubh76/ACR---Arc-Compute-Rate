@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   freshHeaders,
+  publicError,
   keepLast,
   ok,
   readFailure,
@@ -82,4 +83,42 @@ test("the log line survives a hostile error", () => {
   assert.ok(readFailure("s", {}, "x".repeat(500)).length < 260);
   assert.equal(readFailure("s", {}), "acr.read.fail scope=s");
   assert.equal(readFailure("s", {}, null), "acr.read.fail scope=s");
+});
+
+// ── publicError: what a caller may see of an exception ──────────────────────
+// A real viem error, because the leak is in viem's own message layout: the first
+// 120 characters, which wallet/balances returned, carry `URL: <rpc>` with
+// whatever key the provider URL holds (measured 2026-10-16, viem 2.55.8).
+test("publicError keeps the reason and drops the RPC URL a viem error carries", async () => {
+  const { HttpRequestError } = await import("viem");
+  const e = new HttpRequestError({ url: "https://arc.example.com/v2/SECRETKEY123", status: 429, body: { method: "eth_call" } });
+  assert.match(e.message.slice(0, 120), /SECRETKEY123/, "the control: viem's message does carry the URL");
+  const out = publicError(e);
+  assert.doesNotMatch(out, /SECRETKEY123|arc\.example\.com|Request body/);
+  assert.match(out, /HTTP request failed/);
+  assert.match(out, /429/, "the status is the useful part, and it is not in shortMessage");
+});
+
+test("publicError keeps a plain reason, strips any URL, and stays one short line", () => {
+  assert.equal(publicError(new Error("insufficient_balance")), "insufficient_balance");
+  assert.equal(
+    publicError(new Error("settle failed at https://gateway.example/v1/x?key=abc: insufficient_balance")),
+    "settle failed at [url]: insufficient_balance",
+  );
+  const long = publicError(new Error("x".repeat(500) + "\n\nsecond block https://leak.example"));
+  assert.ok(long.length <= 160 && !long.includes("leak.example") && !long.includes("\n"));
+  assert.equal(publicError("a string"), "a string");
+  assert.equal(publicError(null), "unknown error");
+});
+
+test("no route returns a raw exception message", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = dirname(fileURLToPath(import.meta.url));
+  for (const p of ["app/api/wallet/balances/route.ts", "app/api/circle/balances/route.ts", "app/api/buy/route.ts"]) {
+    const src = readFileSync(join(here, "..", p), "utf8");
+    assert.doesNotMatch(src, /\(e as Error\)\.message/, `${p} returns a raw exception message`);
+    assert.match(src, /publicError\(e/, `${p} must go through publicError`);
+  }
 });

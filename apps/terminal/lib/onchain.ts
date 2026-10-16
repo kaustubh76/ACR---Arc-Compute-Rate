@@ -194,7 +194,8 @@ export async function readOracleDirect(
   // badge claiming all three were read direct.
   data.partial = onchainTier(Object.keys(prints).length, INDICES.length) === "partial";
 
-  if (historyFor && prints[historyFor]) {
+  // Own property only: `prints.constructor` is truthy on every plain object.
+  if (historyFor && Object.hasOwn(prints, historyFor)) {
     const history: Record<string, HistoryPoint[]> = {};
     for (const id of [historyFor]) {
       try {

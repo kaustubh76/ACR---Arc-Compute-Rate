@@ -13,7 +13,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { DEFAULT_API, TOOLS as PACKAGE_TOOLS } from "acr-mcp";
 
-import { annotate, callsATool, checkArgs, handleMcp, hostedPress, MAX_BATCH, type HostedDeps } from "./mcpHosted";
+import { annotate, callsATool, checkArgs, handleMcp, hostedPress, jsonDepth, MAX_BATCH, MAX_BODY_BYTES, MAX_DEPTH, type HostedDeps } from "./mcpHosted";
 import { ACR_MCP_VERSION, HOSTED_TOOLS, LOCAL_ONLY } from "./mcpPlayground";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -310,4 +310,54 @@ test("the handshake never waits on a press; only a tool call resolves one", asyn
   assert.equal(resolved, 1, "a tool call must resolve the real press");
   assert.equal(callsATool([msg("tools/list"), msg("tools/call")]), true);
   assert.equal(callsATool({ method: "initialize" }), false);
+});
+
+// ── hostile bodies (measured on production 2026-10-16) ────────────────────────
+// A 9,000- or 20,000-deep body escaped every handler on Vercel: HTTP 500 with an
+// empty body, while the same input survived locally. Depth is measured BEFORE
+// JSON.parse, so no stack anywhere (parse, stringify, the SDK's validation) is
+// what decides.
+test("a body nested deeper than any MCP message is refused before it is parsed", async () => {
+  for (const body of ["[".repeat(20000) + "]".repeat(20000), '{"a":'.repeat(9000) + "1" + "}".repeat(9000)]) {
+    const p = stubPress();
+    const res = await handleMcp(new Request(URL_, { method: "POST", headers: { "content-type": "application/json" }, body }), deps(p));
+    assert.equal(res.status, 400);
+    const out = (await res.json()) as { error: { code: number; message: string } };
+    assert.equal(out.error.code, -32600);
+    assert.match(out.error.message, /nested deeper than \d+ levels/);
+    assert.equal(p.calls.length, 0);
+  }
+});
+
+test("depth counts brackets, not the brackets inside strings", () => {
+  assert.equal(jsonDepth('{"a":[1,{"b":2}]}'), 3);
+  assert.equal(jsonDepth('{"s":"[[[[[[ \\" {{{{"}'), 1);
+  assert.equal(jsonDepth("[]"), 1);
+  assert.equal(jsonDepth('"plain"'), 0);
+  // A real tools/call is shallow; the cap must never touch one.
+  const real = JSON.stringify(msg("tools/call", { name: "check_spend", arguments: { unit: "$/1k tokens", billed_usdc: 0.47, quantity: 23 } }));
+  assert.ok(jsonDepth(real) < MAX_DEPTH / 4);
+});
+
+test("an oversized body is refused on its Content-Length, before it is read", async () => {
+  const req = new Request(URL_, {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": String(MAX_BODY_BYTES + 1) },
+    body: "{}",
+  });
+  const res = await handleMcp(req, deps());
+  assert.equal(res.status, 413);
+  assert.equal(req.bodyUsed, false, "the body was read before the size was checked");
+});
+
+test("an internal failure answers a generic error and logs the detail", async () => {
+  const lines: string[] = [];
+  // A press that is not a URL throws inside the transport block (`new URL(api)`).
+  const d: HostedDeps = { ...deps(), press: async () => "not a url", log: (l) => lines.push(l) };
+  const res = await handleMcp(post(msg("tools/call", { name: "get_rate", arguments: { index_id: "ACR-INF" } })), d);
+  assert.equal(res.status, 500);
+  const out = (await res.json()) as { error: { code: number; message: string } };
+  assert.equal(out.error.code, -32603);
+  assert.doesNotMatch(out.error.message, /Invalid URL|not a url/, "the exception text reached the caller");
+  assert.ok(lines.some((l) => /Invalid URL/.test(l)), "the detail must still reach the server log");
 });

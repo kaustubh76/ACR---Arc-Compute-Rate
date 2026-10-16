@@ -143,3 +143,26 @@ export function readFailure(scope: string, ctx: Record<string, unknown>, e?: unk
     err ? ` err=${err.slice(0, 160).replace(/\s+/g, " ")}` : ""
   }`;
 }
+
+/** What a CALLER may see of an exception: the reason, never the plumbing.
+ *
+ *  viem's `message` is `shortMessage`, a blank line, then `Status`, `URL` and
+ *  `Request body`. `wallet/balances` returned its first 120 characters, which
+ *  carry the RPC URL whole, and `ACR_ARC_RPC_URL` may be a provider URL with a
+ *  key in its path. So this keeps the first block only, adds the HTTP status
+ *  viem keeps on the error, and replaces any URL that is left. The full text
+ *  still belongs in the server log, through `readFailure`.
+ */
+export function publicError(e: unknown, max = 160): string {
+  if (e == null) return "unknown error";
+  const o = typeof e === "object" ? (e as { shortMessage?: unknown; status?: unknown }) : {};
+  const text =
+    typeof o.shortMessage === "string" ? o.shortMessage : e instanceof Error ? e.message : String(e);
+  const status = typeof o.status === "number" ? ` (HTTP ${o.status})` : "";
+  const first = text.split(/\n\s*\n/)[0];
+  return (first + status)
+    .replace(/https?:\/\/[^\s"'<>)]*[^\s"'<>).,:;]/g, "[url]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}

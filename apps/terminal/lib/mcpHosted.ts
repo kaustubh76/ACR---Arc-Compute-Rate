@@ -41,6 +41,28 @@ export const HOSTED_ENV = Object.freeze({ ACR_SPEND_LOG: "off" }) as unknown as 
 export const UPSTREAM_TIMEOUT_MS = 25_000;
 export const MAX_BODY_BYTES = 64 * 1024;
 export const MAX_BATCH = 4;
+/** Deeper than any MCP message (a real tools/call is under 10 levels). Checked by
+ *  a linear scan BEFORE JSON.parse: on 2026-10-16 a 9,000-deep body escaped every
+ *  handler on Vercel as a bare HTTP 500, while the same input survived locally, so
+ *  no runtime's stack depth may be what decides. */
+export const MAX_DEPTH = 64;
+
+/** How deeply `text` nests arrays and objects, ignoring brackets inside strings. */
+export function jsonDepth(text: string): number {
+  let depth = 0;
+  let max = 0;
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (inString) {
+      if (c === 92 /* \\ */) i++;
+      else if (c === 34 /* " */) inString = false;
+    } else if (c === 34) inString = true;
+    else if (c === 91 || c === 123 /* [ { */) max = Math.max(max, ++depth);
+    else if (c === 93 || c === 125 /* ] } */) depth--;
+  }
+  return max;
+}
 
 const HOSTED = new Set<string>(HOSTED_TOOLS);
 
@@ -296,11 +318,18 @@ export async function handleMcp(req: Request, deps: HostedDeps): Promise<Respons
     );
   }
 
+  // The declared size first, so an oversized body is refused without reading it.
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    return jsonRpcError(413, -32600, `request body over ${MAX_BODY_BYTES} bytes`);
+  }
   const raw = await req.arrayBuffer();
   if (raw.byteLength > MAX_BODY_BYTES) return jsonRpcError(413, -32600, `request body over ${MAX_BODY_BYTES} bytes`);
+  const text = new TextDecoder().decode(raw);
+  if (jsonDepth(text) > MAX_DEPTH) return jsonRpcError(400, -32600, `request nested deeper than ${MAX_DEPTH} levels`);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(raw));
+    parsed = JSON.parse(text);
   } catch {
     return jsonRpcError(400, -32700, "parse error: the body is not JSON");
   }
@@ -309,35 +338,40 @@ export async function handleMcp(req: Request, deps: HostedDeps): Promise<Respons
   }
 
   // JSON mode never streams, so a client that only accepts JSON is answered too.
-  const headers = new Headers(req.headers);
-  headers.set("accept", "application/json, text/event-stream");
-  headers.set("content-type", "application/json");
-  const normalized = new Request(req.url, { method: "POST", headers, body: JSON.stringify(parsed) });
-
-  /* A client adding this URL shakes hands (initialize, tools/list) before it
-     calls anything, and some give up on a slow handshake. Resolving the press
-     for those meant a mainnet route-list read (up to 6 s) and, on a sleeping
-     press, worse, for messages that never touch it. */
-  let api: string;
-  if (callsATool(parsed)) {
-    try {
-      api = await deps.press();
-    } catch {
-      api = DEFAULT_API;
-    }
-  } else {
-    api = deps.quickPress?.() ?? DEFAULT_API;
-  }
-  const server = buildServer({
-    chain: deps.chain,
-    api,
-    fetchImpl: deps.fetchImpl ?? pressFetch(api),
-    retryDelayMs: deps.retryDelayMs,
-    websiteUrl: deps.websiteUrl,
-    log: deps.log,
-  });
-  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  // ONE try from here to the response. `JSON.stringify(parsed)` and the server
+  // build used to sit outside it, so a throw there escaped as a bare HTTP 500.
+  let server: Server | null = null;
+  let transport: WebStandardStreamableHTTPServerTransport | null = null;
   try {
+    // JSON mode never streams, so a client that only accepts JSON is answered too.
+    const headers = new Headers(req.headers);
+    headers.set("accept", "application/json, text/event-stream");
+    headers.set("content-type", "application/json");
+    const normalized = new Request(req.url, { method: "POST", headers, body: JSON.stringify(parsed) });
+
+    /* A client adding this URL shakes hands (initialize, tools/list) before it
+       calls anything, and some give up on a slow handshake. Resolving the press
+       for those meant a mainnet route-list read (up to 6 s) and, on a sleeping
+       press, worse, for messages that never touch it. */
+    let api: string;
+    if (callsATool(parsed)) {
+      try {
+        api = await deps.press();
+      } catch {
+        api = DEFAULT_API;
+      }
+    } else {
+      api = deps.quickPress?.() ?? DEFAULT_API;
+    }
+    server = buildServer({
+      chain: deps.chain,
+      api,
+      fetchImpl: deps.fetchImpl ?? pressFetch(api),
+      retryDelayMs: deps.retryDelayMs,
+      websiteUrl: deps.websiteUrl,
+      log: deps.log,
+    });
+    transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     await server.connect(transport);
     const res = await transport.handleRequest(normalized, { parsedBody: parsed });
     const out = new Headers(res.headers);
@@ -347,9 +381,12 @@ export async function handleMcp(req: Request, deps: HostedDeps): Promise<Respons
     out.set("x-acr-press", new URL(api).host);
     return new Response(res.body, { status: res.status, headers: out });
   } catch (e) {
-    return jsonRpcError(500, -32603, `internal error: ${e instanceof Error ? e.message : String(e)}`);
+    // The detail is for our log. A caller gets no exception text: it can carry a
+    // press or RPC URL, and it tells an agent nothing it can act on.
+    deps.log?.(`acr.mcp.fail ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`.slice(0, 300));
+    return jsonRpcError(500, -32603, "internal error: the hosted server could not answer this request. Try again");
   } finally {
-    await transport.close().catch(() => {});
-    await server.close().catch(() => {});
+    await transport?.close().catch(() => {});
+    await server?.close().catch(() => {});
   }
 }

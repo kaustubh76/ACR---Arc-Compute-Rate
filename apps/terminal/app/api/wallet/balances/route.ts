@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, erc20Abi, formatUnits, http, isAddress } from "viem";
 import { bundleSection } from "@/lib/api";
 import { requestChain } from "@/lib/envelope";
+import { publicError, readFailure } from "@/lib/readResult";
+import { priceParam } from "@/lib/routeInput";
 import { emptyChainFacts } from "@/lib/chainChoice";
 import { CHAIN, chainFacts } from "@/lib/chain";
 import { GATEWAY_WALLET_ABI, fundingStep } from "@/lib/walletPayer";
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest) {
   const chain = requestChain(req);
   const address = (req.nextUrl.searchParams.get("address") ?? "").trim();
   if (!isAddress(address)) return NextResponse.json({ detail: "address is not an EVM address" }, { status: 400 });
-  const price = Math.max(0, Number(req.nextUrl.searchParams.get("price") ?? 0) || 0);
+  const price = priceParam(req.nextUrl.searchParams.get("price"));
 
   /* `emptyChainFacts(chain)`, NOT `null`. The bundle is mainnet-only
      (`chainChoice.ts` sets `bundle: false` off the default), so on the other
@@ -63,6 +65,7 @@ export async function GET(req: NextRequest) {
       fetchedAt: Date.now(), chain,
     });
   } catch (e) {
-    return NextResponse.json({ detail: `chain read failed: ${(e as Error).message.slice(0, 120)}` }, { status: 502 });
+    console.error(readFailure("wallet.balances", { chain, address }, e));
+    return NextResponse.json({ detail: `chain read failed: ${publicError(e, 120)}` }, { status: 502 });
   }
 }

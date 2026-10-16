@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBase } from "@/lib/api";
 import { requestChain } from "@/lib/envelope";
+import { publicError } from "@/lib/readResult";
 import { CHAIN } from "@/lib/chain";
 import { buyerConfigured, getGatewayClient, SPEND_CAP_USDC } from "@/lib/gatewayBuyer";
 import { buyerAllowedOn, chooseTargets, clampCount, withinCap } from "@/lib/buyPlan";
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
   try {
     client = await getGatewayClient({ gatewayChain: gatewayChain ?? CHAIN.gatewayChain, privateMainnet });
   } catch (e) {
-    return NextResponse.json({ detail: String((e as Error).message) }, { status: 400 });
+    return NextResponse.json({ detail: publicError(e) }, { status: 400 });
   }
 
   const results: LiveBuyResult[] = [];
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       });
     } catch (e) {
       // Surface Circle's real verify/settle reason (e.g. insufficient_balance).
-      results.push({ path, status: 402, price_usdc: 0, tx_ref: "", network: "", error: String((e as Error).message).slice(0, 300) });
+      results.push({ path, status: 402, price_usdc: 0, tx_ref: "", network: "", error: publicError(e, 300) });
       break;
     }
   }

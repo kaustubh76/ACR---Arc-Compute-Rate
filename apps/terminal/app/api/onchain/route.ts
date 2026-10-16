@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readOracleDirect } from "@/lib/onchain";
 import type { Envelope, OnchainDirectRead } from "@/lib/types";
 import { envelopeHeaders, requestChain } from "@/lib/envelope";
+import { historyParam } from "@/lib/routeInput";
 
 /* Settlement-grade prints read straight from ACROracle with viem — answers
    even when the FastAPI press is cold. Cached at the CDN: prints move hourly,
@@ -16,7 +17,9 @@ export const maxDuration = 30;
 export async function GET(req: NextRequest) {
   const chain = requestChain(req);
   // ?history=<index-id> also reads the last 12 on-chain prints for that index.
-  const historyFor = req.nextUrl.searchParams.get("history");
+  // Anything else is ignored: each distinct value used to force a fresh, paced RPC
+  // crawl that bypassed both the CDN and the memo.
+  const historyFor = historyParam(req.nextUrl.searchParams.get("history"));
   let data: OnchainDirectRead | null = null;
   try {
     data = await readOracleDirect(chain, historyFor);
