@@ -779,12 +779,16 @@ export async function callTool(
 
       const indexId = String(args.index_id ?? "");
       if (!indexId) {
+        // Name the input that was actually missing. With no unit, /par is never
+        // asked, so saying "this press has no /par" blamed a route nobody tried:
+        // a testnet caller was told that by a press that serves it.
         return {
           available: false,
-          reason:
-            "no `unit` was given and this press has no /par, so there is nothing to compare " +
-            `against. Pass \`unit\` (${UNITS.join(" | ")}), or \`index_id\` for the weaker ` +
-            "index comparison.",
+          reason: unit
+            ? `${api} has no /par (it predates the benchmark), and no \`index_id\` was given for ` +
+              "the index comparison. Pass `index_id` (e.g. ACR-INF)."
+            : "no `unit` was given, so there is no market to compare against. Pass " +
+              `\`unit\` (${UNITS.join(" | ")}), or \`index_id\` for the weaker index comparison.`,
         };
       }
       const print = (await readJson(f, `${api}/onchain/${indexId}`)) as { value?: number };
