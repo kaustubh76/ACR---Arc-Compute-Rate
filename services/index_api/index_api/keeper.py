@@ -91,6 +91,21 @@ _last_mirror = 0.0
 #: One mirror pass at a time. The tick and a settlement-triggered pass can
 #: coincide; the contract's replay guards make a double pass safe but not free.
 _mirror_lock = threading.Lock()
+
+#: HUMAN RESOLUTION, once per 7-day rotation window, on the host that already
+#: holds the salt, the mirror address and the mirror's one authorized signer.
+#: Until 2026-10-16 it was a laptop chore (`make resolve-humans ARGS=--commit`),
+#: and it had silently stopped: the last resolved window was 2958, five weeks
+#: back, so every surface read "0 humans" and new settlements were stamped
+#: human:false. Opt-in per service (`ACR_KEEPER_HUMANS=1`), so mainnet does not
+#: start writing identity to its chain because an image changed.
+HUMANS_EVERY_S = float(os.environ.get("ACR_KEEPER_HUMANS_S", "3600"))
+#: How often the loop looks. Cheap: while the host clock says the resolved
+#: window still runs, a look costs no chain read at all.
+HUMANS_TICK_S = float(os.environ.get("ACR_KEEPER_HUMANS_TICK_S", "300"))
+_last_humans = 0.0
+_humans_done_window: int | None = None
+_humans_lock = threading.Lock()
 #: The pending settlement-triggered pass, if any. Kept so a burst of purchases
 #: coalesces into ONE pass a few seconds after the last of them.
 _mirror_kick: asyncio.Task | None = None
@@ -110,6 +125,11 @@ def enabled() -> bool:
     return os.environ.get("ACR_KEEPER", "1") not in ("0", "false", "no")
 
 
+def humans_enabled() -> bool:
+    """The humans chore runs only where a service asked for it, under the kill switch."""
+    return enabled() and os.environ.get("ACR_KEEPER_HUMANS", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def record(chore: str, verdict: str | None) -> None:
     """Note that ``chore`` ran, whatever it decided.
 
@@ -119,6 +139,12 @@ def record(chore: str, verdict: str | None) -> None:
     indistinguishable from one that had died an hour ago.
     """
     _last_run[chore] = {"at": time.time(), "verdict": verdict}
+
+
+def last_verdict(chore: str) -> str | None:
+    """The most recent verdict recorded for ``chore``, or None."""
+    seen = _last_run.get(chore)
+    return seen["verdict"] if seen else None  # type: ignore[return-value]
 
 
 def _chore_status(chore: str, every_s: float, last_fire: float) -> dict[str, object]:
@@ -152,6 +178,8 @@ def status() -> dict[str, object]:
         "heartbeat": _chore_status("heartbeat", HEARTBEAT_EVERY_S, _last_heartbeat),
         "roll": _chore_status("roll", ROLL_CHECK_EVERY_S, _last_roll_check),
         "mirror": _chore_status("mirror", MIRROR_EVERY_S, _last_mirror),
+        # Always present, with `on`, so "not asked for" never reads as "stalled".
+        "humans": {**_chore_status("humans", HUMANS_EVERY_S, _last_humans), "on": humans_enabled()},
     }
 
 
@@ -503,6 +531,68 @@ def mirror_once(_futures=None, *, force: bool = False) -> str | None:
         return _mirror(list(get_facilitator().recent), client=client)
     finally:
         _mirror_lock.release()
+
+
+def humans_once(_futures=None, *, force: bool = False) -> str | None:
+    """Resolve this rotation window's humans, once, with the press's own signer.
+
+    The same loop the script runs (`acr_oracle_client.humanid.resolve_window`),
+    so a wallet already on chain is skipped and a rerun after a partial failure
+    finishes the job. Signs only through Circle custody (`_custody_signer`), like
+    every chore here: a raw key on the host is refused, not borrowed.
+
+    Cost: while the host clock says the resolved window still runs, nothing is
+    read at all. Near a boundary the CHAIN's window decides (`record` requires
+    `window == currentWindow()`), so a host clock running ahead only means
+    asking again next time.
+    """
+    global _last_humans, _humans_done_window
+    if not humans_enabled():
+        return None
+    from acr_oracle_client import humanid
+
+    if _humans_done_window is not None and humanid.current_window() == _humans_done_window:
+        return None
+    now = time.time()
+    if not force and now - _last_humans < HUMANS_EVERY_S:
+        return None
+    if not _humans_lock.acquire(blocking=False):
+        return None
+    try:
+        s = get_settings()
+        _last_humans = now  # stamped before the work, so a failing chore cannot spin
+        if not (s.humanid_mirror_address or "").strip() or not (s.humanid_salt or "").strip():
+            # This service opted in, so silence would hide the gap for weeks.
+            return "not resolving: ACR_HUMANID_MIRROR_ADDRESS or ACR_HUMANID_SALT is not set on this service"
+        signer = _custody_signer("poster")
+        if signer is None:
+            return "not resolving: the poster is not a Circle custody wallet (the keeper never signs with a raw key)"
+        from acr_oracle_client import agentbook
+
+        client = humanid.HumanIdMirrorClient(settings=s, signer=signer)
+        window = client.chain_window()
+        if window is None:
+            return "not resolving: the mirror could not be read"
+        if window == _humans_done_window:
+            return None
+        if client.signer_authorized() is False:
+            return f"not resolving: {signer.address} is not in the mirror's signer set"
+        if client.salt_matches(s.humanid_salt) is False:
+            return "not resolving: the salt (ACR_HUMANID_SALT) does not hash to the mirror's SALT_COMMITMENT"
+        pairs = humanid.roster_pairs(agentbook.build_agentbook(s))
+        if pairs is None:
+            return "not resolving: this AgentBook cannot list its humans"
+        results = list(humanid.resolve_window(client, pairs, s.humanid_salt, window, dry_run=False))
+        recorded = sum(r.status == "recorded" for r in results)
+        already = len(results) - recorded
+        _humans_done_window = window
+        if recorded == 0:
+            return f"window {window}: all {already} wallet(s) already resolved"
+        return f"resolved {recorded} wallet(s) for window {window}" + (
+            f" ({already} already on chain)" if already else ""
+        )
+    finally:
+        _humans_lock.release()
 
 
 def kick_mirror(delay_s: float | None = None) -> bool:

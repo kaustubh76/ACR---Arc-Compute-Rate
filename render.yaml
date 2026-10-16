@@ -203,6 +203,14 @@ services:
       # runs, refuses every human claim, and says so on /ops and in the footer.
       - key: ACR_HUMANID_MIRROR_ADDRESS
         value: "0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5"
+      # The press resolves each 7-day window's humans itself (keeper.humans_once),
+      # with the salt and the one authorized signer it already holds. Until
+      # 2026-10-16 this was a laptop chore that had silently stopped: the last
+      # resolved window was 2958, five weeks back. Testnet only, deliberately:
+      # mainnet's service does not set it, so no image change starts writing
+      # identity to that chain.
+      - key: ACR_KEEPER_HUMANS
+        value: "1"
 
       # --- Paths + CORS ----------------------------------------------------
       # NOTE: the free plan has NO persistent disk, so these files (and the

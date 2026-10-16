@@ -272,3 +272,35 @@ def test_the_memory_guard_acts_past_the_line_and_says_what_it_freed(monkeypatch)
     assert graph_client.cache_bytes() == 0, "the cache was dropped"
     assert memory.last_action is a
     assert isinstance(memory.trim(), (float, type(None))), "trim never raises, glibc or not"
+
+
+def test_the_console_shows_the_humans_chore_only_where_it_runs(monkeypatch):
+    """The press resolves each window itself where `ACR_KEEPER_HUMANS=1`. Where
+    it runs, the console must say whether it is alive and surface a refusal
+    ("not resolving: …", "failed: …") instead of letting window after window go
+    unresolved in silence, which is how five weeks passed before 2026-10-16."""
+    from index_api import keeper, ops
+    from index_api.ops import Recorder
+
+    def humans_checks(status):
+        monkeypatch.setattr(keeper, "status", lambda: status)
+        rec = Recorder()
+        ops._keeper(rec)
+        return [c for sec in rec.sections for c in sec["checks"] if c["label"].startswith("humans")]
+
+    fresh = {"checked_age_s": 30.0, "verdict": None, "on": True}
+    base = {"enabled": True, "heartbeat": {"checked_age_s": 10.0}, "roll": {"checked_age_s": 10.0}}
+
+    assert humans_checks({**base, "humans": {"on": False}}) == []
+
+    (ok,) = humans_checks({**base, "humans": fresh})
+    assert ok["ok"] is True and "resolved" not in ok["detail"], "no verdict yet is not a resolved window"
+
+    (refused,) = humans_checks({**base, "humans": {**fresh, "verdict": "not resolving: 0xabc is not in the mirror's signer set"}})
+    assert refused["ok"] is False and "signer set" in refused["detail"]
+
+    (failed,) = humans_checks({**base, "humans": {**fresh, "verdict": "failed: Circle refused the API key (HTTP 403)"}})
+    assert failed["ok"] is False
+
+    (silent,) = humans_checks({**base, "humans": {"on": True, "checked_age_s": None, "verdict": None}})
+    assert silent["ok"] is None

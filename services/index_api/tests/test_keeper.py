@@ -272,7 +272,7 @@ class TestStatus:
         # what this surface exists to say out loud.
         st = keeper.status()
         assert st["enabled"] is True
-        assert set(st) == {"enabled", "heartbeat", "roll", "mirror"}
+        assert set(st) == {"enabled", "heartbeat", "roll", "mirror", "humans"}
         for chore in ("heartbeat", "roll", "mirror"):
             assert set(st[chore]) == {
                 "checked_at",
@@ -344,3 +344,167 @@ def test_the_forced_pass_still_refuses_to_overlap_a_running_one(monkeypatch):
         assert keeper.mirror_once(force=True) is None, "a pass in flight means this one stands down"
     finally:
         keeper._mirror_lock.release()
+
+
+# ── humans: the press resolves each rotation window itself ───────────────────
+# Until 2026-10-16 this was a laptop chore (`make resolve-humans ARGS=--commit`)
+# and it had silently stopped: the last resolved window was 2958, five weeks
+# back, so every surface read "0 humans". The press already holds the salt, the
+# mirror address and the one authorized signer (Circle custody).
+
+class TestHumans:
+    W = 2963
+    WALLETS = ["0x" + c * 40 for c in "1234"]
+
+    class Book:
+        source = "fixture"
+
+        def roster(self):
+            from types import SimpleNamespace
+
+            w = TestHumans.WALLETS
+            return [
+                SimpleNamespace(nullifier="0x" + "aa" * 32, sandbox=True, wallets=w[:3]),
+                SimpleNamespace(nullifier="0x" + "bb" * 32, sandbox=True, wallets=w[3:]),
+            ]
+
+    @pytest.fixture()
+    def chain(self, monkeypatch):
+        """A mirror that answers like the real one, and counts what it is asked."""
+        from types import SimpleNamespace
+
+        state = SimpleNamespace(window=self.W, host_window=self.W, clusters={}, reads=0, records=[],
+                                authorized=True, salt_ok=True, built=0)
+
+        class Client:
+            def __init__(self, settings=None, signer=None, **_):
+                state.built += 1
+                self.signer = signer
+
+            def chain_window(self):
+                state.reads += 1
+                return state.window
+
+            def signer_authorized(self):
+                state.reads += 1
+                return state.authorized
+
+            def salt_matches(self, salt):
+                state.reads += 1
+                return state.salt_ok
+
+            def cluster_of(self, wallet, window):
+                state.reads += 1
+                return state.clusters.get((wallet, window))
+
+            def record(self, wallet, cluster, window, sandbox, dry_run=False):
+                state.records.append((wallet, window))
+                state.clusters[(wallet, window)] = cluster
+                return "0x" + "ee" * 32
+
+        monkeypatch.setenv("ACR_KEEPER_HUMANS", "1")
+        monkeypatch.setattr(keeper, "_last_humans", 0.0)
+        monkeypatch.setattr(keeper, "_humans_done_window", None)
+        monkeypatch.setattr(keeper, "get_settings", lambda: SimpleNamespace(
+            humanid_mirror_address="0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5", humanid_salt="0x" + "22" * 32))
+        monkeypatch.setattr(keeper, "_custody_signer", lambda role: CircleWalletSigner())
+        monkeypatch.setattr("acr_oracle_client.humanid.HumanIdMirrorClient", Client)
+        monkeypatch.setattr("acr_oracle_client.humanid.current_window", lambda: state.host_window)
+        monkeypatch.setattr("acr_oracle_client.agentbook.build_agentbook", lambda settings=None: self.Book())
+        return state
+
+    def test_off_unless_asked_for(self, chain, monkeypatch):
+        monkeypatch.delenv("ACR_KEEPER_HUMANS")
+        assert keeper.humans_once() is None
+        assert chain.built == 0, "a deployment that did not opt in must not even build a client"
+
+    def test_it_resolves_only_the_unresolved_then_idles_for_the_window(self, chain):
+        from acr_oracle_client.humanid import cluster_id
+
+        done = self.WALLETS[0]
+        chain.clusters[(done, self.W)] = cluster_id("0x" + "aa" * 32, "0x" + "22" * 32, self.W)
+        verdict = keeper.humans_once()
+        assert verdict == f"resolved 3 wallet(s) for window {self.W} (1 already on chain)"
+        assert [w for w, _ in chain.records] == self.WALLETS[1:]
+
+        reads, built = chain.reads, chain.built
+        assert keeper.humans_once(force=True) is None
+        assert (chain.reads, chain.built) == (reads, built), "a resolved window must cost no reads at all"
+
+    def test_an_already_resolved_window_says_so_once(self, chain):
+        keeper.humans_once()
+        chain.records.clear()
+        keeper._humans_done_window = None  # a restart: the memo is gone, the chain is not
+        assert keeper.humans_once(force=True) == f"window {self.W}: all 4 wallet(s) already resolved"
+        assert chain.records == []
+
+    def test_a_new_window_is_resolved_again(self, chain):
+        keeper.humans_once()
+        chain.records.clear()
+        chain.window = chain.host_window = self.W + 1
+        assert keeper.humans_once(force=True) == f"resolved 4 wallet(s) for window {self.W + 1}"
+        assert {w for w, win in chain.records if win == self.W + 1} == set(self.WALLETS)
+
+    def test_the_host_clock_running_ahead_does_not_mark_a_window_done(self, chain):
+        keeper.humans_once()
+        chain.host_window = self.W + 1  # the host thinks the window rolled; the chain has not yet
+        assert keeper.humans_once(force=True) is None
+        assert keeper._humans_done_window == self.W
+        chain.window = self.W + 1  # the chain catches up: the next check resolves
+        assert keeper.humans_once(force=True).startswith("resolved 4 wallet(s)")
+
+    def test_a_signer_the_mirror_does_not_trust_is_a_verdict_not_a_write(self, chain):
+        chain.authorized = False
+        verdict = keeper.humans_once()
+        assert "not in the mirror's signer set" in verdict and chain.records == []
+
+    def test_a_salt_that_does_not_match_is_a_verdict_not_a_write(self, chain):
+        chain.salt_ok = False
+        assert "salt" in keeper.humans_once() and chain.records == []
+
+    def test_it_refuses_a_raw_key(self, chain, monkeypatch):
+        monkeypatch.setattr(keeper, "_custody_signer", lambda role: None)
+        assert "Circle custody" in keeper.humans_once()
+        assert chain.records == []
+
+    def test_a_service_that_opted_in_but_lacks_the_salt_says_so(self, chain, monkeypatch):
+        # Opting in is explicit, so silence would hide a misconfiguration for weeks.
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(keeper, "get_settings", lambda: SimpleNamespace(humanid_mirror_address="0xabc", humanid_salt=""))
+        verdict = keeper.humans_once()
+        assert verdict.startswith("not resolving") and "ACR_HUMANID_SALT" in verdict
+        assert chain.built == 0
+
+    def test_a_refusal_is_not_overwritten_by_the_quiet_ticks_after_it(self, chain, monkeypatch):
+        # The loop looks every few minutes and most looks return None (cooldown).
+        # Recording that None would turn "not resolving: …" into what /ops renders
+        # as "resolved, nothing to do": a confident false claim within five minutes.
+        import asyncio
+
+        from index_api import app as app_mod
+
+        verdicts = iter(["not resolving: 0xabc is not in the mirror's signer set", None, None])
+        monkeypatch.setattr(keeper, "humans_once", lambda *a, **k: next(verdicts))
+        monkeypatch.setattr(keeper, "_last_run", {})
+        for _ in range(3):
+            asyncio.run(app_mod._humans_tick())
+        assert keeper._last_run["humans"]["verdict"].startswith("not resolving")
+
+    def test_the_cooldown_holds_between_checks(self, chain):
+        keeper.humans_once()
+        keeper._humans_done_window = None
+        assert keeper.humans_once() is None, "a second check inside the cooldown must not run"
+
+    def test_a_failing_tick_is_recorded_and_never_raised(self, chain, monkeypatch):
+        import asyncio
+
+        from index_api import app as app_mod
+
+        def boom(*_a, **_k):
+            raise RuntimeError("Circle refused the API key (HTTP 403)")
+
+        monkeypatch.setattr(keeper, "humans_once", boom)
+        monkeypatch.setattr(keeper, "_last_run", {})
+        asyncio.run(app_mod._humans_tick())
+        assert keeper._last_run["humans"]["verdict"].startswith("failed: Circle refused")

@@ -254,3 +254,33 @@ def test_the_gate_verifies_a_claim_against_a_mirror_it_can_only_read():
 
     assert cluster == CLUSTER, "a readable mirror must confirm the claim"
     assert note == "", f"no excuse expected, got {note!r}"
+
+
+@pytest.mark.skipif(not ARTIFACT.exists(), reason="contracts not built (run forge build)")
+def test_resolve_window_records_once_then_reports_already():
+    """The loop the script AND the press run (`resolve_window`), against the real
+    contract: a second pass over the same window writes nothing, and a dry run
+    signs and checks without broadcasting."""
+    from acr_oracle_client.humanid import resolve_window
+
+    conn = _anvil()
+    if conn is None:
+        pytest.skip(f"anvil not reachable at {RPC}")
+    w3, acct = conn
+    client = _client(_deploy(w3, acct))
+    window = client.chain_window()
+    pairs = [(WALLET_A, NULLIFIER, True), (WALLET_B, NULLIFIER, True)]
+
+    first = list(resolve_window(client, pairs, SALT, window, dry_run=False))
+    assert [r.status for r in first] == ["recorded", "recorded"]
+    assert all(r.tx for r in first)
+    want = cluster_id(NULLIFIER, SALT, window)
+    assert all(client.cluster_of(w, window) == want for w, _, _ in pairs)
+
+    again = list(resolve_window(client, pairs, SALT, window, dry_run=False))
+    assert [r.status for r in again] == ["already", "already"] and not any(r.tx for r in again)
+
+    fresh = "0x" + "cd" * 20
+    (dry,) = resolve_window(client, [(fresh, NULLIFIER, True)], SALT, window, dry_run=True)
+    assert dry.status == "dry-run" and dry.tx is None
+    assert client.cluster_of(fresh, window) is None, "a dry run must not write"

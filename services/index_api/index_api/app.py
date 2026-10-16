@@ -435,6 +435,45 @@ async def _operator_loop(stop: asyncio.Event) -> None:
             log.exception("operator tick failed")
 
 
+async def _humans_tick() -> None:
+    """One look by the humans chore, contained like every other chore: a failure
+    is recorded and logged, and never reaches the press."""
+    from . import keeper
+
+    try:
+        verdict = await asyncio.to_thread(keeper.humans_once)
+        # A quiet look (cooldown, or the window already done) keeps the last real
+        # verdict. Recording its None would turn "not resolving: …" into what /ops
+        # renders as "nothing to do" within one tick.
+        keeper.record("humans", verdict if verdict is not None else keeper.last_verdict("humans"))
+        if verdict:
+            log.info("keeper humans: %s", verdict)
+    except Exception as exc:  # a chore must never cost a beat
+        keeper.record("humans", f"failed: {exc}")
+        log.warning("keeper humans failed", exc_info=True)
+
+
+async def _humans_loop(stop: asyncio.Event) -> None:
+    """Resolve each rotation window's humans, on its own clock.
+
+    ITS OWN TASK, like `_operator_loop` and for the same reason: a Circle-signed
+    `record` blocks for up to two minutes while Circle confirms it, which the
+    60 s warm loop must never wait on. The interval comes first, so a boot is
+    never also a burst of identity writes.
+    """
+    from . import keeper
+
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=keeper.HUMANS_TICK_S)
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        if keeper.humans_enabled():
+            await _humans_tick()
+
+
 #: The systems-ledger snapshot, recomputed on its own slow timer. None until
 #: the first pass lands — served as "pending", never as an empty dashboard.
 _ops_cache: dict | None = None
@@ -623,6 +662,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_warm_chain(stop)),
         asyncio.create_task(_ops_loop(stop)),
         asyncio.create_task(_operator_loop(stop)),
+        asyncio.create_task(_humans_loop(stop)),
     ]
     try:
         yield

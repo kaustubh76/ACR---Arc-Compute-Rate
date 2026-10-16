@@ -796,7 +796,8 @@ def verify_humans() -> None:
         bool(in_window),
         f"window {window}: {len(in_window)} human(s), {wallets} wallet(s) resolved"
         if in_window else
-        f"window {window} has NO resolutions — run `make resolve-humans ARGS=--commit` "
+        f"window {window} has NO resolutions — a press with ACR_KEEPER_HUMANS=1 resolves it within the "
+        f"hour (its /health keeper.humans verdict says why not); else `make resolve-humans ARGS=--commit` "
         f"(ids rotate weekly; the last window's are expired, not wrong)",
         warn_only=True,
     )

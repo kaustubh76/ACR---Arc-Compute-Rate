@@ -331,6 +331,22 @@ def _keeper(rec: Recorder) -> None:
             detail=str(c.get("verdict") or "on cooldown, nothing to do"),
         )
 
+    # The humans chore, only where a service turned it on: absent elsewhere,
+    # because "not asked for" is a configuration and must not read as a fault.
+    h = st.get("humans") or {}
+    if h.get("on"):
+        age = h.get("checked_age_s")
+        verdict = str(h.get("verdict") or "")
+        if age is None:
+            rec.unknown("humans: last checked", "not seen since boot (the first look comes a few minutes in)")
+        elif verdict.startswith(("not resolving", "failed")):
+            # A refusal repeats every window until someone acts, so it is said in full.
+            rec.check(False, f"humans: checked {age / 60:.0f} min ago and NOT resolving", warn_only=True,
+                      detail=verdict)
+        else:
+            rec.check(age < 3 * keeper.HUMANS_TICK_S, f"humans: checked {age / 60:.0f} min ago", warn_only=True,
+                      detail=verdict or "no verdict yet (the first look comes a few minutes after boot)")
+
 
 def _venue(rec: Recorder) -> None:
     from .onchain import get_futures
@@ -679,9 +695,10 @@ def _humans_this_window(rec: Recorder, window) -> None:
         f"humans resolved this window: {len(clusters)} cluster(s), {wallets} wallet(s) · window {now_window} "
         f"ends in {ends_in_h:.0f}h",
         detail=None if clusters
-        else "the 7-day rotation rolled and nothing re-resolved — run `make resolve-humans ARGS=--commit` "
-             "(needs ACR_HUMANID_SALT); until then the human tier is unreachable and new settlements "
-             "are stamped human:false",
+        else "the 7-day rotation rolled and nothing re-resolved. A press with ACR_KEEPER_HUMANS=1 does it "
+             "itself within the hour (its `keeper.humans` verdict on /health says why not); elsewhere run "
+             "`make resolve-humans ARGS=--commit` (needs ACR_HUMANID_SALT). Until then the human tier is "
+             "unreachable and new settlements are stamped human:false",
     )
 
 
