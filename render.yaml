@@ -27,8 +27,9 @@ services:
       # this line said `:latest` while the live service ran the 10-09 pin, so
       # pushing `:latest` deployed nothing (2026-10-14). The deploy script now
       # pins the service to the tag it pushes (scripts/render_pin.py); keep
-      # this line in step with it. Rollback: 2026-10-09-1755.
-      url: docker.io/kaushtubh02/acr-api:2026-10-14-1339
+      # this line in step with it. 2026-10-16-0632 carries the press's own humans
+      # chore (#75); rollback: 2026-10-14-1339.
+      url: docker.io/kaushtubh02/acr-api:2026-10-16-0632
     healthCheckPath: /health
     envVars:
       # --- Arc + the deployed contracts -----------------------------------
@@ -620,8 +621,14 @@ services:
       # archive; 0 live receipts), and both route lists were the same 50.
       # THAT ORDER IS NOT OPTIONAL on a plan with no disk: the decision log and
       # the receipt log are erased by the deploy and rehydrate only from what
-      # ships inside the image. Rollback: 2026-10-13-0541.
-      url: docker.io/kaushtubh02/acr-api:2026-10-14-1339
+      # ships inside the image.
+      #
+      # 2026-10-16-1609 (from 71a3995, #78) is the first image carrying the
+      # mainnet business `acr-mainnet` and the keyless budget reads. This host
+      # serves mainnet `/operator/*` to the terminal, so it is what makes the
+      # mainnet PolicyWallet visible. Preflights were clean, the route set is the
+      # same 53 the repo builds, and RSS was 387 MiB. Rollback: 2026-10-14-1339.
+      url: docker.io/kaushtubh02/acr-api:2026-10-16-1609
     healthCheckPath: /health
     envVars:
       # --- the chain, and the addresses the block above leaves empty ---------
