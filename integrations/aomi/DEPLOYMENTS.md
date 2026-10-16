@@ -19,7 +19,7 @@ author-supplied. No transactions were signed or submitted.
 | FeedAttestor | `0xB9508caD4A5C367C3a62B6767C4837a607EaA490` | `0xe671a8E73900F1186448cFFeA9e730F5E50DFD47` |
 | ReceiptMirror | `0x1a5390E59d4ce0a386Aa071365A932Dc34d35bE3` | `0xA9CD5b9503aeA88EB343333E842D2860b263DB65` |
 | HumanIdMirror | `0x7134622a01Add334eA306dDa5A5877b418a940B5` | `0x7f41faA38F35F1FABfc76Df5B1618fC8d0c0d8e5` |
-| PolicyWallet (current) | Not deployed, per author | `0xa67F188746f479A9d93D112BeeB7aadB90bE834b` |
+| PolicyWallet (current) | `0x3a5F444B0e4Ddc7FA6dcddA07A71d0710eea4e04` (replay-protected; owner hand-over to `0xE804…6dAd` pending `acceptOwnership`) | `0xa67F188746f479A9d93D112BeeB7aadB90bE834b` |
 | PolicyWallet (older) | — | `0xA755f87BD00c90DBFc9DdfD6651e4c3071665b32` |
 
 ## Treasury compatibility: blocked on a new wallet deployment
@@ -51,5 +51,7 @@ The generic deployment template intentionally retains placeholders and
 the verified token address above, but supply a **new replay-protected wallet**,
 trusted business slug, and private treasury API origin. The existing oracle,
 registry, futures and mirror addresses must not be added to the payment guard.
-Mainnet has no author-reported PolicyWallet and is not a treasury deployment
-target for this PR. See [TREASURY.md](TREASURY.md) for setup and acceptance.
+Mainnet has a replay-protected PolicyWallet since 2026-10-16
+(`0x3a5F444B0e4Ddc7FA6dcddA07A71d0710eea4e04`, `consumedDecisionHashes` answers), but the
+treasury is not configured on it yet: that needs a mainnet business row, a press image
+carrying `/operator/payments*`, and `ACR_TREASURY_*`. See [TREASURY.md](TREASURY.md) for setup and acceptance.
