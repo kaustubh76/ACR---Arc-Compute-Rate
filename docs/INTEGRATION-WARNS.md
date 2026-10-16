@@ -175,9 +175,64 @@ range too large`; **5000 works**, so page.
   mock header that the real Circle gate refuses by design, so it is not a
   Gateway payer.
 
-## 7. Not done yet
+## 7. Turning it on
+
+The client is `services/index_api/index_api/warns.py`; the call is
+`operator._ask_warns`, the last thing `run_obligation` does before
+`policy.spend`. It runs only on a live payment the ladder already cleared: never
+in a dry run, never for a bill the agent was going to refuse anyway, and never
+for the owner's own `spend_as_owner` from `/ops/actions`. **Off unless a key is
+set**, so every checkout behaves exactly as before.
+
+In Warns (`https://app.warns.xyz`, GitHub sign-in):
+
+1. Create an agent on **Arc testnet**, in Protect. Its wallet is the
+   `PolicyWallet` (`0xa67F…834b`), not the agent key: the tokens leave the
+   contract.
+2. On the agent, **Add owner** with `owner()` (`0x784e…A05d`). The owner's
+   `spendAsOwner` is then recorded as an owner payment: alerted, never frozen.
+3. Copy the test key.
+
+| variable | |
+|---|---|
+| `ACR_WARNS_API_KEY` | the test key. Unset: Warns is never asked |
+| `ACR_WARNS_AGENT_ID` | the agent's id in Warns; may name `{business}`. Default: the business slug |
+| `ACR_WARNS_API_URL` | default `https://api.warns.xyz` |
+| `ACR_WARNS_NETWORK`, `ACR_WARNS_TOKEN` | default the chain this host pays on (`caip2()`) and its USDC. A network Warns does not decide on is refused, and the operator escalates |
+| `ACR_WARNS_TIMEOUT_S` | default 10 |
+
+What each answer does:
+
+| Warns says | the operator |
+|---|---|
+| `allow` | puts `warns_decision_id` in the record, has Warns sign its hash, `spend`s with that hash, reports the settlement |
+| `review` | escalates with `recommended_intent: pay`; nothing is sent. The rule names Warns' reason (`NEW_DESTINATION`, `DESTINATION_CHANGED`, a policy), a note names the review |
+| `block` | refuses, with Warns' reason as the rule |
+| no answer, or no signature | escalates; nothing is sent. A check that cannot be evaluated is not a pass |
+| anything, in Monitor mode | pays as before, without an id: a note says what Warns would have done |
+
+The payee Warns groups addresses under is the service's host, not its address.
+That is what lets Warns hold a service you already paid that asks to be paid
+somewhere new, the swapped-`payTo` case.
+
+**Approving a hold.** Approve it in Warns, and the next pass asks again and
+pays it, once, within 15 minutes of the approval. The keeper ticks hourly by
+default, so with Warns on set `ACR_OPERATOR_EVERY_S=600`, or run
+`make operator-run BUSINESS=… LIVE=1` after approving. Clearing it here as the
+owner from `/ops/actions` still works as before.
+
+**Once the wallet is in Protect, every payment the agent key sends needs a Warns
+decision.** Warns watches the `Spent` events: an agent payment with no decision
+behind it, from a run without `ACR_WARNS_API_KEY` for instance, freezes the
+agent in Warns, and its next decisions are blocked until someone unfreezes it.
+
+Tested against a fake Warns in `services/index_api/tests/test_operator_warns.py`
+(the hash Warns signs is the one `spend` receives and the one the logged row
+reproduces; every answer other than an allow leaves the wallet untouched). Not
+yet run against the live wallet.
+
+## 8. Not done yet
 
 `warns_decision_id` is empty on all 19 archived decisions and will stay empty
-until the first Warns-signed obligation arrives — the field and its gates are
-in place, the data is not. It is deliberately not rendered on `/spend` yet: a
-column blank on every row trains a reader to ignore it.
+until the first Warns-signed obligation arrives. It is deliberately not rendered
+on `/spend` yet: a column blank on every row trains a reader to ignore it.
