@@ -54,6 +54,20 @@
       ],
       "onboarded_at": 1791802047,
       "note": "ACR's own operating wallet, tier `own` — this is us, not a customer, and `by_tier` says so. It exists because the first testnet PolicyWallet (0xA755f87B…) has an owner() whose key is held by nobody, which makes every onlyOwner path there — setAgent, setBudget, withdraw, spendAsOwner and spendApproved — unreachable forever. acr-fleet keeps that wallet and its history; this one carries the working escalation ladder. Deployed 2026-10-12 with the owner key in hand and the agent authorised at deploy time, so owner ≠ agent and an approval cannot authorise itself."
+    },
+    {
+      "slug": "acr-mainnet",
+      "name": "ACR on Arc mainnet",
+      "treasury": "0xE804f54109b627205B31149965e534837D046dAd",
+      "policy_wallet": "0x3a5F444B0e4Ddc7FA6dcddA07A71d0710eea4e04",
+      "consented": true,
+      "tier": "own",
+      "chain": "mainnet",
+      "categories": [
+        "machine-services"
+      ],
+      "onboarded_at": 1792144327,
+      "note": "ACR's first mainnet business, owner-approved 2026-10-16. Treasury 0xE804… is the owner's own wallet and has never paid on testnet, so no testnet receipt can be mistaken for its bill. PolicyWallet 0x3a5F444B0e4Ddc7FA6dcddA07A71d0710eea4e04 on Arc mainnet (block 26243704) carries the replay-protected bytecode, a 1.00 USDC/day cap with bills under 0.10, and the press EOA 0x1547… as its agent. Its owner becomes 0xE804… once that wallet calls acceptOwnership(). It holds no USDC yet, and live spending stays off until a legitimate mainnet payee exists: the operator escalates rather than paying the agent itself or a demo seller."
     }
   ]
 }

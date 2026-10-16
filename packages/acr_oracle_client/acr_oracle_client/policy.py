@@ -414,8 +414,13 @@ class PolicyClient:
 
     def budget(self, category: str) -> dict | None:
         """One category's live budget, with the period already rolled by the
-        contract's own view — so what this reports is what it will enforce."""
-        if not self.configured() or self._connect() is None:
+        contract's own view — so what this reports is what it will enforce.
+
+        A PUBLIC READ: it needs the wallet address and a node, not a signer. Gating
+        it on `configured()` made a keyless host (the mainnet probe that serves
+        `/operator/*`) report "no budget set on chain" for a wallet that had one.
+        """
+        if not self.wallet_address or self._connect() is None:
             return None
         try:
             row = self._contract().functions.budgetOf(category_id(category)).call()
@@ -464,7 +469,7 @@ class PolicyClient:
         page already refuses.
         """
         w3 = self._connect()
-        if not self.configured() or w3 is None:
+        if not self.wallet_address or w3 is None:  # a public read: no signer needed
             return None
         try:
             token = self._contract().functions.usdc().call()

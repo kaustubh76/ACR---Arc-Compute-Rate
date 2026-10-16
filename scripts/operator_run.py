@@ -60,25 +60,35 @@ from index_api.operator import (
     settled_through,
 )
 
+#: The seller's committed settlement archive.
+RECEIPTS_ARCHIVE = pathlib.Path(__file__).resolve().parents[1] / "services/index_api/index_api/receipts_live.jsonl"
+
 
 def _receipts(settings) -> list[dict]:
-    """The business's own settlement history, as the seller archives it."""
-    import json
-    from pathlib import Path
+    """The business's own settlement history, ON THIS RUN'S CHAIN ONLY.
 
-    here = Path(__file__).resolve().parents[1]
-    path = here / "services/index_api/index_api/receipts_live.jsonl"
-    if not path.exists():
+    The archive holds every chain's settlements (on 2026-10-16: 120 rows, all
+    `eip155:5042002`). Read unfiltered, a mainnet run would bill testnet activity
+    and pay it with mainnet USDC. Stricter than the press's rehydration, which
+    keeps a row with no `network`: paying is irreversible, so "unknown" is not
+    good enough here.
+    """
+    import json
+
+    if not RECEIPTS_ARCHIVE.exists():
         return []
+    here = settings.caip2()
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in RECEIPTS_ARCHIVE.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            rows.append(json.loads(line))
+            row = json.loads(line)
         except Exception:
             continue
+        if str(row.get("network") or "") == here:
+            rows.append(row)
     return rows
 
 
@@ -152,6 +162,17 @@ def main() -> int:
     b = resolve(args.business)
     if b is None:
         print(f"no business registered as {args.business!r}", file=sys.stderr)
+        return 2
+    from acr_core.mainnet_guard import MAINNET_CHAIN_ID
+
+    here = "mainnet" if int(s.arc_chain_id) == MAINNET_CHAIN_ID else "testnet"
+    if getattr(b, "chain", "testnet") != here:
+        print(
+            f"{b.slug} is a {b.chain} business, but this run is on chain {s.arc_chain_id} ({here}). "
+            "Refusing: its bills would be judged against the wrong chain's receipts and paid with "
+            "that chain's USDC. Set ACR_ARC_CHAIN_ID and ACR_ARC_RPC_URL for its chain.",
+            file=sys.stderr,
+        )
         return 2
 
     policy = None

@@ -1452,6 +1452,33 @@ def _pay_rule(
 # holding the pure helpers and the loop in one file.
 
 
+def unpayable_vendor(vendor: str, *, agent: str | None, chain_id: int) -> str | None:
+    """Why a PAY to ``vendor`` must not be sent, or None.
+
+    Two payees turn a payment into something else, and nothing upstream refused
+    either (found wiring the mainnet PolicyWallet, 2026-10-16):
+
+    - THE AGENT ITSELF, on any chain. A payment from the wallet to its own spender
+      moves the budget into the spender's pocket; on mainnet `/prints` bills are
+      paid to ACR_X402_PAY_TO, which is the press EOA that IS the agent.
+    - A DEMO SELLER, on mainnet. Their keys are sha256("acr-attest::" + label),
+      so anyone can derive them and sweep what is sent. On testnet that fleet is
+      the market being exercised, so it stays payable there.
+    """
+    v = (vendor or "").lower()
+    if agent and v == agent.lower():
+        return "the payee is the agent itself, so paying it would move the budget into the spender's own wallet"
+    from acr_core.mainnet_guard import MAINNET_CHAIN_ID
+
+    if int(chain_id) == MAINNET_CHAIN_ID:
+        from acr_oracle_client.demo_sellers import DEMO_SELLERS
+
+        if v in {d.address.lower() for d in DEMO_SELLERS}:
+            return ("the payee is a demo seller whose key is derivable from its public label, "
+                    "so mainnet USDC sent there could be swept by anyone")
+    return None
+
+
 def run_obligation(
     ob: Obligation,
     *,
@@ -1653,6 +1680,26 @@ def run_obligation(
         d.intent = ESCALATE
         d.escalated = True
         d.rule = "Owner-wallet inbox: explicit owner authorization required"
+    if d.intent == PAY:
+        from acr_core import get_settings
+
+        try:  # a Circle signer resolves its address over the network; the check must not break a decision
+            agent = getattr(getattr(policy, "agent_signer", None), "address", None)
+        except Exception:
+            agent = None
+        why = unpayable_vendor(ob.vendor, agent=agent, chain_id=int(get_settings().arc_chain_id))
+        if why:
+            d.recommended_intent = PAY
+            d.intent = ESCALATE
+            d.escalated = True
+            d.rule = why
+    if d.intent == PAY and policy is not None and not dry_run and not getattr(policy, "configured", lambda: True)():
+        # The budget is a public read now, so a host without the agent key can
+        # reach a PAY. Saying so beats a spend() that cannot be signed.
+        d.recommended_intent = PAY
+        d.intent = ESCALATE
+        d.escalated = True
+        d.rule = "no agent key on this host, so it cannot sign the payment"
     if d.intent == PAY and policy is not None:
         if dry_run:
             d.notes.append("dry run: cleared policy, no payment sent")

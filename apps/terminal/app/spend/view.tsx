@@ -10,6 +10,8 @@ import { Term } from "@/components/Term";
 import { useBusinesses, useLedgerAudit, useStatement } from "@/lib/useLive";
 import { ageWords, fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 import { CHAIN, CHAIN_TESTNET, txUrl } from "@/lib/chain";
+import { useChain } from "@/lib/useChain";
+import { defaultBusiness } from "@/lib/spendBusiness";
 import { checkHref } from "@/lib/checkLink";
 import { useNow } from "@/lib/useNow";
 import type {
@@ -1047,7 +1049,8 @@ export function SpendView({ initial = null }: { initial?: string | null }) {
   // as "the press did not answer", which blames the service for a bad link.
   const strayLink =
     chosen !== null && rows.length > 0 && !rows.some((b) => b.slug === chosen);
-  const slug = (strayLink ? null : chosen) ?? rows[0]?.slug ?? null;
+  const chain = useChain();
+  const slug = (strayLink ? null : chosen) ?? defaultBusiness(rows, chain);
   // THIRTY DAYS, not the hook's 7-day default, and the number is load-bearing.
   // `acr-fleet`'s only activity leaves a 7-day window after 2026-10-10T06:54Z
   // and the sandbox's after 2026-10-09T00:03:20Z — so this page was days away
