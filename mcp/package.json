@@ -1,6 +1,6 @@
 {
   "name": "acr-mcp",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "type": "module",
   "description": "ACR Machine TCA over MCP \u2014 check whether your agent can pay, benchmark a machine purchase, grade a seller, verify a print.",
   "license": "MIT",

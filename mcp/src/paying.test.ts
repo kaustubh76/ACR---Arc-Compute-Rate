@@ -543,6 +543,30 @@ test("benchmark_price falls back when the press predates /par, and asks for a un
   assert.match(neither.reason, /Pass `unit`/);
 });
 
+test("benchmark_price says WHICH input was missing, and never blames a /par it did not ask", async () => {
+  // No unit: /par is never asked, so the reply must not claim the press lacks it.
+  // On 2026-10-15 it said "this press has no /par" to a testnet caller, whose press serves it.
+  const seen: Array<{ url: string }> = [];
+  const noUnit = (await callTool("benchmark_price", { price: 0.505 }, {
+    api: "https://acr.test",
+    fetchImpl: router({ "/par": { body: { verdict: {} } } }, seen),
+  })) as { available: boolean; reason: string };
+  assert.equal(noUnit.available, false);
+  assert.match(noUnit.reason, /no `unit` was given/);
+  assert.doesNotMatch(noUnit.reason, /\/par/);
+  assert.equal(seen.filter((s) => s.url.includes("/par")).length, 0, "/par was asked without a unit");
+
+  // A unit, a press that 404s /par, and no index: THAT is the press lacking /par.
+  const oldPress = (await callTool("benchmark_price", { price: 0.505, unit: "$/1k tokens" }, {
+    api: "https://old.test",
+    fetchImpl: router({}),
+  })) as { available: boolean; reason: string };
+  assert.equal(oldPress.available, false);
+  assert.match(oldPress.reason, /https:\/\/old\.test has no \/par/);
+  assert.match(oldPress.reason, /index_id/);
+  assert.doesNotMatch(oldPress.reason, /no `unit` was given/, "the unit WAS given");
+});
+
 // ───────────────────────────────────────────────────── the two untested reads
 
 test("seller_rating reads the rating route for the seller it was given", async () => {
