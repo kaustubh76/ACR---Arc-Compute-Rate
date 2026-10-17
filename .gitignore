@@ -47,6 +47,12 @@ ETHGlobal_Online.md
 # itself is public; the plan to win it is not.
 Tameion_MachineTCA_Operator_Plan.md
 Agoranomos_Tameion_Board.excalidraw
+# The recording script for the submission video. The VIDEO is public; this is
+# the sheet behind it, and its last section maps each beat onto the judging
+# weights and says which beat to sacrifice if the cut runs long. Same rule as
+# the plan above. Everything factual in it is already public in
+# docs/WALKTHROUGH.md and docs/TAMEION.md.
+Tameion_Video_Script.md
 # The private implementation record: the same competition framing plus the
 # unshipped items and the blocked list. docs/TAMEION.md is the public one.
 TAMEION_IMPLEMENTATION.md
