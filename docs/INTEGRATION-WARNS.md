@@ -15,7 +15,7 @@ says why in one measurement.
 | | |
 |---|---|
 | `PolicyWallet` | `0xa67F188746f479A9d93D112BeeB7aadB90bE834b` |
-| chain | Arc **testnet**, id `5042002` · RPC `https://rpc.testnet.arc.network` |
+| chain | Arc **testnet**, id `5042002` · RPC `https://rpc.testnet.arc.io` |
 | explorer | `https://testnet.arcscan.app` |
 | USDC | `0x3600000000000000000000000000000000000000`, 6 decimals |
 | `owner()` | `0x784e6D2d4870174aD1aEa3d7446F2377D0c6A05d` |

@@ -19,7 +19,7 @@ Chain facts this runbook is built on:
 | fact | value |
 |---|---|
 | chain id | `5042002` (CAIP-2 `eip155:5042002`) |
-| RPC | `https://rpc.testnet.arc.network` |
+| RPC | `https://rpc.testnet.arc.io` |
 | explorer | `https://testnet.arcscan.app` |
 | gas token | **USDC** — a native system contract at `0x3600000000000000000000000000000000000000` |
 | faucet | `https://faucet.circle.com` → network **Arc Testnet** |
@@ -80,7 +80,7 @@ the deployer as a signer, so poster == deployer means no extra `setSigner` step.
 
    ```sh
    cd contracts && forge script script/Deploy.s.sol \
-     --rpc-url https://rpc.testnet.arc.network \
+     --rpc-url https://rpc.testnet.arc.io \
      --private-key $DEPLOYER_PRIVATE_KEY --broadcast --legacy
    ```
 
@@ -145,7 +145,7 @@ it as an oracle signer —
 
 ```sh
 cast send <ACR_ORACLE_ADDRESS> "setSigner(address,bool)" <poster address> true \
-  --rpc-url https://rpc.testnet.arc.network --private-key $DEPLOYER_PRIVATE_KEY
+  --rpc-url https://rpc.testnet.arc.io --private-key $DEPLOYER_PRIVATE_KEY
 ```
 
 Then `make attest-once` (and `make seed-sellers` if on the arc tape) — the

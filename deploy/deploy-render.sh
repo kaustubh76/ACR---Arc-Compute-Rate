@@ -18,7 +18,7 @@ PLAN="${PLAN:-free}"
 
 ORACLE="${ORACLE:-0x4f00e3BDd224F4c4b4958D54cD774E84B9092609}"
 REGISTRY="${REGISTRY:-0x23ae3E1A306824F0CBA0b6561cB7E5502f63dFb7}"
-RPC="${RPC:-https://rpc.testnet.arc.network}"
+RPC="${RPC:-https://rpc.testnet.arc.io}"
 FACILITATOR="${FACILITATOR:-https://gateway-api-testnet.circle.com}"
 PAY_TO="${PAY_TO:-0x33189c643774ED2713EbFf5A6923e5fa42b96eE8}"
 # sim tape is the safe cloud default (arc's blocking RPC scan starves the 1-CPU

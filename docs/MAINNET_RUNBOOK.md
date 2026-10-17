@@ -15,7 +15,7 @@ here and in `README.md` the day it lands.
 | | testnet | mainnet |
 |---|---|---|
 | chain id | `5042002` | `5042` |
-| RPC | `https://rpc.testnet.arc.network` | `https://rpc.mainnet.arc.io` is **public** (probed 2026-09-21, `eth_chainId` → `0x13b2`, no credentials); run the press on a keyed provider URL (Alchemy, QuickNode, dRPC, Blockdaemon all list Arc) and set `ACR_MAINNET_RPC_URL` to that |
+| RPC | `https://rpc.testnet.arc.io` | `https://rpc.mainnet.arc.io` is **public** (probed 2026-09-21, `eth_chainId` → `0x13b2`, no credentials); run the press on a keyed provider URL (Alchemy, QuickNode, dRPC, Blockdaemon all list Arc) and set `ACR_MAINNET_RPC_URL` to that |
 | USDC | `0x3600…0000` (native) — **defaulted** in the scripts | **not defaulted**: `ACR_MAINNET_USDC` is required, so a testnet constant cannot ride onto mainnet by omission |
 | explorer | `testnet.arcscan.app` | `https://explorer.arc.io` (public; the chain profile carries it) |
 | gas | USDC | USDC — `Deploy.s.sol` 4.13M · `DeployOracleV2` 1.51M · `DeployReceiptMirror` 1.43M · `DeployHumanIdMirror` 1.00M · `DeployFutures` 2.23M ≈ **0.46 USDC** total at testnet prices |

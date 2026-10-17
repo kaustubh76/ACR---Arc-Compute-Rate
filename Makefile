@@ -126,7 +126,7 @@ onchain: build-contracts
 # https://faucet.circle.com (Arc Testnet) before broadcasting.
 # If EIP-1559 fee estimation fails on Arc, retry the forge script with --legacy.
 
-ACR_ARC_RPC_URL ?= https://rpc.testnet.arc.network
+ACR_ARC_RPC_URL ?= https://rpc.testnet.arc.io
 
 deploy-testnet-dry:
 	@test -n "$(DEPLOYER_PRIVATE_KEY)" || { echo "DEPLOYER_PRIVATE_KEY not set — export the funded deployer key first (docs/TESTNET_RUNBOOK.md step 2)"; exit 1; }
@@ -375,7 +375,7 @@ verify-live:
 verify-live-testnet:
 	ACR_API_URL=https://acr-api-1fto.onrender.com \
 	ACR_ARC_CHAIN_ID=5042002 \
-	ACR_ARC_RPC_URL=https://rpc.testnet.arc.network \
+	ACR_ARC_RPC_URL=https://rpc.testnet.arc.io \
 	ACR_ORACLE_ADDRESS=0x4f00e3BDd224F4c4b4958D54cD774E84B9092609 \
 	ACR_ORACLE_V2_ADDRESS=0xFCa038CEad7b9e9aa8fDAfc9e80253835fB8FFEA \
 	ACR_FUTURES_ADDRESS=0x29d97c629a8278f7ec4218ab0bd8baa9182642fe \

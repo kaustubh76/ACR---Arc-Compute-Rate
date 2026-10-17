@@ -8,7 +8,7 @@ author-supplied. No transactions were signed or submitted.
 | Network | Chain ID | RPC | Explorer |
 | --- | --- | --- | --- |
 | Arc mainnet | 5042 | https://rpc.mainnet.arc.io/ | https://explorer.arc.io/ |
-| Arc testnet | 5042002 | https://rpc.testnet.arc.network/ | https://testnet.arcscan.app/ |
+| Arc testnet | 5042002 | https://rpc.testnet.arc.io/ | https://testnet.arcscan.app/ |
 
 | Contract | Mainnet | Testnet |
 | --- | --- | --- |

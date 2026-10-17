@@ -43,7 +43,7 @@ sys.path.insert(0, str(ROOT))
 #: checked but not demoed, because the demo makes a claim about it.
 TESTNET_API = os.environ.get("REHEARSE_API", "https://acr-api-1fto.onrender.com")
 TERMINAL = os.environ.get("REHEARSE_TERMINAL", "https://arc-compute-rate.vercel.app")
-TESTNET_RPC = "https://rpc.testnet.arc.network"
+TESTNET_RPC = "https://rpc.testnet.arc.io"
 MAINNET_RPC = "https://rpc.mainnet.arc.io"
 
 POLICY_WALLET = "0xa67F188746f479A9d93D112BeeB7aadB90bE834b"
