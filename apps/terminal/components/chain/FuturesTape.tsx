@@ -4,7 +4,7 @@ import { AddressChip } from "./AddressChip";
 import { TxLink } from "./TxLink";
 import { Ed } from "@/components/Ed";
 import { fmt } from "@/lib/format";
-import { formatQty, tapeAge } from "@/lib/futuresBook";
+import { formatQty, isHouse, tapeAge } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
 import type { FuturesRoster, FuturesTradeRow } from "@/lib/types";
 
@@ -63,6 +63,12 @@ export function FuturesTape({
       {mine && t.taker.toLowerCase() === mine ? (
         <span className="chip chip-teal">
           <Ed x="you" p="you" />
+        </span>
+      ) : isHouse(t.taker) ? (
+        /* Our own taker against our own maker is a real fill and not a
+           customer. Disclosed in the row, the way /check marks our sellers. */
+        <span className="chip chip-gold">
+          <Ed x="ours" p="ours" />
         </span>
       ) : null}
       <TxLink txRef={t.tx} explorer={explorer} />

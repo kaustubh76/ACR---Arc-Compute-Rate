@@ -7,7 +7,7 @@ import { Ed } from "@/components/Ed";
 import { Term } from "@/components/Term";
 import { chainFacts } from "@/lib/chain";
 import { serviceName } from "@/lib/format";
-import { contractNotional, deskTier, expiryLabel } from "@/lib/futuresBook";
+import { contractNotional, deskTier, deskTraders, expiryLabel, houseTraders } from "@/lib/futuresBook";
 import { useNow } from "@/lib/useNow";
 import type {
   ChainFactsData,
@@ -225,8 +225,22 @@ export function FuturesDesk({
                           </>
                         )}
                       </td>
+                      {/* Without the maker, which the contract counts from the
+                          moment a book is listed, and saying which are ours. */}
                       <td className="mono">
-                        <TickerNumber text={String(r.trader_count)} />
+                        <TickerNumber text={String(deskTraders(r.trader_count))} />
+                        {(() => {
+                          const n = Math.min(
+                            deskTraders(r.trader_count),
+                            houseTraders(trades ?? [], [r.series_id]),
+                          );
+                          return n > 0 ? (
+                            <span className="label">
+                              {" "}
+                              <Ed x={`· ${n} ours`} p={`· ${n} ours`} />
+                            </span>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="mono muted">#{r.series_id}</td>
                     </tr>
@@ -278,7 +292,7 @@ export function FuturesDesk({
                   <AddressChip address={primary.maker} explorer={explorer} copy={false} />{" "}
                   <span className="muted">
                     <Ed
-                      x="our Circle developer-controlled wallet. It takes the other side of every fill"
+                      x="our own maker wallet. It takes the other side of every fill"
                       p="our own wallet. It takes the other side of every trade"
                     />
                   </span>

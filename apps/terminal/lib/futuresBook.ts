@@ -170,6 +170,60 @@ export function markSeries(trades: FuturesTradeRow[], seriesId: number): Futures
   return rows.sort((a, b) => a.block - b.block);
 }
 
+/** The wallets ACR itself runs that can appear on a venue: the maker of every
+ *  book we list, the house taker, and the other first-party wallets that could
+ *  trade. Lowercase, each with the role it plays.
+ *
+ *  Exists because the tape could only mark "you". A fill from our own taker
+ *  against our own maker is a real on-chain trade, and it is also the one fill
+ *  a reader must not mistake for a customer: the subgraph's standard (and
+ *  /check's "ours" chip) is that first-party activity is disclosed, never
+ *  filtered and never passed off. Every address here is written down in docs/
+ *  (futuresBook.test.ts asserts it), so "ours" is never a claim the repo
+ *  cannot back.
+ */
+export const HOUSE_WALLETS: Readonly<Record<string, string>> = {
+  "0xc2903b52a3ad365fd237b78389a2fde99e886999": "mainnet venue owner and maker",
+  "0x352f01788236c22c1438c5198be53e9c389989ed": "house taker",
+  "0x9d44a7dd4e7bf173b3f13ee41e1b60c8e92388d2": "testnet venue owner and maker",
+  "0x1547b0d3c334f264d28b087566b512ab5cd85379": "mainnet press",
+  "0x784e6d2d4870174ad1aea3d7446f2377d0c6a05d": "buyer agent",
+  "0xe804f54109b627205b31149965e534837d046dad": "treasury",
+};
+
+export function isHouse(addr?: string | null): boolean {
+  return Boolean(addr) && Object.hasOwn(HOUSE_WALLETS, addr!.toLowerCase());
+}
+
+/** Traders on one desk, NOT counting its maker.
+ *
+ *  `ACRFutures.openSeries` joins the maker to the trader list the moment a
+ *  series is listed (futuresBook.test.ts reads the contract to hold this), so
+ *  `traderCount()` is 1 on a book nobody has touched. The home page summed it
+ *  raw and said "3 people trading" about three idle books whose only member
+ *  was our own dealer.
+ */
+export function deskTraders(traderCount: number): number {
+  return Math.max(0, Math.floor(traderCount) - 1);
+}
+
+/** How many of those traders are ours, as (series, wallet) pairs so it adds up
+ *  the same way the per-desk counts do.
+ *
+ *  Read from the tape, because the desk payload carries only a count. So a
+ *  house wallet that posted collateral and never traded, or whose fills have
+ *  scrolled off the tape, is not seen here: callers clamp to the trader count,
+ *  and the gap can only ever under-claim "ours", never invent one.
+ */
+export function houseTraders(trades: FuturesTradeRow[], seriesIds: number[]): number {
+  const listed = new Set(seriesIds);
+  const ours = new Set<string>();
+  for (const t of trades ?? []) {
+    if (listed.has(t.series_id) && isHouse(t.taker)) ours.add(`${t.series_id}:${t.taker.toLowerCase()}`);
+  }
+  return ours.size;
+}
+
 /** Which tier of the connection ladder served the desk.
  *
  *  Every other surface on this site says where its numbers came from; the desk
