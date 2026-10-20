@@ -1504,6 +1504,11 @@ def run_obligation(
     now: float | None = None,
     dry_run: bool = True,
     log_path: str | None = None,
+    #: Warns, asked before the agent's own payment. ``None`` means "build it
+    #: from the environment", which is nothing unless ``ACR_WARNS_API_KEY`` is
+    #: set; ``False`` says there is deliberately none. The same tri-state as
+    #: ``commitment``.
+    warns=None,
 ) -> ObligationDecision:
     """One obligation, all the way through: meter, price, decide, maybe pay.
 
@@ -1704,10 +1709,107 @@ def run_obligation(
         if dry_run:
             d.notes.append("dry run: cleared policy, no payment sent")
         else:
+            if warns is None:
+                from .warns import get_warns
+
+                warns = get_warns(ob.business)
+            verdict = None
+            if warns:
+                verdict = _ask_warns(d, ob, warns, policy)
+                if verdict is None:
+                    log_decision(d, log_path)
+                    return d
             # The record is hashed into the payment, so the commitment to the
             # reasoning is made in the same transaction that moves the money.
-            d.tx = policy.spend(ob.category, ob.vendor, ob.billed_usdc, d.as_record())
+            # With Warns, that record already names Warns' decision, and the
+            # hash it carries is the one Warns just signed.
+            try:
+                d.tx = policy.spend(ob.category, ob.vendor, ob.billed_usdc, d.as_record())
+            except Exception:
+                if verdict is not None:
+                    warns.report(verdict.decision_id, None, success=False)
+                raise
             d.paid_usdc = ob.billed_usdc
+            if verdict is not None:
+                warns.report(verdict.decision_id, d.tx, success=True)
 
     log_decision(d, log_path)
     return d
+
+
+def _ask_warns(d: ObligationDecision, ob: Obligation, warns, policy):
+    """Warns, after the ladder and before the wallet.
+
+    LAST, AND ONLY FOR A PAYMENT. Every rung of `decide()` is this agent's own
+    judgment, and Warns is asked only once that judgment is "pay": asking about
+    a bill the agent was about to refuse anyway would spend somebody else's
+    review queue on it. And it runs only where money moves, never in a dry run.
+
+    Returns Warns' verdict when the payment may go ahead, with
+    ``warns_decision_id`` already inside the record and Warns' signature over
+    that record's hash beside it. Returns None when it may not, with ``d``
+    saying why: held for a person, blocked, or Warns could not be asked, which
+    is an escalation, never a pass, for the reason this module gives about every
+    check that cannot be evaluated.
+
+    NOTHING MAY CHANGE THE HASHED RECORD between the commitment and the spend.
+    The signature is over `decision_hash(d.as_record())` as it stands here, and
+    `policy.spend` hashes the same record again; a note appended in between
+    would put a hash on chain that Warns never signed.
+    """
+    from acr_oracle_client.policy import decision_hash, usdc_units
+
+    from .warns import WarnsUnavailable, payee_of
+
+    def stop(rule: str) -> None:
+        d.intent = ESCALATE
+        d.escalated = True
+        d.recommended_intent = PAY
+        d.rule = rule
+
+    payer = str(getattr(policy, "wallet_address", "") or "")
+    if not payer:
+        stop("Warns could not be asked: the wallet has no address, so nothing was paid")
+        return None
+    try:
+        v = warns.decide(
+            obligation_id=ob.obligation_id,
+            payer=payer,
+            to=ob.vendor,
+            amount_atomic=usdc_units(ob.billed_usdc),
+            payee=payee_of(ob.resource, ob.vendor),
+            invoice_id=ob.invoice_ref or ob.obligation_id,
+            purpose=f"{ob.kind or 'invoice'} · {ob.category}",
+        )
+    except WarnsUnavailable as exc:
+        stop(f"Warns could not be asked ({exc}), so nothing was paid")
+        return None
+
+    if v.outcome != "allow":
+        if v.enforced:
+            if v.outcome == "review":
+                stop(f"Warns held it for review: {v.reason()}")
+                d.notes.append(
+                    f"warns review {v.review_id}: approve it in Warns and the next "
+                    "pass pays it, or clear it here as the owner"
+                )
+            else:
+                d.intent = REFUSE
+                d.rule = f"Warns blocked it: {v.reason()}"
+                d.notes.append(f"warns decision {v.decision_id}")
+            return None
+        # MONITOR MODE. Warns watches and does not stop anything, so the payment
+        # goes ahead, but without the id. A Warns decision that would have held
+        # this payment did not authorise it, and naming it in the record would
+        # claim that it had.
+        held = "held" if v.outcome == "review" else "blocked"
+        d.notes.append(f"Warns, in monitor mode, would have {held} it: {v.reason()}")
+        return v
+
+    d.warns_decision_id = v.decision_id
+    try:
+        d.warns_signature = warns.commit(v.decision_id, decision_hash(d.as_record()))
+    except WarnsUnavailable as exc:
+        stop(f"Warns allowed it but did not sign the record ({exc}), so nothing was paid")
+        return None
+    return v
