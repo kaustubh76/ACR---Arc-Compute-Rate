@@ -113,9 +113,22 @@ fn request(
         .map_err(|_| "Invalid treasury API response; stop payment preparation.".into())
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EmptyArgs {}
+
+impl JsonSchema for EmptyArgs {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "EmptyArgs".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "object", "properties": {}, "required": [],
+            "additionalProperties": false
+        })
+    }
+}
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PrepareArgs {
@@ -374,34 +387,48 @@ mod tests {
     }
 
     #[test]
+    fn every_tool_object_schema_declares_properties() {
+        fn check(value: &Value) {
+            match value {
+                Value::Object(fields) => {
+                    if fields.get("type") == Some(&json!("object")) {
+                        assert!(
+                            fields.get("properties").is_some_and(Value::is_object),
+                            "{value}"
+                        );
+                    }
+                    for child in fields.values() {
+                        check(child);
+                    }
+                }
+                Value::Array(items) => {
+                    for child in items {
+                        check(child);
+                    }
+                }
+                _ => {}
+            }
+        }
+        check(&serde_json::to_value(AcrApp.manifest()).unwrap());
+    }
+
+    #[test]
     fn treasury_tools_are_skill_owned_and_manifest_validates() {
         let manifest = AcrApp.manifest();
         aomi_sdk::validate_app_skills_with_tools(&manifest.name, &manifest.skills, &manifest.tools)
             .unwrap();
         assert_eq!(manifest.tools.len(), 8);
         assert_eq!(manifest.skills[0].injected_tools.len(), 3);
-        #[cfg(not(treasury_configured))]
-        {
-            assert!(manifest.namespaces.unwrap().is_empty());
-            assert!(deployment().is_err());
-            assert!(
-                run_tool::<PreparePayment>(
-                    &AcrApp,
-                    json!({"obligation_id": "bill-1"}),
-                    TestCtxBuilder::new("prepare").build()
-                )
-                .is_err()
-            );
-        }
-        #[cfg(treasury_configured)]
-        {
-            let d = deployment().unwrap();
-            assert_eq!(manifest.namespaces.unwrap(), ["evm-core"]);
-            let guard = serde_json::to_value(manifest.skills[0].guard.as_ref().unwrap()).unwrap();
-            assert_eq!(guard["evm"]["chain_ids"], json!([d.chain_id]));
-            assert_eq!(guard["evm"]["allowed_contracts"], json!(["TREASURY"]));
-            assert_eq!(guard["evm"]["allowed_selectors"], json!(["PAY"]));
-            assert_eq!(guard["evm"]["contracts"]["TREASURY"], d.policy_wallet);
-        }
+        let d = deployment().unwrap();
+        assert_eq!(manifest.namespaces.unwrap(), ["evm-core"]);
+        let guard = serde_json::to_value(manifest.skills[0].guard.as_ref().unwrap()).unwrap();
+        assert_eq!(guard["evm"]["chain_ids"], json!([d.chain_id]));
+        assert_eq!(guard["evm"]["allowed_contracts"], json!(["TREASURY"]));
+        assert_eq!(guard["evm"]["allowed_selectors"], json!(["PAY"]));
+        assert_eq!(guard["evm"]["contracts"]["TREASURY"], d.policy_wallet);
+        assert_eq!(
+            guard["evm"]["selectors"]["PAY"],
+            "spendAsOwner(bytes32,address,uint256,bytes32)"
+        );
     }
 }

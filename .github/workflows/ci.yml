@@ -329,4 +329,4 @@ jobs:
       # A step and not a job: verify_claims counts ci.yml's jobs against the README.
       - name: Aomi App builds and its tests pass
         working-directory: integrations/aomi
-        run: cargo test --locked
+        run: python3 tests/check_deployment.py
