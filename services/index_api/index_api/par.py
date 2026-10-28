@@ -105,6 +105,30 @@ MIN_SELLERS = 2
 #: price decision and the routing decision agree about what "material" means.
 MATERIAL_BP = 25.0
 
+#: How far the capacity dimension may differ and still be like-for-like.
+#:
+#: ±25% of `vram_gb`, which is the band `docs/BITTENSOR.md` already used to reach
+#: its defensible figure: "2.6x on the cheapest named alternative... same class,
+#: VRAM within ±25%". Written here rather than rediscovered per caller, because
+#: a cohort rule that differs between the prose and the code is how a published
+#: multiple stops meaning what the sentence beside it says.
+COHORT_SIZE_TOLERANCE = 0.25
+
+#: The published facts that must MATCH EXACTLY for two rows to be comparable,
+#: as opposed to being merely close in size.
+#:
+#: A class is not a discount. An A100 is not a cheap RTX 3060 and a TEE model is
+#: not an expensive plain one — they are different products, and the whole
+#: hedonic problem is that a basket spanning them has a median that describes
+#: nothing. `gpu_class` is 56.9% datacenter / 30.0% consumer / 13.1%
+#: professional by rented fleet, so an all-class median is dragged below any
+#: datacenter bill by roughly a third of the fleet.
+COHORT_CLASS_KEYS = ("gpu_class", "model_class", "confidential_compute")
+
+#: The capacity dimension, in priority order. The first one BOTH rows publish
+#: decides the comparison; `vram_gb` for a GPU, `context_length` for a model.
+COHORT_SIZE_KEYS = ("vram_gb", "context_length")
+
 
 @dataclass(frozen=True)
 class Quote:
@@ -260,8 +284,18 @@ class Par:
     #: is the cheapest PURCHASABLE one and not the cheapest one, or `saving_bp`
     #: looks smaller than the basket for no visible reason.
     sold_out_cheaper: int = 0
-    #: Is `best` something a buyer can actually take up? False when EVERY quote
-    #: in the basket published zero availability.
+    #: Cheaper quotes that were not named because they are a DIFFERENT KIND of
+    #: thing: another GPU class, or a capacity more than ±25% away. Disclosed
+    #: for the same reason as `sold_out_cheaper` — without it `saving_bp` looks
+    #: smaller than the basket and the reader cannot see why.
+    off_cohort_cheaper: int = 0
+    #: Was a cohort supplied at all? False means the comparison is UNMATCHED,
+    #: which is what this product did everywhere until now. A reader has to be
+    #: able to tell "cheapest comparable" from "cheapest", because the second
+    #: one is the figure that gets a benchmark argued with.
+    cohort_matched: bool = False
+    #: Is `best` something a buyer can actually take up? False when no quote is
+    #: both comparable and in stock.
     #:
     #: `best_usdc` stays populated when this is False, because the price is a
     #: real observation and hiding it would make the basket look thinner than it
@@ -523,12 +557,56 @@ def _dedupe_by_seller(quotes: list[Quote]) -> list[Quote]:
     return sorted(best.values(), key=lambda q: q.price_usdc)
 
 
+def comparable(quote: Quote, cohort: Quote | None) -> bool:
+    """Is ``quote`` a like-for-like substitute for ``cohort``?
+
+    Three answers, and the middle one is the point:
+
+    * no cohort given, or neither side publishes the facts — **True**, because
+      an unmatched comparison is what this product has always done and refusing
+      every quote that is quiet about its class would empty the basket. The
+      caller learns the comparison was unmatched from `Par.cohort_matched`
+      rather than from a missing number.
+    * the classes BOTH publish and disagree — False. A class is not a discount.
+    * the sizes both publish and differ by more than ±25% — False.
+
+    `tca._reroute` ranks purely on `vw_slippage_bp` and consults no quality
+    feature at all, which `docs/BCR-REVIEW-ANSWERS.md` records as the
+    precondition for the billable surface and not a refinement of it. This is
+    that precondition, on the `par` side where the named alternative is chosen.
+    """
+    if cohort is None:
+        return True
+
+    for key in COHORT_CLASS_KEYS:
+        mine, theirs = quote.quality_of(key), cohort.quality_of(key)
+        if mine and theirs and mine != theirs:
+            return False
+
+    for key in COHORT_SIZE_KEYS:
+        mine, theirs = quote.quality_of(key), cohort.quality_of(key)
+        if not mine or not theirs:
+            continue
+        try:
+            a, b = float(mine), float(theirs)
+        except ValueError:
+            continue
+        if b <= 0:
+            continue
+        # The first dimension both sides publish decides it; a row carrying both
+        # VRAM and context length is not judged twice on the same question.
+        return abs(a - b) / b <= COHORT_SIZE_TOLERANCE
+
+    return True
+
+
 def par_from_quotes(
     resource: str,
     quotes: list[Quote],
     exclude_seller: str = "",
     min_sellers: int = MIN_SELLERS,
     denomination: str = "call",
+    cohort: Quote | None = None,
 ) -> Par:
     """The benchmark, or a stated reason there isn't one.
 
@@ -587,10 +665,29 @@ def par_from_quotes(
     # turns it into `reroute_to` — and advice to buy something nobody is selling
     # is worse than no advice. Same split the module already makes for
     # `first_party`: disclose in the median, be careful with the claim.
-    purchasable = [q for q in uniq if q.purchasable]
-    cheapest = purchasable[0] if purchasable else uniq[0]
+    # Two gates on the NAMED alternative, in the order a buyer would ask them:
+    # is it the same kind of thing, and is there any of it left. Both leave the
+    # median untouched for the same reason — a row that is real but unsuitable
+    # is still evidence of what this resource costs.
+    in_cohort = [q for q in uniq if comparable(q, cohort)]
+    eligible = [q for q in in_cohort if q.purchasable]
+    # THE FALLBACK NAMES THE RIGHT PRODUCT, NOT THE CHEAPEST ONE.
+    #
+    # When every comparable row is sold out, `best` is still the cheapest
+    # COMPARABLE row — sold out, and `best_purchasable` says so, and `assess`
+    # claims no saving. Falling through to `uniq[0]` instead put an RTX 3060 in
+    # `best_seller` for a buyer renting a datacenter 80GB card: a number that
+    # answers a question nobody asked, and the reader's only clue that it was
+    # the wrong product was a zero somewhere else. Measured on the 2026-10-23
+    # basket, where the three cards comparable to an 80GB datacenter GPU
+    # (A100 80GB PCIe, A100-SXM4-80GB, H100 PCIe) are all fully booked.
+    cheapest = (eligible or in_cohort or uniq)[0]
     sold_out_cheaper = sum(
-        1 for q in uniq if not q.purchasable and q.price_usdc < cheapest.price_usdc
+        1 for q in uniq
+        if comparable(q, cohort) and not q.purchasable and q.price_usdc < cheapest.price_usdc
+    )
+    off_cohort_cheaper = sum(
+        1 for q in uniq if not comparable(q, cohort) and q.price_usdc < cheapest.price_usdc
     )
 
     sources = sorted({q.source for q in uniq})
@@ -603,7 +700,9 @@ def par_from_quotes(
         best_seller=cheapest.seller,
         best_source=cheapest.source,
         sold_out_cheaper=sold_out_cheaper,
-        best_purchasable=bool(purchasable),
+        off_cohort_cheaper=off_cohort_cheaper,
+        cohort_matched=cohort is not None,
+        best_purchasable=bool(eligible),
         sellers=len(uniq),
         first_party_sellers=sum(1 for q in uniq if q.first_party),
         basis=" + ".join(sources),
@@ -683,6 +782,8 @@ def assess(
         "best_source": par.best_source,
         "best_purchasable": par.best_purchasable,
         "sold_out_cheaper": par.sold_out_cheaper,
+        "off_cohort_cheaper": par.off_cohort_cheaper,
+        "cohort_matched": par.cohort_matched,
         "over_par_usdc": over_par_usdc,
         "over_par_bp": over_par_bp,
         # Recoverable, because somebody is offering it at that price.
