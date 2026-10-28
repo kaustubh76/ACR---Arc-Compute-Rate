@@ -94,6 +94,8 @@ const DESC: Record<string, React.ReactNode> = {
   "/operator/ledger/{business}": <Ed x="One business's decisions as a double-entry ledger file" p="One business's money, as a file an accountant can open" />,
   "/operator/audit/{business}": <Ed x="The six errors a trial balance cannot see, searched for by name" p="The six money mistakes that still add up correctly, each one looked for" />,
   "/operator/statement/{business}": <Ed x="One business's spend · what the agent decided, and what awaits the owner" p="What the money agent did for one business, and what needs your approval" />,
+  "/operator/decisions": <Ed x="The decision tape itself · every decision, its rule, and the hash the chain committed to" p="Every call the money agent made, why it made it, and a code you can check on the chain" />,
+  "/operator/reconcile/{business}": <Ed x="The tape against Arc · payments with no decision behind them, and decisions the chain never saw" p="Did the money move the way the agent said? This asks the chain, not our own notes" />,
   "/tca/human": <Ed x="One bill across every wallet a verified human owns" p="One bill covering all the accounts that belong to the same person" />,
   "/humanid/info": <Ed x="The human-proof gate, described by the service itself" p="How we check someone is a real person, in the service's own words" />,
   "/agent/info": <Ed x="The agent-card gate, described by the service itself" p="How we check which robot is calling, in the service's own words" />,

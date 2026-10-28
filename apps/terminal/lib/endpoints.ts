@@ -122,6 +122,11 @@ export const ENDPOINTS: EndpointRow[] = [
   { method: "GET", path: "/operator/statement/{business}", gate: "public", family: "market", run: null, why: "business" },
   { method: "GET", path: "/operator/ledger/{business}", gate: "public", family: "market", run: null, why: "business" },
   { method: "GET", path: "/operator/audit/{business}", gate: "public", family: "market", run: null, why: "business" },
+  /* The tape itself, and the tape against the chain. `/operator/decisions` is
+     runnable because it needs no argument; `/operator/reconcile/{business}`
+     pages Arc for `Spent` logs, so it takes a business and is not one-click. */
+  { method: "GET", path: "/operator/decisions", gate: "public", family: "market", run: "/operator/decisions?limit=5" },
+  { method: "GET", path: "/operator/reconcile/{business}", gate: "public", family: "market", run: null, why: "business" },
   { method: "GET", path: "/graph/operations", gate: "public", family: "market", run: "/graph/operations" },
   { method: "POST", path: "/graph/query", gate: "public", family: "market", run: null, why: "post" },
   { method: "GET", path: "/fleet", gate: "public", family: "market", run: "/fleet" },
