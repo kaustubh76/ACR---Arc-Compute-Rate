@@ -161,6 +161,54 @@ class Quote:
     #: answer one question and a surface that showed both would show an empty
     #: label on every row.
     cite: str = ""
+    #: HOW MUCH OF IT IS LEFT, when the source publishes that. ``None`` means it
+    #: does not say, and that is NOT the same as zero.
+    #:
+    #: A price can be real and still not be an alternative. This module already
+    #: knows that: `best_source` exists because "a market row names a model,
+    #: which is exactly what makes it checkable and exactly what makes it
+    #: unroutable", and `decide()` has a whole rung for a cheaper price nobody
+    #: can be paid. Availability is the same axis with a different question —
+    #: not "can USDC reach it" but "is there any of it left".
+    #:
+    #: MEASURED, and it is why this field exists rather than being a nicety. In
+    #: the Bittensor GPU basket of 2026-10-23, 13 of 15 rows are fully booked:
+    #: `listed_gpus == rented_gpus`. Across the whole basket the median is
+    #: $0.42/GPU-hr; across the two rows with any spare capacity it is $4.21,
+    #: against $1.99 for the centralised basket. So "the cheapest named
+    #: alternative" picks a card with nothing to sell in thirteen of fifteen
+    #: cases, and the direction of the headline depends on whether anybody
+    #: checked. A benchmark is discredited by one unbuyable recommendation.
+    available_units: float | None = None
+    #: The comparability facts the source published, as ordered pairs.
+    #:
+    #: A TUPLE AND NOT A DICT because `Quote` is frozen, and a frozen dataclass
+    #: with a dict field stops being hashable — a trap worth avoiding in a type
+    #: that already travels inside `Par.quotes`. Read it through `quality_of`.
+    #:
+    #: Mirrors the `quality` object the `acr.anchor/1` row schema already has,
+    #: which is empty on every curated row in `anchors/ACR-GPU/` — the slot has
+    #: existed from the start and nothing has filled it. The Bittensor rows do
+    #: carry the facts (`gpu_class`, `vram_gb`, `architecture`), which is what
+    #: makes cohort matching possible at all rather than aspirational.
+    quality: tuple[tuple[str, str], ...] = ()
+
+    def quality_of(self, key: str, default: str = "") -> str:
+        """One published comparability fact, or ``default``."""
+        for k, v in self.quality:
+            if k == key:
+                return v
+        return default
+
+    @property
+    def purchasable(self) -> bool:
+        """Can a buyer actually take this up right now?
+
+        True when the source does not say, because an unstated availability is
+        not evidence of absence and refusing every quote that is quiet about it
+        would empty the basket. False ONLY on a published zero.
+        """
+        return self.available_units is None or self.available_units > 0
 
     @property
     def unit_price(self) -> float | None:
@@ -206,6 +254,24 @@ class Par:
     #: shape, because `_payable_to` answers "is there a counterparty" and this
     #: is the narrower "can USDC reach it".
     best_source: str = ""
+    #: Cheaper quotes that were NOT named, because the source published zero
+    #: availability for them. A count beside a count, like `first_party_sellers`
+    #: and for the same reason: the reader needs to know the named alternative
+    #: is the cheapest PURCHASABLE one and not the cheapest one, or `saving_bp`
+    #: looks smaller than the basket for no visible reason.
+    sold_out_cheaper: int = 0
+    #: Is `best` something a buyer can actually take up? False when EVERY quote
+    #: in the basket published zero availability.
+    #:
+    #: `best_usdc` stays populated when this is False, because the price is a
+    #: real observation and hiding it would make the basket look thinner than it
+    #: is. What changes is the CLAIM: `assess` zeroes `saving_usdc`, because its
+    #: own rule is that a saving is "the money that was actually available
+    #: somewhere else" and "a price above the median with nothing cheaper on
+    #: offer is dear, not recoverable". A sold-out row is nothing on offer, so
+    #: counting it would be inventing a saving by this module's own standard.
+    #: The reroute rung then declines on its own, with no change to `decide()`.
+    best_purchasable: bool = True
     sellers: int = 0
     #: How many of those sellers are OURS. A count beside a count, never a
     #: share: a ratio over a denominator of four is a number pretending to be a
@@ -511,7 +577,21 @@ def par_from_quotes(
     # module its own median while `_p50_bp` keeps the tape's, and two medians in
     # one product is worse than one documented quirk.
     par = float(weighted_median(prices, [1.0] * len(prices)))
-    cheapest = uniq[0]
+
+    # THE MEDIAN KEEPS EVERY PRICE; THE NAMED ALTERNATIVE MUST BE BUYABLE.
+    #
+    # A sold-out listing is a real observation of what this resource costs, so
+    # removing it from `par` would bias the benchmark on a fact that has nothing
+    # to do with price. But `best` is the one number that becomes advice —
+    # `assess` keys its verdict off `saving_bp` against `best`, and `decide()`
+    # turns it into `reroute_to` — and advice to buy something nobody is selling
+    # is worse than no advice. Same split the module already makes for
+    # `first_party`: disclose in the median, be careful with the claim.
+    purchasable = [q for q in uniq if q.purchasable]
+    cheapest = purchasable[0] if purchasable else uniq[0]
+    sold_out_cheaper = sum(
+        1 for q in uniq if not q.purchasable and q.price_usdc < cheapest.price_usdc
+    )
 
     sources = sorted({q.source for q in uniq})
     return Par(
@@ -522,6 +602,8 @@ def par_from_quotes(
         best_usdc=cheapest.price_usdc,
         best_seller=cheapest.seller,
         best_source=cheapest.source,
+        sold_out_cheaper=sold_out_cheaper,
+        best_purchasable=bool(purchasable),
         sellers=len(uniq),
         first_party_sellers=sum(1 for q in uniq if q.first_party),
         basis=" + ".join(sources),
@@ -574,7 +656,11 @@ def assess(
     over_par_bp = (
         ((comparable - par.par_usdc) / par.par_usdc) * 10_000 if par.par_usdc > 0 else None
     )
-    saving_usdc = max(comparable - par.best_usdc, 0.0) * scale
+    # Dear, not recoverable: see `Par.best_purchasable`. The price stays visible
+    # in `best_usdc`; only the claim that it is recoverable is withdrawn.
+    saving_usdc = (
+        max(comparable - par.best_usdc, 0.0) * scale if par.best_purchasable else 0.0
+    )
     saving_bp = (saving_usdc / billed_usdc) * 10_000 if billed_usdc > 0 else 0.0
 
     if over_par_bp is None:
@@ -595,6 +681,8 @@ def assess(
         "best_usdc": par.best_usdc,
         "best_seller": par.best_seller,
         "best_source": par.best_source,
+        "best_purchasable": par.best_purchasable,
+        "sold_out_cheaper": par.sold_out_cheaper,
         "over_par_usdc": over_par_usdc,
         "over_par_bp": over_par_bp,
         # Recoverable, because somebody is offering it at that price.

@@ -534,6 +534,19 @@ function Verdict({ c, requestPath }: { c: ParCheck; requestPath: string }) {
                       <div className="label mono">
                         {c.par.best_seller}
                         {c.par.best_source ? ` · ${c.par.best_source}` : ""}
+                        {/* THE OTHER HALF OF REACHABLE. The note above says
+                            `best_source` decides whether the saving can be
+                            acted on; so does whether anybody has one left. On
+                            the Bittensor GPU basket 13 of 15 rows are fully
+                            booked, and ungated the cheapest row was a sold-out
+                            RTX 3060 quoted as $1.93 recoverable on a $1.99
+                            bill. Woven into this line rather than given a row
+                            of its own: it qualifies the name beside it. */}
+                        {c.verdict.best_purchasable === false
+                          ? " · none available"
+                          : Number(c.verdict.sold_out_cheaper) > 0
+                            ? ` · ${c.verdict.sold_out_cheaper} cheaper sold out`
+                            : ""}
                       </div>
                     ) : null}
                   </td>
