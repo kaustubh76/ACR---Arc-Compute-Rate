@@ -124,6 +124,12 @@ EXEMPT: dict[str, str] = {
     # about — it is in the heading — so the pair is carried for the auditor and
     # deliberately not drawn. They are emitted on both `recent` and
     # `escalations` because the hash is scoped for every intent, not just `pay`.
+    # The sentence beside it IS the rendering. `rule` names the amounts and the
+    # thresholds; `rule_id` is the same fact with the numbers removed so it can
+    # be counted, and drawing both would show a reader the machine's filing code
+    # next to the explanation they actually wanted.
+    "recent[].rule_id": "`rule` is the rendering; the id exists to be counted, not read",
+    "escalations[].rule_id": "as recent[].rule_id — the countable form of a sentence already shown",
     "recent[].chain_id": "scoping for the chain reconciler; the page is already about one wallet",
     "recent[].wallet": "scoping for the chain reconciler; shown on /traction where wallets are compared",
     "escalations[].chain_id": "as recent[].chain_id — an auditor's join key, not a reader's fact",
