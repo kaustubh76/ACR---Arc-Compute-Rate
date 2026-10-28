@@ -148,6 +148,27 @@ POLICY_ABI = [
         "inputs": [],
         "outputs": [{"name": "", "type": "bool"}],
     },
+    # The only EVENT this ABI declares, and the reason `SpendLedger` can exist.
+    # Every spend emits it and the contract rejects a zero `decisionHash`, so the
+    # chain holds a commitment to the reasoning behind each payment — which makes
+    # the log, not our own JSONL, the authority on what an agent actually paid.
+    # Field order is load-bearing: it is decoded positionally from `data`.
+    {
+        "name": "Spent",
+        "type": "event",
+        "anonymous": False,
+        "inputs": [
+            {"name": "category", "type": "bytes32", "indexed": True},
+            {"name": "to", "type": "address", "indexed": True},
+            {"name": "actor", "type": "address", "indexed": True},
+            {"name": "amount", "type": "uint256", "indexed": False},
+            {"name": "decisionHash", "type": "bytes32", "indexed": False},
+            {"name": "ownerApproved", "type": "bool", "indexed": False},
+            {"name": "spentInPeriod", "type": "uint256", "indexed": False},
+            {"name": "cap", "type": "uint256", "indexed": False},
+            {"name": "periodStart", "type": "uint64", "indexed": False},
+        ],
+    },
 ]
 
 

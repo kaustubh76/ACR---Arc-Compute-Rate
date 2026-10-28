@@ -235,6 +235,21 @@ class ObligationDecision:
     #: indistinguishable from an autonomous one — and "obligations settled
     #: without a human touching them" is precisely the difference.
     actor: str = "agent"
+    #: WHICH WALLET ON WHICH CHAIN this decision was taken against.
+    #:
+    #: Hashed on purpose: the on-chain commitment should name the wallet it was
+    #: made for, so a record cannot be replayed against a different one. Both are
+    #: new DATACLASS fields, which `tests/test_decision_hash_contract.py` is
+    #: explicit is safe — an archived row never had the keys and still re-derives
+    #: its original hash.
+    #:
+    #: They exist because `reconcile.py` cannot otherwise do its job. The 19
+    #: archived rows name neither, so a `Spent` log and a decision row could not
+    #: be told to belong to the same wallet, and every one of them had to be
+    #: reported `unscoped` rather than judged. An audit that cannot scope itself
+    #: invents alarms or hides them, and which of those it does is luck.
+    chain_id: int | None = None
+    wallet: str = ""
     #: What the agent WOULD have done with authority it did not have. Set only
     #: where it escalated, and deliberately left empty where it has no opinion
     #: to offer: "no budget on chain" is an absence of authority, not a
@@ -1675,6 +1690,20 @@ def run_obligation(
     )
 
     d.paid_via = paid_via
+
+    # Scope the record to the wallet and chain it was decided against, BEFORE
+    # `as_record()` is hashed below, so the commitment names them. Set for every
+    # intent, not just `pay`: a refusal that cannot be attributed to a wallet is
+    # a refusal `reconcile.py` has to report as unscoped, and a refusal nobody
+    # can place is no evidence that anything was refused.
+    from acr_core import get_settings as _get_settings
+
+    try:
+        d.chain_id = int(_get_settings().arc_chain_id)
+    except Exception:  # noqa: BLE001 - a settings read must not stop a decision
+        d.chain_id = None
+    d.wallet = str(getattr(policy, "wallet_address", "") or "")
+
     if owner_inbox and d.intent == PAY:
         d.recommended_intent = PAY
         d.intent = ESCALATE

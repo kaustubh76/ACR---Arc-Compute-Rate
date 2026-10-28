@@ -119,6 +119,15 @@ EXEMPT: dict[str, str] = {
         "rendered as the section label on the statement; on the audit the window "
         "is the whole record rather than a figure a reader picks"
     ),
+    # Provenance for `reconcile.py`, which joins these rows to `Spent` logs on
+    # Arc. A reader of their own statement already knows which wallet it is
+    # about — it is in the heading — so the pair is carried for the auditor and
+    # deliberately not drawn. They are emitted on both `recent` and
+    # `escalations` because the hash is scoped for every intent, not just `pay`.
+    "recent[].chain_id": "scoping for the chain reconciler; the page is already about one wallet",
+    "recent[].wallet": "scoping for the chain reconciler; shown on /traction where wallets are compared",
+    "escalations[].chain_id": "as recent[].chain_id — an auditor's join key, not a reader's fact",
+    "escalations[].wallet": "as recent[].wallet — an auditor's join key, not a reader's fact",
     "recent[].at": "the rows are already newest-first; a timestamp per row is noise",
     "recent[].obligation_id": "the React key and the settle control's parameter, not display",
     "recent[].business": "every row on this page belongs to the business in the heading",
