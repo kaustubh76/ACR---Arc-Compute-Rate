@@ -1734,6 +1734,144 @@ def operator_traction(
     return build_traction(tape=load_tape())
 
 
+#: Arc's measured block time, used only to turn a human window into a block
+#: range. 0.510s per block, so an hour is about 7,059 blocks.
+_ARC_BLOCK_S = 0.510
+
+#: The paging cost of a window, made visible. `SpendLedger` asks in 5,000-block
+#: pages, so six hours is about nine requests and a day is about thirty-four.
+#: Capped because this is an HTTP route and a caller typing `hours=720` would
+#: otherwise hold a worker open for five thousand RPC calls.
+_RECONCILE_MAX_HOURS = 48.0
+
+
+@app.get("/operator/decisions")
+def operator_decisions(
+    request: Request,
+    business: str = "",
+    days: int = 90,
+    limit: int = 200,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """The decision tape itself — every decision, with the rule that drove it.
+
+    THE TAPE HAS NEVER BEEN SERVED. `/operator/statement/{business}` renders a
+    business's decisions inside a statement, and `archive_decisions.py` reads
+    that page to pull rows into the committed archive, but there has been no way
+    to ask this press plainly what its agent decided. Which also means the
+    archiver depends on the statement's shape and its limit, and
+    `archive_decisions.py` says truncation there is "a failure, not a result".
+
+    Each row carries its own `decision_hash` — the value `PolicyWallet` stores
+    when the payment is made — so a reader can check any row against the chain
+    without asking us to do it for them. That is the difference between
+    publishing a record and publishing a claim.
+    """
+    _meter_agent(request, agent)
+    from .reconcile import row_hash
+    from .statement import read_decisions
+
+    since = time.time() - max(0, days) * 86400.0 if days else 0.0
+    rows = read_decisions(business=business, since=since, limit=max(1, min(limit, 1000)))
+    out = []
+    for r in rows:
+        row = dict(r)
+        try:
+            row["decision_hash"] = row_hash(r)
+        except Exception:  # noqa: BLE001 - an unhashable row is still a row
+            row["decision_hash"] = ""
+        out.append(row)
+    return {
+        "decisions": out,
+        "count": len(out),
+        "window_days": days,
+        "truncated": len(rows) >= max(1, min(limit, 1000)),
+    }
+
+
+@app.get("/operator/reconcile/{business}")
+def operator_reconcile(
+    business: str,
+    request: Request,
+    hours: float = 6.0,
+    from_block: int | None = None,
+    to_block: int | None = None,
+    days: int = 90,
+    agent: VerifiedAgent | None = Depends(optional_agent),
+) -> dict:
+    """What this agent SAID, against what Arc RECORDS that it paid.
+
+    `PolicyWallet` emits `Spent(..., decisionHash, ...)` on every payment and
+    rejects a zero hash, so the chain holds a commitment to the reasoning before
+    the money moves — and `log_decision` has always said the chain is "the
+    authoritative record". This is the read of it.
+
+    Three findings matter, and two are alarms no price feed can raise:
+    `unexplained` (money left the wallet with no decision recorded for it),
+    `paid_against_decision` (the row said refuse and the payment won) and
+    `recorded_unseen` (we claim a transaction the chain does not show).
+
+    A RANGE THAT COULD NOT BE READ IS A 503, NOT AN EMPTY ANSWER. "The agent
+    made no payments" and "I could not look" are opposite findings, and a caller
+    handed `[]` for both will publish the first one. `SpendLedger` raises for
+    exactly this reason and the status code carries it through.
+    """
+    _meter_agent(request, agent)
+    from acr_core import get_settings
+
+    from .businesses import resolve
+    from .reconcile import reconcile
+    from .statement import read_decisions
+
+    b = resolve(business)
+    if b is None:
+        raise HTTPException(404, f"no business {business!r}")
+    client = _policy_for(b)
+    if client is None:
+        # Not an error: a business can be measured without having a wallet yet,
+        # and saying so beats a zeroed report that looks like a clean audit.
+        return {
+            "business": b.slug,
+            "reconciled": False,
+            "why": "this business has no PolicyWallet, so there is no chain record to reconcile against",
+        }
+
+    from acr_oracle_client.spend_ledger import LedgerUnreadable, SpendLedger
+
+    ledger = SpendLedger(client)
+    if from_block is None or to_block is None:
+        head = ledger.head()
+        if head is None:
+            raise HTTPException(503, f"the chain head could not be read at {client.rpc_url}")
+        window = max(1, int(min(max(hours, 0.1), _RECONCILE_MAX_HOURS) * 3600.0 / _ARC_BLOCK_S))
+        hi = head if to_block is None else int(to_block)
+        lo = max(0, hi - window) if from_block is None else int(from_block)
+    else:
+        lo, hi = int(from_block), int(to_block)
+
+    try:
+        spends, reach = ledger.spends(lo, hi)
+    except LedgerUnreadable as exc:
+        raise HTTPException(503, f"the chain record could not be read: {exc}") from exc
+
+    since = time.time() - max(0, days) * 86400.0 if days else 0.0
+    rows = read_decisions(business=b.slug, since=since, limit=1000)
+    result = reconcile(
+        rows,
+        spends,
+        chain_id=int(get_settings().arc_chain_id),
+        wallet=client.wallet_address,
+        reach=reach.as_dict(),
+    )
+    return {
+        "business": b.slug,
+        "reconciled": True,
+        "wallet": client.wallet_address,
+        "chain_id": int(get_settings().arc_chain_id),
+        **result.as_dict(),
+    }
+
+
 @app.get("/operator/ledger/{business}", response_class=PlainTextResponse)
 def operator_ledger(
     business: str,

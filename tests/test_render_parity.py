@@ -119,6 +119,30 @@ EXEMPT: dict[str, str] = {
         "rendered as the section label on the statement; on the audit the window "
         "is the whole record rather than a figure a reader picks"
     ),
+    # Provenance for `reconcile.py`, which joins these rows to `Spent` logs on
+    # Arc. A reader of their own statement already knows which wallet it is
+    # about — it is in the heading — so the pair is carried for the auditor and
+    # deliberately not drawn. They are emitted on both `recent` and
+    # `escalations` because the hash is scoped for every intent, not just `pay`.
+    # The sentence beside it IS the rendering. `rule` names the amounts and the
+    # thresholds; `rule_id` is the same fact with the numbers removed so it can
+    # be counted, and drawing both would show a reader the machine's filing code
+    # next to the explanation they actually wanted.
+    # INERT UNTIL A CALLER SUPPLIES A COHORT, and that is the honest reason.
+    # `par_from_quotes` takes `cohort` and nothing passes one yet: a bill names
+    # an amount and a vendor, not the class of hardware it bought, so there is
+    # no caller that COULD without new input. Drawing them today would put
+    # "unmatched · 0" on every check forever — a badge that cannot change,
+    # which is worse than no badge. When `tca._reroute` starts passing a cohort
+    # these must be rendered beside `sold_out_cheaper`, which already is.
+    "verdict.cohort_matched": "inert until a caller passes a cohort; a label that cannot vary is noise",
+    "verdict.off_cohort_cheaper": "as verdict.cohort_matched — always 0 until a cohort is supplied",
+    "recent[].rule_id": "`rule` is the rendering; the id exists to be counted, not read",
+    "escalations[].rule_id": "as recent[].rule_id — the countable form of a sentence already shown",
+    "recent[].chain_id": "scoping for the chain reconciler; the page is already about one wallet",
+    "recent[].wallet": "scoping for the chain reconciler; shown on /traction where wallets are compared",
+    "escalations[].chain_id": "as recent[].chain_id — an auditor's join key, not a reader's fact",
+    "escalations[].wallet": "as recent[].wallet — an auditor's join key, not a reader's fact",
     "recent[].at": "the rows are already newest-first; a timestamp per row is noise",
     "recent[].obligation_id": "the React key and the settle control's parameter, not display",
     "recent[].business": "every row on this page belongs to the business in the heading",

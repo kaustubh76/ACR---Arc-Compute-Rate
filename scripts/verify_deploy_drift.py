@@ -55,6 +55,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -89,23 +90,48 @@ def repo_paths() -> set[str]:
     return set(app.openapi().get("paths", {}))
 
 
+#: How many times to re-ask a host that did not answer, and how long to wait
+#: between tries. A free-tier service behind a cold start is the ONE legitimate
+#: reason this script cannot read a live host, and it resolves itself in tens of
+#: seconds — so the answer to it is patience, not an exemption.
+WAKE_ATTEMPTS = int(os.environ.get("VERIFY_DRIFT_ATTEMPTS", "3"))
+WAKE_PAUSE_S = float(os.environ.get("VERIFY_DRIFT_PAUSE_S", "20"))
+
+
 def deployed_paths(base: str) -> set[str] | None:
-    """What a host serves. `None` means it could not be asked, which is NOT drift.
+    """What a host serves. ``None`` means it could not be asked after retrying.
 
     A sleeping free-tier service and a service missing half the product look
-    identical through a short timeout, and calling the first one "drift" would
-    make this script cry wolf on every cold start.
+    identical through a single short request, and calling the first one "drift"
+    would make this script cry wolf on every cold start. So it WAKES the host
+    instead of excusing it: up to ``WAKE_ATTEMPTS`` tries, ``WAKE_PAUSE_S``
+    apart, which is longer than any Render spin-up observed here.
+
+    MEASURED 2026-10-28, and the reason the retry exists. A first run printed
+    "could not read /openapi.json" for BOTH presses and exited 0 with
+    "✓ no route drift". Re-run minutes later against the same unchanged hosts it
+    reported the truth: mainnet serves 44 of the 53 routes this checkout builds,
+    missing all eight ``/operator/*`` routes and ``/par``. The gate was right the
+    second time and silent the first, and nothing in its output distinguished
+    them — which is exactly the failure its own STRICT note describes, arrived at
+    from the other end.
     """
     req = urllib.request.Request(
         f"{base}/openapi.json", headers={"User-Agent": "acr-verify-deploy-drift"}
     )
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:  # noqa: S310
-            if r.status != 200:
-                return None
-            return set(json.loads(r.read()).get("paths", {}))
-    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError):
-        return None
+    last = ""
+    for attempt in range(max(1, WAKE_ATTEMPTS)):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:  # noqa: S310
+                if r.status == 200:
+                    return set(json.loads(r.read()).get("paths", {}))
+                last = f"status {r.status}"
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError) as exc:
+            last = f"{type(exc).__name__}: {exc}"
+        if attempt + 1 < max(1, WAKE_ATTEMPTS):
+            print(f"    … {base} did not answer ({last}); waking it and retrying")
+            time.sleep(WAKE_PAUSE_S)
+    return None
 
 
 def _family(paths: set[str]) -> dict[str, int]:
@@ -132,7 +158,14 @@ def _family(paths: set[str]) -> dict[str, int]:
 #: keeps closing — `mainnet_guard` exists because two x402 modes did it.
 #: Same `VERIFY_*_STRICT` idiom `verify_live.py` already uses to promote its
 #: warn-only checks.
-STRICT = os.environ.get("VERIFY_DRIFT_STRICT", "") == "1"
+#: STRICT IS NOW THE DEFAULT, and `VERIFY_DRIFT_STRICT=0` is the way out.
+#:
+#: It shipped as opt-in with the note above, which left the fail-open shape the
+#: note describes switched on by default — and it duly fired: see
+#: `deployed_paths`, where a cold start produced "✓ no route drift" against a
+#: press missing nine routes. With the retry above, an unreadable host is no
+#: longer the ordinary case it was being excused as, so refusing is affordable.
+STRICT = os.environ.get("VERIFY_DRIFT_STRICT", "1") != "0"
 
 
 def report(base: str, built: set[str]) -> bool:
@@ -142,8 +175,9 @@ def report(base: str, built: set[str]) -> bool:
     if served is None:
         print("    ! could not read /openapi.json — asleep, down, or not an ACR host.")
         if STRICT:
-            print("      VERIFY_DRIFT_STRICT=1: an unreadable host cannot be shown to")
+            print(f"      Re-asked {WAKE_ATTEMPTS}x: an unreadable host cannot be shown to")
             print("      serve this checkout, so this is a FAILURE rather than a pass.")
+            print("      VERIFY_DRIFT_STRICT=0 downgrades this to a warning.")
             return False
         print("      Not counted as drift: that is verify_live.py's question.")
         return True

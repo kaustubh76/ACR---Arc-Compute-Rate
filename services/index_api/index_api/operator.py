@@ -97,6 +97,36 @@ LOG_PATH = os.environ.get("ACR_OPERATOR_LOG_PATH", "data/operator_decisions.json
 #: is "this was edited", which would be false.
 UNHASHED = ("tx", "paid_usdc", "warns_signature")
 
+#: Every `rule_id` `decide()` and `run_obligation()` can emit.
+#:
+#: A closed set, asserted by `tests/test_rule_ids.py`, so a new gate cannot ship
+#: without being named and an old name cannot quietly change — either would
+#: break a count that is kept over time, and silently, because the rows before
+#: and after would both look fine.
+RULE_IDS: frozenset[str] = frozenset({
+    # the bill is malformed
+    "duplicate_reference", "no_payee", "no_amount",
+    # our own meter disagrees
+    "unmetered", "meter_short",
+    # who we would be paying
+    "counterparty_risk", "unpayable_vendor",
+    # what we agreed
+    "over_commitment",
+    # what it should cost
+    "unbenchmarked_over_ceiling", "over_par_no_payable_alternative",
+    "cheaper_elsewhere", "cheaper_elsewhere_is_the_biller",
+    # when it is due
+    "not_yet_due",
+    # what we are allowed
+    "over_per_tx_limit", "over_budget", "no_budget_on_chain",
+    # what we actually hold
+    "insufficient_balance", "short_against_dated",
+    # who has to sign
+    "owner_inbox", "no_agent_key",
+    # and the two ways it clears
+    "pay_benchmarked", "pay_unbenchmarked",
+})
+
 #: Intents. ``reroute`` and ``escalate`` are not failures — they are the two
 #: ways this agent is useful without being reckless.
 PAY = "pay"
@@ -167,6 +197,19 @@ class ObligationDecision:
     intent: str
     #: One line naming the check that fired. The thing a reviewer reads first.
     rule: str
+    #: A STABLE id for the gate that produced `rule`, for counting.
+    #:
+    #: `rule` is a sentence, and a good one — it names the amounts and the
+    #: thresholds, so a reviewer can act on it without looking anything up. That
+    #: is exactly what makes it useless as a key: "250 bp above the cheapest
+    #: offer: 0.04 is available" and "310 bp above the cheapest offer: 0.05 is
+    #: available" are the same gate and two different strings, so a histogram
+    #: over `rule` reports one occurrence of everything.
+    #:
+    #: Which is the question the ten refusals invite and could not answer:
+    #: WHICH ONE FIRES MOST. Empty on older rows, which is honest — they predate
+    #: the id and nothing can recover it from the prose after the fact.
+    rule_id: str = ""
     #: The business whose money this is, by registry slug.
     business: str = ""
     resource: str = ""
@@ -235,6 +278,21 @@ class ObligationDecision:
     #: indistinguishable from an autonomous one — and "obligations settled
     #: without a human touching them" is precisely the difference.
     actor: str = "agent"
+    #: WHICH WALLET ON WHICH CHAIN this decision was taken against.
+    #:
+    #: Hashed on purpose: the on-chain commitment should name the wallet it was
+    #: made for, so a record cannot be replayed against a different one. Both are
+    #: new DATACLASS fields, which `tests/test_decision_hash_contract.py` is
+    #: explicit is safe — an archived row never had the keys and still re-derives
+    #: its original hash.
+    #:
+    #: They exist because `reconcile.py` cannot otherwise do its job. The 19
+    #: archived rows name neither, so a `Spent` log and a decision row could not
+    #: be told to belong to the same wallet, and every one of them had to be
+    #: reported `unscoped` rather than judged. An audit that cannot scope itself
+    #: invents alarms or hides them, and which of those it does is luck.
+    chain_id: int | None = None
+    wallet: str = ""
     #: What the agent WOULD have done with authority it did not have. Set only
     #: where it escalated, and deliberately left empty where it has no opinion
     #: to offer: "no budget on chain" is an absence of authority, not a
@@ -1018,14 +1076,17 @@ def decide(
     # behalf of a payment that must not happen.
     if is_duplicate(ob, refs):
         d.intent, d.rule = REFUSE, "duplicate: this reference has already settled"
+        d.rule_id = "duplicate_reference"
         return d
 
     # 2 — payable at all.
     if not _payable_to(ob.vendor):
         d.intent, d.rule = REFUSE, "no payee: nothing to pay, and no one to pay it to"
+        d.rule_id = "no_payee"
         return d
     if ob.billed_usdc <= 0:
         d.intent, d.rule = REFUSE, "no amount: a bill for nothing is not a bill"
+        d.rule_id = "no_amount"
         return d
 
     # 3 — the meter, before the price. A bill for work nobody did is not a
@@ -1035,6 +1096,7 @@ def decide(
             d.intent, d.escalated = ESCALATE, True
             d.recommended_intent = REFUSE
             d.rule = "unmetered: we hold no record of consuming this, so we cannot check the bill"
+            d.rule_id = "unmetered"
             return d
         d.discrepancy = ob.vendor_quantity - metered_quantity
         if ob.vendor_quantity:
@@ -1049,6 +1111,7 @@ def decide(
             # reads. "They billed 50, we counted 12" is the finding; "76 USDC of
             # this bill is for something that did not happen" is the reason
             # anybody acts on it.
+            d.rule_id = "meter_short"
             d.rule = (
                 f"metered below billed: they billed {ob.vendor_quantity:g}, "
                 f"we counted {metered_quantity:g}"
@@ -1081,6 +1144,7 @@ def decide(
             d.intent, d.escalated = ESCALATE, True
             d.recommended_intent = REFUSE
             where = ", ".join(screen.matched) if screen.matched else screen.backend
+            d.rule_id = "counterparty_risk"
             d.rule = (
                 f"counterparty {screen.risk}: {where} — not a payment the agent makes"
             )
@@ -1125,6 +1189,10 @@ def decide(
             d.intent, d.escalated = ESCALATE, True
             d.recommended_intent = REFUSE
             over = agreed.get("over_usdc")
+            # One id for all four commitment verdicts: `commitment_verdict`
+            # already distinguishes them, and a second encoding of the same
+            # fact is a second thing to keep in step.
+            d.rule_id = "over_commitment"
             d.rule = _commitment_rule(agreed, over)
             return d
         d.notes.append(
@@ -1163,6 +1231,7 @@ def decide(
             # No opinion on the price, so the recommendation is to wait for one
             # rather than to refuse a bill that may be perfectly fair.
             d.recommended_intent = HOLD
+            d.rule_id = "unbenchmarked_over_ceiling"
             d.rule = (
                 f"unbenchmarked ({reason}) and above the "
                 f"{unbenchmarked_max_usdc:g} USDC ceiling for a price we cannot check"
@@ -1234,6 +1303,7 @@ def decide(
                 if over_bp >= material_bp:
                     d.intent, d.escalated = ESCALATE, True
                     d.recommended_intent = REFUSE
+                    d.rule_id = "over_par_no_payable_alternative"
                     d.rule = (
                         f"{over_bp:.0f} bp above the going market rate of "
                         f"{verdict['par_usdc']:g} across {verdict['sellers']} published "
@@ -1264,6 +1334,7 @@ def decide(
                 # a price can sit below the median and still have money
                 # available below it, and a rule that contradicts itself is
                 # worse than one that is merely terse.
+                d.rule_id = "cheaper_elsewhere"
                 d.rule = (
                     f"{verdict['saving_bp']:.0f} bp above the cheapest offer: "
                     f"{verdict['best_usdc']:g} is available, saving "
@@ -1278,6 +1349,7 @@ def decide(
                 # not true of it. An `else` cannot be fallen into by accident.
                 d.intent, d.escalated = ESCALATE, True
                 d.recommended_intent = REFUSE
+                d.rule_id = "cheaper_elsewhere_is_the_biller"
                 d.rule = (
                     f"{verdict['saving_bp']:.0f} bp above the cheapest offer, "
                     "and that seller is the one billing us"
@@ -1290,6 +1362,7 @@ def decide(
     if ob.due_at is not None and ob.early_pay_discount <= 0:
         if ob.due_at - t > pay_window_s:
             d.intent = HOLD
+            d.rule_id = "not_yet_due"
             d.rule = (
                 f"not due for {int((ob.due_at - t) / 86_400)} days and no early-pay "
                 "discount, so the cash is worth more here"
@@ -1306,6 +1379,7 @@ def decide(
         # Everything else cleared. This is the one escalation where the agent's
         # recommendation is to PAY: the bill is sound, the authority is not.
         d.recommended_intent = PAY
+        d.rule_id = "over_per_tx_limit"
         d.rule = (
             f"{ob.billed_usdc:g} USDC is at or above the "
             f"{per_tx_limit_usdc:g} per-payment limit, so the owner signs this one"
@@ -1316,6 +1390,7 @@ def decide(
         # Not refuse: the bill may be fine and the period rolls. Waiting is the
         # honest recommendation when the only thing missing is money.
         d.recommended_intent = HOLD
+        d.rule_id = "over_budget"
         d.rule = (
             f"over budget: {ob.billed_usdc:g} USDC against {remaining_usdc:g} left "
             f"in {ob.category} this period"
@@ -1349,11 +1424,13 @@ def decide(
             # wrong cause. The bill is simply larger than the balance and the
             # transfer would revert; nothing is waiting behind it.
             if liquidity.held_usdc < ob.billed_usdc:
+                d.rule_id = "insufficient_balance"
                 d.rule = (
                     f"the wallet holds {liquidity.held_usdc:g} USDC and this bill is "
                     f"{ob.billed_usdc:g}, so the payment would revert on chain"
                 )
             else:
+                d.rule_id = "short_against_dated"
                 d.rule = (
                     f"not enough to cover what is due: {liquidity.held_usdc:g} USDC held "
                     f"against {liquidity.due_usdc:g} dated in the next "
@@ -1379,6 +1456,9 @@ def decide(
         d.notes.append("no balance was read, so nothing checked this against cash")
 
     d.intent = PAY
+    # The only two non-refusal ids. Split on the same condition `_pay_rule`
+    # splits its sentence on, so the id and the prose cannot disagree.
+    d.rule_id = "pay_benchmarked" if (verdict and verdict.get("benchmarked")) else "pay_unbenchmarked"
     d.rule = _pay_rule(d, verdict, material_bp)
     return d
 
@@ -1643,6 +1723,7 @@ def run_obligation(
                 resource=ob.resource,
                 intent=ESCALATE,
                 rule=f"no budget on chain for {ob.category}, so the agent has no authority here",
+                rule_id="no_budget_on_chain",
                 escalated=True,
                 metered_quantity=metered,
                 vendor_quantity=ob.vendor_quantity,
@@ -1675,11 +1756,26 @@ def run_obligation(
     )
 
     d.paid_via = paid_via
+
+    # Scope the record to the wallet and chain it was decided against, BEFORE
+    # `as_record()` is hashed below, so the commitment names them. Set for every
+    # intent, not just `pay`: a refusal that cannot be attributed to a wallet is
+    # a refusal `reconcile.py` has to report as unscoped, and a refusal nobody
+    # can place is no evidence that anything was refused.
+    from acr_core import get_settings as _get_settings
+
+    try:
+        d.chain_id = int(_get_settings().arc_chain_id)
+    except Exception:  # noqa: BLE001 - a settings read must not stop a decision
+        d.chain_id = None
+    d.wallet = str(getattr(policy, "wallet_address", "") or "")
+
     if owner_inbox and d.intent == PAY:
         d.recommended_intent = PAY
         d.intent = ESCALATE
         d.escalated = True
         d.rule = "Owner-wallet inbox: explicit owner authorization required"
+        d.rule_id = "owner_inbox"
     if d.intent == PAY:
         from acr_core import get_settings
 
@@ -1693,6 +1789,7 @@ def run_obligation(
             d.intent = ESCALATE
             d.escalated = True
             d.rule = why
+            d.rule_id = "unpayable_vendor"
     if d.intent == PAY and policy is not None and not dry_run and not getattr(policy, "configured", lambda: True)():
         # The budget is a public read now, so a host without the agent key can
         # reach a PAY. Saying so beats a spend() that cannot be signed.
@@ -1700,6 +1797,7 @@ def run_obligation(
         d.intent = ESCALATE
         d.escalated = True
         d.rule = "no agent key on this host, so it cannot sign the payment"
+        d.rule_id = "no_agent_key"
     if d.intent == PAY and policy is not None:
         if dry_run:
             d.notes.append("dry run: cleared policy, no payment sent")

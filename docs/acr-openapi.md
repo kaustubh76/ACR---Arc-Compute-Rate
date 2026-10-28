@@ -57,7 +57,7 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 
 ---
 
-## Free endpoints (no payment required) · 42
+## Free endpoints (no payment required) · 44
 
 `GET /` — Root
 `GET /agent/challenge` — Agent Challenge
@@ -89,7 +89,9 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 `GET /onchain/{index_id}` — Onchain Print
 `GET /operator/audit/{business}` — Operator Audit
 `GET /operator/businesses` — Operator Businesses
+`GET /operator/decisions` — Operator Decisions
 `GET /operator/ledger/{business}` — Operator Ledger
+`GET /operator/reconcile/{business}` — Operator Reconcile
 `GET /operator/statement/{business}` — Operator Statement
 `GET /operator/traction` — Operator Traction
 `GET /par` — Price Check
@@ -104,5 +106,5 @@ carded tape reads pass Google Cloud Model Armor in both directions (`GET /armor/
 
 ---
 
-*Rendered by `scripts/gen_openapi_doc.py` from `app.openapi()` — 48 routes;*
+*Rendered by `scripts/gen_openapi_doc.py` from `app.openapi()` — 50 routes;*
 *5 operator routes omitted on purpose. `make openapi-doc-check` fails when this is stale.*
