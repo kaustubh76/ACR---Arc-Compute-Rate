@@ -101,17 +101,26 @@ pays the seller in **one transaction**.
 > the uniqueness was auditable without ever storing a nullifier. What is new is
 > that a World ID verification now **releases money**. An agent's out-of-policy
 > payment is parked on chain, a verified human completes a *fresh* World ID
-> device-flow authentication, the backend validates that token against eight
-> separate conditions before it will sign anything, and only then does a
-> single-use EIP-712 approval let the vault move USDC — with denial, expiry and
-> a failed verification each recorded on chain as public evidence rather than as
-> silence.
+> device-flow authentication, the backend validates that token against a fixed
+> ladder of **nine named refusals**, reporting the first rung that failed rather
+> than the last, and only then does a single-use EIP-712 approval let the vault
+> move USDC — with denial, expiry and a failed verification each recorded on
+> chain as public evidence rather than as silence.
+
+The nine are pinned by a test rather than by this prose:
+`worldauth.REASONS` is the tuple, and `test_every_named_reason_is_reachable`
+asserts set-equality between it and the reasons nine fixtures actually produce,
+so the count cannot drift away from the sentence without a red test. Reporting
+the FIRST rung that failed is deliberate: a stale `auth_time`, an unverified
+account and the wrong person are three different problems with three different
+fixes, and collapsing them into "verification failed" is what makes an approval
+gate undebuggable.
 
 | file | what |
 |---|---|
-| `services/index_api/index_api/worldauth.py` | the OIDC device-authorization client and the ID-token validation ladder |
-| `services/index_api/index_api/worldflow.py` | the checkpoint lifecycle and its polling worker |
-| `services/index_api/index_api/floatgate.py` | the release seam onto the vault |
+| `services/index_api/index_api/worldauth.py` | the ID-token validation ladder: RS256-over-JWKS signature with the algorithm pinned rather than read from the token, then issuer, audience, expiry, assurance class, authentication factors, freshness against when the checkpoint opened, and identity against the enrolled treasurer |
+| `services/index_api/index_api/worldflow.py` | the OIDC device-authorization client and its poll table, including the three outcomes a hand-rolled retry loop gets wrong: a 503 is never an approval, a 429 ends the attempt and `Retry-After` does not override that, and `slow_down` widens every later interval |
+| `services/index_api/index_api/floatgate.py` | the checkpoint lifecycle and its polling worker: parks the payment, waits for a person, releases it exactly once, and records denial, expiry and failed verification on chain |
 | `packages/acr_oracle_client/acr_oracle_client/float_vault.py` | the EIP-712 `FloatApproval` signer, which refuses to broadcast unless the digest it built equals the one the vault's own `approvalDigest` view returns |
 | `services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain}.py` | the suites, including the adversarial fixtures |
 
@@ -122,7 +131,7 @@ pays the seller in **one transaction**.
 | `.gitignore` | two ignore rules: the pre-seed fundraise set, and Float's planning docs |
 | `.env.example`, `packages/acr_core/acr_core/config.py` | Float and World settings |
 | `conftest.py` | test isolation for the new suites |
-| `services/index_api/index_api/humanid.py` | extended for the Agent Pass path |
+| `services/index_api/index_api/humanid.py` | one line: the stray-credential scanner's word list, so a mis-prefixed World or Float secret in `.env` is reported rather than silently ignored by `env_prefix="ACR_"` |
 | `services/index_api/tests/test_par_api.py` | a test that pinned a live market price to a constant, so it was a clock rather than a check |
 | `scripts/demo_spend.py` | two pre-existing lint errors that were stopping `make ci` at its first step |
 
