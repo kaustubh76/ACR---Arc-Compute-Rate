@@ -38,6 +38,7 @@ const d = load(NET);
 
 const STORE = A.FloatPrintStore();
 const VAULT = A.FloatVault();
+const SLEEVE = A.Erc4626Sleeve();
 
 const RECEIPT = parseAbiItem(
   "event Receipt(uint256 indexed id, bytes32 indexed agentId, address indexed seller, bytes32 index, uint64 printId, uint256 units, uint256 quote, uint256 fair, int256 premiumBps, bool jitFunded, bool guest, bool humanApproved)",
@@ -109,8 +110,32 @@ async function print() {
  * nothing. With no receipts yet it returns zero and says so — an invented rate
  * would be a number pretending to be a measurement.
  */
-async function spendPerHour(): Promise<{ perHour: bigint; receipts: number; hours: number }> {
+const HOUR = 3600n;
+/**
+ * The shortest window we will divide by.
+ *
+ * Without a floor, a burst of payments inside a few minutes is reported as an
+ * HOURLY rate — ten payments in five minutes reads as a twelvefold overstatement
+ * — and the target buffer it implies can exceed the whole treasury.
+ */
+const MIN_WINDOW_S = 600n;
+/**
+ * The most of the treasury the forecast may ask to hold liquid.
+ *
+ * A forecast is an estimate; a treasury that parks everything in its buffer on
+ * the strength of one has stopped earning for no reason, and on Arc it would
+ * empty the yield sleeve on every tick — which is precisely the bug this cap
+ * exists to stop. 30% leaves the sleeve holding the float that makes the
+ * just-in-time pull a real event rather than a formality.
+ */
+const MAX_TARGET_SHARE_BPS = 3_000n;
+
+async function spendPerHour(): Promise<{ perHour: bigint; receipts: number; windowS: bigint }> {
   const head = await pub.getBlockNumber();
+  // On Arc, LOG_PAGE blocks is about 76 MINUTES, not a day: block time is
+  // 0.507s measured. On anvil the chain is short enough to read whole. Either
+  // way the rate below is derived from measured TIMESTAMPS rather than from an
+  // assumed window, so the difference stops mattering.
   const window = NET === "anvil" ? head : LOG_PAGE;
   const from = head > window ? head - window : 0n;
 
@@ -132,8 +157,15 @@ async function spendPerHour(): Promise<{ perHour: bigint; receipts: number; hour
       lastTs = Number(b1.timestamp);
     }
   }
-  const hours = Math.max((lastTs - firstTs) / 3600, 1 / 60);
-  return { perHour: count > 1 ? total / BigInt(Math.max(1, Math.round(hours))) : total, receipts: count, hours };
+  // Measured elapsed seconds between the first and last receipt seen, floored.
+  // The previous version rounded the span to whole HOURS, so any window under
+  // 90 minutes divided by 1 and reported its total as an hourly rate. On Arc
+  // that turned 76 minutes of tape into a ~$108/h estimate, a ~$2,400 target,
+  // and a sleeve emptied on every tick.
+  const spanS = BigInt(Math.max(0, lastTs - firstTs));
+  const windowS = spanS > MIN_WINDOW_S ? spanS : MIN_WINDOW_S;
+  const perHour = count > 0 ? (total * HOUR) / windowS : 0n;
+  return { perHour, receipts: count, windowS };
 }
 
 async function rebalance() {
@@ -144,7 +176,7 @@ async function rebalance() {
   })) as readonly [number, number, number, number, number, number, number, bigint];
   const bufferHours = BigInt(policy[6]);
 
-  const { perHour, receipts } = await spendPerHour();
+  const { perHour, receipts, windowS } = await spendPerHour();
   if (receipts === 0) {
     console.log("  forecast: no receipts yet, so no measured rate — nothing to rebalance against");
     return;
@@ -176,18 +208,39 @@ async function rebalance() {
   }
   const ciBps = n > 0n ? ciSum / n : 0n;
 
-  const target = (perHour * bufferHours * (10_000n + ciBps)) / 10_000n;
+  const wanted = (perHour * bufferHours * (10_000n + ciBps)) / 10_000n;
+
   const held = (await pub.readContract({
     address: d.usdc,
     abi: A.MockUSDC().abi,
     functionName: "balanceOf",
     args: [d.vault],
   })) as bigint;
+  const sleeve = (await pub.readContract({
+    address: d.sleeve,
+    abi: SLEEVE.abi,
+    functionName: "valueUsdc",
+  })) as bigint;
+
+  // CLAMP. A forecast is an estimate, and asking the vault to hold more buffer
+  // than the treasury owns means pulling the entire sleeve every tick: the
+  // yield position empties, `jitFunded` goes false on every later receipt, and
+  // the one behaviour worth demonstrating quietly stops happening. The cap also
+  // bounds the damage from a bad rate estimate rather than trusting the rate.
+  const ceiling = ((held + sleeve) * MAX_TARGET_SHARE_BPS) / 10_000n;
+  const target = wanted > ceiling ? ceiling : wanted;
 
   console.log(
-    `  forecast: ${usdc(perHour)}/h over ${receipts} receipts, ${bufferHours}h cover, +${ciBps}bp margin`,
+    `  forecast: ${usdc(perHour)}/h from ${receipts} receipts over ${windowS}s, ` +
+      `${bufferHours}h cover, +${ciBps}bp margin`,
   );
-  console.log(`  target buffer ${usdc(target)} vs held ${usdc(held)}`);
+  if (target !== wanted) {
+    console.log(
+      `  target ${usdc(wanted)} exceeds ${MAX_TARGET_SHARE_BPS / 100n}% of ` +
+        `${usdc(held + sleeve)} under management — clamped to ${usdc(target)}`,
+    );
+  }
+  console.log(`  target buffer ${usdc(target)} vs held ${usdc(held)}, sleeve ${usdc(sleeve)}`);
   const hash = await send(d.vault, VAULT.abi, "rebalance", [target]);
   console.log(`  rebalance ${hash}`);
 }
