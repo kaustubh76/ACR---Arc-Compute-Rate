@@ -66,5 +66,20 @@ ACR_MachineTCA_Architecture_FULL.excalidraw
 # context.
 ACR_REGISTER.md
 
+# Float's planning docs. They are the build plan for a hackathon entry, so they
+# carry prize targeting, kill-gate decisions, demo stagecraft and the lines we
+# plan to answer judges with. The product belongs in the repo; the strategy for
+# winning with it does not — a judge clones this. What ships publicly is
+# float/README.md and the continuity disclosure.
+ACR_Float.md
+ACR_float_flow_e2e.md
+ACR_Float_Execution_Flows_1.excalidraw
+
+# The fundraise set: the pitch, roadmap and business plan for the pre-seed round.
+# Same rule as every entry above: the product is public, the round is not. It is
+# also the one place the index demotion is argued in full, and that argument
+# belongs in a conversation, not in a repo a stranger clones.
+docs/fundraise/
+
 # aomi-build writes local deploy state here; .aomi/config.json is committed.
 .aomi/deployment.json
