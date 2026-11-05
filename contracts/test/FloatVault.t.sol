@@ -409,6 +409,21 @@ contract FloatVaultTest is Test {
         assertEq(perReq, 2e6);
     }
 
+    /// A registrar could pre-claim an id the owner meant for a real agent, and
+    /// `setAgent` never cleared the guest flag — so that agent stayed on the
+    /// GLOBAL guest seller allowlist forever, able to pay anyone listed there.
+    function test_configuring_an_agent_takes_it_off_the_guest_allowlist() public {
+        bytes32 id = keccak256("was-a-guest");
+        vm.prank(registrar);
+        vault.registerGuest(id);
+        (,,,,,, bool guestBefore) = vault.agentOf(id);
+        assertTrue(guestBefore);
+
+        _setAgent(id, 50e6, 20e6, false);
+        (,,,,,, bool guestAfter) = vault.agentOf(id);
+        assertFalse(guestAfter, "the owner's configuration wins over a pre-claim");
+    }
+
     function test_the_registrar_cannot_reach_an_existing_agent() public {
         vm.prank(registrar);
         vm.expectRevert(bytes("agent exists"));

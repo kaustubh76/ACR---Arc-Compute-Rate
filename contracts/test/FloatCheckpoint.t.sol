@@ -107,7 +107,7 @@ contract FloatCheckpointTest is Test {
         view
         returns (uint8 v, bytes32 rs, bytes32 ss)
     {
-        (, uint64 expiresAt,,) = vault.checkpoints(id);
+        (, uint64 expiresAt,,,) = vault.checkpoints(id);
         bytes32 digest = vault.approvalDigest(id, reqHash, expiresAt, vault.treasurerBinding());
         return vm.sign(pk, digest);
     }
@@ -168,7 +168,7 @@ contract FloatCheckpointTest is Test {
 
         assertEq(receiptId, 1);
         assertEq(usdc.balanceOf(seller), FAIR, "the seller was paid");
-        (,,, uint8 status) = vault.checkpoints(id);
+        (,,, uint8 status,) = vault.checkpoints(id);
         assertEq(status, 1, "consumed");
     }
 
@@ -321,7 +321,7 @@ contract FloatCheckpointTest is Test {
         emit FloatVault.CheckpointResolved(id, 2, "treasurer declined");
         vault.resolveCheckpoint(id, 2, "treasurer declined");
 
-        (,,, uint8 status) = vault.checkpoints(id);
+        (,,, uint8 status,) = vault.checkpoints(id);
         assertEq(status, 2);
         assertEq(usdc.balanceOf(seller), 0, "seller balance: unchanged");
     }
@@ -371,13 +371,14 @@ contract FloatCheckpointTest is Test {
 
     function test_a_policy_change_lands_with_an_approval_when_the_gate_is_on() public {
         vault.setPolicyCheckpointRequired(true, 0, 0, bytes32(0), bytes32(0));
-        bytes32 cfg = keccak256("new-config");
+        // The hash is DERIVED from the numbers, so this is what a human signs.
+        bytes32 cfg = vault.agentApprovalHash(SCOUT, 77e6, 7e6, false);
 
         vm.prank(executor);
         uint256 id = vault.openCheckpoint(bytes32(0), cfg, 2, TTL); // kind 2 = policy
         (uint8 v, bytes32 rs, bytes32 ss) = _sign(APPROVER_PK, id, cfg);
 
-        vault.setAgent(SCOUT, 77e6, 7e6, false, cfg, id, v, rs, ss);
+        vault.setAgent(SCOUT, 77e6, 7e6, false, keccak256("provenance"), id, v, rs, ss);
         (, uint256 cap,,,,,) = vault.agentOf(SCOUT);
         assertEq(cap, 77e6, "the policy landed only after the human signed");
     }
@@ -388,5 +389,57 @@ contract FloatCheckpointTest is Test {
         vault.setAgent(
             SCOUT, 77e6, 7e6, false, keccak256("new-config"), 999, 27, bytes32(uint256(1)), bytes32(uint256(1))
         );
+    }
+
+    // --- what the Arc Studio audit found -------------------------------------
+
+    /// F1, the one that mattered. An approval has to authorise the NUMBERS, not
+    /// merely the moment. `setAgent` and `setPolicy` used to pass the CALLER's
+    /// own `configHash` into the approval check, so a signature obtained for
+    /// "scout's cap becomes 77 USDC" released any later call carrying that same
+    /// hash — including one setting the cap a thousand times higher. The human
+    /// saw one policy and authorised another, and nothing on chain disagreed.
+    function test_an_approval_for_one_policy_cannot_set_a_different_one() public {
+        vault.setPolicyCheckpointRequired(true, 0, 0, bytes32(0), bytes32(0));
+
+        bytes32 shown = vault.agentApprovalHash(SCOUT, 77e6, 7e6, false);
+        vm.prank(executor);
+        uint256 id = vault.openCheckpoint(bytes32(0), shown, 2, TTL);
+        (uint8 v, bytes32 rs, bytes32 ss) = _sign(APPROVER_PK, id, shown);
+
+        vm.expectRevert(bytes("request changed"));
+        vault.setAgent(SCOUT, 77_000e6, 7_000e6, false, keccak256("prov"), id, v, rs, ss);
+
+        // The numbers that were actually shown still go through.
+        vault.setAgent(SCOUT, 77e6, 7e6, false, keccak256("prov"), id, v, rs, ss);
+        (, uint256 cap,,,,,) = vault.agentOf(SCOUT);
+        assertEq(cap, 77e6);
+    }
+
+    /// The checkpoint announces an agent in `CheckpointOpened`, and our own
+    /// dashboard and the approval signer both read it. It used to be emitted
+    /// and never stored, so the event could name one agent while the request
+    /// hash committed to another.
+    function test_a_checkpoint_opened_for_one_agent_cannot_release_anothers_payment() public {
+        FloatVault.SpendReq memory r = _req(FAIR, "n1"); // this request is scout's
+        bytes32 h = vault.hashSpendReq(r);
+        vm.prank(executor);
+        uint256 id = vault.openCheckpoint(keccak256("waster"), h, 1, TTL); // announced as waster
+        (uint8 v, bytes32 rs, bytes32 ss) = _sign(APPROVER_PK, id, h);
+
+        vm.prank(executor);
+        vm.expectRevert(bytes("agent mismatch"));
+        vault.executeApproved(id, r, v, rs, ss);
+        assertEq(usdc.balanceOf(seller), 0);
+    }
+
+    /// Status 0 means both OPEN and never-opened. `_consumeApproval` guarded
+    /// that with a non-zero reqHash; `resolveCheckpoint` did not, so a
+    /// fabricated id could emit a `CheckpointResolved` for a decision nobody
+    /// ever made — a forged entry in the public record.
+    function test_a_checkpoint_that_was_never_opened_cannot_be_resolved() public {
+        vm.prank(executor);
+        vm.expectRevert(bytes("no such checkpoint"));
+        vault.resolveCheckpoint(999, 2, "treasurer declined");
     }
 }

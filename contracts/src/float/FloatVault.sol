@@ -155,6 +155,14 @@ contract FloatVault {
         uint64 expiresAt;
         uint8 kind;
         uint8 status;
+        /// @dev Stored, not merely emitted. `CheckpointOpened` carries an
+        ///      agentId the contract used to take on trust and never check, so
+        ///      an executor could open a checkpoint announcing SCOUT whose hash
+        ///      committed to WASTER — the event said one thing and the Receipt
+        ///      landed under another. Our own dashboard and the approval signer
+        ///      both read that event. Appended last so the public getter's
+        ///      earlier fields keep their positions.
+        bytes32 agentId;
     }
 
     bytes32 public constant APPROVAL_TYPEHASH = keccak256(
@@ -458,7 +466,10 @@ contract FloatVault {
         require(p.humanMaxPremiumBps <= 10_000, "human band above 100%");
         require(p.workingShareBps <= 10_000, "share above 100%");
         require(p.upperBandBps <= 10_000 && p.lowerBandBps <= 10_000, "band above 100%");
-        if (requirePolicyCheckpoint) _consumePolicyApproval(cpId, configHash, v, r, s);
+        // DERIVED, never taken from the caller. See `policyApprovalHash`.
+        if (requirePolicyCheckpoint) {
+            _consumePolicyApproval(cpId, policyApprovalHash(p), v, r, s);
+        }
         policy = p;
         emit PolicyUpdated(configHash);
     }
@@ -479,12 +490,20 @@ contract FloatVault {
         // An unreachable threshold reads as a limit while enforcing nothing —
         // the same requirement `PolicyWallet.setBudget` makes of `perTxLimit`.
         require(perRequestUsdc <= dailyCapUsdc, "per-request above daily cap");
-        if (requirePolicyCheckpoint) _consumePolicyApproval(cpId, configHash, v, r, s);
+        // DERIVED, never taken from the caller. See `agentApprovalHash`.
+        if (requirePolicyCheckpoint) {
+            _consumePolicyApproval(
+                cpId, agentApprovalHash(agentId, dailyCapUsdc, perRequestUsdc, frozen), v, r, s
+            );
+        }
 
         Agent storage a = agents[agentId];
         a.dailyCapUsdc = dailyCapUsdc;
         a.perRequestUsdc = perRequestUsdc;
         a.frozen = frozen;
+        // A guest id that someone pre-claimed must not stay on the GLOBAL guest
+        // seller allowlist once the owner configures it as a real agent.
+        a.guest = false;
         if (!a.exists) {
             a.exists = true;
             a.periodLength = 1 days;
@@ -612,6 +631,30 @@ contract FloatVault {
         bytes32 structHash =
             keccak256(abi.encode(APPROVAL_TYPEHASH, id, reqHash, expiresAt, binding));
         return keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+    }
+
+    /// @notice The hash a human's signature authorises for `setPolicy`.
+    /// @dev    DERIVED FROM THE ARGUMENTS, and that is the whole point. An
+    ///         earlier version passed the caller's own `configHash` straight
+    ///         into the approval check, so a signature obtained for "scout's
+    ///         cap becomes 100 USDC" released ANY later call carrying the same
+    ///         hash — `setAgent(SCOUT, 1e12, 1e12, …)` included. The human was
+    ///         shown one policy and authorised a different one, and nothing on
+    ///         chain could tell. `configHash` survives only as the provenance
+    ///         field in `PolicyUpdated`, tying the on-chain policy to the JSON
+    ///         file it came from; it no longer authorises anything.
+    function policyApprovalHash(Policy calldata p) public pure returns (bytes32) {
+        return keccak256(abi.encode("FLOAT_SET_POLICY", p));
+    }
+
+    /// @notice The hash a human's signature authorises for `setAgent`.
+    function agentApprovalHash(
+        bytes32 agentId,
+        uint256 dailyCapUsdc,
+        uint256 perRequestUsdc,
+        bool frozen
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode("FLOAT_SET_AGENT", agentId, dailyCapUsdc, perRequestUsdc, frozen));
     }
 
     /// @notice Dry-run the ladder. Same function the spend path uses, so a
@@ -830,7 +873,7 @@ contract FloatVault {
         require(ttl > 0, "zero ttl");
         id = nextCheckpointId++;
         uint64 expiresAt = uint64(block.timestamp) + ttl;
-        checkpoints[id] = Checkpoint(reqHash, expiresAt, kind, OPEN);
+        checkpoints[id] = Checkpoint(reqHash, expiresAt, kind, OPEN, agentId);
         emit CheckpointOpened(id, agentId, reqHash, kind, expiresAt);
     }
 
@@ -842,6 +885,12 @@ contract FloatVault {
         onlyExecutor
     {
         Checkpoint storage c = checkpoints[id];
+        // An id that was never opened reads as status 0, which IS `OPEN`, so
+        // without this the executor could emit a `CheckpointResolved` for a
+        // checkpoint that does not exist — a forged entry in the public record
+        // of what a human decided. `_consumeApproval` already guards this way;
+        // this path did not.
+        require(c.reqHash != bytes32(0), "no such checkpoint");
         require(c.status == OPEN, "checkpoint closed");
         require(outcome >= DENIED && outcome <= FAILED, "bad outcome");
         c.status = outcome;
@@ -858,6 +907,9 @@ contract FloatVault {
         nonReentrant
         returns (uint256)
     {
+        // The checkpoint was announced for an agent; the request must be that
+        // agent's, or the public record of what a human approved is a lie.
+        require(checkpoints[id].agentId == r.agentId, "agent mismatch");
         _consumeApproval(id, hashSpendReq(r), KIND_SPEND, v, rs, ss);
         (string memory reason, uint8 code, uint256 fair, uint64 pid) =
             _check(r, policy.humanMaxPremiumBps, true);

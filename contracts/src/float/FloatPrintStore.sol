@@ -188,6 +188,13 @@ contract FloatPrintStore {
         view
         returns (uint256 priceWad, uint64 printId, uint64 postedAt, uint32 ciBps)
     {
+        // PAUSED READS AS ABSENT. `paused` used to block writes only, so after
+        // a bad print the store kept serving it until it aged out — up to
+        // `maxPrintAge`, half an hour — and the only real remedy was pausing
+        // the vault instead. A store that cannot be silenced is not an
+        // incident-response lever. Reporting id 0 makes every consumer take
+        // the path it already has for "no print for index".
+        if (paused) return (0, 0, 0, 0);
         Print memory p = _latest[index];
         return (p.priceWad, p.printId, p.postedAt, p.ciBps);
     }
@@ -199,6 +206,7 @@ contract FloatPrintStore {
         view
         returns (bool exists, uint256 value, uint64 postedAt)
     {
+        if (paused) return (false, 0, 0);
         Print memory p = _latest[index];
         return (p.printId != 0, p.priceWad, p.postedAt);
     }
@@ -207,6 +215,7 @@ contract FloatPrintStore {
     /// @dev    Absence counts as stale — the same choice `ACROracleV2.isStale`
     ///         makes. A caller asking "may I rely on this?" gets no for both.
     function isStale(bytes32 index, uint256 maxAge) external view returns (bool) {
+        if (paused) return true;
         Print memory p = _latest[index];
         if (p.printId == 0) return true;
         return block.timestamp - p.postedAt > maxAge;

@@ -154,6 +154,31 @@ contract FloatPrintStoreTest is Test {
         store.setPrint(INDEX, PRICE_WAD, 100);
     }
 
+    /// Pausing used to block WRITES only, so after a bad print the store kept
+    /// serving it for up to the vault's whole maxPrintAge and the only real
+    /// remedy was pausing the vault instead. A store that cannot be silenced is
+    /// not an incident-response lever. Reporting id 0 routes every consumer
+    /// down the path it already has for "no print for index".
+    function test_pausing_the_store_silences_its_reads_not_just_its_writes() public {
+        _print(INDEX, PRICE_WAD, 500);
+        (, uint64 idBefore,,) = store.latest(INDEX);
+        assertEq(idBefore, 1, "a print is being served");
+
+        store.setPaused(true);
+        (uint256 price, uint64 id, uint64 at, uint32 ci) = store.latest(INDEX);
+        assertEq(id, 0, "paused reads as absent, which the vault already refuses");
+        assertEq(price, 0);
+        assertEq(at, 0);
+        assertEq(ci, 0);
+        (bool exists,,) = store.latestPrintPrimitive(INDEX);
+        assertFalse(exists);
+        assertTrue(store.isStale(INDEX, 1 hours), "and never fresh while paused");
+
+        store.setPaused(false);
+        (, uint64 back,,) = store.latest(INDEX);
+        assertEq(back, 1, "unpausing restores the same print, it is not destroyed");
+    }
+
     function test_a_zero_price_is_not_a_price() public {
         vm.prank(keeper);
         vm.expectRevert(bytes("zero price"));

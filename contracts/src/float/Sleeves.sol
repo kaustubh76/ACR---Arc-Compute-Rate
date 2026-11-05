@@ -62,6 +62,11 @@ contract Erc4626Sleeve is ISleeve {
         require(usdc.transferFrom(treasury, address(this), usdcAmount), "pull failed");
         require(usdc.approve(address(venue), usdcAmount), "approve failed");
         venue.deposit(usdcAmount, address(this));
+        // Clear it. A venue that pulls less than it was approved for leaves a
+        // standing allowance against this sleeve's balance, which is a
+        // permission nobody granted on purpose and nobody would think to look
+        // for later.
+        require(usdc.approve(address(venue), 0), "approve reset failed");
         emit Parked(usdcAmount);
     }
 

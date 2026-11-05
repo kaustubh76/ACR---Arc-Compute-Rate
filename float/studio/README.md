@@ -82,6 +82,61 @@ refused for `"quote exceeds ACR fair band"` — it was overcharging. After, the
 same request is refused for `"agent frozen by policy"`. The policy did not merely
 get written; it is what answered.
 
+## 3b · Auditing the vault
+
+Arc Studio read `contracts/src/float/*.sol` and the three Float test suites and
+returned a findings report: six invariants assessed, the three questions we put
+to it answered, ten findings ranked by exploitability, and a list of categories
+where it found nothing. It changed no files; we acted on it.
+
+Recording the triage matters as much as the audit. An audit whose findings were
+all dismissed is evidence of nothing, and so is one accepted uncritically.
+
+### Fixed, with a regression test each
+
+| finding | what it was | test |
+|---|---|---|
+| **F1, high** | `setPolicy`/`setAgent` passed the CALLER's `configHash` into the approval check instead of deriving it, so a signature obtained for "scout's cap becomes 77 USDC" released any later call carrying that hash — a cap a thousand times larger included. The human saw one policy and authorised another, and nothing on chain disagreed. Hashes are now derived on chain (`policyApprovalHash`, `agentApprovalHash`); `configHash` survives only as provenance in the event. | `test_an_approval_for_one_policy_cannot_set_a_different_one` |
+| flag (a) | `CheckpointOpened` announced an `agentId` the contract never stored or checked, so the event could name one agent while the request hash committed to another. Our dashboard and the approval signer both read that event. Now stored and compared. | `test_a_checkpoint_opened_for_one_agent_cannot_release_anothers_payment` |
+| flag (b) | Status 0 means both OPEN and never-opened. `_consumeApproval` guarded that; `resolveCheckpoint` did not, so a fabricated id could emit a resolution for a decision nobody made. | `test_a_checkpoint_that_was_never_opened_cannot_be_resolved` |
+| F2, part | `setAgent` never cleared `guest`, so an id a registrar pre-claimed stayed on the global guest seller allowlist after the owner configured it. | `test_configuring_an_agent_takes_it_off_the_guest_allowlist` |
+| F5, part | `paused` blocked writes only, so a bad print kept being served until it aged out and the only remedy was pausing the vault. Reads now report "no print" while paused. | `test_pausing_the_store_silences_its_reads_not_just_its_writes` |
+| F10, part | `Erc4626Sleeve.depositIdle` left a standing allowance when the venue pulled less than approved. Cleared after deposit. | covered by the sleeve tests |
+
+### Accepted as true and deliberately not fixed, with the reason
+
+- **F3 — sleeve funds are not reachable while paused.** Real. `withdraw` only
+  reaches the buffer and `rebalance` is keeper-only and refuses when paused, so
+  pausing blocks its own recovery path. Not fixed here because we deploy with
+  `reserve = address(0)`, the owner holds the buffer directly, and adding an
+  `unwind` function plus its tests this close to a deadline is more risk than
+  the exposure. It is the first thing to add afterwards.
+- **F4 — the executor names the `index`.** Real: a 3× quote for a cheap model
+  passes if submitted against a dearer model's print. Mitigated only by the cap
+  and the seller allowlist. The proper fix allowlists `(agentId, seller, index)`,
+  which is a storage redesign. The executor is our own key, and this is stated
+  as a trust boundary rather than quietly carried.
+- **F5 — no deviation bound on a new price, and no way to invalidate one.**
+  Real. One signer can post any price and collapse the band. The keeper is our
+  key, and pausing the store is now an effective lever, which it was not before.
+- **F6 — a reverting venue breaks spends with no `Denied` event**, and
+  **F8 — the executor can resolve any open checkpoint**, including writing
+  EXPIRED over one a human already signed. Both real, both bounded by the same
+  trust we already place in those two keys, both stated rather than fixed.
+- **F9 — the daily cap is a fixed window, not rolling.** Intended. "Daily" here
+  means per period, and `_rolled` aligns to whole periods on purpose.
+- **F7 — `NullSleeve` as the reserve bricks `rebalance`.** Not applicable: we
+  deploy with no reserve, and `NullSleeve` exists only as a test double.
+
+### One claim it corrected
+
+We had asserted that vault-plus-sleeve value decreases **only** by the amounts in
+`Receipt` events. That is false, and the audit was right to say so: the owner's
+`withdraw` moves money with no Receipt, each park loses a rounding unit to the
+venue's floor, and a venue can lose value on its own. The invariant we can
+actually defend is narrower — *no path pays USDC to a registered agent, and no
+agent exceeds its daily cap* — and that is what the tests pin.
+
 ## 4 · What Arc Studio did not do
 
 Stated plainly, because a vague claim collapses under one question and a narrow
