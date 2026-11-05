@@ -100,11 +100,11 @@ import {
 // one place it has to work.
 const DEFAULTS = {
   rpc: "https://rpc.testnet.arc.io",
-  // Filled in by the testnet deploy. Empty until then, and the page says so
-  // rather than rendering zeros as though they were readings.
-  vault: "",
-  store: "",
-  sleeve: "",
+  // Deployed to Arc Testnet 1793918415. The query string still overrides
+  // every one of these, so anyone can point this page at their own vault.
+  vault: "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc",
+  store: "0x02558098ba49e30868f6db15036c5dac326d7e3a",
+  sleeve: "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
   usdc: "0x3600000000000000000000000000000000000000",
   explorer: "https://explorer.testnet.arc.io",
 };

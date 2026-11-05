@@ -35,6 +35,28 @@ export const arcTestnet = defineChain({
   },
 });
 
+/**
+ * A local fork of Arc Testnet.
+ *
+ * Deliberately its OWN network rather than a flag on the other two. A fork is
+ * neither a local chain nor Arc, and the most expensive mistake available here
+ * is reading a receipt from one and believing it happened on the other — so it
+ * gets a distinct name and a distinct `deployments/arc-fork.json`, and the real
+ * `arc-testnet.json` can never be overwritten by a rehearsal.
+ *
+ * It keeps Arc's chain id and Arc's fee floor on purpose: the point of
+ * rehearsing here is to behave exactly like the thing we are about to spend
+ * real money on, including the 20 Gwei mempool floor.
+ *
+ *   anvil --fork-url https://rpc.testnet.arc.io --port 8547
+ */
+export const arcFork = defineChain({
+  id: 5042002,
+  name: "Arc Testnet (local fork)",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["http://127.0.0.1:8547"] } },
+});
+
 export const anvil = defineChain({
   id: 31337,
   name: "Anvil",
@@ -86,18 +108,20 @@ export function addressFor(role: Role): string {
   return readFileSync(join(REPO, "data", `float-${role}-address.txt`), "utf8").trim();
 }
 
-export type Net = "anvil" | "arc-testnet";
+export type Net = "anvil" | "arc-testnet" | "arc-fork";
 
 export function netFromEnv(): Net {
   const n = process.env["FLOAT_NET"] ?? "anvil";
-  if (n !== "anvil" && n !== "arc-testnet") {
-    throw new Error(`FLOAT_NET must be anvil or arc-testnet, got ${n}`);
+  if (n !== "anvil" && n !== "arc-testnet" && n !== "arc-fork") {
+    throw new Error(`FLOAT_NET must be anvil, arc-fork or arc-testnet, got ${n}`);
   }
   return n;
 }
 
 export function chainFor(net: Net) {
-  return net === "anvil" ? anvil : arcTestnet;
+  if (net === "anvil") return anvil;
+  if (net === "arc-fork") return arcFork;
+  return arcTestnet;
 }
 
 export function rpcFor(net: Net): string {
@@ -138,12 +162,16 @@ function hasKey(role: Role): boolean {
 
 /** Fee overrides. Arc needs the floor; anvil must not be given one. */
 export function feeFor(net: Net) {
-  return net === "arc-testnet"
+  // The fork inherits Arc's base fee, so it needs the same floor — and wants it,
+  // since rehearsing without it would not rehearse the thing that bites.
+  return net === "arc-testnet" || net === "arc-fork"
     ? { maxFeePerGas: ARC_MIN_FEE_WEI, maxPriorityFeePerGas: 1_000_000_000n }
     : {};
 }
 
 export function explorerTx(net: Net, hash: string): string {
+  // A fork's hashes are not on the explorer, and linking them there would be a
+  // link to nothing — or worse, to a different transaction.
   if (net !== "arc-testnet") return hash;
   return `${arcTestnet.blockExplorers.default.url}/tx/${hash}`;
 }
