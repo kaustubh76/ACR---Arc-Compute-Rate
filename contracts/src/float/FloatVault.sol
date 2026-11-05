@@ -166,10 +166,18 @@ contract FloatVault {
 
     address public owner;
     address public pendingOwner;
-    /// The only address that may submit spends. The backend's hot key: it can
-    /// SUBMIT, and nothing else — it cannot change a policy, lift a band, or
-    /// approve its own escalation.
-    address public executor;
+    /// Who may submit spends and open checkpoints. The backend's hot keys: they
+    /// can SUBMIT, and nothing else — they cannot change a policy, lift a band,
+    /// or approve an escalation.
+    ///
+    /// PLURAL, for the reason `PolicyWallet.isAgent` is plural: a treasury runs
+    /// more than one operator (here, an automatic spend loop and a human-gate
+    /// service that are separate processes holding separate keys), and revoking
+    /// one must not stop the others. One shared hot key across two processes is
+    /// the alternative, and it is worse.
+    mapping(address => bool) public isExecutor;
+    /// Set by `wire`, which may run once.
+    bool public wired;
     address public keeper;
     /// Whose signature releases a parked spend. This contract does not care how
     /// that signature was gated — an owner key here, a World ID device flow
@@ -239,6 +247,9 @@ contract FloatVault {
     event GuestRegistered(bytes32 indexed agentId, uint256 dailyCap);
     event Rebalanced(bool intoSleeves, uint256 amount, uint256 targetBuffer);
     event Wired(address executor, address keeper, address approver, address registrar, address studio);
+    event ExecutorSet(address indexed executor, bool allowed);
+    event ApproverSet(address indexed approver);
+    event GuestRegistrarSet(address indexed registrar);
     event SleevesSet(address working, address reserve);
     event PausedSet(bool paused);
     event PolicyCheckpointRequired(bool required);
@@ -252,7 +263,7 @@ contract FloatVault {
     }
 
     modifier onlyExecutor() {
-        require(msg.sender == executor, "not executor");
+        require(isExecutor[msg.sender], "not executor");
         _;
     }
 
@@ -308,9 +319,15 @@ contract FloatVault {
         ISleeve working_,
         ISleeve reserve_
     ) external onlyOwner {
-        require(executor == address(0), "already wired");
+        require(!wired, "already wired");
         require(executor_ != address(0), "zero executor");
-        executor = executor_;
+        // The key that PARKS a spend must not be the key that APPROVES it, or a
+        // single compromised hot key can open its own checkpoint and sign it.
+        // `PolicyWallet` refuses owner == agent in three places for the same
+        // reason; nothing in an earlier draft of this contract forbade it.
+        require(approver_ != executor_, "approver is an executor");
+        wired = true;
+        isExecutor[executor_] = true;
         keeper = keeper_;
         humanApprover = approver_;
         guestRegistrar = registrar_;
@@ -327,11 +344,47 @@ contract FloatVault {
         emit SleevesSet(address(working_), address(reserve_));
     }
 
+    /// @notice Rotate the key whose signature releases a parked spend.
+    /// @dev    Not one-shot on purpose: an approver whose gate changes — an
+    ///         owner key today, a human-identity service tomorrow — is a
+    ///         rotation, and a treasury that cannot rotate a hot key has to be
+    ///         redeployed to do it. Each rotation is an event.
     function setApprover(address approver_) external onlyOwner {
+        require(!isExecutor[approver_], "approver is an executor");
         humanApprover = approver_;
+        emit ApproverSet(approver_);
+    }
+
+    /// @notice Authorize or revoke a submitting key.
+    function setExecutor(address executor_, bool allowed) external onlyOwner {
+        require(executor_ != address(0), "zero executor");
+        if (allowed) require(executor_ != humanApprover, "approver is an executor");
+        isExecutor[executor_] = allowed;
+        emit ExecutorSet(executor_, allowed);
+    }
+
+    function setGuestRegistrar(address registrar_) external onlyOwner {
+        guestRegistrar = registrar_;
+        emit GuestRegistrarSet(registrar_);
+    }
+
+    function setKeeper(address keeper_) external onlyOwner {
+        keeper = keeper_;
     }
 
     /// @notice Bind approvals to one human identity, once.
+    /// @dev    The binding is a property of the TREASURY, not of a checkpoint —
+    ///         `_consumeApproval` folds this same value into every digest. So
+    ///         its encoding has to be written down before it is set, because
+    ///         getting it wrong is a redeploy rather than a correction. The
+    ///         agreed encoding is:
+    ///
+    ///           treasurer binding = keccak256("acr.treasurer::" ‖ iss ‖ 0x1f ‖ sub)
+    ///           guest agent id    = keccak256("acr.guest::" ‖ nullifier)
+    ///
+    ///         over the UTF-8 bytes of the OIDC issuer and subject, with 0x1f
+    ///         (unit separator) between them so that no pair of (iss, sub)
+    ///         values can collide by concatenation.
     function setTreasurerBinding(bytes32 binding) external onlyOwner {
         require(treasurerBinding == bytes32(0), "binding set");
         treasurerBinding = binding;
@@ -558,7 +611,17 @@ contract FloatVault {
         view
         returns (string memory reason, uint8 code, uint256 fairUsdc, uint64 printId)
     {
-        return _check(r, policy.maxPremiumBps);
+        return _check(r, policy.maxPremiumBps, false);
+    }
+
+    /// @notice The same ladder as a human approval would face, so the dashboard
+    ///         can show "this would be payable if you sign" before asking.
+    function classifyAsHuman(SpendReq calldata r)
+        external
+        view
+        returns (string memory reason, uint8 code, uint256 fairUsdc, uint64 printId)
+    {
+        return _check(r, policy.humanMaxPremiumBps, true);
     }
 
     // --- the ladder ----------------------------------------------------------
@@ -568,7 +631,16 @@ contract FloatVault {
     ///      refusals that computed them, so `Denied` can carry the fair
     ///      counter-price — "here is what this should have cost" is the whole
     ///      value of refusing an overcharge rather than merely blocking it.
-    function _check(SpendReq calldata r, uint16 band)
+    /// @param liftPerRequest set only on the human path. The per-request
+    ///        threshold bounds the AGENT's own authority — it is the reason the
+    ///        request was parked for a person in the first place, so re-applying
+    ///        it after that person signs would make every escalation
+    ///        unexecutable. `PolicyWallet.spendApproved` makes exactly this
+    ///        choice for exactly this reason ("that limit bounds the AGENT").
+    ///        EVERYTHING ELSE STILL BINDS: the daily cap, the freeze, the seller
+    ///        allowlist, print freshness and rotation, and a band that was
+    ///        widened rather than removed.
+    function _check(SpendReq calldata r, uint16 band, bool liftPerRequest)
         internal
         view
         returns (string memory, uint8, uint256, uint64)
@@ -611,7 +683,7 @@ contract FloatVault {
         }
         // Strictly below is the agent's own authority — the convention
         // `PolicyWallet.spend` documents, kept identical here on purpose.
-        if (r.quoteTotal >= a.perRequestUsdc) {
+        if (!liftPerRequest && r.quoteTotal >= a.perRequestUsdc) {
             return ("over per-request threshold", D_PER_REQUEST, fair, pid);
         }
         (uint256 spent,) = _rolled(a);
@@ -625,6 +697,16 @@ contract FloatVault {
 
     /// @notice The hero loop. Returns false on a refusal rather than reverting,
     ///         so the `Denied` log survives for anyone to read.
+    /// @dev    FOR BACKEND AUTHORS: a refusal here burns the nonce, so the
+    ///         request cannot be re-run later when a cap has rolled or a price
+    ///         has moved. The ONE exception is `D_PER_REQUEST`, because that
+    ///         refusal is not a refusal — it is an escalation, and the same
+    ///         request has to survive to be parked and then executed by
+    ///         `executeApproved`. Every other code means the request is finished.
+    ///
+    ///         If you intend to park something, prefer `classify` (a view, no
+    ///         state) and go straight to `openCheckpoint`. Calling `requestSpend`
+    ///         first works for the escalation case and only for that case.
     function requestSpend(SpendReq calldata r)
         external
         onlyExecutor
@@ -632,12 +714,21 @@ contract FloatVault {
         returns (bool ok, uint256 id)
     {
         (string memory reason, uint8 code, uint256 fair, uint64 pid) =
-            _check(r, policy.maxPremiumBps);
+            _check(r, policy.maxPremiumBps, false);
         if (code != 0) {
-            // Burn the nonce even on refusal: a request that was refused must
+            // Burn the nonce on a real refusal: a request that was refused must
             // not become payable later because a cap rolled or a price moved.
-            // The agent retries with a fresh request, which is re-priced.
-            if (r.nonce != bytes32(0)) usedNonce[r.nonce] = true;
+            // The agent retries with a fresh, re-priced request.
+            //
+            // But NOT when the answer is "a human has to decide this". That is
+            // the one outcome whose whole point is that this exact request —
+            // this seller, these units, this quote, this printId — comes back
+            // through `executeApproved`. Burning it there made every escalation
+            // revert "replayed request", which names the wrong problem and
+            // reads like a signature bug.
+            if (r.nonce != bytes32(0) && code != D_PER_REQUEST) {
+                usedNonce[r.nonce] = true;
+            }
             emit Denied(r.agentId, code, reason, r.quoteTotal, fair, r.nonce);
             return (false, 0);
         }
@@ -748,7 +839,7 @@ contract FloatVault {
     {
         _consumeApproval(id, hashSpendReq(r), KIND_SPEND, v, rs, ss);
         (string memory reason, uint8 code, uint256 fair, uint64 pid) =
-            _check(r, policy.humanMaxPremiumBps);
+            _check(r, policy.humanMaxPremiumBps, true);
         require(code == 0, reason);
         uint256 receiptId = _spend(r, fair, pid, true);
         emit CheckpointResolved(id, CONSUMED, "approved");
@@ -764,6 +855,11 @@ contract FloatVault {
         bytes32 ss
     ) internal {
         Checkpoint storage c = checkpoints[id];
+        // An id that was never opened reads as status 0, which IS `OPEN` — so
+        // without this the first guard to catch a fabricated id is the kind
+        // check, and the refusal names the wrong problem. `openCheckpoint`
+        // rejects a zero hash, so a non-zero hash means this id exists.
+        require(c.reqHash != bytes32(0), "no such checkpoint");
         require(c.status == OPEN, "checkpoint closed");
         require(c.kind == kind, "wrong checkpoint kind");
         require(block.timestamp < c.expiresAt, "checkpoint expired");

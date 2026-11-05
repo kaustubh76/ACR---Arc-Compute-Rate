@@ -472,4 +472,36 @@ contract FloatVaultTest is Test {
         vm.expectRevert(bytes("sleeve inactive"));
         nul.depositIdle(1e6);
     }
+
+    // --- the submitting keys -------------------------------------------------
+
+    /// The key that PARKS a spend must not be the key that APPROVES it, or one
+    /// compromised hot key opens its own checkpoint and signs it.
+    function test_an_executor_cannot_also_be_the_human_approver() public {
+        vm.expectRevert(bytes("approver is an executor"));
+        vault.setApprover(executor);
+
+        vm.expectRevert(bytes("approver is an executor"));
+        vault.setExecutor(approver, true);
+    }
+
+    /// Two processes submit — an automatic spend loop and a human-gate service —
+    /// and they hold separate keys, so one can be revoked without stopping the
+    /// other. Same reason `PolicyWallet.isAgent` is a mapping.
+    function test_a_second_executor_can_be_authorized_and_revoked() public {
+        address other = address(0xE9);
+        vault.setExecutor(other, true);
+
+        FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
+        vm.prank(other);
+        (bool ok,) = vault.requestSpend(r);
+        assertTrue(ok, "a second operator submits on its own key");
+
+        vault.setExecutor(other, false);
+        FloatVault.SpendReq memory r2 = _req(SCOUT, FAIR, "n2");
+        vm.prank(other);
+        vm.expectRevert(bytes("not executor"));
+        vault.requestSpend(r2);
+        assertTrue(true);
+    }
 }
