@@ -145,6 +145,12 @@ class TestRegistry:
             "venue/pause",
             "operator/approve",
             "operator/reject",
+            # Float's human checkpoint: parks an out-of-policy agent payment for
+            # a verified human rather than refusing it. Registered here
+            # DELIBERATELY, which is the whole point of this being set equality
+            # — a new action that moves money has to be acknowledged in the
+            # ledger, not merely added to the dispatcher.
+            "float/checkpoint",
         }
 
     def test_every_action_has_a_handler_and_a_description(self):
