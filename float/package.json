@@ -2,9 +2,11 @@
   "name": "acr-float",
   "version": "0.1.0",
   "private": true,
-  "description": "Float — an agent treasury that forecasts, earns, and refuses. Keeper, server, MCP tools and the demo agents.",
+  "description": "Float \u2014 an agent treasury that forecasts, earns, and refuses. Keeper, server, MCP tools and the demo agents.",
   "type": "module",
-  "engines": { "node": ">=22.13.0" },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "test": "node --import tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
@@ -13,7 +15,8 @@
     "keeper": "node --import tsx src/bin/keeper.ts",
     "server": "node --import tsx src/bin/server.ts",
     "agents": "node --import tsx src/bin/agents.ts",
-    "verify": "node --import tsx src/bin/verify.ts"
+    "verify": "node --import tsx src/bin/verify.ts",
+    "policy": "node --import tsx src/bin/policy.ts"
   },
   "dependencies": {
     "viem": "2.55.8",

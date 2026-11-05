@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/kaustubh76/ACR---Arc-Compute-Rate/float/policy.schema.json",
+  "title": "ACR Float treasury policy",
+  "description": "The shape a treasury policy must have before it can reach the chain. This file is the contract handed to Arc Studio: the treasurer writes a sentence, Studio emits JSON, and this schema decides whether that JSON is even a candidate. An invalid config is REJECTED and the chain keeps the last good policy — a half-applied policy is worse than an unchanged one, because nobody can tell which rules are live.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bufferHours",
+    "maxPremiumBps",
+    "humanMaxPremiumBps",
+    "maxPrintAge",
+    "workingShareBps",
+    "agents"
+  ],
+  "properties": {
+    "bufferHours": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 168,
+      "description": "Hours of forecast spend to keep liquid. A week is the ceiling: beyond that the forecast is not a forecast."
+    },
+    "maxPremiumBps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2000,
+      "description": "How far above the ACR fair price the agent may pay on its own authority, in basis points."
+    },
+    "humanMaxPremiumBps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000,
+      "description": "The band after a verified human approves. Must be at least maxPremiumBps: an approval widens the band, it never narrows it and never removes it."
+    },
+    "maxPrintAge": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400,
+      "description": "Seconds a compute price may be old before the vault refuses to spend against it."
+    },
+    "upperBandBps": { "type": "integer", "minimum": 0, "maximum": 10000, "default": 1500 },
+    "lowerBandBps": { "type": "integer", "minimum": 0, "maximum": 10000, "default": 1000 },
+    "minTicketUsdc": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]{1,6})?$",
+      "default": "1",
+      "description": "Below this, do not rebalance at all. Fees must never eat the yield. A decimal string, not a number, so no amount is ever read through a float."
+    },
+    "workingShareBps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000,
+      "description": "Share of idle float that goes to the working sleeve, the rest to reserve. With no reserve venue wired this should be 10000, or the remainder simply sits in the buffer earning nothing."
+    },
+    "agents": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Keyed by agent name. The on-chain id is keccak256(name).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dailyCapUsdc", "perRequestUsdc", "frozen"],
+        "properties": {
+          "dailyCapUsdc": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,6})?$" },
+          "perRequestUsdc": {
+            "type": "string",
+            "pattern": "^[0-9]+(\\.[0-9]{1,6})?$",
+            "description": "The most the agent may move unilaterally. At or ABOVE this the request escalates to a human; strictly below is the agent's own authority."
+          },
+          "frozen": { "type": "boolean" },
+          "allowedSellers": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" }
+          }
+        }
+      }
+    }
+  }
+}
