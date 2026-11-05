@@ -87,16 +87,36 @@ import {
   createPublicClient, http, formatUnits, parseAbi, parseAbiItem,
 } from "https://cdn.jsdelivr.net/npm/viem@2.55.8/+esm";
 
-// Configuration comes from the URL so one file serves every deployment, and a
-// judge can point it at their own without editing anything.
+// THE LIVE DEPLOYMENT. These are defaults, not the only way in — the query
+// string still overrides every one of them, so anyone can point this file at
+// their own vault and get their own answers.
+//
+// They are baked in rather than passed because of two things measured, not
+// assumed: Arc Studio's preview panel has no address bar (viewport toggle,
+// Refresh and Close only), so a query string cannot be typed into it; and the
+// Studio app URL 302-redirects to login.circle.com, so a viewer without a
+// Circle account never reaches a page to put parameters on. A dashboard that
+// needs a query string to show anything would therefore show nothing in the
+// one place it has to work.
+const DEFAULTS = {
+  rpc: "https://rpc.testnet.arc.io",
+  // Filled in by the testnet deploy. Empty until then, and the page says so
+  // rather than rendering zeros as though they were readings.
+  vault: "",
+  store: "",
+  sleeve: "",
+  usdc: "0x3600000000000000000000000000000000000000",
+  explorer: "https://explorer.testnet.arc.io",
+};
+
 const q = new URLSearchParams(location.search);
 const CFG = {
-  rpc: q.get("rpc") || "https://rpc.testnet.arc.io",
-  vault: q.get("vault") || "",
-  store: q.get("store") || "",
-  sleeve: q.get("sleeve") || "",
-  usdc: q.get("usdc") || "0x3600000000000000000000000000000000000000",
-  explorer: q.get("explorer") || "https://explorer.testnet.arc.io",
+  rpc: q.get("rpc") || DEFAULTS.rpc,
+  vault: q.get("vault") || DEFAULTS.vault,
+  store: q.get("store") || DEFAULTS.store,
+  sleeve: q.get("sleeve") || DEFAULTS.sleeve,
+  usdc: q.get("usdc") || DEFAULTS.usdc,
+  explorer: q.get("explorer") || DEFAULTS.explorer,
   // Arc caps eth_getLogs at a 10,000-block range, so reach comes from paging.
   span: BigInt(q.get("span") || "9000"),
 };
