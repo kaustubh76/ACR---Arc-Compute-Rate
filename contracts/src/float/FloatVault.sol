@@ -588,6 +588,10 @@ contract FloatVault {
 
     /// @notice Total value the treasury controls: buffer plus both sleeves.
     function totalValueUsdc() external view returns (uint256) {
+        return _underManagement();
+    }
+
+    function _underManagement() internal view returns (uint256) {
         uint256 total = usdc.balanceOf(address(this));
         if (address(working) != address(0)) total += working.valueUsdc();
         if (address(reserve) != address(0)) total += reserve.valueUsdc();
@@ -764,7 +768,17 @@ contract FloatVault {
         // asked. Without this the shortfall surfaces as "transfer failed" after
         // the yield position was already unwound, which reads as a token bug
         // and is not one.
-        require(usdc.balanceOf(address(this)) >= r.quoteTotal, "sleeve delivered short");
+        //
+        // But say WHICH failure it is. Parking an amount in a share-priced vault
+        // makes its reported value read one unit lower (the deposit floors, then
+        // the conversion back floors again), so buffer-plus-sleeve is slightly
+        // less than what was funded and the treasury's LAST payment lands here.
+        // Blaming the venue for an empty treasury sends the next person to read
+        // the sleeve's code instead of its balance.
+        if (usdc.balanceOf(address(this)) < r.quoteTotal) {
+            require(_underManagement() >= r.quoteTotal, "treasury cannot cover this");
+            revert("sleeve delivered short");
+        }
         require(usdc.transfer(r.seller, r.quoteTotal), "transfer failed");
 
         id = ++receiptCount;

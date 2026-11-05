@@ -212,6 +212,22 @@ contract FloatVaultTest is Test {
         assertEq(sleeve.withdrawCalls(), 0, "no yield was disturbed");
     }
 
+    /// The treasury's last payment is the one that lands on this path, because a
+    /// share-priced vault reports a parked amount one unit lower than it took.
+    /// Saying "sleeve delivered short" there sends the reader to the venue's code
+    /// instead of to the balance.
+    function test_an_empty_treasury_says_so_rather_than_blaming_the_sleeve() public {
+        // Drain the vault to less than one payment, with no sleeve to draw on.
+        vm.prank(address(vault));
+        usdc.transfer(address(0xDEAD), 100e6 - 1e6);
+        vault.setSleeves(ISleeve(address(0)), ISleeve(address(0)));
+
+        FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
+        vm.prank(executor);
+        vm.expectRevert(bytes("treasury cannot cover this"));
+        vault.requestSpend(r);
+    }
+
     function test_a_sleeve_that_delivers_short_is_caught_by_name() public {
         ShortSleeve short_ = new ShortSleeve(usdc, address(vault));
         vault.setSleeves(short_, ISleeve(address(0)));

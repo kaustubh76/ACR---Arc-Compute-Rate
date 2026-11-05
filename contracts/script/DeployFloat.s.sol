@@ -68,11 +68,26 @@ contract DeployFloat is Script {
     {
         address usdc = vm.envOr("ACR_USDC_ADDRESS", ARC_USDC);
         address venue = vm.envOr("FLOAT_VENUE", ARC_TESTNET_MORPHO_VAULT);
+        // ALL FIVE ROLES ARE REQUIRED, and that is a deliberate change from
+        // defaulting them to `msg.sender`.
+        //
+        // The constructor runs under `vm.startBroadcast()`, so `owner` is always
+        // the broadcasting key — but these five are read OUTSIDE the broadcast,
+        // where `msg.sender` is whatever forge resolved for the script call, not
+        // necessarily the key paying for it. Default them and the approver, the
+        // guest registrar and the studio deployer can all silently become an
+        // address nobody holds: `registerGuest` then reverts "not registrar"
+        // forever, the human path is dead, and `require(executor != approver)`
+        // does not catch it because they differ perfectly well. The owner being
+        // correct while three roles are wrong is exactly the asymmetry that
+        // makes it invisible until the demo.
+        //
+        // A missing variable now fails this script before it spends anything.
         address executor = vm.envAddress("FLOAT_EXECUTOR");
-        address approver = vm.envOr("FLOAT_APPROVER", msg.sender);
-        address keeper = vm.envOr("FLOAT_KEEPER", executor);
-        address registrar = vm.envOr("FLOAT_REGISTRAR", msg.sender);
-        address studio = vm.envOr("FLOAT_STUDIO", msg.sender);
+        address approver = vm.envAddress("FLOAT_APPROVER");
+        address keeper = vm.envAddress("FLOAT_KEEPER");
+        address registrar = vm.envAddress("FLOAT_REGISTRAR");
+        address studio = vm.envAddress("FLOAT_STUDIO");
         uint256 guestCap = vm.envOr("FLOAT_GUEST_CAP", uint256(2e6));
 
         require(executor != address(0), "FLOAT_EXECUTOR is required");
@@ -132,7 +147,36 @@ contract DeployFloat is Script {
         console.log("keeper          :", keeper);
         console.log("guest cap (1e6) :", guestCap);
         console.log("");
-        console.log("The vault holds nothing yet. Fund it with USDC, then run the keeper");
-        console.log("so a print exists: every spend is refused 'no print for index' until one does.");
+        console.log("The vault holds nothing yet. FUND IT WITH AN ERC-20 TRANSFER, never a");
+        console.log("native value send: Arc's USDC at 0x3600 is the same ledger as gas, but");
+        console.log("these contracts have no receive() and a value send to them reverts.");
+        console.log("  cast send 0x3600000000000000000000000000000000000000 \\");
+        console.log("    'transfer(address,uint256)' <vault> 8000000 --rpc-url ... --private-key ...");
+        console.log("Then run the keeper so a print exists: every spend is refused");
+        console.log("'no print for index' until one does.");
+        console.log("");
+
+        // A PASTE-READY RECORD. Thirteen fields have to reach
+        // float/deployments/<net>.json before any TypeScript here works, and
+        // asking a human to transcribe them from a log at 3am — after the money
+        // is already spent — is how a typo costs the whole attempt. Copy this
+        // block into that file instead.
+        console.log("--- copy into float/deployments/arc-testnet.json ---");
+        console.log("{");
+        console.log(string.concat('  "net": "arc-testnet",'));
+        console.log(string.concat('  "chainId": ', vm.toString(block.chainid), ","));
+        console.log(string.concat('  "usdc": "', vm.toString(usdc), '",'));
+        console.log(string.concat('  "venue": "', vm.toString(venue), '",'));
+        console.log(string.concat('  "printStore": "', vm.toString(address(store)), '",'));
+        console.log(string.concat('  "vault": "', vm.toString(address(vault)), '",'));
+        console.log(string.concat('  "sleeve": "', vm.toString(address(sleeve)), '",'));
+        console.log(string.concat('  "seller": "', vm.toString(address(seller)), '",'));
+        console.log(string.concat('  "deployer": "', vm.toString(msg.sender), '",'));
+        console.log(string.concat('  "executor": "', vm.toString(executor), '",'));
+        console.log(string.concat('  "keeper": "', vm.toString(keeper), '",'));
+        console.log(string.concat('  "approver": "', vm.toString(approver), '",'));
+        console.log(string.concat('  "deployedAt": "', vm.toString(block.timestamp), '"'));
+        console.log("}");
+        console.log("--- end ---");
     }
 }
