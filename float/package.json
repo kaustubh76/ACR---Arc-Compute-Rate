@@ -9,6 +9,7 @@
     "test": "node --import tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "prices": "node --import tsx src/bin/prices.ts",
+    "local": "node --import tsx src/bin/local.ts",
     "keeper": "node --import tsx src/bin/keeper.ts",
     "server": "node --import tsx src/bin/server.ts",
     "agents": "node --import tsx src/bin/agents.ts",

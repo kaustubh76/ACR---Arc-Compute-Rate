@@ -59,6 +59,18 @@ contract FloatPrintStore {
     ///         revoking one should not stop the press.
     mapping(address => bool) public isSigner;
 
+    /// @notice The human name behind an index id, e.g.
+    ///         "ACR-INF:meta-llama/llama-3.3-70b-instruct".
+    /// @dev    Index ids are `keccak256(name)` because a name does not fit:
+    ///         that example is 41 bytes and a `bytes32` key holds 32. Without
+    ///         this mapping a receipt would name a hash, and the dashboard would
+    ///         need an off-chain lookup table to say WHICH model was bought —
+    ///         which would make "every number on this page is read from Arc"
+    ///         false in the one place a reader would check it. Written once per
+    ///         index and never changed, so the label a receipt cites cannot be
+    ///         rewritten after the fact.
+    mapping(bytes32 => string) public indexName;
+
     mapping(bytes32 => Print) private _latest;
     mapping(bytes32 => Print[]) private _history;
     bytes32[] private _indices;
@@ -72,6 +84,7 @@ contract FloatPrintStore {
         uint32 ciBps,
         uint64 postedAt
     );
+    event IndexNamed(bytes32 indexed index, string name);
     event SignerSet(address indexed signer, bool allowed);
     event PausedSet(bool paused);
     event OwnershipTransferStarted(address indexed from, address indexed to);
@@ -113,6 +126,21 @@ contract FloatPrintStore {
     }
 
     // --- writing -------------------------------------------------------------
+
+    /// @notice Record what an index id means, once.
+    /// @dev    The id must be `keccak256(name)`, and the contract CHECKS that
+    ///         rather than trusting it: a store that let a signer attach any
+    ///         label to any id would let a cheap model's price be presented as
+    ///         an expensive one's, which is precisely the substitution the fair
+    ///         band exists to prevent.
+    function nameIndex(bytes32 index, string calldata name) external {
+        require(isSigner[msg.sender], "not signer");
+        require(bytes(name).length > 0, "empty name");
+        require(bytes(indexName[index]).length == 0, "already named");
+        require(keccak256(bytes(name)) == index, "name is not this index");
+        indexName[index] = name;
+        emit IndexNamed(index, name);
+    }
 
     /// @notice Write the current price for one index.
     /// @dev    `printId` increments per index and never repeats, so a spend that

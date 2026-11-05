@@ -99,7 +99,7 @@ contract DeployFloat is Script {
                 maxPrintAge: 1800,
                 upperBandBps: 1500,
                 lowerBandBps: 1000,
-                workingShareBps: 3000,
+                workingShareBps: 10_000,
                 bufferHours: 48,
                 minTicketUsdc: 1e6
             }),
