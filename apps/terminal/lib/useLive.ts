@@ -14,6 +14,7 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
+import type { FloatQueue } from "./float";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
@@ -611,4 +612,29 @@ export function useTraction() {
     { refreshInterval: 120_000, revalidateOnFocus: true, ...RETRY },
   );
   return { traction: data, error: error as FetchError | undefined, refresh: mutate };
+}
+
+/** The approval queue — payments parked for a verified human.
+ *
+ *  Polls briskly while anything is open, because the card carries a code that
+ *  expires in minutes and a reader watching for their own approval to land
+ *  should not wait out a slow interval. Twenty seconds when the queue is
+ *  quiet, and never zero: SWR reads 0 as "never poll again", which is how the
+ *  Attack Lab once froze.
+ *
+ *  `error` is exposed because an empty queue and an unreachable press look
+ *  identical on screen and mean opposite things. */
+export const floatQueuePollMs = (latest?: Envelope<FloatQueue>) =>
+  latest?.data?.checkpoints?.some((c) => c.status === "open" || c.status === "claimed")
+    ? 3_000
+    : 20_000;
+
+export function useFloatQueue() {
+  const chain = useChain();
+  const { data, error, mutate } = useSWR<Envelope<FloatQueue>>(
+    apiKey("/api/float/queue", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatQueuePollMs, ...RETRY },
+  );
+  return { queue: data, error: error as Error | undefined, refresh: mutate };
 }
