@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACR Float</title>
+<!--
+  Every number on this page is read from the chain.
+
+  That is not a slogan, it is the architecture. There is no server behind this
+  file: it opens an RPC connection and reads the vault, the print store and the
+  sleeve directly. Float was built so that everything it does leaves on-chain
+  evidence — Receipt, Denied, CheckpointOpened/Resolved, Rebalanced, PrintPosted
+  — which means a dashboard needs no privileged access to tell the truth, and a
+  judge can replace the addresses with their own and get their own answers.
+
+  It also means this page cannot lie about freshness. If the keeper stops, the
+  print ages on screen.
+-->
+<style>
+  :root {
+    --bg: #07090c; --panel: #0e1218; --line: #1c2430; --ink: #e8eef5;
+    --dim: #7c8a9b; --accent: #5ad1a0; --warn: #e0a84e; --bad: #e4635a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 var(--mono); padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 20px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0 0 10px; font-weight: 500; }
+  .big { font-size: 26px; line-height: 1.15; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; min-width: 0; }
+  .row span:last-child { text-align: right; flex-shrink: 0; }
+  .k { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .good { color: var(--accent); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 8px 5px 0; border-bottom: 1px solid #141a22; white-space: nowrap; }
+  .tape { overflow-x: auto; }
+  a { color: var(--accent); }
+  .err { color: var(--bad); padding: 10px 0; }
+  .note { color: var(--dim); font-size: 11px; margin-top: 10px; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; border: 1px solid var(--line); color: var(--dim); }
+  .pill.jit { color: var(--accent); border-color: #1d4535; }
+  .pill.human { color: var(--warn); border-color: #4a3a1c; }
+  @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ACR Float</h1>
+  <div class="sub" id="head">connecting…</div>
+  <div id="err"></div>
+  <div class="grid">
+    <div class="panel">
+      <h2>Runway, in compute</h2>
+      <div class="big" id="runway">…</div>
+      <div class="note" id="runwayNote"></div>
+    </div>
+    <div class="panel">
+      <h2>Where the float is</h2>
+      <div id="sleeves"></div>
+      <div class="note">Idle float sits in a real ERC-4626 vault. The buffer is what is left for the next payment.</div>
+    </div>
+    <div class="panel">
+      <h2>The price of compute</h2>
+      <div id="prints"></div>
+      <div class="note">Median across providers, with the spread as a confidence interval.</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:12px">
+    <h2>The tape — every payment and every refusal</h2>
+    <div class="tape"><table id="tape"><tbody><tr><td class="k">reading…</td></tr></tbody></table></div>
+    <div class="note" id="tapeNote"></div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  createPublicClient, http, formatUnits, parseAbi, parseAbiItem,
+} from "https://cdn.jsdelivr.net/npm/viem@2.55.8/+esm";
+
+// Configuration comes from the URL so one file serves every deployment, and a
+// judge can point it at their own without editing anything.
+const q = new URLSearchParams(location.search);
+const CFG = {
+  rpc: q.get("rpc") || "https://rpc.testnet.arc.io",
+  vault: q.get("vault") || "",
+  store: q.get("store") || "",
+  sleeve: q.get("sleeve") || "",
+  usdc: q.get("usdc") || "0x3600000000000000000000000000000000000000",
+  explorer: q.get("explorer") || "https://explorer.testnet.arc.io",
+  // Arc caps eth_getLogs at a 10,000-block range, so reach comes from paging.
+  span: BigInt(q.get("span") || "9000"),
+};
+
+const el = (id) => document.getElementById(id);
+const usd = (n, dp = 6) => `$${Number(formatUnits(n, 6)).toFixed(dp).replace(/\.?0+$/, "")}`;
+const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
+const VAULT_ABI = parseAbi([
+  "function policy() view returns (uint16,uint16,uint32,uint16,uint16,uint16,uint32,uint256)",
+  "function receiptCount() view returns (uint256)",
+  "function totalValueUsdc() view returns (uint256)",
+  "function paused() view returns (bool)",
+]);
+const STORE_ABI = parseAbi([
+  "function indexCount() view returns (uint256)",
+  "function indexAt(uint256) view returns (bytes32)",
+  "function indexName(bytes32) view returns (string)",
+  "function latest(bytes32) view returns (uint256,uint64,uint64,uint32)",
+]);
+const SLEEVE_ABI = parseAbi(["function valueUsdc() view returns (uint256)"]);
+const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
+
+const RECEIPT = parseAbiItem("event Receipt(uint256 indexed id, bytes32 indexed agentId, address indexed seller, bytes32 index, uint64 printId, uint256 units, uint256 quote, uint256 fair, int256 premiumBps, bool jitFunded, bool guest, bool humanApproved)");
+const DENIED = parseAbiItem("event Denied(bytes32 indexed agentId, uint8 indexed code, bytes32 index, string reason, uint256 quote, uint256 fair, bytes32 nonce)");
+
+if (!CFG.vault || !CFG.store) {
+  el("err").innerHTML = `<div class="err">No addresses. Append
+    <code>?vault=0x…&amp;store=0x…&amp;sleeve=0x…&amp;rpc=…</code> to the URL.</div>`;
+  el("head").textContent = "not configured";
+  throw new Error("unconfigured");
+}
+
+const client = createPublicClient({ transport: http(CFG.rpc) });
+const read = (address, abi, functionName, args = []) =>
+  client.readContract({ address, abi, functionName, args });
+
+/** Paged log read, because Arc bounds the range per request. */
+async function logsOf(event) {
+  const head = await client.getBlockNumber();
+  const out = [];
+  let from = head > CFG.span * 12n ? head - CFG.span * 12n : 0n;
+  while (from <= head) {
+    const to = from + CFG.span - 1n > head ? head : from + CFG.span - 1n;
+    try {
+      out.push(...(await client.getLogs({ address: CFG.vault, event, fromBlock: from, toBlock: to })));
+    } catch { /* a page that fails must not lose the pages that worked */ }
+    from = to + 1n;
+  }
+  return out;
+}
+
+function ageWords(s) {
+  if (s < 90) return `${s}s ago`;
+  if (s < 5400) return `${Math.round(s / 60)} min ago`;
+  if (s < 172800) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} days ago`;
+}
+
+async function tick() {
+  const now = Math.floor(Date.now() / 1000);
+
+  const [chainId, buffer, total, paused, count] = await Promise.all([
+    client.getChainId(),
+    read(CFG.usdc, ERC20_ABI, "balanceOf", [CFG.vault]),
+    read(CFG.vault, VAULT_ABI, "totalValueUsdc"),
+    read(CFG.vault, VAULT_ABI, "paused"),
+    read(CFG.store, STORE_ABI, "indexCount"),
+  ]);
+  const sleeve = CFG.sleeve ? await read(CFG.sleeve, SLEEVE_ABI, "valueUsdc") : 0n;
+  const policy = await read(CFG.vault, VAULT_ABI, "policy");
+  const bufferHours = Number(policy[6]);
+
+  el("head").innerHTML =
+    `chain ${chainId} · vault <a href="${CFG.explorer}/address/${CFG.vault}">${short(CFG.vault)}</a>` +
+    (paused ? ` · <span class="bad">PAUSED</span>` : "") +
+    ` · read live from ${new URL(CFG.rpc).host}`;
+
+  // --- the prints
+  const prints = [];
+  for (let i = 0n; i < count; i++) {
+    const id = await read(CFG.store, STORE_ABI, "indexAt", [i]);
+    const [name, p] = await Promise.all([
+      read(CFG.store, STORE_ABI, "indexName", [id]),
+      read(CFG.store, STORE_ABI, "latest", [id]),
+    ]);
+    prints.push({ id, name: name || short(id), priceWad: p[0], printId: p[1], postedAt: Number(p[2]), ciBps: p[3] });
+  }
+  const maxAge = Number(policy[2]);
+  el("prints").innerHTML = prints.map((p) => {
+    const age = now - p.postedAt;
+    const cls = age > maxAge ? "bad" : age > maxAge * 0.8 ? "warn" : "good";
+    const perK = Number(p.priceWad) / 1e18;
+    return `<div class="row"><span class="k" title="${p.name}">${p.name.replace(/^ACR-INF:/, "")}</span>
+      <span>$${perK.toPrecision(3)}/1k <span class="pill">±${(p.ciBps / 100).toFixed(1)}%</span>
+      <span class="${cls}">#${p.printId} ${ageWords(age)}</span></span></div>`;
+  }).join("") || `<div class="k">no prints yet</div>`;
+
+  // --- the tape, which is also the forecast's evidence
+  const [receipts, denials] = await Promise.all([logsOf(RECEIPT), logsOf(DENIED)]);
+  const byIndex = Object.fromEntries(prints.map((p) => [p.id, p.name.replace(/^ACR-INF:/, "")]));
+
+  let spent = 0n, jitCount = 0, humanCount = 0;
+  for (const r of receipts) { spent += r.args.quote ?? 0n; if (r.args.jitFunded) jitCount++; if (r.args.humanApproved) humanCount++; }
+
+  const blocks = await Promise.all(
+    [...receipts, ...denials].map((l) => client.getBlock({ blockNumber: l.blockNumber }).catch(() => null)),
+  );
+  const rows = [...receipts, ...denials].map((l, i) => ({
+    l, ts: blocks[i] ? Number(blocks[i].timestamp) : 0,
+    kind: l.eventName === "Receipt" ? "paid" : "refused",
+  })).sort((a, b) => b.ts - a.ts || Number(b.l.blockNumber - a.l.blockNumber));
+
+  el("tape").innerHTML =
+    `<thead><tr><th>when</th><th>what</th><th>model</th><th>quote</th><th>ACR fair</th><th></th><th>tx</th></tr></thead><tbody>` +
+    (rows.length === 0 ? `<tr><td class="k">nothing yet — run the keeper, then the agents</td></tr>` :
+      rows.slice(0, 40).map(({ l, ts, kind }) => {
+        const a = l.args;
+        const paid = kind === "paid";
+        const fair = a.fair ?? 0n;
+        const quote = a.quote ?? 0n;
+        const prem = fair > 0n ? Number(((quote - fair) * 10000n) / fair) / 100 : null;
+        const tags = paid
+          ? `${a.jitFunded ? '<span class="pill jit">JIT</span> ' : ""}${a.humanApproved ? '<span class="pill human">HUMAN</span> ' : ""}${a.guest ? '<span class="pill">GUEST</span>' : ""}`
+          : `<span class="bad">${a.reason ?? ""}</span>`;
+        return `<tr>
+          <td class="k">${ts ? ageWords(now - ts) : "—"}</td>
+          <td class="${paid ? "good" : "bad"}">${paid ? "paid" : "refused"}</td>
+          <td class="k">${byIndex[a.index] ?? (a.index ? short(a.index) : "—")}</td>
+          <td>${usd(quote, 4)}</td>
+          <td class="k">${fair > 0n ? usd(fair, 4) : "—"}${prem !== null ? ` <span class="${prem > 1 ? "warn" : "k"}">${prem >= 0 ? "+" : ""}${prem.toFixed(1)}%</span>` : ""}</td>
+          <td>${tags}</td>
+          <td><a href="${CFG.explorer}/tx/${l.transactionHash}">${short(l.transactionHash)}</a></td>
+        </tr>`;
+      }).join("")) + `</tbody>`;
+
+  el("tapeNote").textContent =
+    `${receipts.length} payments, ${denials.length} refusals, ${jitCount} funded just-in-time out of the yield sleeve` +
+    (humanCount ? `, ${humanCount} released by a verified human` : "") +
+    `. Every row links to the chain.`;
+
+  // --- where the float is
+  el("sleeves").innerHTML = `
+    <div class="row"><span class="k">buffer, ready to spend</span><span>${usd(buffer, 4)}</span></div>
+    <div class="row"><span class="k">in the yield venue</span><span class="good">${usd(sleeve, 4)}</span></div>
+    <div class="row"><span class="k">total the treasury controls</span><span>${usd(total, 4)}</span></div>
+    <div class="row"><span class="k">paid out so far</span><span>${usd(spent, 4)}</span></div>`;
+
+  // --- runway, in compute rather than in dollars
+  const cheapest = prints.filter((p) => p.priceWad > 0n).sort((a, b) => (a.priceWad < b.priceWad ? -1 : 1))[0];
+  if (!cheapest || total === 0n) {
+    el("runway").textContent = "—";
+    el("runwayNote").textContent = cheapest ? "the treasury is empty" : "no price yet, so no runway";
+  } else {
+    // COMPUTE, not dollars: the denominator is the invention. A treasury
+    // measured in dollars does not know what it can afford to DO. The unit is
+    // a 1k-token bundle, which is what the print is priced in — calling it "a
+    // call" would be inventing a call size nobody quoted.
+    const bundles = total / ((cheapest.priceWad * 1n) / 10n ** 12n || 1n);
+    const tokens = bundles * 1000n;
+    const human = tokens > 1_000_000_000n
+      ? `${(Number(tokens) / 1e9).toFixed(1)}B`
+      : `${(Number(tokens) / 1e6).toFixed(0)}M`;
+    el("runway").innerHTML =
+      `${human} <span style="font-size:14px;color:var(--dim)">tokens</span>`;
+    el("runwayNote").textContent =
+      `${usd(total, 2)} buys ${bundles.toLocaleString()} × 1k tokens of ` +
+      `${cheapest.name.replace(/^ACR-INF:/, "")}, the cheapest model priced. ` +
+      `Policy keeps ${bufferHours}h of forecast spend liquid.`;
+  }
+}
+
+async function loop() {
+  try {
+    await tick();
+    el("err").innerHTML = "";
+  } catch (e) {
+    el("err").innerHTML = `<div class="err">${String(e.shortMessage ?? e.message ?? e)}</div>`;
+  }
+  setTimeout(loop, 12_000);
+}
+loop();
+</script>
+</body>
+</html>

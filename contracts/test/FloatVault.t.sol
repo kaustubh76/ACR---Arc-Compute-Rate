@@ -148,7 +148,7 @@ contract FloatVaultTest is Test {
         FloatVault.SpendReq memory r = _req(WASTER, FAIR * 3, "n1");
         vm.expectEmit(true, true, false, true, address(vault));
         emit FloatVault.Denied(
-            WASTER, vault.D_BAND(), "quote exceeds ACR fair band", FAIR * 3, FAIR, "n1"
+            WASTER, vault.D_BAND(), INDEX, "quote exceeds ACR fair band", FAIR * 3, FAIR, "n1"
         );
         (bool ok,) = _spend(r);
         assertFalse(ok);

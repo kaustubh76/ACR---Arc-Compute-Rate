@@ -228,9 +228,16 @@ contract FloatVault {
         bool guest,
         bool humanApproved
     );
+    /// @dev Carries `index` because a refusal that does not say WHAT was
+    ///      refused is half a refusal: the dashboard could show "$3.15 denied,
+    ///      fair $1.05" without being able to name the model, which is the one
+    ///      thing a viewer wants to know. The successful `Receipt` carried it
+    ///      from the start; the denial did not, and that asymmetry only showed
+    ///      up once a dashboard tried to render both in one table.
     event Denied(
         bytes32 indexed agentId,
         uint8 indexed code,
+        bytes32 index,
         string reason,
         uint256 quote,
         uint256 fair,
@@ -729,7 +736,7 @@ contract FloatVault {
             if (r.nonce != bytes32(0) && code != D_PER_REQUEST) {
                 usedNonce[r.nonce] = true;
             }
-            emit Denied(r.agentId, code, reason, r.quoteTotal, fair, r.nonce);
+            emit Denied(r.agentId, code, r.index, reason, r.quoteTotal, fair, r.nonce);
             return (false, 0);
         }
         return (true, _spend(r, fair, pid, false));
