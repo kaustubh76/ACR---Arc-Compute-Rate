@@ -556,7 +556,7 @@ def stray_world_credentials() -> list[str]:
         upper = name.upper()
         if upper.startswith("ACR_"):
             continue
-        if any(w in upper for w in ("WORLD", "AGENTKIT", "AGENTBOOK", "IDKIT", "NULLIFIER")):
+        if any(w in upper for w in ("WORLD", "AGENTKIT", "AGENTBOOK", "IDKIT", "NULLIFIER", "OIDC", "TREASURER", "FLOAT")):
             hits.append(name)
     return sorted(hits)
 

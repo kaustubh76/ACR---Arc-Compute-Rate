@@ -301,6 +301,59 @@ class ACRSettings(BaseSettings):
     #: contract, which needs no configuration — address and RPC are constants).
     agentbook_mode: str = "auto"
 
+    # --- World ID Agent Pass: the human checkpoint on a parked spend ---------
+    #: The OIDC issuer. `https://auth.world.org` in production,
+    #: `https://sandbox.auth.world.org` for the sandbox World ID. Empty → the
+    #: gate stands down rather than guessing, because the two environments have
+    #: separate registrations, credentials and World IDs, and a token from one
+    #: proves nothing about the other.
+    world_oidc_issuer: str = ""
+    #: The portal-registered client. Also the `aud` every id token must carry.
+    world_oidc_client_id: str = ""
+    #: Server-side only. Never logged, never returned, never sent to a browser.
+    world_oidc_client_secret: str = ""
+    #: `client_secret_basic` (the portal default) or `client_secret_post`. Fixed
+    #: for a client's lifetime -- "register a new client to switch methods" --
+    #: so it is configuration and never a fallback chain that would put the
+    #: secret in a body the operator did not choose.
+    world_oidc_auth_method: str = "basic"
+    #: Accepted assurance classes for a SPEND, comma-separated, most preferred
+    #: first. Requested as an essential `claims` entry, which is the only
+    #: enforceable form -- a bare `acr_values` is a preference the provider may
+    #: ignore. Empty → orb, then selfie.
+    world_acr_values: str = ""
+    #: Accepted classes for a POLICY change. Separate because changing the rules
+    #: should not be clearable by whatever cleared the last payment.
+    world_policy_acr_values: str = ""
+    #: The enrolled treasurer's `(iss, sub)`. Until both are set any verified
+    #: human can clear a checkpoint, which is correct exactly once: enrollment
+    #: exists to learn this pair. `worldauth.treasurer_binding` turns it into the
+    #: bytes32 the vault stores.
+    world_treasurer_iss: str = ""
+    world_treasurer_sub: str = ""
+    #: Tolerance when checking that the human authenticated AFTER we asked.
+    world_auth_time_skew_s: float = 30.0
+
+    # --- FloatVault: where an approved spend is released --------------------
+    #: Deployed FloatVault. Empty → the gate stands down instead of parking
+    #: payments nothing can ever release.
+    float_vault_address: str = ""
+    #: Submits the three checkpoint calls. `isExecutor` is a mapping, so this
+    #: key is ours alone and can be revoked without stopping anyone else.
+    float_executor_private_key: str = ""
+    #: Signs the approval and NOTHING else -- it never sends a transaction, so
+    #: it needs no gas, and an address with no balance has no balance to drain.
+    #: Must not be an executor: the vault refuses `approver is an executor`, so
+    #: one compromised key cannot open a checkpoint and then approve it.
+    float_approver_private_key: str = ""
+    #: Writes the fixed guest template and nothing else. The most exposed key
+    #: here, because it is the one wired to a public join page.
+    float_guest_registrar_private_key: str = ""
+    #: How long a parked payment waits. Shorter than World's 20-minute device
+    #: code on purpose: the vault's TTL is the binding one, and a human who has
+    #: wandered off should not leave an approvable payment lying open.
+    float_checkpoint_ttl_s: int = 300
+
     # --- Model Armor: the screen on agent-to-agent traffic ------------------
     #: Which screen to run: "auto" (gcp iff project+template+credentials are all
     #: set, else local), "local" (deterministic, offline), "gcp" (force the real

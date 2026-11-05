@@ -39,7 +39,11 @@ def pytest_configure(config) -> None:  # noqa: ARG001 - pytest hook signature
     # for a machine where another project holds 127.0.0.1:8545 — and this loop
     # deleted it before any of them read it, so the override had never worked
     # (found 2026-10-13: "no anvil at http://127.0.0.1:8545" with it set).
-    for key in [k for k in os.environ if k.startswith("ACR_") and k not in ("ACR_TEST_RPC", "ACR_TEST_PLUGIN")]:
+    for key in [
+        k
+        for k in os.environ
+        if k.startswith("ACR_") and k not in ("ACR_TEST_RPC", "ACR_TEST_PLUGIN")
+    ]:
         del os.environ[key]
 
     # THE SUITE USED TO WRITE PAYMENTS INTO THE PRODUCTION LEDGER.
@@ -60,7 +64,13 @@ def pytest_configure(config) -> None:  # noqa: ARG001 - pytest hook signature
     # before collection and therefore before the module-level read. A tmp path
     # per run, so one suite cannot read another's rows either.
     os.environ["ACR_OPERATOR_LOG_PATH"] = str(
-        pathlib.Path(tempfile.gettempdir())
-        / f"acr-test-operator-decisions-{os.getpid()}.jsonl"
+        pathlib.Path(tempfile.gettempdir()) / f"acr-test-operator-decisions-{os.getpid()}.jsonl"
+    )
+    # Same reasoning for the World gate's checkpoint ledger, and the same
+    # timing: `floatgate.LOG_PATH` is read at import, so this has to be set
+    # before collection or the tests append their denials and expiries into the
+    # file the operator's own surfaces serve.
+    os.environ["ACR_FLOATGATE_LOG_PATH"] = str(
+        pathlib.Path(tempfile.gettempdir()) / f"acr-test-float-checkpoints-{os.getpid()}.jsonl"
     )
     reset_settings()
