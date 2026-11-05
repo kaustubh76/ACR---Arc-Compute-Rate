@@ -1,0 +1,15 @@
+{
+  "net": "arc-testnet",
+  "chainId": 5042002,
+  "usdc": "0x3600000000000000000000000000000000000000",
+  "venue": "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88",
+  "printStore": "0x02558098ba49e30868f6db15036c5dac326d7e3a",
+  "vault": "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc",
+  "sleeve": "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
+  "seller": "0xf4e89e34ed6e1626a3410e1d49796779179915c1",
+  "deployer": "0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16",
+  "executor": "0x7FAAC6F8079980c32Eb4aD62f65dFd11715183A0",
+  "keeper": "0x3111B1a058AE3ec480A186b21362b0DF85b0f597",
+  "approver": "0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16",
+  "deployedAt": "1793918415"
+}

@@ -1,1 +1,5 @@
-deployments/
+# Local and rehearsal deployments only. The REAL one is committed: those
+# addresses are public, the submission cites them, and a judge cloning this
+# repo should get them without having to ask.
+deployments/anvil.json
+deployments/arc-fork.json
