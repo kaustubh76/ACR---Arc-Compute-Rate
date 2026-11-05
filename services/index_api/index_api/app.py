@@ -453,6 +453,44 @@ async def _humans_tick() -> None:
         log.warning("keeper humans failed", exc_info=True)
 
 
+async def _float_tick() -> None:
+    """One look by the World gate, contained like every other chore."""
+    from . import floatgate
+
+    try:
+        verdict = await asyncio.to_thread(floatgate.float_once)
+        if verdict:
+            log.info("float gate: %s", verdict)
+    except Exception:  # a chore must never cost a beat
+        log.warning("float gate failed", exc_info=True)
+
+
+async def _float_loop(stop: asyncio.Event) -> None:
+    """Poll the parked payments waiting on a human.
+
+    ITS OWN TASK, like `_humans_loop`, and for a sharper version of the same
+    reason: a poll that finds an approved token goes on to sign and submit a
+    transaction, which blocks for as long as the chain takes. The 60 s warm loop
+    must never wait on that.
+
+    The interval comes first, so arming the loop is never also a burst of polls
+    against a provider that rate-limits. Each checkpoint carries its own
+    interval anyway — `floatgate.due()` honours it, and `slow_down` widens it —
+    so this tick only has to be no slower than the fastest of them.
+    """
+    from . import floatgate
+
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=floatgate.TICK_S)
+        except TimeoutError:
+            pass
+        if stop.is_set():
+            break
+        if floatgate.gate_enabled():
+            await _float_tick()
+
+
 async def _humans_loop(stop: asyncio.Event) -> None:
     """Resolve each rotation window's humans, on its own clock.
 
@@ -663,6 +701,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(_ops_loop(stop)),
         asyncio.create_task(_operator_loop(stop)),
         asyncio.create_task(_humans_loop(stop)),
+        asyncio.create_task(_float_loop(stop)),
     ]
     try:
         yield
@@ -944,6 +983,47 @@ def ops_action_run(body: OpsActionBody, request: Request) -> dict:
         return ops_actions.run(body.action, body.params or {}, bool(body.dry_run))
     except ops_actions.ActionError as e:
         raise HTTPException(e.status, str(e)) from e
+
+
+@app.get("/float/checkpoints")
+def float_checkpoints(request: Request) -> dict:
+    """Every payment parked for a human on this host, newest first.
+
+    Ungated and read-only. The view carries no secret: never the device code,
+    which is the bearer of the whole approval, and never the identity token.
+    The `user_code` IS here, and that is safe because a proof must validate as
+    the ENROLLED treasurer — a stranger who completes our device flow is
+    refused `not_the_enrolled_treasurer`, nothing moves, and the attempt is
+    recorded on chain.
+    """
+    from . import floatgate, ratelimit
+
+    ratelimit.check(request, "float")
+    gate = floatgate.get_gate()
+    if gate is None:
+        #: "pending", never an empty list: an empty list reads as "nothing is
+        #: parked" when the truth may be "this host does not run the gate".
+        return {"status": "pending", "reason": floatgate.gate_status(), "checkpoints": []}
+    return {"status": "ok", "checkpoints": gate.public_all()}
+
+
+@app.get("/float/checkpoint/{cp_id}")
+def float_checkpoint(cp_id: int, request: Request) -> dict:
+    """One parked payment: what it is, and what the human did about it."""
+    from . import floatgate, ratelimit
+
+    ratelimit.check(request, "float")
+    gate = floatgate.get_gate()
+    if gate is None:
+        return {"status": "pending", "reason": floatgate.gate_status()}
+    try:
+        #: NOT flattened into the envelope: a checkpoint has its own `status`
+        #: — open, denied, consumed — and merging it would overwrite the
+        #: envelope's, so one word would mean two things in one object and the
+        #: reader could not tell which.
+        return {"status": "ok", "checkpoint": gate.public(int(cp_id))}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="no such checkpoint on this host") from None
 
 
 @app.get("/x402/info")

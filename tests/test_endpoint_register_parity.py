@@ -59,6 +59,22 @@ NOT_IN_THE_REGISTER: dict[str, str] = {
         "owner payment inbox, token-gated: returns unsigned calldata the owner signs; the server never signs"
     ),
     "/operator/payments/verify": "owner payment inbox, token-gated: reconciles a payment the owner sent",
+    # The World gate's two reads. Parking a payment is not a route at all — it
+    # is `float/checkpoint` in ops_actions.ACTIONS, reached through
+    # /ops/actions like every other thing that spends money. These two are the
+    # public view of what is parked, and they are off /developers for the same
+    # reason /ops/verify is: that page is a developer's index of what a MACHINE
+    # can buy, and an owner's approval queue is not something a machine buys.
+    # Audience, not access.
+    "/float/checkpoints": (
+        "the World gate's approval queue, ungated and read-only. Owner tooling: the terminal "
+        "proxies it to the approvals card exactly as it proxies /ops/verify, and a reader's "
+        "machine has nothing to buy here"
+    ),
+    "/float/checkpoint/{cp_id}": (
+        "the same public view for one parked payment, so an agent that was told `needs_human` "
+        "can poll its own checkpoint without ever seeing a device code or a token"
+    ),
 }
 
 

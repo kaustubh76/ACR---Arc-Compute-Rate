@@ -86,6 +86,8 @@ OMIT = {
     "/operator/payments": "owner payment inbox, token-gated",
     "/operator/payments/prepare": "owner payment inbox, token-gated, stages a payment for the owner to sign",
     "/operator/payments/verify": "owner payment inbox, token-gated",
+    "/float/checkpoints": "the World gate's approval queue, owner tooling",
+    "/float/checkpoint/{cp_id}": "the World gate's approval queue, owner tooling",
 }
 
 

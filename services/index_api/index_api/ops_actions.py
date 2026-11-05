@@ -51,6 +51,11 @@ MAX_FUND_USDC = float(os.environ.get("OPS_MAX_FUND_USDC", "5.0"))
 #: THIS console, because a bearer token is a weaker key than a wallet and should
 #: not be able to spend the whole budget in one call.
 MAX_APPROVE_USDC = float(os.environ.get("OPS_MAX_APPROVE_USDC", "25.0"))
+
+#: The most one PARKED payment may be. A human approval widens the agent's band
+#: rather than removing it, so this is the ceiling on what a single approval can
+#: release — same shape and same reason as MAX_APPROVE_USDC above.
+MAX_PARK_USDC = float(os.environ.get("OPS_MAX_PARK_USDC", "25.0"))
 #: Where the audit trail lives. Ephemeral on a free-tier host, which is why the
 #: log is served back rather than merely written: an operator reading it in the
 #: same session it was written is the case that matters.
@@ -111,8 +116,14 @@ def authorize(token: str | None) -> None:
 # --- audit ------------------------------------------------------------------
 
 
-def record(action: str, params: dict, dry_run: bool, ok: bool,
-           result: dict | None = None, error: str | None = None) -> dict:
+def record(
+    action: str,
+    params: dict,
+    dry_run: bool,
+    ok: bool,
+    result: dict | None = None,
+    error: str | None = None,
+) -> dict:
     entry = {
         "at": time.time(),
         "action": action,
@@ -159,17 +170,20 @@ def _venue(role: str = "maker"):
     signer = build_role_signer(role, s)
     if signer is None:
         raise ActionError(503, f"no signer configured for the {role} role")
-    fc = FuturesClient(
-        rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=signer
-    )
+    fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=signer)
     if not fc.can_write():
         raise ActionError(503, f"the {role} client cannot write")
     return fc, signer, s
 
 
 _OWNER_ABI = [
-    {"type": "function", "name": "owner", "stateMutability": "view",
-     "inputs": [], "outputs": [{"name": "", "type": "address"}]},
+    {
+        "type": "function",
+        "name": "owner",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address"}],
+    },
 ]
 #: Roles worth trying for an owner-only call, best custody first. `owner` is in
 #: the list but NOT preferred: `build_role_signer("owner", …)` falls back to the
@@ -203,9 +217,7 @@ def _owner_signer():
         raise ActionError(503, "no futures venue configured")
     try:
         w3 = Web3(Web3.HTTPProvider(s.arc_rpc_url, request_kwargs={"timeout": 20}))
-        c = w3.eth.contract(
-            address=w3.to_checksum_address(s.futures_address), abi=_OWNER_ABI
-        )
+        c = w3.eth.contract(address=w3.to_checksum_address(s.futures_address), abi=_OWNER_ABI)
         owner = str(_rpc_retry(c.functions.owner().call))
     except Exception as exc:  # noqa: BLE001
         raise ActionError(503, f"could not read the venue's owner: {str(exc)[:80]}") from exc
@@ -222,9 +234,7 @@ def _owner_signer():
         tried.append(f"{role}={addr[:10]}…")
         # Same comparison the keeper uses to decide it may open a series.
         if keeper.may_open_series(owner, addr):
-            fc = FuturesClient(
-                rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=sg
-            )
+            fc = FuturesClient(rpc_url=s.arc_rpc_url, futures_address=s.futures_address, signer=sg)
             if not fc.can_write():
                 raise ActionError(503, f"the {role} wallet owns the venue but cannot write")
             return fc, sg, role, owner
@@ -395,23 +405,27 @@ def venue_withdraw(params: dict, dry_run: bool) -> dict:
             print_ = reader.read_all().get(x["index_id"]) or reader.read(x["index_id"])
             mark = float((print_ or {}).get("value") or 0.0)
             if mark <= 0:
-                claims.append({
-                    "series_id": sid, "index_id": x["index_id"],
-                    "held_usdc": round(units / 1e6, 6), "free_usdc": 0.0,
-                    "note": "open position and no live mark: wait for the next print",
-                })
+                claims.append(
+                    {
+                        "series_id": sid,
+                        "index_id": x["index_id"],
+                        "held_usdc": round(units / 1e6, 6),
+                        "free_usdc": 0.0,
+                        "note": "open position and no live mark: wait for the next print",
+                    }
+                )
                 continue
-        free = free_collateral_units(
-            units, contracts, mark, x["multiplier"], margin_bps, settled
+        free = free_collateral_units(units, contracts, mark, x["multiplier"], margin_bps, settled)
+        claims.append(
+            {
+                "series_id": sid,
+                "index_id": x["index_id"],
+                "state": "settled" if settled else f"open, {contracts:+.2f} contracts",
+                "held_usdc": round(units / 1e6, 6),
+                "free_usdc": round(free / 1e6, 6),
+                "_units": free,
+            }
         )
-        claims.append({
-            "series_id": sid,
-            "index_id": x["index_id"],
-            "state": "settled" if settled else f"open, {contracts:+.2f} contracts",
-            "held_usdc": round(units / 1e6, 6),
-            "free_usdc": round(free / 1e6, 6),
-            "_units": free,
-        })
 
     free_total = sum(c.get("_units", 0) for c in claims)
     view = [{k: v for k, v in c.items() if k != "_units"} for c in claims]
@@ -426,11 +440,13 @@ def venue_withdraw(params: dict, dry_run: bool) -> dict:
     txs = []
     for c in claims:
         if c.get("_units", 0) > 0:
-            txs.append({
-                "series_id": c["series_id"],
-                "tx": fc.withdraw_collateral(c["series_id"], c["_units"]),
-                "usdc": c["free_usdc"],
-            })
+            txs.append(
+                {
+                    "series_id": c["series_id"],
+                    "tx": fc.withdraw_collateral(c["series_id"], c["_units"]),
+                    "usdc": c["free_usdc"],
+                }
+            )
     return {"withdrawn_usdc": round(free_total / 1e6, 6), "to": role, "txs": txs}
 
 
@@ -449,9 +465,7 @@ def venue_collateralize(params: dict, dry_run: bool) -> dict:
     if sid is None:
         raise ActionError(400, "series_id is required")
     sid = int(sid)
-    series = next(
-        (x for x in get_futures().all_series() if int(x["series_id"]) == sid), None
-    )
+    series = next((x for x in get_futures().all_series() if int(x["series_id"]) == sid), None)
     if series is None:
         raise ActionError(404, f"no series #{sid}")
     if series["settled"]:
@@ -589,16 +603,16 @@ def _pending(business: str, obligation_id: str) -> dict:
     from .statement import pending_escalations, read_decisions
 
     if owner_inbox_business(business):
-        raise ActionError(409, "This business uses the owner-wallet inbox; legacy approval/rejection is disabled")
+        raise ActionError(
+            409, "This business uses the owner-wallet inbox; legacy approval/rejection is disabled"
+        )
     rows = read_decisions(business=business)
     if not rows:
         raise ActionError(404, f"no decisions recorded for {business!r}")
     for d in pending_escalations(rows):
         if d.get("obligation_id") == obligation_id:
             return d
-    raise ActionError(
-        404, f"{obligation_id!r} is not waiting on anybody for {business!r}"
-    )
+    raise ActionError(404, f"{obligation_id!r} is not waiting on anybody for {business!r}")
 
 
 def _business_wallet(business: str):
@@ -652,9 +666,7 @@ def operator_approve(params: dict, dry_run: bool) -> dict:
     # the operator learns the wallet is owned by someone else from a reverted
     # transaction — venue_pause takes the same care for the same reason.
     if not client.can_escalate():
-        raise ActionError(
-            400, "no owner key is configured, so nobody here can approve this"
-        )
+        raise ActionError(400, "no owner key is configured, so nobody here can approve this")
     # AND THE WALLET HAS TO BE THERE. The dry run is the gate, and it showed
     # green against an address with no code on this chain: `can_escalate()` is
     # only "is there an owner key", and a CALL to nothing neither reverts nor
@@ -689,11 +701,20 @@ def operator_approve(params: dict, dry_run: bool) -> dict:
         }
 
     tx = client.spend_as_owner(category, vendor, amount, record)
-    _settle(row, business, intent="pay", rule=f"owner approved: {row.get('rule')}",
-            paid_usdc=amount, tx=tx)
+    _settle(
+        row,
+        business,
+        intent="pay",
+        rule=f"owner approved: {row.get('rule')}",
+        paid_usdc=amount,
+        tx=tx,
+    )
     return {
-        "business": b.slug, "obligation_id": obligation_id,
-        "paid_usdc": amount, "to": vendor, "tx": tx,
+        "business": b.slug,
+        "obligation_id": obligation_id,
+        "paid_usdc": amount,
+        "to": vendor,
+        "tx": tx,
     }
 
 
@@ -720,13 +741,19 @@ def operator_reject(params: dict, dry_run: bool) -> dict:
             "rule_it_stopped_on": row.get("rule"),
         }
 
-    _settle(row, business, intent="refuse",
-            rule=f"owner rejected: {note or 'no reason given'}")
+    _settle(row, business, intent="refuse", rule=f"owner rejected: {note or 'no reason given'}")
     return {"business": business, "obligation_id": obligation_id, "rejected": True}
 
 
-def _settle(row: dict, business: str, *, intent: str, rule: str,
-            paid_usdc: float = 0.0, tx: str | None = None) -> None:
+def _settle(
+    row: dict,
+    business: str,
+    *,
+    intent: str,
+    rule: str,
+    paid_usdc: float = 0.0,
+    tx: str | None = None,
+) -> None:
     """Append the human's decision to the operator's log.
 
     Appended, never an edit: the escalation stays in the record exactly as the
@@ -797,6 +824,149 @@ def _settle(row: dict, business: str, *, intent: str, rule: str,
 
 #: name → (handler, one-line description). The registry IS the allowlist: an
 #: action not in here cannot be reached, whatever the proxy forwards.
+def _float_id(value: str, what: str) -> bytes:
+    """`keccak256(name)`, or a 32-byte word passed through.
+
+    The Arc session's deploy script and its keeper both derive agent ids and
+    index ids this way — `keccak256("scout")` — so a NAME here resolves to the
+    same id their agents already trade under. Getting this wrong would park a
+    payment against an agent the vault has never heard of, and the refusal would
+    read "unknown agent" rather than "you typed the id differently".
+    """
+    from eth_utils import keccak, to_bytes
+
+    raw = str(value or "").strip()
+    if not raw:
+        raise ActionError(400, f"a checkpoint needs {what}")
+    if raw.startswith("0x"):
+        try:
+            word = to_bytes(hexstr=raw)
+        except Exception as exc:  # noqa: BLE001
+            raise ActionError(400, f"{what} {raw!r} is not hex") from exc
+        if len(word) != 32:
+            raise ActionError(400, f"{what} {raw!r} is not a 32-byte word")
+        return word
+    return bytes(keccak(text=raw))
+
+
+def float_checkpoint(params: dict, dry_run: bool) -> dict:
+    """Park a payment for a verified human to approve.
+
+    Only ONE refusal code is parkable, and the contract decides which: a quote
+    over the agent's per-request threshold is an escalation, and `requestSpend`
+    deliberately leaves its nonce unburned so the identical request can come
+    back through `executeApproved`. Every other code burns the nonce, because a
+    band or cap refusal must not be able to return later when a price has moved.
+    So this refuses to park anything the chain would not re-execute, and says
+    which of the two it is: already payable, or refused outright.
+
+    The fair price, the refusal sentence and the print id all come from the
+    vault's own `classify` view. Nothing here recomputes the chain's arithmetic.
+    """
+    from acr_oracle_client.float_vault import SpendReq
+    from acr_oracle_client.policy import usdc_units
+
+    from . import floatgate
+
+    gate = floatgate.ensure_gate()
+    if gate is None:
+        raise ActionError(503, f"the human gate is not available: {floatgate.gate_status()}")
+
+    seller = str(params.get("seller") or "").strip()
+    if not seller.startswith("0x") or len(seller) != 42:
+        raise ActionError(400, "a checkpoint needs a seller address")
+    agent_id = _float_id(params.get("agent"), "an agent")
+    index_id = _float_id(params.get("index"), "an index")
+
+    try:
+        units = int(params.get("units") or 0)
+    except (TypeError, ValueError) as exc:
+        raise ActionError(400, "units must be a whole number") from exc
+    if units <= 0:
+        raise ActionError(400, "units must be positive")
+
+    quote_raw = params.get("quote_usdc")
+    if quote_raw is None:
+        raise ActionError(400, "a checkpoint needs quote_usdc")
+    try:
+        quote = usdc_units(quote_raw)
+    except Exception as exc:  # noqa: BLE001 - usdc_units refuses rather than rounds
+        raise ActionError(400, f"quote_usdc: {exc}") from exc
+    if quote > usdc_units(str(MAX_PARK_USDC)):
+        raise ActionError(
+            400, f"{quote_raw} USDC is over this console's per-checkpoint cap of {MAX_PARK_USDC}"
+        )
+
+    nonce_raw = str(params.get("nonce") or "").strip()
+    if nonce_raw:
+        nonce = _float_id(nonce_raw, "a nonce")
+    else:
+        import secrets
+
+        nonce = secrets.token_bytes(32)
+
+    def _req(print_id: int) -> SpendReq:
+        return SpendReq(
+            agent_id=agent_id,
+            seller=seller,
+            index=index_id,
+            units=units,
+            quote_total=quote,
+            print_id=print_id,
+            nonce=nonce,
+        )
+
+    #: The print the quote was taken against. Absent means "whatever the store
+    #: holds now", which is what a fresh park means — and the chain tells us,
+    #: because `classify` returns the live print id even while refusing a
+    #: request that names a different one.
+    print_id = params.get("print_id")
+    if print_id is None:
+        probe = gate.vault.classify(_req(0))
+        print_id = int(probe.get("print_id") or 0)
+        if print_id == 0:
+            raise ActionError(409, f"the chain has no usable print: {probe.get('reason')}")
+    req = _req(int(print_id))
+
+    verdict = gate.vault.classify(req)
+    code, reason = int(verdict.get("code") or 0), str(verdict.get("reason") or "")
+    #: D_PER_REQUEST. The one code the vault leaves re-executable.
+    if code != 11:
+        if code == 0:
+            raise ActionError(
+                409,
+                "the chain would pay this without a human — it is inside the agent's own "
+                "authority, so there is nothing to park",
+            )
+        raise ActionError(
+            409, f"the chain refuses this outright and a human cannot widen it: {reason}"
+        )
+
+    ready = gate.preflight()
+    if ready != "ok":
+        raise ActionError(503, f"the human gate is not ready: {ready}")
+
+    shape = {
+        "agent": str(params.get("agent")),
+        "seller": seller,
+        "index": str(params.get("index")),
+        "units": units,
+        "quote_usdc": quote / 1e6,
+        "fair_usdc": int(verdict.get("fair_usdc") or 0) / 1e6,
+        "print_id": int(print_id),
+        "chain_says": reason,
+    }
+    if dry_run:
+        return {
+            "would": "park this payment and ask a verified human to approve it",
+            **shape,
+            "ttl_s": gate.ttl_s,
+        }
+
+    view = gate.open(req, kind="spend", reason=str(params.get("reason") or reason))
+    return {"parked": view, **shape}
+
+
 ACTIONS = {
     "keeper/heartbeat": (keeper_heartbeat, "clear the heartbeat cooldown"),
     "keeper/roll-check": (keeper_roll_check, "clear the roll-check cooldown"),
@@ -809,6 +979,7 @@ ACTIONS = {
     "venue/pause": (venue_pause, "halt or resume the venue"),
     "operator/approve": (operator_approve, "pay an escalated bill from the owner's wallet"),
     "operator/reject": (operator_reject, "decline an escalated bill, and say so"),
+    "float/checkpoint": (float_checkpoint, "park a payment for a verified human to approve"),
 }
 
 
