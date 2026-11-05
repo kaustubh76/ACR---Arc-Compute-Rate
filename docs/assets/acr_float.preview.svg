@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2280" height="1310" viewBox="0 0 2280 1310" font-family="Helvetica,Arial,sans-serif">
+<rect width="2280" height="1310" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="40" y="40" width="760" height="430" rx="4" fill="transparent" stroke="#495057" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="80" y="100" width="310" height="150" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="80" y="290" width="310" height="150" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="460" y="195" width="300" height="150" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="860" y="40" width="700" height="650" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="900" y="100" width="620" height="330" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="900" y="470" width="290" height="180" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1230" y="470" width="290" height="180" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="40" y="520" width="760" height="400" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="80" y="580" width="310" height="170" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="460" y="580" width="300" height="170" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="80" y="780" width="680" height="110" rx="4" fill="transparent" stroke="#e8590c" stroke-width="2"/>
+<rect x="1620" y="40" width="620" height="650" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1660" y="100" width="540" height="170" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1660" y="310" width="540" height="150" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1660" y="500" width="540" height="150" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="860" y="740" width="700" height="350" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="900" y="800" width="300" height="250" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1230" y="800" width="290" height="250" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="40" y="970" width="760" height="300" rx="4" fill="transparent" stroke="#e03131" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="80" y="1030" width="680" height="220" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="1620" y="740" width="620" height="180" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<polyline points="235.0,250 235.0,270.0 235.0,290" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="390,365.0 425.0,365.0 425.0,270.0 460,270.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760,270.0 830.0,270.0 830.0,265.0 900,265.0" fill="none" stroke="#495057" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760,665.0 1210.0,665.0 1210.0,430.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="390,665.0 425.0,665.0 460,665.0" fill="none" stroke="#e8590c" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1210.0,430 1210.0,450.0 1045.0,450.0 1045.0,470" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1190,560.0 1425.0,560.0 1425.0,185.0 1660,185.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1930.0,270 1930.0,290.0 1930.0,310" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1190,560.0 1425.0,560.0 1425.0,575.0 1660,575.0" fill="none" stroke="#2f9e44" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="1210.0,430 1210.0,450.0 1375.0,450.0 1375.0,470" fill="none" stroke="#f08c00" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1520,560.0 1570.0,560.0 1570.0,830.0 1620,830.0" fill="none" stroke="#f08c00" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1210.0,430 1210.0,615.0 1050.0,615.0 1050.0,800" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="1200,925.0 1215.0,925.0 1230,925.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1520,925.0 1520.0,265.0" fill="none" stroke="#9c36b5" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<polyline points="420.0,1030 420.0,890.0 610.0,890.0 610.0,750" fill="none" stroke="#e03131" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="58" y="65.5" font-size="15" fill="#495057">1 · THE ASK — the agent holds no key that can move money</text>
+<text x="93" y="123.5" font-size="15" fill="#0c8599">scout (the agent)</text>
+<text x="93" y="146.2" font-size="13" fill="#1e1e1e">wallet: 0.000000 USDC, always</text>
+<text x="93" y="159.2" font-size="13" fill="#1e1e1e">holds no spending key</text>
+<text x="93" y="172.2" font-size="13" fill="#1e1e1e">asks; never decides</text>
+<text x="93" y="185.2" font-size="13" fill="#1e1e1e">tested: balance 0 before AND</text>
+<text x="93" y="198.2" font-size="13" fill="#1e1e1e">after every payment it causes</text>
+<text x="93" y="313.5" font-size="15" fill="#0c8599">MCP tools</text>
+<text x="93" y="336.2" font-size="13" fill="#1e1e1e">float_runway  what can I afford</text>
+<text x="93" y="349.2" font-size="13" fill="#1e1e1e">float_quote   is this price fair</text>
+<text x="93" y="362.2" font-size="13" fill="#1e1e1e">float_pay     pay for compute</text>
+<text x="93" y="375.2" font-size="13" fill="#1e1e1e">float_receipts what was spent</text>
+<text x="93" y="388.2" font-size="13" fill="#1e1e1e">quote is read-only and free</text>
+<text x="473" y="218.5" font-size="15" fill="#495057">executor (backend key)</text>
+<text x="473" y="241.2" font-size="13" fill="#1e1e1e">the only submitting role</text>
+<text x="473" y="254.2" font-size="13" fill="#1e1e1e">may SUBMIT and nothing else:</text>
+<text x="473" y="267.2" font-size="13" fill="#1e1e1e">cannot change policy,</text>
+<text x="473" y="280.2" font-size="13" fill="#1e1e1e">widen a band, or approve</text>
+<text x="473" y="293.2" font-size="13" fill="#1e1e1e">its own escalation</text>
+<text x="878" y="65.5" font-size="15" fill="#1971c2">2 · THE DECISION — one transaction, on chain</text>
+<text x="913" y="123.5" font-size="15" fill="#1971c2">FloatVault — the ladder, in order</text>
+<text x="913" y="145.3" font-size="12" fill="#1e1e1e">paused?                     -&gt; treasury paused</text>
+<text x="913" y="157.3" font-size="12" fill="#1e1e1e">agent known? frozen?        -&gt; agent frozen by policy</text>
+<text x="913" y="169.3" font-size="12" fill="#1e1e1e">seller on the allowlist?    -&gt; seller not allowed</text>
+<text x="913" y="181.3" font-size="12" fill="#1e1e1e">nonce unused?               -&gt; replayed request</text>
+<text x="913" y="193.3" font-size="12" fill="#1e1e1e">print exists? fresh?        -&gt; stale ACR print</text>
+<text x="913" y="205.3" font-size="12" fill="#1e1e1e">printId still current?      -&gt; print changed; re-quote</text>
+<text x="913" y="217.3" font-size="12" fill="#1e1e1e">quote &lt;= fair x (1+band)?   -&gt; quote exceeds ACR fair band</text>
+<text x="913" y="229.3" font-size="12" fill="#1e1e1e">below per-request limit?    -&gt; over per-request threshold</text>
+<text x="913" y="241.3" font-size="12" fill="#1e1e1e">inside the daily cap?       -&gt; daily cap exceeded</text>
+<text x="913" y="253.3" font-size="12" fill="#1e1e1e"></text>
+<text x="913" y="265.3" font-size="12" fill="#1e1e1e">fair = priceWad x units / 1e12   (the ONE conversion)</text>
+<text x="913" y="277.3" font-size="12" fill="#1e1e1e">A refusal is an EVENT, not a revert: Denied carries the</text>
+<text x="913" y="289.3" font-size="12" fill="#1e1e1e">code, the sentence, the quote and the fair counter-price.</text>
+<text x="913" y="493.5" font-size="15" fill="#2f9e44">just-in-time funding</text>
+<text x="913" y="516.2" font-size="13" fill="#1e1e1e">buffer short?</text>
+<text x="913" y="529.2" font-size="13" fill="#1e1e1e">pull the EXACT shortfall</text>
+<text x="913" y="542.2" font-size="13" fill="#1e1e1e">from the sleeve, then pay</text>
+<text x="913" y="555.2" font-size="13" fill="#1e1e1e"></text>
+<text x="913" y="568.2" font-size="13" fill="#1e1e1e">proven by LOG ORDER:</text>
+<text x="913" y="581.2" font-size="13" fill="#1e1e1e">sleeve pull at log N &lt;</text>
+<text x="913" y="594.2" font-size="13" fill="#1e1e1e">payment at log N+1</text>
+<text x="1243" y="493.5" font-size="15" fill="#f08c00">Receipt / Denied</text>
+<text x="1243" y="516.2" font-size="13" fill="#1e1e1e">quote, fair, printId, units</text>
+<text x="1243" y="529.2" font-size="13" fill="#1e1e1e">premiumBps, jitFunded,</text>
+<text x="1243" y="542.2" font-size="13" fill="#1e1e1e">guest, humanApproved</text>
+<text x="1243" y="555.2" font-size="13" fill="#1e1e1e"></text>
+<text x="1243" y="568.2" font-size="13" fill="#1e1e1e">every outcome is public,</text>
+<text x="1243" y="581.2" font-size="13" fill="#1e1e1e">including every refusal</text>
+<text x="58" y="545.5" font-size="15" fill="#e8590c">3 · THE PRICE OF COMPUTE — measured, not asserted</text>
+<text x="93" y="603.5" font-size="15" fill="#e8590c">keeper (every 10 min)</text>
+<text x="93" y="626.2" font-size="13" fill="#1e1e1e">OpenRouter per-PROVIDER</text>
+<text x="93" y="639.2" font-size="13" fill="#1e1e1e">prices for 3 models</text>
+<text x="93" y="652.2" font-size="13" fill="#1e1e1e">0.75/0.25 prompt:completion</text>
+<text x="93" y="665.2" font-size="13" fill="#1e1e1e">trimmed median + spread</text>
+<text x="93" y="678.2" font-size="13" fill="#1e1e1e">same method as ACR's index</text>
+<text x="473" y="603.5" font-size="15" fill="#e8590c">FloatPrintStore</text>
+<text x="473" y="626.2" font-size="13" fill="#1e1e1e">priceWad, printId, postedAt</text>
+<text x="473" y="639.2" font-size="13" fill="#1e1e1e">ciBps = provider spread</text>
+<text x="473" y="652.2" font-size="13" fill="#1e1e1e">printId increments: 'stale'</text>
+<text x="473" y="665.2" font-size="13" fill="#1e1e1e">and 'rotated' are separate</text>
+<text x="473" y="678.2" font-size="13" fill="#1e1e1e">refusals, enforceable apart</text>
+<text x="93" y="803.5" font-size="15" fill="#e8590c">why the band is a BAND</text>
+<text x="93" y="825.3" font-size="12" fill="#1e1e1e">nine providers serve meta-llama/llama-3.3-70b between $0.000155 and $0.000783</text>
+<text x="93" y="837.3" font-size="12" fill="#1e1e1e">per 1k tokens — a five-fold disagreement about one model. The forecaster spends</text>
+<text x="93" y="849.3" font-size="12" fill="#1e1e1e">that spread as its safety margin. A single-provider model is REFUSED, not averaged.</text>
+<text x="1638" y="65.5" font-size="15" fill="#2f9e44">4 · THE MONEY — idle float earns until the block it is spent</text>
+<text x="1673" y="123.5" font-size="15" fill="#2f9e44">Erc4626Sleeve</text>
+<text x="1673" y="146.2" font-size="13" fill="#1e1e1e">holds SHARES, not USDC</text>
+<text x="1673" y="159.2" font-size="13" fill="#1e1e1e">value = convertToAssets(shares)</text>
+<text x="1673" y="172.2" font-size="13" fill="#1e1e1e">NOT maxWithdraw: Morpho Vault V2</text>
+<text x="1673" y="185.2" font-size="13" fill="#1e1e1e">returns zero from every max*</text>
+<text x="1673" y="198.2" font-size="13" fill="#1e1e1e">by design, which would read as</text>
+<text x="1673" y="211.2" font-size="13" fill="#1e1e1e">an empty sleeve forever</text>
+<text x="1673" y="333.5" font-size="15" fill="#2f9e44">Morpho Vault V2 (Arc Testnet)</text>
+<text x="1673" y="356.2" font-size="13" fill="#1e1e1e">0xAabbeF1D…CdB8E88</text>
+<text x="1673" y="369.2" font-size="13" fill="#1e1e1e">real ERC-4626 USDC vault</text>
+<text x="1673" y="382.2" font-size="13" fill="#1e1e1e">zero fees, permissionless:</text>
+<text x="1673" y="395.2" font-size="13" fill="#1e1e1e">all four gates are address(0),</text>
+<text x="1673" y="408.2" font-size="13" fill="#1e1e1e">so a CONTRACT may hold shares</text>
+<text x="1673" y="523.5" font-size="15" fill="#495057">FloatTestSeller</text>
+<text x="1673" y="546.2" font-size="13" fill="#1e1e1e">labelled in its own name,</text>
+<text x="1673" y="559.2" font-size="13" fill="#1e1e1e">because a demo that pays a</text>
+<text x="1673" y="572.2" font-size="13" fill="#1e1e1e">seller we control should</text>
+<text x="1673" y="585.2" font-size="13" fill="#1e1e1e">say so on chain</text>
+<text x="1673" y="598.2" font-size="13" fill="#1e1e1e">sweep() returns the money</text>
+<text x="878" y="765.5" font-size="15" fill="#9c36b5">5 · WHAT IT CANNOT AUTHORISE, IT PARKS</text>
+<text x="913" y="823.5" font-size="15" fill="#9c36b5">openCheckpoint</text>
+<text x="913" y="846.2" font-size="13" fill="#1e1e1e">over the per-request limit</text>
+<text x="913" y="859.2" font-size="13" fill="#1e1e1e">is NOT a refusal — it is an</text>
+<text x="913" y="872.2" font-size="13" fill="#1e1e1e">escalation, parked on chain</text>
+<text x="913" y="885.2" font-size="13" fill="#1e1e1e">with a TTL</text>
+<text x="913" y="898.2" font-size="13" fill="#1e1e1e"></text>
+<text x="913" y="911.2" font-size="13" fill="#1e1e1e">denial, expiry and a failed</text>
+<text x="913" y="924.2" font-size="13" fill="#1e1e1e">verification are each</text>
+<text x="913" y="937.2" font-size="13" fill="#1e1e1e">recorded on chain: evidence,</text>
+<text x="913" y="950.2" font-size="13" fill="#1e1e1e">not silence</text>
+<text x="1243" y="823.5" font-size="15" fill="#9c36b5">executeApproved</text>
+<text x="1243" y="845.3" font-size="12" fill="#1e1e1e">one EIP-712 signature,</text>
+<text x="1243" y="857.3" font-size="12" fill="#1e1e1e">bound to that exact</text>
+<text x="1243" y="869.3" font-size="12" fill="#1e1e1e">request hash, usable once</text>
+<text x="1243" y="881.3" font-size="12" fill="#1e1e1e"></text>
+<text x="1243" y="893.3" font-size="12" fill="#1e1e1e">the approval WIDENS the</text>
+<text x="1243" y="905.3" font-size="12" fill="#1e1e1e">band; it never removes it</text>
+<text x="1243" y="917.3" font-size="12" fill="#1e1e1e"></text>
+<text x="1243" y="929.3" font-size="12" fill="#1e1e1e">a human may authorise</text>
+<text x="1243" y="941.3" font-size="12" fill="#1e1e1e">paying more than usual.</text>
+<text x="1243" y="953.3" font-size="12" fill="#1e1e1e">Nobody may authorise</text>
+<text x="1243" y="965.3" font-size="12" fill="#1e1e1e">paying an unpriced amount.</text>
+<text x="58" y="995.5" font-size="15" fill="#e03131">6 · ARC STUDIO — what it did, precisely</text>
+<text x="93" y="1053.5" font-size="15" fill="#e03131">Arc Studio's three roles</text>
+<text x="93" y="1075.3" font-size="12" fill="#1e1e1e">COMPILES the policy: the treasurer writes a sentence in English, Studio emits</text>
+<text x="93" y="1087.3" font-size="12" fill="#1e1e1e">  JSON, and our own validator REFUSES it if it is wrong — Studio's output is</text>
+<text x="93" y="1099.3" font-size="12" fill="#1e1e1e">  checked, not trusted ('I checked it by eye', it said)</text>
+<text x="93" y="1111.3" font-size="12" fill="#1e1e1e">AUDITS the vault, including the checkpoint path; findings triaged in commits</text>
+<text x="93" y="1123.3" font-size="12" fill="#1e1e1e">DEPLOYS the contracts to Arc Testnet</text>
+<text x="93" y="1135.3" font-size="12" fill="#1e1e1e"></text>
+<text x="93" y="1147.3" font-size="12" fill="#1e1e1e">It did not write the vault, the tests, the keeper, the agents or the dashboard.</text>
+<text x="93" y="1159.3" font-size="12" fill="#1e1e1e">It HOSTS the dashboard byte-for-byte. A narrow claim survives a judge.</text>
+<text x="1633" y="763.5" font-size="15" fill="#f08c00">dashboard — no server behind it</text>
+<text x="1633" y="785.3" font-size="12" fill="#1e1e1e">opens an RPC and reads the vault, the store and the sleeve directly</text>
+<text x="1633" y="797.3" font-size="12" fill="#1e1e1e">runway in TOKENS, not dollars: the denominator is the invention</text>
+<text x="1633" y="809.3" font-size="12" fill="#1e1e1e">the tape: every payment and every refusal, each linking to the chain</text>
+<text x="1633" y="821.3" font-size="12" fill="#1e1e1e">cannot lie about freshness — if the keeper stops, the print ages on screen</text>
+</svg>
