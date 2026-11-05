@@ -150,7 +150,52 @@ cd contracts && forge test            # 294 tests
 cd float && npm test                  # the price layer
 ```
 
-## 6 · Open source
+## 6 · How AI tools were used
+
+ETHGlobal's rules require this stated plainly: *"Clearly document in your
+submission where and how AI tools were used in the project. This includes
+specifying which parts of the code, specific files, or assets were generated or
+assisted by AI."* So, precisely.
+
+**The implementation was written with Claude Code.** Not some of it — the
+contracts, their tests, the keeper, the agents, the MCP server, the dashboard,
+the acceptance harness and this document. It is machine-checkable rather than a
+claim: **33 of the 35 commits** in `6e6a827..HEAD` carry a
+`Co-Authored-By: Claude Opus 5` trailer.
+
+```bash
+git log --format='%H %(trailers:key=Co-Authored-By)' 6e6a827..HEAD | grep -ci claude
+```
+
+The two that do not: one merge commit, and one commit by a third-party
+contributor (`CeciliaZ030`) that arrived from `main` and belongs to the
+pre-existing terminal, not to Float.
+
+**Arc Studio — itself an AI builder — compiled the treasury policy.** The
+treasurer's English sentence went in, `policy.generated.json` came out, and it
+is committed under `float/studio/` with the exact prompt. Studio also hosts the
+dashboard and audited the vault. What it did and did not do is listed in
+`float/studio/README.md`.
+
+**What the human directed.** The product itself is the human's: `ACR_Float.md`
+and `ACR_float_flow_e2e.md` — the nine runtime flows, the module breakdown, the
+demo structure and the kill-gates — were written before the event and are the
+specification everything here implements. During the event the human made every
+architectural decision (which track, where the dashboard lives, what stack, what
+was in and out of scope) and caught two errors that would have cost the entry:
+that Arc Studio was not actually part of the build despite the demo claiming it
+was, and that nothing had been pushed to GitHub at all.
+
+**The tension, named rather than glossed.** Arc requires Arc Studio — an AI app
+builder — as the starting point for every one of its prizes. ETHGlobal warns
+that submissions "that rely entirely on AI without meaningful contributions from
+team members may not be eligible". Neither page reconciles the two, and we are
+not going to pretend the question does not apply to us. Our position is the
+factual one above: the design, the direction and the corrections are the human's;
+the code was written by AI tools under that direction, and we have said which
+ones, where, and in a form anyone can verify from the git history.
+
+## 7 · Open source
 
 Every new file listed above is in the public repository under the same MIT
 licence as the baseline, at
