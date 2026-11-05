@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -22,6 +22,8 @@ help:
 	@echo "  make demo-agent      the agent module in ten acts: cards, tiers, the screen (ACR_ARMOR_* for Model Armor)"
 	@echo "  make demo-full       every demo in order: run_demo, demo-agent, then the claim audit"
 	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
+	@echo "  make world-probe     World ID Agent Pass, live: does this issuer approve a spend?"
+	@echo "  make world-enroll    learn the treasurer's (iss, sub) and the binding the vault stores"
 	@echo "  make verify-loop     the deployed /loop page: every instrument's route, asserted (read-only)"
 	@echo "  make anvil           run a local anvil chain (:8545)"
 	@echo "  make onchain         deploy + post prints on-chain + settle (needs anvil)"
@@ -504,6 +506,17 @@ resolve-humans:
 # owns -> the nonce is spent. Against production by default; ARGS=--api ... for local.
 prove-human:
 	uv run python scripts/prove_human.py $(ARGS)
+
+# World ID Agent Pass, against the live issuer. `probe` answers the only
+# question that gates the whole human path: will THIS issuer issue a token to
+# THIS account at a class we accept? `enroll` is the same flow with the identity
+# check off, because it exists to learn the pair every later approval is held to.
+# Neither prints the device code or the token.
+world-probe:
+	uv run python scripts/world_id.py probe $(ARGS)
+
+world-enroll:
+	uv run python scripts/world_id.py enroll $(ARGS)
 
 attest-once:
 	uv run python scripts/attest_once.py
