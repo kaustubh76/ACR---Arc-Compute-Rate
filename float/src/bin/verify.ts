@@ -97,6 +97,23 @@ async function asKeeper(fn: string, args: unknown[]) {
   return pub.waitForTransactionReceipt({ hash });
 }
 
+/**
+ * Morpho Vault V2's four transfer gates, and its own view of what it holds.
+ *
+ * All four are `address(0)` today, which is the only reason a CONTRACT may hold
+ * shares here and therefore the only reason the just-in-time pull can be
+ * atomic. The vault's curator can change them, or its caps, behind a timelock.
+ * If that happens the first we would otherwise know is a payment reverting on
+ * stage, so it is worth four `eth_call`s to turn that into a console line.
+ */
+const VENUE_ABI = [
+  { type: "function", name: "receiveSharesGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "sendSharesGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "receiveAssetsGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "sendAssetsGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "totalAssets", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
+] as const;
+
 console.log(`[verify] ${NET} — vault ${d.vault}\n`);
 
 process.on("uncaughtException", (e) => {
@@ -106,6 +123,36 @@ process.on("uncaughtException", (e) => {
   console.error(`\nverify ABORTED: ${m.split("\n").slice(0, 6).join("\n")}`);
   process.exit(1);
 });
+
+// --- T0 · the yield venue still lets us in ----------------------------------
+{
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const names = ["receiveSharesGate", "sendSharesGate", "receiveAssetsGate", "sendAssetsGate"] as const;
+  const open: string[] = [];
+  let ok = true;
+  let saw = "";
+  try {
+    for (const fn of names) {
+      const g = (await pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: fn })) as Address;
+      if (g.toLowerCase() !== ZERO) ok = false;
+      open.push(`${fn.replace("Gate", "")}=${g === ZERO ? "open" : g}`);
+    }
+    const tvl = (await pub.readContract({
+      address: d.venue, abi: VENUE_ABI, functionName: "totalAssets",
+    })) as bigint;
+    // The largest single pull we will ever ask for is one payment.
+    const biggest = (await bal(d.vault)) + (await sleeveValue());
+    if (tvl < biggest) ok = false;
+    saw = `${open.join(" ")}; venue holds ${usd(tvl)} against our ${usd(biggest)}`;
+  } catch (e) {
+    // A local double has none of these. That is not a failure, it is a
+    // different venue, and saying so beats a green tick that checked nothing.
+    saw = `venue does not expose Vault V2 gates (${((e as Error).message.split("\n")[0] ?? "").slice(0, 60)})`;
+    ok = NET === "anvil";
+    if (ok) saw = "skipped: the local double is not Morpho Vault V2";
+  }
+  check("T0", "the yield venue is still permissionless and deep enough to pull from", ok, saw);
+}
 
 // --- T1 · every print is fresh and sane -------------------------------------
 {

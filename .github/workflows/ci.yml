@@ -242,6 +242,65 @@ jobs:
         run: npm test
         working-directory: graph
 
+  float:
+    # Float's contracts are covered by the `contracts` job's `forge test`. This
+    # job is the TypeScript half — the price layer and the policy validator —
+    # which until now ran nowhere. Six jobs and `grep -c float` returned 0.
+    #
+    # It builds the contracts FIRST, and that is not incidental. `float/src/
+    # artifacts.ts` reads ABIs straight out of `contracts/out` rather than from
+    # a pasted copy, precisely so a signature cannot drift into a selector that
+    # no longer exists. The cost of that choice is a real build dependency, and
+    # it belongs here explicitly rather than as a confusing red job the first
+    # time someone runs the suite on a clean checkout.
+    #
+    # Hermetic: the price tests feed `printFromEndpoints` a recorded response
+    # rather than calling OpenRouter, and the policy tests are pure. Nothing
+    # here touches the network or needs a key. The live price report is
+    # `npm run prices`, which is a human's tool, not a gate.
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build the contracts the ABIs are read from
+        run: forge build
+        working-directory: contracts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install
+        run: npm ci --no-audit --no-fund
+        working-directory: float
+      - name: Type-check
+        run: npx tsc --noEmit
+        working-directory: float
+      - name: Tests
+        run: npm test
+        working-directory: float
+      # The ABIs must actually load from the build above. A renamed contract or
+      # a missing artifact would otherwise surface at deploy time, against a
+      # chain, with gas already spent.
+      - name: The Float ABIs load from forge's own output
+        working-directory: float
+        run: |
+          node --import tsx -e '
+            import * as A from "./src/artifacts.ts";
+            for (const [name, get] of Object.entries({
+              FloatVault: A.FloatVault, FloatPrintStore: A.FloatPrintStore,
+              Erc4626Sleeve: A.Erc4626Sleeve, FloatTestSeller: A.FloatTestSeller,
+            })) {
+              const art = get();
+              if (!Array.isArray(art.abi) || art.abi.length === 0) throw new Error(name + ": empty abi");
+              if (!art.bytecode || art.bytecode.length < 4) throw new Error(name + ": no bytecode");
+            }
+            const fns = A.FloatVault().abi.filter((e) => e.type === "function").map((e) => e.name);
+            for (const need of ["requestSpend", "classify", "executeApproved", "policyApprovalHash"]) {
+              if (!fns.includes(need)) throw new Error("FloatVault is missing " + need);
+            }
+            console.log("all four artifacts load, " + fns.length + " vault functions");
+          '
+
   mcp:
     # The plugin is a thin HTTP client by design, so its tests are about the
     # tool contract: that it forwards an operation NAME and never caller-supplied
