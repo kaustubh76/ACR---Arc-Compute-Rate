@@ -65,11 +65,12 @@ class StubGate:
             "seller": SELLER,
             "index": INDEX,
             "units": req.units,
-            "quote_usdc": req.quote_total,
-            "fair_usdc": self.vault.fair,
+            "quote_usdc": req.quote_total / 1e6,
+            "fair_usdc": self.vault.fair / 1e6,
             "user_code": "WDJB-MJHT",
             "verify_uri": "https://world.org/device?user_code=WDJB-MJHT",
             "expires_at": 1_800_000_300,
+            "expires_in_s": 287,
             "tx": None,
         }
 

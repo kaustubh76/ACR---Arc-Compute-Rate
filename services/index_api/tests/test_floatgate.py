@@ -684,3 +684,47 @@ def test_gate_status_carries_the_reason_and_then_ok(gate):
     floatgate.set_gate(None)
     assert floatgate.gate_status() == "set to none by hand"
     floatgate.reset_gate()
+
+
+# --- units and clocks -------------------------------------------------------
+
+
+def test_the_public_view_speaks_usdc_and_not_units(gate):
+    """A field named `_usdc` carries decimal USDC, as it does everywhere here.
+
+    The first draft served `quote_total` straight through, so a quote of 18.54
+    USDC serialised as 18540000 and any card rendering it was out by a million.
+    The internal fields are named `_units` now, which is what the chain speaks.
+    """
+    view = gate["g"].open(_req(quote=18_540_000))
+    assert view["quote_usdc"] == 18.54
+    assert view["fair_usdc"] == 18.0
+    cp = gate["g"]._cps[view["id"]]
+    assert cp.quote_units == 18_540_000
+
+
+def test_the_countdown_is_a_duration_not_a_difference_between_clocks(gate):
+    """`expires_at` is chain time; a browser must never subtract its own.
+
+    The two epochs have been measured 3,815 s apart on a local anvil, so the
+    difference is meaningless. A DURATION is the same length in both clocks,
+    which is why the view serves one.
+    """
+    view = gate["g"].open(_req())
+    assert view["expires_in_s"] == gate["g"].ttl_s
+    cp = gate["g"]._cps[view["id"]]
+    cp.opened_at -= 60
+    assert cp.public()["expires_in_s"] == gate["g"].ttl_s - 60
+    #: And it floors at zero rather than going negative.
+    cp.opened_at -= 10_000
+    assert cp.public()["expires_in_s"] == 0
+
+
+def test_the_countdown_does_not_move_when_only_the_chain_clock_would(gate):
+    view = gate["g"].open(_req())
+    cp = gate["g"]._cps[view["id"]]
+    before = cp.public()["expires_in_s"]
+    #: A chain timestamp an hour away changes what the vault compares against,
+    #: and must not change what the human is told to count down from.
+    cp.expires_at_chain += 3_600
+    assert cp.public()["expires_in_s"] == before

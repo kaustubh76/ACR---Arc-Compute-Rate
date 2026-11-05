@@ -100,6 +100,7 @@ PUBLIC_FIELDS = (
     "user_code",
     "verify_uri",
     "expires_at",
+    "expires_in_s",
     "tx",
 )
 
@@ -112,8 +113,11 @@ class GateCheckpoint:
     kind: str
     req: SpendReq
     reason: str
-    quote_usdc: int
-    fair_usdc: int
+    #: 6-decimal USDC units, which is what the chain speaks. `public()` divides,
+    #: because every `_usdc` field in this repo carries decimal USDC and a view
+    #: that served 18540000 under that name would be out by a million.
+    quote_units: int
+    fair_units: int
     req_hash: bytes
     #: HOST clock: the freshness window and our own patience.
     opened_at: float
@@ -123,6 +127,9 @@ class GateCheckpoint:
     user_code: str
     verify_uri: str
     interval: int
+    #: The TTL the vault was given, so the countdown is a duration rather than
+    #: a difference between two clocks.
+    ttl_s: int = 300
     #: When this checkpoint was last polled, on the HOST clock. Zero means
     #: never, so the first poll is due immediately.
     last_poll_at: float = 0.0
@@ -142,11 +149,19 @@ class GateCheckpoint:
             "seller": self.req.seller,
             "index": self.req.index.rstrip(b"\x00").decode(errors="replace"),
             "units": self.req.units,
-            "quote_usdc": self.quote_usdc,
-            "fair_usdc": self.fair_usdc,
+            "quote_usdc": self.quote_units / 1e6,
+            "fair_usdc": self.fair_units / 1e6,
             "user_code": self.user_code if self.status == OPEN else "",
             "verify_uri": self.verify_uri if self.status == OPEN else "",
             "expires_at": self.expires_at_chain,
+            #: The countdown, and the ONLY number a clock should be read from.
+            #: `expires_at` is the vault's `block.timestamp`; a browser
+            #: subtracting its own wall clock from it would be wrong by however
+            #: far the two epochs sit apart, which on a local chain has been
+            #: measured at 3,815 seconds. A DURATION is the same length in both
+            #: clocks, so elapsed host seconds against the chain's own TTL is
+            #: sound where a difference of epochs is not.
+            "expires_in_s": max(0, round(self.ttl_s - (time.time() - self.opened_at))),
             "tx": self.tx,
         }
 
@@ -252,14 +267,15 @@ class HumanGate:
             kind=kind,
             req=req,
             reason=reason or verdict.get("reason") or "",
-            quote_usdc=req.quote_total,
-            fair_usdc=int(verdict.get("fair_usdc") or 0),
+            quote_units=req.quote_total,
+            fair_units=int(verdict.get("fair_usdc") or 0),
             req_hash=req_hash,
             opened_at=time.time(),
             expires_at_chain=parked["expires_at"],
             user_code=started.user_code,
             verify_uri=started.public()["verification_uri"],
             interval=started.interval,
+            ttl_s=self.ttl_s,
         )
         with self._lock:
             self._cps[cp.id] = cp
@@ -270,8 +286,8 @@ class HumanGate:
                 "id": cp.id,
                 "kind": kind,
                 "reason": cp.reason,
-                "quote_usdc": cp.quote_usdc,
-                "fair_usdc": cp.fair_usdc,
+                "quote_units": cp.quote_units,
+                "fair_units": cp.fair_units,
                 "req_hash": req_hash.hex(),
                 "tx": parked.get("tx"),
             }
