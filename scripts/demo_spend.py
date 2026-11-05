@@ -24,8 +24,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -96,7 +96,9 @@ def pause(auto: bool) -> None:
         input("\n   [enter] ")
     except (EOFError, KeyboardInterrupt):
         print()
-        raise SystemExit(0)
+        # `from None`: a Ctrl-C at the prompt is the operator leaving, not an
+        # error inside the handler, so it should not read as one in a traceback.
+        raise SystemExit(0) from None
 
 
 def get(url: str, timeout: int = 90) -> tuple[int, object]:
