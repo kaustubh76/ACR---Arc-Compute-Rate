@@ -223,6 +223,37 @@ VAULT_ABI: list[dict[str, Any]] = [
         "outputs": [{"name": "", "type": "uint256"}],
     },
     {
+        "type": "function",
+        "name": "agentOf",
+        "stateMutability": "view",
+        "inputs": [{"name": "agentId", "type": "bytes32"}],
+        "outputs": [
+            {"name": "exists", "type": "bool"},
+            {"name": "dailyCapUsdc", "type": "uint256"},
+            {"name": "spent", "type": "uint256"},
+            {"name": "perRequestUsdc", "type": "uint256"},
+            {"name": "periodStart", "type": "uint64"},
+            {"name": "frozen", "type": "bool"},
+            {"name": "guest", "type": "bool"},
+        ],
+    },
+    {
+        "type": "function",
+        "name": "totalValueUsdc",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "uint256"}],
+    },
+    {
+        "type": "event",
+        "name": "GuestRegistered",
+        "anonymous": False,
+        "inputs": [
+            {"name": "agentId", "type": "bytes32", "indexed": True},
+            {"name": "dailyCap", "type": "uint256", "indexed": False},
+        ],
+    },
+    {
         "type": "event",
         "name": "CheckpointOpened",
         "anonymous": False,
@@ -385,6 +416,58 @@ class FloatVaultClient:
 
     def treasurer_binding(self) -> bytes:
         return bytes(self.contract.functions.treasurerBinding().call())
+
+    def agent_of(self, agent_id: bytes) -> dict:
+        """One agent's standing. `exists` is the whole answer to "already issued".
+
+        Two things that look identical and are not: an agent nobody registered
+        reads `exists == False`, and so does a DIFFERENT vault with a
+        compatible ABI, which decodes a zero tuple quietly rather than raising.
+        `guest_preflight` is what tells those apart, and it runs first.
+        """
+        exists, daily, spent, per_req, period_start, frozen, guest = (
+            self.contract.functions.agentOf(_b32(agent_id)).call()
+        )
+        return {
+            "exists": bool(exists),
+            "daily_cap_units": int(daily),
+            "spent_units": int(spent),
+            "per_request_units": int(per_req),
+            "period_start": int(period_start),
+            "frozen": bool(frozen),
+            "guest": bool(guest),
+        }
+
+    def guest_daily_cap(self) -> int:
+        return int(self.contract.functions.guestDailyCap().call())
+
+    def guest_registrar(self) -> str:
+        return str(self.contract.functions.guestRegistrar().call())
+
+    def total_value_usdc(self) -> int:
+        """Buffer plus both sleeves, in units: the treasury's own free float."""
+        return int(self.contract.functions.totalValueUsdc().call())
+
+    def guest_preflight(self) -> str:
+        """A named refusal, or "ok", before any guest budget is issued.
+
+        The two reads here are cheap and they separate "this human has no
+        budget" from "this is not the vault we think it is" -- a distinction
+        `agent_of` cannot make on its own, because a stranger contract with a
+        compatible ABI answers `exists == False` to everything.
+        """
+        if not self.w3.eth.get_code(self.address):
+            return "no contract code at the vault address on this chain"
+        if self.guest_daily_cap() == 0:
+            return "this vault issues no guest budget, so it is not the one we mean"
+        if self.signer is None:
+            return "issuing a guest budget needs a signer"
+        registrar = self.guest_registrar()
+        if registrar.lower() != self.signer.address.lower():
+            #: Otherwise the first sign of it is `registerGuest` reverting
+            #: "not registrar" AFTER a claim line is already on disk.
+            return f"our signer is not the vault's guest registrar (it is {registrar[:10]}…)"
+        return "ok"
 
     def vault_status(self) -> str:
         """A named refusal, or "ok". Every rung is a thing that silently breaks.

@@ -73,4 +73,7 @@ def pytest_configure(config) -> None:  # noqa: ARG001 - pytest hook signature
     os.environ["ACR_FLOATGATE_LOG_PATH"] = str(
         pathlib.Path(tempfile.gettempdir()) / f"acr-test-float-checkpoints-{os.getpid()}.jsonl"
     )
+    os.environ["ACR_FLOATGUEST_LOG_PATH"] = str(
+        pathlib.Path(tempfile.gettempdir()) / f"acr-test-float-guests-{os.getpid()}.jsonl"
+    )
     reset_settings()
