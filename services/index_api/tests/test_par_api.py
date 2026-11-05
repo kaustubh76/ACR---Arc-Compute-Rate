@@ -178,8 +178,16 @@ def test_a_bill_at_the_going_rate_is_paid_and_reads_as_at_the_rate():
     """`verdict.verdict` says "over_par" here, and that is not a bug in the
     engine: it keys off the CHEAPEST row, which is the right test when the
     cheaper seller is payable. It is the wrong thing to hand a caller, so the
-    route states `over_rate_bp` and the ladder's answer agrees with it."""
-    _, j = _get(unit=UNIT, billed_usdc=0.004, quantity=10)
+    route states `over_rate_bp` and the ladder's answer agrees with it.
+
+    ASK FOR THE RATE, NEVER HARDCODE IT. A literal here was "at the going rate"
+    on the day the basket was fetched and became an 11% underpayment the moment
+    the market moved: `0.004` against a par that is now `0.000450225`/unit reads
+    as -1115 bp, so this test failed with no code change. A test that pins a
+    live market price to a constant is a clock, not a check."""
+    rate = _get(unit=UNIT, billed_usdc=0.004, quantity=10)[1]["par"]["par_usdc"]
+    at_the_rate = rate * 10
+    _, j = _get(unit=UNIT, billed_usdc=at_the_rate, quantity=10)
     assert abs(j["over_rate_bp"]) < 1, f"not at the going rate: {j['over_rate_bp']}"
     assert j["would"]["intent"] == "pay"
 
