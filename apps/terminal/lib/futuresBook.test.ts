@@ -12,6 +12,10 @@ import {
   formatOi,
   formatQty,
   headroomBar,
+  HOUSE_WALLETS,
+  deskTraders,
+  houseTraders,
+  isHouse,
   markSeries,
   newestFillSince,
   onchainTier,
@@ -255,4 +259,55 @@ test("a receipt is never minted from a read that failed", () => {
   assert.equal(newestFillSince(undefined, [a]), null);
   assert.equal(newestFillSince(null, undefined), null);
   assert.equal(newestFillSince(undefined, undefined), null);
+});
+
+const REPO = join(__dirname, "..", "..", "..");
+
+test("a listed book's own maker is not counted as a trader", () => {
+  // deskTraders subtracts one because openSeries joins the maker at listing.
+  // Bind that to the contract: if a redeploy stopped joining the maker, every
+  // desk would silently under-count by one real trader.
+  const sol = readFileSync(join(REPO, "contracts", "src", "ACRFutures.sol"), "utf8");
+  const open = sol.slice(sol.indexOf("function openSeries"), sol.indexOf("function postCollateral"));
+  assert.match(open, /_join\(seriesId, maker\)/, "openSeries should join the maker to the trader list");
+  assert.equal(deskTraders(1), 0, "a book only our maker has joined has no traders");
+  assert.equal(deskTraders(0), 0);
+  assert.equal(deskTraders(3), 2);
+});
+
+test("every house wallet is written down, so 'ours' is a claim the repo backs", () => {
+  const sources = [
+    "docs/MAINNET_RUNBOOK.md",
+    "docs/WALLETS.md",
+    "services/index_api/index_api/businesses.json",
+    "render.yaml",
+  ].map((f) => readFileSync(join(REPO, f), "utf8").toLowerCase());
+  for (const [addr, role] of Object.entries(HOUSE_WALLETS)) {
+    assert.match(addr, /^0x[0-9a-f]{40}$/, `${role}: house keys are lowercase addresses`);
+    assert.ok(sources.some((t) => t.includes(addr)), `${role} ${addr} is in HOUSE_WALLETS but in no doc`);
+  }
+});
+
+test("the tape calls our fills ours, per listed book, and never anyone else's", () => {
+  const ours = "0x352F01788236c22c1438C5198bE53E9c389989eD"; // checksummed, as the chain returns it
+  const stranger = "0x1111111111111111111111111111111111111111";
+  assert.equal(isHouse(ours), true);
+  assert.equal(isHouse(ours.toLowerCase()), true);
+  assert.equal(isHouse(stranger), false);
+  assert.equal(isHouse(""), false);
+  assert.equal(isHouse(null), false);
+  assert.equal(isHouse("constructor"), false, "an own-property check, not a prototype lookup");
+  const row = (series_id: number, taker: string, tx: string) =>
+    ({ series_id, taker, qty: 1, side: "buy", mark: 0.011, block: 1, tx, seen_at: 0 }) as const;
+  const trades = [
+    row(7, ours, "0xa"),
+    row(7, ours.toLowerCase(), "0xb"), // the same wallet twice on one book is one trader
+    row(8, ours, "0xc"), // and once more on another book, which the per-desk sum counts again
+    row(7, stranger, "0xd"),
+    row(3, ours, "0xe"), // a settled book that is no longer listed
+  ];
+  assert.equal(houseTraders(trades, [7, 8]), 2);
+  assert.equal(houseTraders(trades, [7]), 1);
+  assert.equal(houseTraders(trades, []), 0);
+  assert.equal(houseTraders([], [7]), 0);
 });

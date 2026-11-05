@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import Link from "next/link";
 import { useState } from "react";
 import { Ed } from "@/components/Ed";
@@ -580,7 +581,7 @@ function StatementBody({ st, onSettled }: { st: Statement; onSettled: () => void
                 {checkHref(d) ? (
                   <>
                     {" · "}
-                    <Link className="section-link" href={checkHref(d) as string}>
+                    <Link className="section-link" href={hostHref(checkHref(d) as string)}>
                       <Ed x="price it yourself" p="check this price" />
                     </Link>
                   </>

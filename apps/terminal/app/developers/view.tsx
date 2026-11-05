@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import { Fragment, useCallback, useState } from "react";
 import { TickerNumber } from "@/components/TickerNumber";
 import { ApiConsole } from "@/components/ApiConsole";
@@ -421,7 +422,7 @@ export function DevelopersView({
           <h2 className="label">
             <Ed x="The contracts" p="The public record" />
           </h2>
-          <a className="section-link" href="/ops">
+          <a className="section-link" href={hostHref("/ops")}>
             <Ed x="systems ledger →" p="is it working? →" />
           </a>
         </div>

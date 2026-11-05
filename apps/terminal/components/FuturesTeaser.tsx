@@ -7,7 +7,14 @@ import { Term } from "./Term";
 import { chainFacts, isMainnet } from "@/lib/chain";
 import { useFutures } from "@/lib/useLive";
 import { useDeskAddress } from "@/lib/useDeskAddress";
-import { deskIndexPhrase, deskTier, expiryLabel, formatOi } from "@/lib/futuresBook";
+import {
+  deskIndexPhrase,
+  deskTier,
+  deskTraders,
+  expiryLabel,
+  formatOi,
+  houseTraders,
+} from "@/lib/futuresBook";
 import type { TerminalData } from "@/lib/types";
 
 /* The home page's window into pillar 4: the machine-commerce futures desk is
@@ -44,7 +51,11 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
   // Every number below is already in the payload the teaser fetches; it showed
   // one of fourteen. Banked PnL is the datum that says "this is really
   // trading" rather than "this exists".
-  const traders = desks.reduce((a, d) => a + d.trader_count, 0);
+  // Without the maker (deskTraders), and saying how many are ours: counted raw,
+  // three idle books read "3 people trading" when the only member of each was
+  // our own dealer.
+  const traders = desks.reduce((a, d) => a + deskTraders(d.trader_count), 0);
+  const ours = Math.min(traders, houseTraders(trades, desks.map((d) => d.series_id)));
   const pnl = desks.reduce((a, d) => a + d.maker_realized_usdc + d.maker_unrealized_usdc, 0);
   const soonest = desks.length ? Math.min(...desks.map((d) => d.expiry_ts)) : 0;
   // WHICH indices have books is a fact about the venue, read from it. The page
@@ -87,7 +98,8 @@ export function FuturesTeaser({ data }: { data: TerminalData }) {
           <span className="mono">
             <b style={{ color: "var(--gold)" }}>{traders}</b>{" "}
             <span className="muted">
-              <Ed x="traders" p="people trading" />
+              <Ed x={traders === 1 ? "trader" : "traders"} p="accounts trading" />
+              {ours > 0 ? <Ed x={` · ${ours} ours`} p={` · ${ours} of them ours`} /> : null}
             </span>
           </span>
         ) : null}

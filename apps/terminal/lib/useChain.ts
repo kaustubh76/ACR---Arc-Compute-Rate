@@ -42,6 +42,7 @@ import {
   parseChainKey,
   type ChainKey,
 } from "./chainChoice";
+import { hostSplit } from "./opsOrigin";
 
 let current: ChainKey | null = null;
 const listeners = new Set<() => void>();
@@ -84,8 +85,18 @@ export function useChain(): ChainKey {
 export function setChain(next: ChainKey): void {
   try {
     const secure = typeof location !== "undefined" && location.protocol === "https:";
+    // With the ops host split off (lib/opsOrigin.ts), the choice is scoped to
+    // the parent domain so both hosts read the same one: an operator on testnet
+    // must not land on the ops host's default chain with a key in hand. The
+    // chain is not a credential, so sharing it costs nothing. Siblings that
+    // share no parent (two vercel.app aliases) keep it per host. The host-only
+    // cookie an earlier write left is cleared first, or it would shadow this.
+    const split = hostSplit();
+    const parent = split?.ops.hostname.endsWith(`.${split.site.hostname}`) ? split.site.hostname : null;
+    if (parent) document.cookie = `${CHAIN_COOKIE}=; path=/; max-age=0`;
     document.cookie =
       `${CHAIN_COOKIE}=${next}; path=/; max-age=${CHAIN_MAX_AGE_S}; samesite=lax` +
+      (parent ? `; domain=${parent}` : "") +
       (secure ? "; secure" : "");
   } catch {
     /* blocked storage: the reload below will simply land on the same chain */

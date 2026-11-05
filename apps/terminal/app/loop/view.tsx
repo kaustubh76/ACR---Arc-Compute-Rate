@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import Link from "next/link";
 
 import { Ed } from "@/components/Ed";
@@ -62,8 +63,8 @@ export function LoopView({ initial }: { initial: Envelope<TerminalData> }) {
         </div>
         <div className="btn-row">
           <Link href="/tape" className="chip"><Ed x="Read the tape →" p="See the receipts →" /></Link>
-          <Link href="/developers" className="chip"><Ed x="For coders →" p="For coders →" /></Link>
-          <Link href="/ops" className="chip"><Ed x="Ops console →" p="Systems ledger →" /></Link>
+          <Link href={hostHref("/developers")} className="chip"><Ed x="For coders →" p="For coders →" /></Link>
+          <Link href={hostHref("/ops")} className="chip"><Ed x="Ops console →" p="Systems ledger →" /></Link>
         </div>
       </section>
     </>

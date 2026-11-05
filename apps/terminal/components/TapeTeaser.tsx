@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import Link from "next/link";
 import { Ed } from "./Ed";
 import { Term } from "./Term";
@@ -63,7 +64,7 @@ export function TapeTeaser() {
           <Link href="/tape" className="section-link">
             <Ed x="Read the tape →" p="See the receipts →" />
           </Link>
-          <Link href="/spend" className="section-link">
+          <Link href={hostHref("/spend")} className="section-link">
             <Ed x="Watch it spend →" p="See it pay bills →" />
           </Link>
         </span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import { useConnection } from "@/lib/useConnection";
 import { blockedCount, screenState, screenedCount } from "@/lib/gate";
 import { useGate, useHumanId } from "@/lib/useLive";
@@ -94,7 +95,7 @@ export function Colophon({ initial }: { initial: Envelope<TerminalData> }) {
               since — /exchange and /sellers both came out of it.) */}
           <a
             className="chip colophon-act"
-            href="/ops"
+            href={hostHref("/ops")}
             title="every pillar's standing, as the press reports it"
           >
             <Ed x="systems ledger" p="is it working?" />

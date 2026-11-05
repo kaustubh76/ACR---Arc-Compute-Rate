@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import Link from "next/link";
 import { AskAgentButton } from "./AgentDrawer";
 import { ChainToggle } from "./ChainToggle";
@@ -168,7 +169,7 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
               a reader who clicked the masthead to go home got nothing. The
               global anchor rule already inherits colour and drops the
               underline, so the link wears the nameplate's own styling. */}
-          <Link href="/" className="nameplate">
+          <Link href={hostHref("/")} className="nameplate">
             ACR <em>· Arc Compute Rate</em>
           </Link>
           {/* The tagline used to sit here, right-aligned. It left because the
@@ -188,7 +189,7 @@ export function Masthead({ initial }: { initial: Envelope<TerminalData> }) {
               layout is byte-identical to before this element existed. */}
           <span className="nav-links">
             {NAV.map(([href, label, plain]) => (
-              <Link key={href} href={href} className={isActive(pathname, href) ? "active" : ""}>
+              <Link key={href} href={hostHref(href)} className={isActive(pathname, href) ? "active" : ""}>
                 <Ed x={label} p={plain} />
               </Link>
             ))}

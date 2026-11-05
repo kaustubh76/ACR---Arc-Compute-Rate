@@ -59,13 +59,11 @@ Screenshots in `docs/evidence/agent-drawer/` show the local production build.
 The widget is the vendor's npm code plus roughly 775 transitive wallet-SDK packages, running in this
 origin rather than in an iframe. sessionStorage holds two credentials that must never share a JavaScript
 context with it: `acr-ops-key` (the operator console on `/ops` and `/spend`) and `acr-reader-card` (an
-owner's agent card on `/spend`). `lib/agentGuard.ts` enforces that:
+owner's agent card on `/spend`). #67 kept them apart inside one origin: no drawer on those pages, no widget in
+a tab already holding a key, and a full reload when entering one. That guard has been **replaced** by
+separate origins (next section): a guard inside one origin is only as strong as "the vendor's code has not
+run in this tab yet".
 
-- **No drawer on `/ops`, `/spend` or `/developers`.** There is no launcher there and the chat never mounts.
-- **A tab already holding either credential never loads the widget.** The drawer says so instead.
-- **If the widget loaded in this tab and the reader then enters one of those pages, the page reloads fully.**
-  `AgentChat` marks itself loaded at module scope; `AgentDrawer` reloads in a layout effect. The vendor's code
-  is therefore gone before a key can be typed.
 - **On phones (≤640px) the launcher floats bottom right as the ✦ mark.** In the masthead it pushed the
   EXPERT | PLAIN toggle onto a third header row.
 
@@ -78,3 +76,57 @@ Two things are not restricted, and both are noted on the PR:
 `.npmrc`'s `legacy-peer-deps` applies to every install in `apps/terminal`, not just the widget. Its comment
 lists what it suppresses (measured: react-native 0.87 and @solana/kit 7 as wallet-SDK peers, and valtio's
 React ≤18 peer). When adding or upgrading a dependency, read `npm ls` yourself.
+
+## Credential pages on their own origin
+
+`/ops`, `/spend` and `/developers` are served from their own origin (`ops.arccomputerate.in`), and the widget
+is never mounted there. sessionStorage, the DOM and window handles are all per origin, so the browser itself
+keeps `acr-ops-key` and `acr-reader-card` away from the vendor's code, whatever that code does.
+
+| Variable | Example | Meaning |
+| --- | --- | --- |
+| `NEXT_PUBLIC_ACR_OPS_ORIGIN` | `https://ops.arccomputerate.in` | The origin serving the credential pages. **Required for production builds** (`next.config.mjs` fails the build without it). |
+| `NEXT_PUBLIC_ACR_SITE_ORIGIN` | `https://arccomputerate.in` | Optional. The main site. Defaults to the ops host minus its first label. |
+
+These are `NEXT_PUBLIC_`, so they are inlined at build time: change one, and you must redeploy. A single
+value drives the proxy, the layout and every link, so they cannot disagree. `lib/opsOrigin.ts`
+(`hostSplit()`) reads them.
+
+- **`proxy.ts` routes by host.** The main host 307s `/ops`, `/spend` and `/developers` (and their subpaths)
+  to the ops host. The ops host 307s every other page back. Both hosts serve `/api/*`, `/og/*` and static
+  assets, because the credential pages fetch their own `/api` proxies same-origin.
+- **The ops host never mounts the drawer.** `app/layout.tsx` compares the request's `Host` header with the ops
+  host and renders the page without `AgentDrawer`, so no launcher and no widget bundle exist on that host.
+- **Links name the serving host** (`hostHref`): the masthead nav, the footer's systems ledger, and the links on
+  `/loop`, `/traction`, `/developers`, `/spend` and the home page's tape teaser. A relative link would still
+  work through the redirect, but the router prefetches it with a `fetch`, and a fetch refuses to follow a
+  redirect to another origin.
+- **The MAINNET/TESTNET cookie is set on the parent domain** (`domain=arccomputerate.in`), so an operator
+  does not land on the default chain with a key in hand. The chain is not a credential. Readers who switched
+  chains before this keep a host-only cookie on the main host until they next switch.
+
+**Without the variable (local dev, Vercel previews) the site is one origin and nothing separates the widget
+from the keys.** Do not paste a real operator key into a preview.
+
+### Turning it on
+
+1. Vercel → the terminal project → Domains: add `ops.arccomputerate.in`. It is the same deployment, so it has
+   no project of its own.
+2. DNS: add `CNAME ops → cname.vercel-dns.com` (or the record Vercel shows for the domain).
+3. Vercel → Environment Variables, Production: `NEXT_PUBLIC_ACR_OPS_ORIGIN=https://ops.arccomputerate.in`.
+   Also set `NEXT_PUBLIC_ACR_SITE_ORIGIN` if the main site is not the ops host minus `ops.`. Leave it unset for
+   Preview, or previews will link to production hosts. Then redeploy.
+4. Add `https://ops.arccomputerate.in` to `ACR_CORS_ORIGINS` on the mainnet presses in `render.yaml`.
+   Pay-with-wallet on `/developers` calls the seller cross-origin, and it is now called from the ops origin.
+
+This needs the real domain: a `*.vercel.app` alias cannot have a subdomain. Two sibling aliases would work
+as two origins (set `NEXT_PUBLIC_ACR_SITE_ORIGIN`), but they share no parent domain, so the chain cookie
+would stay per host.
+
+### Not covered
+
+- `/traction`'s ledger download reads the agent card from sessionStorage. On the main origin there is never
+  one now.
+- `acr-desk-user` in **localStorage** on `/curve` (`components/chain/PublicDesk.tsx`) is a bearer: whoever
+  knows it can open that desk session. It still lives on the main origin beside the widget, and this change
+  does not move it.

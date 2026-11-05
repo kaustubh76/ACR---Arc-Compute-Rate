@@ -1,5 +1,6 @@
 "use client";
 
+import { hostHref } from "@/lib/opsOrigin";
 import Link from "next/link";
 
 import { Ed } from "@/components/Ed";
@@ -130,7 +131,7 @@ function BusinessRow({ r }: { r: TractionRow }) {
             against the terminal and landed on the 404 page. The terminal links
             into its own space: a page for the statement, its proxy for the
             file. tests/test_render_parity.py carries the exemption. */}
-        <Link className="section-link" href={`/spend?business=${encodeURIComponent(r.slug)}`}>
+        <Link className="section-link" href={hostHref(`/spend?business=${encodeURIComponent(r.slug)}`)}>
           <Ed x="statement" p="the summary" />
         </Link>
         {" · "}

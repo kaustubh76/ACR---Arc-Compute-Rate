@@ -10,6 +10,8 @@ import { editionBootScript } from "@/lib/edition";
 import { OG_BASE, OG_SIZE } from "@/lib/og";
 import { AgentDrawer } from "@/components/AgentDrawer";
 import { agentApplicationId } from "@/lib/agentConfig";
+import { headers } from "next/headers";
+import { hostSplit } from "@/lib/opsOrigin";
 import "./globals.css";
 
 const display = Space_Grotesk({
@@ -132,6 +134,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // they are all force-dynamic already, so nothing moves.
   const chain = await serverChain();
   const initial = peekTerminal(chain);
+  // The ops host (proxy.ts) never mounts the drawer: no launcher, no vendor
+  // code, in the one origin where operator keys and agent cards are typed.
+  const split = hostSplit();
+  const onOps = !!split && (await headers()).get("host")?.toLowerCase() === split.ops.host;
+  const page = (
+    <>
+      <Masthead initial={initial} />
+      <ChainStrip initial={initial} />
+      {/* tabIndex -1 so activating the skip link MOVES focus here rather than
+          only scrolling: a fragment target that cannot hold focus leaves
+          the next Tab up to the browser. */}
+      <main id="main" tabIndex={-1} className="container page">
+        {children}
+      </main>
+      <Colophon initial={initial} />
+    </>
+  );
   return (
     // suppressHydrationWarning: the edition boot script may stamp
     // data-edition="plain" on <html> before hydration (next-themes pattern);
@@ -155,17 +174,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         {/* The request's chain, as the first render's answer (lib/useChain.ts). */}
         <ChainProvider chain={chain}>
-          <AgentDrawer applicationId={agentApplicationId(process.env.ACR_AOMI_APPLICATION_ID)}>
-            <Masthead initial={initial} />
-            <ChainStrip initial={initial} />
-            {/* tabIndex -1 so activating the skip link MOVES focus here rather than
-                only scrolling: a fragment target that cannot hold focus leaves
-                the next Tab up to the browser. */}
-            <main id="main" tabIndex={-1} className="container page">
-              {children}
-            </main>
-            <Colophon initial={initial} />
-          </AgentDrawer>
+          {onOps ? (
+            page
+          ) : (
+            <AgentDrawer applicationId={agentApplicationId(process.env.ACR_AOMI_APPLICATION_ID)}>
+              {page}
+            </AgentDrawer>
+          )}
         </ChainProvider>
       </body>
     </html>

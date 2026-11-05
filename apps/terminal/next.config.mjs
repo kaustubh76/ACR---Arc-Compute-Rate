@@ -1,3 +1,15 @@
+/* A production build without the ops origin would put the operator console and
+ * the agent card on the same origin as the Aomi widget, with nothing between
+ * them (lib/opsOrigin.ts). That is a config gap, not a degraded mode, so it
+ * fails the build rather than shipping. Previews and dev are one origin by
+ * design and are not checked. */
+if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_ACR_OPS_ORIGIN?.trim()) {
+  throw new Error(
+    "NEXT_PUBLIC_ACR_OPS_ORIGIN is unset for a production build: the credential pages " +
+      "would share an origin with the Aomi widget. Set it (docs/AOMI_DRAWER.md) and redeploy.",
+  );
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
