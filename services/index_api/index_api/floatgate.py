@@ -123,6 +123,9 @@ class GateCheckpoint:
     user_code: str
     verify_uri: str
     interval: int
+    #: When this checkpoint was last polled, on the HOST clock. Zero means
+    #: never, so the first poll is due immediately.
+    last_poll_at: float = 0.0
     status: str = OPEN
     outcome_reason: str = ""
     tx: str | None = None
@@ -178,6 +181,18 @@ class HumanGate:
             return "no treasurer is enrolled, so any verified human could approve"
         want = treasurer_binding(*self.treasurer)
         have = "0x" + self.vault.treasurer_binding().hex()
+        unadvertised = self.unadvertised_assurance()
+        if unadvertised:
+            #: An essential `claims` entry naming a class the issuer does not
+            #: advertise is not a preference it can ignore -- it is a
+            #: requirement it cannot meet, and the refusal arrives as
+            #: `access_denied`, which is also what a human declining looks
+            #: like. Catch it here, where the reason can say which.
+            return (
+                "this issuer does not advertise "
+                + ", ".join(sorted(unadvertised))
+                + " -- asking for it as an essential claim would be refused as if the human declined"
+            )
         if want.lower() != have.lower():
             #: The vault would happily accept our signature over the binding IT
             #: stores, even though that binding names somebody else. The
@@ -187,6 +202,24 @@ class HumanGate:
                 f"(vault {have[:10]}…, enrolled {want[:10]}…)"
             )
         return "ok"
+
+    def unadvertised_assurance(self) -> set[str]:
+        """Configured assurance classes this issuer does not list in discovery.
+
+        Empty when discovery cannot be read: an unreachable provider is a
+        different problem and the poll table already refuses to call it an
+        approval.
+        """
+        try:
+            supported = set(self.flow.supported_acr())
+        except Exception:  # noqa: BLE001 - unreadable discovery is not a config error
+            return set()
+        if not supported:
+            return set()
+        asked: set[str] = set()
+        for kind in ("spend", "policy"):
+            asked |= set(self.validator_for(kind).accepted_acr)
+        return asked - supported
 
     # --- opening ------------------------------------------------------------
 
@@ -267,6 +300,9 @@ class HumanGate:
             return self._finish(cp, EXPIRED, "the checkpoint's time to live elapsed")
 
         cp.polls += 1
+        #: Stamped BEFORE the call, like every chore in `keeper.py`: a poll that
+        #: throws must still wait out its interval rather than spin.
+        cp.last_poll_at = time.time()
         polled = self.flow.poll_once(self._codes.get(cp.id, ""))
         if polled.kind == "pending":
             return cp.public()
@@ -375,6 +411,21 @@ class HumanGate:
     def waiting(self) -> list[int]:
         return [cp.id for cp in self._cps.values() if cp.status == OPEN]
 
+    def due(self, now: float | None = None) -> list[int]:
+        """Open checkpoints whose own poll interval has elapsed.
+
+        The provider sets the interval and `slow_down` widens it, so polling on
+        the worker's cadence instead of each checkpoint's would earn exactly the
+        rate limit that widening exists to avoid. Oldest first, so a backlog
+        drains in the order it was parked.
+        """
+        at = time.time() if now is None else now
+        return [
+            cp.id
+            for cp in sorted(self._cps.values(), key=lambda c: c.id)
+            if cp.status == OPEN and at - cp.last_poll_at >= cp.interval
+        ]
+
     # --- the ledger ---------------------------------------------------------
 
     def _append(self, row: dict) -> None:
@@ -397,20 +448,245 @@ def _short(exc: Exception, limit: int = 160) -> str:
     return text[:limit]
 
 
+# --- configuration ---------------------------------------------------------
+
+#: The two classes BOTH issuers advertise, and the only two. Probed on
+#: `auth.world.org` and `sandbox.auth.world.org`: `acr_values_supported` is
+#: exactly these. A `selfie` class in a default would be a requirement no
+#: issuer can meet, refused as `access_denied` -- indistinguishable from a human
+#: declining. The step-up guide documents `selfie`; discovery does not offer it.
+ORB = "https://world.org/oidc/acr/orb"
+ORB_FACE = "https://world.org/oidc/acr/orb-face"
+
+#: A policy change must not be clearable by a passkey. World documents that only
+#: the passkey factor asserts MFA and that it "does not assert a fresh World
+#: proof", so a policy checkpoint requires a live face and forbids `mfa`. A knob
+#: rather than a constant because an operator without an Orb may be unable to
+#: achieve a face factor at all, and then the honest answer is a second
+#: independent verification rather than a stronger one.
+POLICY_REQUIRE_FACE = os.environ.get("ACR_FLOAT_POLICY_REQUIRE_FACE", "1").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+#: How often the worker looks. The device grant's own interval is what actually
+#: paces each checkpoint; this only has to be no slower than that.
+TICK_S = float(os.environ.get("ACR_FLOAT_GATE_TICK_S", "5"))
+
+#: Where the Arc session records what it deployed. Reading the address from
+#: there removes a hand-copy nobody can verify; the env var overrides it for a
+#: vault that session did not deploy.
+DEPLOYMENTS = Path(__file__).resolve().parents[3] / "float" / "deployments"
+
+
+def gate_enabled() -> bool:
+    """The gate runs only where a service asked for it.
+
+    Exactly `keeper.humans_enabled()`'s shape and for the same reason: the
+    approver key belongs on one host, and a deployed press that merely has the
+    code must not start polling for approvals it cannot sign.
+    """
+    return os.environ.get("ACR_FLOAT_GATE", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _classes(raw: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    picked = tuple(c.strip() for c in (raw or "").split(",") if c.strip())
+    return picked or default
+
+
+def deployed_vault(chain_id: int, *, root: Path | None = None) -> str:
+    """The vault address recorded for this chain, or "" if none is.
+
+    Matched on the record's own `chainId` rather than on the file name, so a
+    net nobody agreed to call `arc-testnet` still resolves.
+    """
+    folder = root or DEPLOYMENTS
+    try:
+        files = sorted(folder.glob("*.json"))
+    except OSError:
+        return ""
+    for f in files:
+        try:
+            rec = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if int(rec.get("chainId") or 0) == int(chain_id) and rec.get("vault"):
+            return str(rec["vault"])
+    return ""
+
+
+def build_gate(settings: Any = None) -> tuple[HumanGate | None, str]:
+    """`(gate, why)`. Never raises: an unconfigured gate is a sentence, not a
+    stack trace, because this runs inside a lifespan task where the only thing
+    a crash achieves is a press that will not boot.
+
+    Offline by construction -- no discovery fetch, no chain read -- so a service
+    can be told what it is missing before it has a network. The checks that need
+    the network live in `HumanGate.preflight()`.
+    """
+    from acr_core import get_settings
+
+    s = settings or get_settings()
+
+    if not gate_enabled():
+        return None, "the World gate is not switched on for this service (ACR_FLOAT_GATE)"
+    missing = [
+        name
+        for name, value in (
+            ("ACR_WORLD_OIDC_ISSUER", s.world_oidc_issuer),
+            ("ACR_WORLD_OIDC_CLIENT_ID", s.world_oidc_client_id),
+            ("ACR_WORLD_OIDC_CLIENT_SECRET", s.world_oidc_client_secret),
+            ("ACR_FLOAT_EXECUTOR_PRIVATE_KEY", s.float_executor_private_key),
+            ("ACR_FLOAT_APPROVER_PRIVATE_KEY", s.float_approver_private_key),
+        )
+        if not value
+    ]
+    if missing:
+        return None, "not configured: " + ", ".join(missing) + " unset"
+
+    from acr_oracle_client.float_vault import FloatVaultClient
+    from acr_oracle_client.signer import LocalKeySigner
+    from web3 import Web3
+
+    from index_api.worldauth import IdTokenValidator
+    from index_api.worldflow import DeviceFlow
+
+    rpc = s.arc_rpc_url
+    if not rpc:
+        return None, "not configured: ACR_ARC_RPC_URL unset, so there is no chain to release on"
+    w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
+    try:
+        chain_id = int(w3.eth.chain_id)
+    except Exception as exc:  # noqa: BLE001 - an unreachable RPC is a sentence
+        return None, f"the Arc endpoint did not answer: {_short(exc)}"
+
+    vault_addr = s.float_vault_address or deployed_vault(chain_id)
+    if not vault_addr:
+        return None, (
+            f"no FloatVault for chain {chain_id}: set ACR_FLOAT_VAULT_ADDRESS, or deploy one so "
+            "float/deployments records it"
+        )
+
+    try:
+        executor = LocalKeySigner(s.float_executor_private_key)
+        approver = LocalKeySigner(s.float_approver_private_key)
+    except Exception as exc:  # noqa: BLE001
+        return None, f"a gate key would not load: {_short(exc)}"
+    if executor.address.lower() == approver.address.lower():
+        #: The vault refuses `approver is an executor`, but refusing here names
+        #: the problem before a checkpoint is ever parked against it.
+        return (
+            None,
+            "the executor and the approver are the same key, so one key could approve itself",
+        )
+
+    flow = DeviceFlow(
+        issuer=s.world_oidc_issuer,
+        client_id=s.world_oidc_client_id,
+        client_secret=s.world_oidc_client_secret,
+        auth_method=s.world_oidc_auth_method or "basic",
+    )
+    vault = FloatVaultClient(w3, vault_addr, signer=executor)
+
+    treasurer = (
+        (s.world_treasurer_iss, s.world_treasurer_sub)
+        if (s.world_treasurer_iss and s.world_treasurer_sub)
+        else None
+    )
+    spend = IdTokenValidator(
+        issuer=s.world_oidc_issuer,
+        audience=s.world_oidc_client_id,
+        accepted_acr=_classes(s.world_acr_values, (ORB,)),
+        jwks=flow.jwks,
+        treasurer=treasurer,
+        skew_s=s.world_auth_time_skew_s,
+    )
+    policy = IdTokenValidator(
+        issuer=s.world_oidc_issuer,
+        audience=s.world_oidc_client_id,
+        accepted_acr=_classes(s.world_policy_acr_values, (ORB_FACE, ORB)),
+        jwks=flow.jwks,
+        require_amr=("face",) if POLICY_REQUIRE_FACE else (),
+        forbid_amr=("mfa",),
+        treasurer=treasurer,
+        skew_s=s.world_auth_time_skew_s,
+    )
+
+    gate = HumanGate(
+        flow=flow,
+        vault=vault,
+        validator_for=lambda kind: policy if kind == "policy" else spend,
+        approver=approver,
+        ttl_s=int(s.float_checkpoint_ttl_s),
+        treasurer=treasurer,
+    )
+    return gate, "ok"
+
+
 # --- the module singleton, mirroring humanid.get_verifier() ----------------
 
 _gate: HumanGate | None = None
+_gate_why: str = "not built yet"
+_tick_lock = threading.Lock()
 
 
 def get_gate() -> HumanGate | None:
+    """Whatever is currently set. Does not build -- see `ensure_gate`."""
     return _gate
 
 
+def ensure_gate(settings: Any = None) -> HumanGate | None:
+    """Build once, then reuse. `gate_status()` carries the reason for a None."""
+    global _gate, _gate_why
+    if _gate is None:
+        _gate, _gate_why = build_gate(settings)
+    return _gate
+
+
+def gate_status() -> str:
+    return "ok" if _gate is not None else _gate_why
+
+
 def set_gate(gate: HumanGate | None) -> None:
-    global _gate
+    global _gate, _gate_why
     _gate = gate
+    _gate_why = "ok" if gate is not None else "set to none by hand"
 
 
 def reset_gate() -> None:
-    global _gate
+    global _gate, _gate_why
     _gate = None
+    _gate_why = "not built yet"
+
+
+def float_once(*, force: bool = False) -> str | None:
+    """One look by the gate chore. A verdict string, or None for a quiet look.
+
+    `force` is accepted for symmetry with the other chores; this one has no
+    cooldown of its own because each checkpoint carries its own interval.
+    """
+    if not gate_enabled():
+        return None
+    gate = ensure_gate()
+    if gate is None:
+        return f"not polling: {gate_status()}"
+    #: Non-blocking, like `keeper._humans_lock`: two overlapping ticks would
+    #: race for one single-use device code.
+    if not _tick_lock.acquire(blocking=False):
+        return None
+    try:
+        ids = gate.due()
+        if not ids:
+            return None
+        outcomes = []
+        for cp_id in ids:
+            try:
+                outcomes.append(f"{cp_id}:{gate.poll_once(cp_id)['status']}")
+            except Exception as exc:  # noqa: BLE001 - one bad checkpoint is not the chore
+                log.warning("checkpoint %s could not be polled: %s", cp_id, _short(exc))
+                outcomes.append(f"{cp_id}:unpolled")
+        return "polled " + ", ".join(outcomes)
+    finally:
+        _tick_lock.release()

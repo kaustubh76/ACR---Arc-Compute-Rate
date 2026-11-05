@@ -320,7 +320,9 @@ class ACRSettings(BaseSettings):
     #: Accepted assurance classes for a SPEND, comma-separated, most preferred
     #: first. Requested as an essential `claims` entry, which is the only
     #: enforceable form -- a bare `acr_values` is a preference the provider may
-    #: ignore. Empty → orb, then selfie.
+    #: ignore. Empty → orb alone: both issuers advertise exactly orb and
+    #: orb-face, so an unadvertised class here becomes a requirement the
+    #: provider cannot meet and is refused as `access_denied`.
     world_acr_values: str = ""
     #: Accepted classes for a POLICY change. Separate because changing the rules
     #: should not be clearable by whatever cleared the last payment.

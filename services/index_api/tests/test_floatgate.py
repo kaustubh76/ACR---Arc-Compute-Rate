@@ -11,18 +11,32 @@ merely unreachable being filed as a denial.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 from acr_oracle_client.float_vault import SpendReq
-from index_api.floatgate import CONSUMED, DENIED, EXPIRED, FAILED, OPEN, PUBLIC_FIELDS, HumanGate
+from index_api.floatgate import (
+    CONSUMED,
+    DENIED,
+    EXPIRED,
+    FAILED,
+    OPEN,
+    PUBLIC_FIELDS,
+    HumanGate,
+    build_gate,
+    deployed_vault,
+    float_once,
+    gate_enabled,
+)
 from index_api.worldauth import Claims, Verdict
 from index_api.worldflow import Polled, Started
 
 ISS = "https://auth.world.org"
 SUB = "subject-0001"
 ORB = "https://world.org/oidc/acr/orb"
+ORB_FACE = "https://world.org/oidc/acr/orb-face"
 BINDING = None  # filled by the fixture from the enrolled pair
 
 
@@ -56,6 +70,9 @@ class StubFlow:
 
     def poll_once(self, code):
         return self.answers.pop(0) if self.answers else Polled("pending", "authorization_pending")
+
+    def supported_acr(self):
+        return (ORB, ORB_FACE)
 
 
 @dataclass
@@ -142,7 +159,7 @@ def gate(tmp_path):
 
     flow, vault = StubFlow(), StubVault()
     vault.binding = to_bytes(hexstr=treasurer_binding(ISS, SUB))
-    spend_v, policy_v = StubValidator(), StubValidator(accepted_acr=("orb-face",))
+    spend_v, policy_v = StubValidator(), StubValidator(accepted_acr=(ORB_FACE,))
     g = HumanGate(
         flow=flow,
         vault=vault,
@@ -440,7 +457,7 @@ def test_a_policy_checkpoint_asks_for_its_own_assurance_classes(gate):
     g.open(_req(), kind="policy")
     #: Changing the rules must not be clearable by whatever cleared the last
     #: payment, so the two kinds carry different accepted classes.
-    assert flow.started[-1] == ("orb-face",)
+    assert flow.started[-1] == (ORB_FACE,)
 
 
 def test_an_unknown_kind_is_refused(gate):
@@ -453,3 +470,217 @@ def test_an_unknown_checkpoint_is_a_key_error_not_a_silent_none(gate):
         gate["g"].public(999)
     with pytest.raises(KeyError):
         gate["g"].poll_once(999)
+
+
+# --- poll pacing ------------------------------------------------------------
+
+
+def test_the_first_poll_is_due_immediately(gate):
+    view = gate["g"].open(_req())
+    assert gate["g"].due() == [view["id"]]
+
+
+def test_a_polled_checkpoint_waits_out_its_own_interval(gate):
+    g = gate["g"]
+    view = g.open(_req())
+    g.poll_once(view["id"])
+    #: The provider sets the interval; polling on the worker's cadence instead
+    #: would earn exactly the rate limit that `slow_down` exists to avoid.
+    assert g.due() == []
+    assert g.due(now=time.time() + g._cps[view["id"]].interval + 1) == [view["id"]]
+
+
+def test_a_slow_down_pushes_the_next_poll_further_out(gate):
+    g, flow = gate["g"], gate["flow"]
+    view = g.open(_req())
+    flow.answers = [Polled("slow_down", "slow_down")]
+    g.poll_once(view["id"])
+    widened = g._cps[view["id"]].interval
+    at = time.time() + widened - 1
+    assert g.due(now=at) == []
+    assert g.due(now=time.time() + widened + 1) == [view["id"]]
+
+
+def test_the_poll_is_stamped_even_when_the_provider_throws(gate):
+    """A poll that raises must still wait out its interval rather than spin."""
+    g = gate["g"]
+    view = g.open(_req())
+
+    def boom(code):
+        raise RuntimeError("connection reset")
+
+    gate["flow"].poll_once = boom
+    with pytest.raises(RuntimeError):
+        g.poll_once(view["id"])
+    assert g._cps[view["id"]].last_poll_at > 0
+    assert g.due() == []
+
+
+def test_due_drains_oldest_first(gate):
+    g = gate["g"]
+    a = g.open(_req(quote=18_000_001))
+    b = g.open(_req(quote=18_000_002))
+    assert g.due() == [a["id"], b["id"]]
+
+
+def test_a_finished_checkpoint_is_never_due(gate):
+    g, flow = gate["g"], gate["flow"]
+    view = g.open(_req())
+    flow.answers = [Polled("stop", "device_code_expired")]
+    g.poll_once(view["id"])
+    assert g.due(now=time.time() + 10_000) == []
+
+
+# --- the assurance cross-check ---------------------------------------------
+
+
+def test_an_unadvertised_assurance_class_is_refused_before_anything_is_parked(gate):
+    """An essential claim the issuer cannot meet is refused as `access_denied`.
+
+    Which is also what a human declining looks like, so the only place this can
+    be told apart is here, against discovery.
+    """
+    g = gate["g"]
+    gate["flow"].supported_acr = lambda: ("https://world.org/oidc/acr/orb-face",)
+    assert g.unadvertised_assurance() == {ORB}
+    assert "does not advertise" in g.preflight()
+    with pytest.raises(RuntimeError, match="does not advertise"):
+        g.open(_req())
+
+
+def test_unreadable_discovery_is_not_treated_as_a_misconfiguration(gate):
+    def boom():
+        raise RuntimeError("dns")
+
+    gate["flow"].supported_acr = boom
+    #: An unreachable provider is a different problem, and the poll table
+    #: already refuses to call it an approval.
+    assert gate["g"].unadvertised_assurance() == set()
+    assert gate["g"].preflight() == "ok"
+
+
+# --- the factory ------------------------------------------------------------
+
+
+def test_the_gate_stands_down_when_it_is_not_switched_on(monkeypatch):
+    monkeypatch.delenv("ACR_FLOAT_GATE", raising=False)
+    assert gate_enabled() is False
+    g, why = build_gate()
+    assert g is None
+    assert "not switched on" in why
+
+
+def test_the_gate_names_every_setting_it_is_missing(monkeypatch):
+    from acr_core import reset_settings
+
+    monkeypatch.setenv("ACR_FLOAT_GATE", "1")
+    reset_settings()
+    try:
+        g, why = build_gate()
+        assert g is None
+        assert why.startswith("not configured:")
+        for name in ("ACR_WORLD_OIDC_ISSUER", "ACR_FLOAT_APPROVER_PRIVATE_KEY"):
+            assert name in why
+    finally:
+        monkeypatch.undo()
+        reset_settings()
+
+
+def test_the_vault_address_comes_from_the_deployment_record(tmp_path):
+    """Matched on the record's own chainId, not on a file name we agreed."""
+    (tmp_path / "anvil.json").write_text(
+        json.dumps({"net": "anvil", "chainId": 31337, "vault": "0x" + "11" * 20})
+    )
+    (tmp_path / "arc-testnet.json").write_text(
+        json.dumps({"net": "whatever-they-call-it", "chainId": 5042002, "vault": "0x" + "22" * 20})
+    )
+    assert deployed_vault(31337, root=tmp_path) == "0x" + "11" * 20
+    assert deployed_vault(5042002, root=tmp_path) == "0x" + "22" * 20
+    assert deployed_vault(999, root=tmp_path) == ""
+
+
+def test_a_deployment_record_that_will_not_parse_is_skipped_not_fatal(tmp_path):
+    (tmp_path / "broken.json").write_text("{not json")
+    (tmp_path / "good.json").write_text(json.dumps({"chainId": 31337, "vault": "0x" + "33" * 20}))
+    assert deployed_vault(31337, root=tmp_path) == "0x" + "33" * 20
+
+
+def test_a_missing_deployments_folder_is_not_fatal(tmp_path):
+    assert deployed_vault(31337, root=tmp_path / "nope") == ""
+
+
+# --- the chore --------------------------------------------------------------
+
+
+def test_the_chore_is_silent_when_the_gate_is_off(monkeypatch):
+    monkeypatch.delenv("ACR_FLOAT_GATE", raising=False)
+    assert float_once() is None
+
+
+def test_the_chore_says_why_it_is_not_polling(monkeypatch):
+    from index_api import floatgate
+
+    monkeypatch.setenv("ACR_FLOAT_GATE", "1")
+    floatgate.reset_gate()
+    try:
+        verdict = float_once()
+        assert verdict is not None and verdict.startswith("not polling:")
+    finally:
+        monkeypatch.undo()
+        floatgate.reset_gate()
+
+
+def test_the_chore_reports_what_it_polled(gate, monkeypatch):
+    from index_api import floatgate
+
+    monkeypatch.setenv("ACR_FLOAT_GATE", "1")
+    floatgate.set_gate(gate["g"])
+    try:
+        view = gate["g"].open(_req())
+        gate["flow"].answers = [Polled("stop", "refused_or_assurance_unmet")]
+        assert float_once() == f"polled {view['id']}:denied"
+        #: Nothing due now, so the next look is quiet rather than a repeated
+        #: verdict that would read as a second denial.
+        assert float_once() is None
+    finally:
+        monkeypatch.undo()
+        floatgate.reset_gate()
+
+
+def test_one_bad_checkpoint_does_not_cost_the_chore_its_pass(gate, monkeypatch):
+    from index_api import floatgate
+
+    monkeypatch.setenv("ACR_FLOAT_GATE", "1")
+    floatgate.set_gate(gate["g"])
+    try:
+        a = gate["g"].open(_req(quote=18_000_001))
+        b = gate["g"].open(_req(quote=18_000_002))
+        calls = {"n": 0}
+        real = gate["g"].poll_once
+
+        def flaky(cp_id):
+            calls["n"] += 1
+            if cp_id == a["id"]:
+                raise RuntimeError("one bad apple")
+            return real(cp_id)
+
+        gate["g"].poll_once = flaky
+        verdict = float_once()
+        assert f"{a['id']}:unpolled" in verdict
+        assert f"{b['id']}:open" in verdict
+        assert calls["n"] == 2
+    finally:
+        monkeypatch.undo()
+        floatgate.reset_gate()
+
+
+def test_gate_status_carries_the_reason_and_then_ok(gate):
+    from index_api import floatgate
+
+    floatgate.reset_gate()
+    assert floatgate.gate_status() == "not built yet"
+    floatgate.set_gate(gate["g"])
+    assert floatgate.gate_status() == "ok"
+    floatgate.set_gate(None)
+    assert floatgate.gate_status() == "set to none by hand"
+    floatgate.reset_gate()
