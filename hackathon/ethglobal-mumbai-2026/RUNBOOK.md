@@ -3,42 +3,93 @@
 Three minutes, zero dependency on the World session. Every command is one you
 can paste; every line is one you can say. Rehearse it twice before recording.
 
-## Before you start (once, ~15 minutes)
+## Before you start (once, ~20 minutes)
+
+Every flag below is there for a reason that cost something to learn. The script
+has been dry-run against real Arc — `SIMULATION COMPLETE`, 8,687,035 gas — so
+this sequence is rehearsed, not hoped for.
 
 ```bash
-# 0. Gas. On Arc, gas IS USDC. 20 per request, then a 2-hour lock per asset.
+# 0. GAS. On Arc, gas IS USDC. The public faucet is the only source: Arc
+#    Studio's own faucet tool refuses without DEVELOPER_ADMIN_DEFAULT_ROLE,
+#    which this account does not have.
 #    https://faucet.circle.com  ->  0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16
+#    20 USDC, then a 2-hour lock per asset. Budget: ~0.2-0.5 for the deploy,
+#    >=5 for the treasury, ~7 for an overnight tape.
 cast balance 0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16 --rpc-url https://rpc.testnet.arc.io
 
-# 1. Deploy. One broadcast, the whole set.
-cd contracts
-DEPLOYER_PRIVATE_KEY=$(cat ../data/float-deployer-key.txt) \
-FLOAT_EXECUTOR=0x7FAAC6F8079980c32Eb4aD62f65dFd11715183A0 \
-FLOAT_KEEPER=0x3111B1a058AE3ec480A186b21362b0DF85b0f597 \
-forge script script/DeployFloat.s.sol \
-  --rpc-url https://rpc.testnet.arc.io \
-  --private-key $DEPLOYER_PRIVATE_KEY --broadcast --legacy
+# 1. BUILD FIRST. contracts/out goes stale and the script would deploy the
+#    old bytecode without saying so.
+cd contracts && forge build
 
-# 2. Record the addresses where the TS side reads them.
-#    Write float/deployments/arc-testnet.json from the script's output.
+# 2. DRY RUN. Free, and it proves the five roles resolve to addresses we hold.
+#    Defaulted, approver/registrar/studio can silently become DEFAULT_SENDER
+#    while `owner` still looks right — registerGuest then reverts "not
+#    registrar" forever. They are required now, so a miss fails here.
+export FLOAT_EXECUTOR=0x7FAAC6F8079980c32Eb4aD62f65dFd11715183A0
+export FLOAT_KEEPER=0x3111B1a058AE3ec480A186b21362b0DF85b0f597
+export FLOAT_APPROVER=0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16
+export FLOAT_REGISTRAR=0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16
+export FLOAT_STUDIO=0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16
+export DEPLOYER=0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16
+forge script script/DeployFloat.s.sol --rpc-url https://rpc.testnet.arc.io --sender $DEPLOYER
 
-# 3. Fund the treasury and the two submitting keys, then print.
+# 3. BROADCAST. Type-2, NOT --legacy.
+#    --legacy pays the full gas price with no refund (~3x); type-2 charges
+#      base+priority regardless of the cap, and this repo's own broadcast
+#      records show seven successful Arc deploys, all type-2.
+#    --with-gas-price is the BROADCAST flag. --gas-price configures the
+#      simulation EVM and would be a silent no-op here.
+#    --slow because ten transactions go out on sequential nonces and wire()
+#      is ONE-SHOT: a half-wired vault is the worst available outcome.
+#      Recover with --resume, never by re-running from the top.
+forge script script/DeployFloat.s.sol --rpc-url https://rpc.testnet.arc.io \
+  --sender $DEPLOYER --private-key $(cat ../data/float-deployer-key.txt) \
+  --with-gas-price 60gwei --priority-gas-price 2gwei --slow --broadcast
+
+# 4. RECORD. The script prints a paste-ready block. Copy it verbatim into
+#    float/deployments/arc-testnet.json — do not retype it. Thirteen fields,
+#    and a typo breaks every binary below AFTER the money is spent.
+
+# 5. FUND THE TREASURY with an ERC-20 transfer, never --value. Arc's USDC at
+#    0x3600 is the same ledger as gas, so a value send looks right and
+#    REVERTS: none of these contracts has a receive().
+cast send 0x3600000000000000000000000000000000000000 'transfer(address,uint256)' \
+  <VAULT> 8000000 --rpc-url https://rpc.testnet.arc.io --private-key $(cat ../data/float-deployer-key.txt)
+#    The executor and keeper need their own gas to submit and to print:
+cast send <EXECUTOR> --value 2ether --rpc-url ... --private-key ...   # EOAs, so --value is fine
+cast send <KEEPER>   --value 2ether --rpc-url ... --private-key ...
+
+# 6. PRINT, then VERIFY. 11/11 before anything is recorded.
 cd ../float
 FLOAT_NET=arc-testnet npm run keeper -- --once
-FLOAT_NET=arc-testnet npm run verify          # must be 11/11 before you record
+FLOAT_NET=arc-testnet npm run verify
 
-# 4. Bake the addresses into the dashboard's DEFAULTS block and push to Studio.
-#    The Studio preview has NO address bar, so a query string cannot be typed in.
-arc-studio run "serve the updated index.html" \
+# 7. VERIFY SOURCES on Blockscout, separately — not with --verify on a
+#    one-shot broadcast. Judges read the fair-band check in verified source.
+cd ../contracts
+forge verify-contract <VAULT> src/float/FloatVault.sol:FloatVault --chain-id 5042002 \
+  --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api/ \
+  --compiler-version v0.8.24+commit.e11b9ed9 \
+  --constructor-args $(cast abi-encode 'c(address,address,uint256)' \
+     0x3600000000000000000000000000000000000000 <STORE> 2000000) --watch
+
+# 8. DASHBOARD. Bake the addresses into the DEFAULTS block in
+#    float/app/index.html, then push it to Studio. The preview panel has no
+#    address bar, so a query string cannot be typed there.
+cd ../float && arc-studio run "serve the updated index.html, change nothing else" \
   --file app/index.html:index.html --session float-dashboard
 
-# 5. Leave the agents running so the tape has hours of history by morning.
+# 9. OVERNIGHT TAPE. Before leaving it: raise scout's cap (at a 60s tick the
+#    25 USDC cap is exhausted in ~14 minutes and then emits ~1,400 identical
+#    refusals burning ~7 USDC), lengthen TICK_MS, and sweep the seller back.
 FLOAT_NET=arc-testnet npm run agents
 ```
 
-**Verify source on the explorer** before recording — judges read the fair-band
-check in verified source, and an unverified contract invites the question of
-whether the code shown is the code running.
+**Do NOT call `setTreasurerBinding`.** It is one-shot from zero and `onlyOwner`.
+A placeholder there permanently kills the human-approval path, and the only
+remedy is a redeploy. It is set last, with the value the World session's
+enrollment prints, after a dry run proves the digest round-trips.
 
 ## The cut
 
