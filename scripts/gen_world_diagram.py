@@ -111,8 +111,14 @@ def build() -> None:
         ga.wire(a, b, TEAL)
 
     # ---- the treasury, priced against that print --------------------------
-    ga.zone(60, 360, 1400, 240,
-            "2 · THE TREASURY — every spend priced against that same print", GOLD)
+    #: WIDENED TO CARRY THE FUNDING LADDER. The board said "in band -> it pays"
+    #: and stopped, which leaves out where the money comes from — and that is
+    #: the half a human release actually exercises: `executeApproved` runs the
+    #: same Flow-1 steps, so a released spend pulls through the sleeves exactly
+    #: as an automatic one does. The two sleeves differ in how real they are,
+    #: and the board's own solid/dashed convention is the honest way to say so.
+    ga.zone(60, 360, 2090, 240,
+            "2 · THE TREASURY — every spend priced against that same print, and funded just in time", GOLD)
     ga.card("b_agent", 90, 406, 300, 110, "the agent",
             ["its own wallet holds $0", "it may only ASK"], GOLD)
     ga.card("b_class", 450, 406, 330, 110, "the vault classifies",
@@ -121,9 +127,31 @@ def build() -> None:
             ["no human, no delay", "Receipt on chain"], GREEN)
     ga.card("b_park", 1150, 406, 280, 110, "out of band → PARKED",
             ["code 10 · quote exceeds", "ACR fair band"], PURPLE)
+    #: WHERE THE MONEY COMES FROM, which is two sleeves and not one. Our
+    #: `Erc4626Sleeve` is a wrapper that holds shares; the venue behind it is
+    #: Morpho Vault V2, which we do not control and which has to act first.
+    #: SOLID, because this is the leg that runs and the one the receipt proves.
+    ga.card("b_morpho", 1470, 406, 330, 110, "working → Morpho Vault V2",
+            ["the exact shortfall, same tx",
+             "log 29 before log 30 · proven",
+             "receiver is the TREASURY"], GREEN, body_size=12)
+    #: DASHED, because `reserve()` is still `address(0)` on chain. The contract
+    #: is real and deployed and its round trip has run against a stand-in
+    #: Teller; Circle's own Teller answers a staticcall with
+    #: `NotPermissioned()`. Drawing this solid would be the flattering version.
+    dcard("b_usyc", 1830, 406, 320, 110, "reserve → USYC  ·  BUILT",
+          ["reserve() = 0x0 on chain",
+           "real Teller: NotPermissioned()",
+           "value is NET of the exit fee"], GOLD, body_size=12)
     ga.wire("b_agent", "b_class", GOLD)
     ga.wire("b_class", "b_pay", GREEN)
     ga.wire("b_class", "b_park", PURPLE)
+    #: The ladder's order, which is the thing to get right: buffer first, then
+    #: working, then reserve. Never the other way round.
+    ga.wire("b_pay", "b_morpho", GREEN)
+    ga.wire("b_morpho", "b_usyc", GOLD, dashed=True)
+    ga.text(1470, 536, "buffer first, then working, then reserve  ─  and maxDeposit > 0 is NOT "
+            "permission to deposit", 13, GOLD)
 
     #: THE SEAM. The one wire the board exists for: the price that was already
     #: being published is the thing the treasury refuses to exceed.
