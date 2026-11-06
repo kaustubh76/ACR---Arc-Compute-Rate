@@ -67,6 +67,16 @@
   .spin::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
   @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+  .pf label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 10px 0 4px; }
+  .pf input[type="text"] { width: 100%; min-width: 0; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; }
+  .pf input[type="text"]:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .pf input[type="text"].bad-in { border-color: var(--bad); }
+  .pf input[type="range"] { width: 100%; accent-color: var(--accent); margin: 10px 0 2px; }
+  .pf .pf-grid { display: grid; gap: 0 12px; grid-template-columns: 1fr 1fr; }
+  .pf .pf-grid > div { min-width: 0; }
+  .pf button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer; margin-top: 10px; }
+  .pf button:hover { border-color: var(--accent); }
+  @media (max-width: 560px) { .pf .pf-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -82,6 +92,23 @@
   <div class="panel" id="s3"><div class="head"><span class="num">3</span><h2>Depth, against our actual exposure</h2></div><div class="spin">reading</div></div>
   <div class="panel" id="s4"><div class="head"><span class="num">4</span><h2>What it costs us</h2></div><div class="spin">reading</div></div>
   <div class="panel" id="s5"><div class="head"><span class="num">5</span><h2>What it earns</h2></div><div class="spin">reading</div></div>
+  <div class="panel" id="s6">
+    <div class="head"><span class="num">6</span><h2>Could the venue deliver a shortfall right now?</h2><span class="pill" id="pf-badge">reading</span></div>
+    <div class="pf">
+      <div class="note" style="margin-top:0">The question our compiled preflight program asks from a terminal, asked here. Set the amount a payment would need pulled from the venue. The page answers from live chain state, with the program's four checks in the program's order.</div>
+      <label for="pf-amount">shortfall needed (USDC)</label>
+      <input id="pf-amount" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.50">
+      <input id="pf-slider" type="range" min="0" max="1000" step="1" value="500" disabled aria-label="shortfall needed, as a fraction of twice the live position">
+      <div class="note" id="pf-range" style="margin-top:2px">The slider spans zero to twice the live position, once the position has been read.</div>
+      <div class="pf-grid">
+        <div><label for="pf-venue">venue (optional)</label><input id="pf-venue" type="text" autocomplete="off" spellcheck="false"></div>
+        <div><label for="pf-sleeve">sleeve (optional)</label><input id="pf-sleeve" type="text" autocomplete="off" spellcheck="false"></div>
+      </div>
+      <button type="button" id="pf-reread">Re-read the chain</button>
+      <div class="sep"></div>
+      <div id="pf-out"><div class="spin">reading the venue</div></div>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -717,6 +744,196 @@ main().catch((e) => {
     const el = $(id); const sp = el.querySelector(".spin"); if (sp) { sp.className = "bad"; sp.textContent = "not read"; }
   }
 });
+
+// ---------------------------------------------------------------- 6 · could the venue deliver a shortfall right now?
+// The question our compiled preflight program asks from a terminal, driven from
+// the page because the preview panel has no address bar to type a query string
+// into. The four checks, in the program's order and in its own words:
+//   1. asset() == USDC                  "venue asset is not USDC"
+//   2. position = convertToAssets(balanceOf(sleeve))   (computed, not a require)
+//   3. maxWithdraw(sleeve) == 0         "maxWithdraw is non-zero: this is not Vault V2"
+//   4. position >= needed               "the sleeve cannot cover this shortfall"
+// Every chain read goes through rd(), so it shares that queue, its concurrency
+// gate and its rate-limit backoff. This section adds no client and no retry loop.
+// Checks 1-3 do not depend on the amount, so moving the amount reads nothing new
+// while the last read is fresh.
+const PF_ABI = parseAbi(["function maxWithdraw(address owner) pure returns (uint256)"]); // `pure` in the verified source
+const PF_DEBOUNCE_MS = 250;
+const PF_FRESH_MS = 10_000;
+const PF_TICKS = 1000n; // the slider runs 0..PF_TICKS; PF_TICKS/2 is exactly the position
+const pf = { snap: null, pending: null, seq: 0, timer: null, d: null, max: 0n, venue0: CFG.venue, sleeve0: CFG.sleeve };
+
+const pfTrim = (s) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s) || "0";
+const money = (n, d) => {
+  const [i, f = ""] = formatUnits(n, d).split(".");
+  return `$${i.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${f.padEnd(2, "0")}`;
+};
+/** Exact decimal parse: more places than the token has is refused, never rounded. */
+function pfParse(text, d) {
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(text.trim());
+  if (!m || (!m[1] && !m[2])) return { err: `Enter a USDC amount: digits with an optional decimal part of at most ${d} places.` };
+  const frac = m[2] ?? "";
+  if (frac.length > d) return { err: `USDC has ${d} decimals and ${frac.length} places were given. The page will not round your amount.` };
+  return { v: BigInt(m[1] || "0") * 10n ** BigInt(d) + BigInt(frac.padEnd(d, "0") || "0") };
+}
+
+async function pfSnapshot(venue, sleeve, force) {
+  const key = `${venue}|${sleeve}`.toLowerCase();
+  const s = pf.snap;
+  if (!force && s && s.key === key && Date.now() - s.at < PF_FRESH_MS) return s;
+  if (!force && pf.pending && pf.pending.key === key) return pf.pending.p;
+  const p = (async () => {
+    const [asset, shares, maxW, dr] = await Promise.all([
+      rd(venue, VENUE, "asset"),
+      rd(venue, VENUE, "balanceOf", [sleeve]),
+      rd(venue, PF_ABI, "maxWithdraw", [sleeve]),
+      dec() !== null ? { ok: true, v: dec() } : rd(CFG.usdc, ERC20, "decimals"),
+    ]);
+    // convertToAssets takes SHARES (18 decimals), so it waits for the share balance.
+    const position = shares.ok
+      ? await rd(venue, VENUE, "convertToAssets", [shares.v])
+      : { ok: false, call: "convertToAssets", err: "the sleeve's share balance was not read" };
+    return { key, at: Date.now(), asset, shares, maxW, position, dr };
+  })();
+  pf.pending = { key, p };
+  try { return await p; } finally { if (pf.pending && pf.pending.p === p) pf.pending = null; }
+}
+
+/** Run the four checks in order. The first one that does not pass ends the program. */
+function pfAnswer(sn, needed, d) {
+  const rows = [];
+  let stop = null;
+  const add = (label, state, html) => {
+    const reached = stop === null;
+    rows.push({ label, state: reached ? state : "skipped", html: reached ? html : `<span class="k">${html}</span>` });
+    if (reached && state !== "pass") stop = { n: rows.length, state };
+  };
+  const pos = sn.position.ok ? sn.position.v : null;
+
+  if (!sn.asset.ok) add("1 · venue asset() == USDC", "unread", unread(sn.asset));
+  else if (!same(sn.asset.v, CFG.usdc)) add("1 · venue asset() == USDC", "fail", addr(sn.asset.v));
+  else add("1 · venue asset() == USDC", "pass", addr(CFG.usdc, "USDC"));
+
+  if (pos === null) add("2 · position = convertToAssets(balanceOf(sleeve))", "unread", unread(sn.shares.ok ? sn.position : sn.shares));
+  else add("2 · position = convertToAssets(balanceOf(sleeve))", "pass", `${money(pos, d)} <span class="k">(${Number(formatUnits(sn.shares.v, 18)).toFixed(4)} shares)</span>`);
+
+  if (!sn.maxW.ok) add("3 · maxWithdraw(sleeve) == 0", "unread", unread(sn.maxW));
+  else if (sn.maxW.v !== 0n) add("3 · maxWithdraw(sleeve) == 0", "fail", esc(sn.maxW.v.toString()));
+  else add("3 · maxWithdraw(sleeve) == 0", "pass", "0");
+
+  if (pos === null) add("4 · position >= needed", "unread", "—");
+  else if (pos >= needed) add("4 · position >= needed", "pass", `${money(pos, d)} ≥ ${money(needed, d)}`);
+  else add("4 · position >= needed", "fail", `${money(pos, d)} &lt; ${money(needed, d)}`);
+
+  let state, badge, v;
+  if (stop === null) {
+    state = "ok"; badge = ["can cover", "ok"];
+    v = verdict("ok", `<b class="good">All four checks passed.</b> The sleeve's position, ${money(pos, d)}, covers ${money(needed, d)}, with ${money(pos - needed, d)} to spare.`
+      + (needed === 0n ? " An amount of zero is covered by any position." : ""));
+  } else if (stop.state === "unread") {
+    state = "warn"; badge = ["no verdict", "warn"];
+    v = verdict("warn", `<b>No verdict.</b> Check ${stop.n} could not be read (shown above). A failed read is neither a refusal nor a pass, so the page says neither.`);
+  } else if (stop.n === 1) {
+    state = "bad"; badge = ["refused", "bad"];
+    v = verdict("bad", `<b>venue asset is not USDC.</b> asset() returned ${addr(sn.asset.v)}, not ${addr(CFG.usdc, "USDC")}. Every number below is denominated in something else.`);
+  } else if (stop.n === 3) {
+    state = "bad"; badge = ["refused", "bad"];
+    v = verdict("bad", `<b>maxWithdraw is non-zero: this is not Vault V2.</b> maxWithdraw(sleeve) returned ${esc(sn.maxW.v.toString())}. Vault V2 returns a constant zero from every max* function, so a non-zero answer means a different vault, and the position above does not describe it.`);
+  } else {
+    state = "bad"; badge = ["refused", "bad"];
+    v = verdict("bad", `<b>the sleeve cannot cover this shortfall.</b> It needs ${money(needed, d)}; the position is worth ${money(pos, d)}, which is ${money(needed - pos, d)} short.`);
+  }
+
+  const pill1 = { pass: pill("pass", "ok"), fail: pill("REFUSED", "bad"), unread: pill("unread", "warn"), skipped: pill("not reached") };
+  const html = rows.map((r) => row(esc(r.label), `${pill1[r.state]} ${r.html}`)).join("") + v
+    + note(`Read ${esc(new Date(sn.at).toISOString().slice(11, 19))}Z: asset(), balanceOf(sleeve) and maxWithdraw(sleeve), then convertToAssets(shares). Moving the amount reuses a read less than ${PF_FRESH_MS / 1000} s old; Re-read forces a new one.`)
+    + note(`This answers what the program answers: the sleeve's position at the venue's share price. It does not read whether the Morpho market behind the venue can pay that out this block (section 3 does), and it is a read, not a simulated transaction.`)
+    + note(`convertToAssets is fed the share balance. Fed 1000000, a USDC amount, it returns 0, not 1 USDC, which would report an empty sleeve.`);
+  return { html, state, badge };
+}
+
+function pfShow(state, badge, html) {
+  $("s6").className = `panel ${state}`;
+  const b = $("pf-badge");
+  b.className = `pill ${badge[1]}`;
+  b.textContent = badge[0];
+  $("pf-out").innerHTML = html;
+}
+
+async function pfRun(force = false) {
+  const my = ++pf.seq;
+  const vIn = $("pf-venue"), sIn = $("pf-sleeve"), aIn = $("pf-amount"), sl = $("pf-slider");
+  const venue = vIn.value.trim() || pf.venue0;
+  const sleeve = sIn.value.trim() || pf.sleeve0;
+  vIn.classList.toggle("bad-in", !ADDR.test(venue));
+  sIn.classList.toggle("bad-in", !ADDR.test(sleeve));
+  if (!ADDR.test(venue) || !ADDR.test(sleeve)) {
+    pfShow("warn", ["no verdict", "warn"], `<div class="err">${!ADDR.test(venue) ? "venue" : "sleeve"} must be a 0x-prefixed 20-byte address. Nothing was read. Leave a field blank to use the value this page loaded with.</div>`);
+    return;
+  }
+  const key = `${venue}|${sleeve}`.toLowerCase();
+  const fresh = !force && pf.snap && pf.snap.key === key && Date.now() - pf.snap.at < PF_FRESH_MS;
+  if (!fresh) pfShow("warn", ["reading", ""], `<div class="spin">reading the venue</div>`);
+  const sn = await pfSnapshot(venue, sleeve, force);
+  if (my !== pf.seq) return; // a newer question superseded this one
+  pf.snap = sn;
+
+  if (!sn.dr.ok) {
+    pfShow("warn", ["no verdict", "warn"], row("USDC decimals", unread(sn.dr)) + note(`Without the token's decimals the page cannot read an amount, so it gives no verdict.`));
+    return;
+  }
+  const d = Number(sn.dr.v);
+  pf.d = d;
+
+  // The slider spans zero to about twice the LIVE position, so its middle is the
+  // position itself and a reader can cross the threshold and watch the verdict flip.
+  const pos = sn.position.ok ? sn.position.v : null;
+  pf.max = pos === null ? 0n : pos > 0n ? pos * 2n : 10n ** BigInt(d);
+  sl.disabled = pf.max === 0n;
+  $("pf-range").textContent = pos === null
+    ? "The slider stays disabled until the position can be read."
+    : pos > 0n
+      ? `The slider spans $0.00 to ${money(pf.max, d)}, twice the live position of ${money(pos, d)}. Its middle is the position.`
+      : `The sleeve holds no position, so the slider spans an arbitrary $0.00 to ${money(pf.max, d)}.`;
+
+  const amt = pfParse(aIn.value, d);
+  aIn.classList.toggle("bad-in", amt.err !== undefined);
+  if (amt.err) { pfShow("warn", ["no verdict", "warn"], `<div class="err">${esc(amt.err)}</div>`); return; }
+  if (pf.max > 0n) {
+    const t = amt.v >= pf.max ? PF_TICKS : (amt.v * PF_TICKS) / pf.max;
+    sl.value = String(t);
+  }
+
+  const a = pfAnswer(sn, amt.v, d);
+  const differs = !same(venue, pf.venue0) || !same(sleeve, pf.sleeve0);
+  pfShow(a.state, a.badge, a.html + (differs
+    ? note(`The sections above were read for venue ${addr(pf.venue0)} and sleeve ${addr(pf.sleeve0)}. This question is about venue ${addr(venue)} and sleeve ${addr(sleeve)}.`, "warn")
+    : ""));
+}
+
+const pfSchedule = () => { clearTimeout(pf.timer); pf.timer = setTimeout(() => pfGo(false), PF_DEBOUNCE_MS); };
+const pfGo = (force) => pfRun(force).catch((e) => {
+  pfShow("warn", ["no verdict", "warn"], `<div class="err">${esc(why(e))}</div>`);
+});
+$("pf-venue").value = CFG.venue;
+$("pf-sleeve").value = CFG.sleeve;
+$("pf-amount").addEventListener("input", () => {
+  // Keep the slider in step while typing. The verdict itself waits for the debounce.
+  if (pf.d !== null && pf.max > 0n) {
+    const a = pfParse($("pf-amount").value, pf.d);
+    if (a.v !== undefined) $("pf-slider").value = String(a.v >= pf.max ? PF_TICKS : (a.v * PF_TICKS) / pf.max);
+  }
+  pfSchedule();
+});
+$("pf-slider").addEventListener("input", () => {
+  if (pf.d === null || pf.max === 0n) return;
+  $("pf-amount").value = pfTrim(formatUnits((pf.max * BigInt($("pf-slider").value)) / PF_TICKS, pf.d));
+  pfSchedule();
+});
+$("pf-venue").addEventListener("input", pfSchedule);
+$("pf-sleeve").addEventListener("input", pfSchedule);
+$("pf-reread").addEventListener("click", () => { clearTimeout(pf.timer); pfGo(true); });
+pfGo(false);
 </script>
 </body>
 </html>

@@ -331,12 +331,53 @@ one does not:
   |---|---|---|---|
   | `index.html` | `655c5335…8d5a64f6` · 15,620 | **identical** | Claude Code |
   | `walk.html` | `7202bc60…862ac17f` · 22,023 | `13623e0c…5fdf0daf` · 22,190 | **Arc Studio** (§3c) |
-  | `venue.html` | `bb09574d…c3430df2` · 45,788 | `874ceca4…b00a3957` · 45,955 | **Arc Studio**, `morpho` skill (§3d) |
+  | `venue.html` | `48d9b548…e69273c3` · 59,600 | **identical** | **Arc Studio**, `morpho` skill (§3d, §3e) |
 
   The whole of the difference is the bare-403 retry: Arc answers a hard burst
   with an unbodied `403`, which neither page's original rate-limit predicate
-  matched. `make studio-pull` reports it as *"2 file(s) skipped to protect local
+  matched. `make studio-pull` reports it as *"1 file(s) skipped to protect local
   edits"*, which is the protection working.
+
+  **`venue.html` agrees again as of 2026-11-06**, because the 403 fix went back
+  out to the workspace with `-f 'float/app/venue.html:venue.html'` before Studio
+  added §3e, so what it edited was the corrected file and what came back
+  contains both. `walk.html` is the one that still diverges, by that one line.
+
+## 3e · Asking the venue a question, with the `morpho` skill
+
+The page read the venue's whole risk surface and could not be **driven**: zero
+event handlers, and its only configuration came from a query string. That is
+inert anywhere, and specifically broken inside Arc Studio, whose preview panel
+has **no address bar** — so a reader there got one fixed view and no way to
+explore.
+
+Studio was given the compiled Eco Sauce program as read-only context and asked
+to put its question in the browser: *could the venue deliver a shortfall right
+now?* It added section 6 — a number input and a slider spanning zero to twice
+the live position, text overrides for venue and sleeve, a re-read button, and
+the program's four checks in the program's order, each with its own verdict.
+
+**It was verified by driving it, not by reading the diff.** Over CDP, against
+the live vault:
+
+| | |
+|---|---|
+| the position it reports | `$6.261325` from `8935293198965717857` shares — **matched `cast` exactly**, both the share count and the converted value |
+| at `$0.50` | *can cover* — all four checks pass |
+| at `$50.00` | *refused*, in the program's own words: **"the sleeve cannot cover this shortfall. It needs $50.00; the position is worth $6.261325, which is $43.738675 short."** |
+| one cent **below** the position | *can cover* |
+| one cent **above** the position | *refused* |
+
+So the threshold is exact to the cent, and the page and
+`float/sauce/preflight.mjs` return the same verdict for the same amount — which
+is the only test that matters, because a page that disagrees with the compiled
+program is simply wrong.
+
+Two things the page says that we did not ask it to, and both are right: it
+distinguishes **a failed read from a refusal** ("a failed read is neither a
+refusal nor a pass"), and it prints the timestamp of the reads it is reusing
+plus the fact that moving the amount reuses a read under 10 seconds old rather
+than silently re-querying Arc on every keystroke.
 
   **That edit shipped broken, and is worth recording because of how it got
   through.** The note explaining the 403 was inserted INSIDE the expression:
