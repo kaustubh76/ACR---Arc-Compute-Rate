@@ -94,6 +94,24 @@ def main() -> int:
     if not rpc:
         bad("ACR_ARC_RPC_URL is unset")
         return 2
+
+    #: A RETIRED HOST FAILS LIKE A NETWORK BLIP, which is why it is named here
+    #: rather than left to the connection error below. Arc moved its endpoints
+    #: from arc.network to arc.io on 2026-10-17. The old host no longer
+    #: NXDOMAINs -- it resolves to a parking address -- so it returns an
+    #: SSLError or a 404, which reads as "try again later" instead of "this
+    #: endpoint is gone". `render.yaml` was switched for the press; a laptop
+    #: `.env` written before that date was not, and this is the first command
+    #: an operator runs on go-live night.
+    if "arc.network" in rpc:
+        bad(f"{rpc} is RETIRED: Arc moved from arc.network to arc.io (2026-10-17)")
+        bad("correct the ACR_ARC_RPC_URL line in .env -- Arc testnet answers at")
+        bad("    https://rpc.testnet.arc.io   (chain 5042002, verified)")
+        bad("DO NOT delete the line instead: the built-in default is")
+        bad("127.0.0.1:8545, which may be another session's anvil, and chain")
+        bad("31337 resolves a DIFFERENT vault from float/deployments -- so a")
+        bad("missing line sends role rotations to the wrong chain and SUCCEEDS.")
+        return 2
     try:
         w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
         chain_id = w3.eth.chain_id
