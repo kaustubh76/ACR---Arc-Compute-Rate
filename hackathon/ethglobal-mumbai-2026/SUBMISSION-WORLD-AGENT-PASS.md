@@ -79,6 +79,19 @@ token returned and verified against a JWKS fetched from the advertised
 make world-probe        # ~10s once a human approves; prints acr, amr, auth_time
 ```
 
+**And the product itself asks World, which is the part a judge can watch rather
+than run.** `/float/approve` fetches the issuer's own discovery document on page
+load and shows what came back: the classes it advertises (`orb`, `orb-face`),
+`claims_parameter_supported`, the device and token endpoints, the round trip in
+milliseconds, and whether the document names itself as the host we asked — the
+redirect hazard our backend refuses on, made visible. It is unauthenticated, so
+anyone can open the same URL and compare. Measured from the terminal:
+**975 ms** to `sandbox.auth.world.org`.
+
+That panel is deliberately bounded, and says so on the page: it proves World
+answers us and what World will accept. It is **not** evidence that a person
+approved anything.
+
 Sandbox rather than production, which is stated plainly in *Status of the live
 run* below along with what we did and did not establish about the production
 portal.
