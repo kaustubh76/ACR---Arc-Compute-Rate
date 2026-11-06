@@ -275,6 +275,15 @@ contract GatedVault4626 {
     bool public withdrawGated;
     bool public mintZeroShares;
     uint256 public depositCap; // 0 = uncapped
+    /// How much LESS than the approval this venue pulls. 0 = takes it all.
+    ///
+    /// The mode nothing could produce before: every deposit double in this
+    /// file, plus `SimUsycTeller`, pulls the full `assets`, which consumes the
+    /// whole allowance on its own. That made the obvious assertion about
+    /// `Erc4626Sleeve`'s `approve(venue, 0)` reset VACUOUS — it held with the
+    /// reset deleted. An under-pulling venue is the one case the reset was
+    /// written for, and `Sleeves.sol:65-68` says so in as many words.
+    uint256 public pullShortfall;
 
     constructor(MockUSDC usdc_) {
         usdcToken = usdc_;
@@ -290,6 +299,10 @@ contract GatedVault4626 {
 
     function setDepositCap(uint256 v) external {
         depositCap = v;
+    }
+
+    function setPullShortfall(uint256 v) external {
+        pullShortfall = v;
     }
 
     function asset() external view returns (address) {
@@ -328,15 +341,21 @@ contract GatedVault4626 {
 
     function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
         require(depositCap == 0 || totalAssets + assets <= depositCap, "venue: deposit cap");
-        require(usdcToken.transferFrom(msg.sender, address(this), assets), "pull failed");
+        // The under-pulling mode: take less than the approval allows, and
+        // credit only what was actually taken. With `pullShortfall` at its
+        // default of zero this is byte-for-byte the old behaviour, so every
+        // existing test reads the same.
+        require(pullShortfall <= assets, "double misconfigured: shortfall > assets");
+        uint256 taken = assets - pullShortfall;
+        require(usdcToken.transferFrom(msg.sender, address(this), taken), "pull failed");
         // The silent-loss mode: the USDC is taken and no claim is issued.
         if (mintZeroShares) {
-            totalAssets += assets;
+            totalAssets += taken;
             return 0;
         }
-        shares = totalShares == 0 ? assets * 1e12 : assets * totalShares / totalAssets;
+        shares = totalShares == 0 ? taken * 1e12 : taken * totalShares / totalAssets;
         totalShares += shares;
-        totalAssets += assets;
+        totalAssets += taken;
         balanceOf[receiver] += shares;
     }
 

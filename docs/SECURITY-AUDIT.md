@@ -137,6 +137,25 @@ None is listed anywhere a user would look.
 In the agent card and its signature; the gate checks it against nothing. Known; the disclosure
 left the README when hackathon material was archived. Re-stated in `docs/SECURITY.md`.
 
+### M5 · `FloatVault.setSleeves` can strand the treasury's own money
+
+`setSleeves` (`FloatVault.sol:356-360`) is four lines with no guard beyond `onlyOwner` — no
+balance check, no drain, no pause requirement. `_underManagement` (`:613-618`) sums only the
+sleeves wired **at that moment**, so re-pointing `working` away from a funded sleeve drops its
+balance out of `totalValueUsdc` and out of the `"treasury cannot cover this"` check at `:821`.
+The money is not lost — it is still in the venue and still withdrawable by the orphaned
+sleeve — but the treasury stops counting it and begins refusing payments it could afford, with
+a message that blames the treasury rather than naming the sleeve holding the funds.
+
+Owner-only and requiring an operator mistake, hence M rather than H. **Not fixed in the
+deployed vault, deliberately:** `0xb030e7e5…` is Blockscout-verified and cited in three
+submission documents, the runbook and three live pages, and it carries the on-chain receipt
+history — so a guard needs a redeploy, and adding one to source *without* redeploying would be
+worse, because the verified source would stop describing the running bytecode. Mitigation is
+operational and now in the runbook: drain a sleeve before re-pointing it. Pinned by
+`test_setSleeves_orphans_a_funded_sleeve_and_the_treasury_stops_counting_it`, which is where a
+future guard will announce itself. A `valueUsdc() == 0` require belongs in the next deploy.
+
 ### L1–L3 · CORS, Next.js, Python dependencies
 
 - CORS defaults to `*` (`acr_core/config.py`); every write route is separately gated.

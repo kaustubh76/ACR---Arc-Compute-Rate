@@ -530,6 +530,23 @@ contract FloatVaultTest is Test {
         assertEq(real.valueUsdc(), 40e6, "value comes from the share balance");
         venue.accrue(4e6); // 10% yield
         assertEq(real.valueUsdc(), 44e6, "and tracks the share price up");
+
+        // NO ALLOWANCE ASSERTION HERE, AND THE REASON IS WORTH THE LINES.
+        //
+        // `assertEq(usdc.allowance(address(real), address(venue)), 0)` looks
+        // like the obvious way to cover the reset at `Sleeves.sol:69`, and it
+        // is VACUOUS against this double. `MockVault4626.deposit` pulls the
+        // full `assets` through `transferFrom`, which consumes the entire
+        // allowance on its own, so the assertion holds whether or not the
+        // sleeve clears anything. Proven rather than assumed: with the
+        // `approve(venue, 0)` line deleted from `Sleeves.sol`, this test still
+        // passed.
+        //
+        // The reset only does work when the venue pulls LESS than it was
+        // approved for — which is exactly the case its own comment cites — so
+        // that is where the assertion belongs. See
+        // `test_an_under_pulling_venue_leaves_no_standing_allowance` in
+        // FloatVenueFailure.t.sol.
     }
 
     function test_the_erc4626_sleeve_refuses_a_venue_holding_the_wrong_asset() public {
@@ -559,6 +576,119 @@ contract FloatVaultTest is Test {
         NullSleeve nul = new NullSleeve();
         vm.expectRevert(bytes("sleeve inactive"));
         nul.depositIdle(1e6);
+    }
+
+    /// `setSleeves` CAN ORPHAN MONEY, and nothing in the contract stops it.
+    ///
+    /// The setter is four lines with no guard beyond `onlyOwner` — no
+    /// `valueUsdc() == 0` check, no drain, no pause requirement
+    /// (`FloatVault.sol:356-360`). `_underManagement()` (`:613-618`) sums only
+    /// the CURRENTLY WIRED sleeves, so re-pointing `working` away from a funded
+    /// one drops that balance out of `totalValueUsdc()` and out of the
+    /// `"treasury cannot cover this"` guard at `:821`. `FloatVenueFailure.t.sol`
+    /// names the hazard in prose and tests nothing, and `totalValueUsdc()` was
+    /// asserted by no test at all.
+    ///
+    /// THIS PINS THE CURRENT BEHAVIOUR; IT IS NOT A FIX. The vault is deployed
+    /// and Blockscout-verified at an address cited in three submission docs, the
+    /// runbook and three live pages, and it carries the on-chain receipt
+    /// history — so a guard means a redeploy that invalidates all of it, and
+    /// adding the guard to source WITHOUT redeploying would be worse still: the
+    /// verified source would stop describing the bytecode that is running. The
+    /// mitigation is operational and is now in the runbook — drain a sleeve
+    /// before re-pointing it. When a future deploy does add the guard, this is
+    /// the test that will go red and say so.
+    function test_setSleeves_orphans_a_funded_sleeve_and_the_treasury_stops_counting_it()
+        public
+    {
+        MockVault4626 venue = new MockVault4626(usdc);
+        Erc4626Sleeve real = new Erc4626Sleeve(address(venue), address(usdc), address(vault));
+        vault.setSleeves(real, ISleeve(address(0)));
+
+        vm.prank(address(vault));
+        usdc.approve(address(real), 95e6);
+        vm.prank(address(vault));
+        real.depositIdle(95e6);
+
+        assertEq(vault.totalValueUsdc(), 100e6, "buffer plus sleeve, all of it reachable");
+
+        // Re-point `working` away from the funded sleeve. Nothing refuses this,
+        // nothing warns, and the only trace is a `SleevesSet` event.
+        vault.setSleeves(ISleeve(address(0)), ISleeve(address(0)));
+
+        assertEq(real.valueUsdc(), 95e6, "the money still exists, untouched");
+        assertEq(vault.totalValueUsdc(), 5e6, "and the treasury has stopped counting it");
+
+        // THE CONSEQUENCE, not just the accounting. A payment that the 95 USDC
+        // in the orphaned sleeve would cover is refused — and refused by a
+        // message that blames the treasury rather than naming the sleeve the
+        // money is stranded in.
+        FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
+        vm.prank(executor);
+        vm.expectRevert(bytes("treasury cannot cover this"));
+        vault.requestSpend(r);
+    }
+
+    /// THE TREASURY'S LAST UNIT IS UNSPENDABLE, and the refusal blames the
+    /// treasury rather than the arithmetic that caused it.
+    ///
+    /// `FloatVault.sol:810-819` describes this precisely and no test entered
+    /// it: *"Parking an amount in a share-priced vault makes its reported value
+    /// read one unit lower (the deposit floors, then the conversion back floors
+    /// again), so buffer-plus-sleeve is slightly less than what was funded and
+    /// the treasury's LAST payment lands here."*
+    ///
+    /// TWO TESTS NEARBY LOOK LIKE THEY COVER IT AND DO NOT.
+    /// `test_an_empty_treasury_says_so_rather_than_blaming_the_sleeve` carries
+    /// that very docstring but sets both sleeves to zero, so there is no share
+    /// pricing and no rounding — it is the plain empty-treasury case.
+    /// `test_jit_through_the_real_sleeve_after_yield_has_accrued` picks 95e6 +
+    /// 5e6 against 95e18 shares, which divides exactly; `SleeveBenchmark.t.sol`
+    /// already records that flaw about it.
+    ///
+    /// THE RATIO HAS TO BE MADE AWKWARD ON PURPOSE, and this is the part that
+    /// makes the test real rather than decorative. A SOLE depositor can never
+    /// lose a unit: its shares are the entire supply, so `convertToAssets`
+    /// returns `totalAssets` exactly and the floor is a no-op. The loss needs
+    /// the sleeve to hold a FRACTION of the supply — hence another depositor
+    /// first, and a single unit of yield accruing before the sleeve parks.
+    function test_the_last_unit_parked_in_a_share_priced_sleeve_cannot_be_spent() public {
+        MockVault4626 venue = new MockVault4626(usdc);
+        Erc4626Sleeve real = new Erc4626Sleeve(address(venue), address(usdc), address(vault));
+        vault.setSleeves(real, ISleeve(address(0)));
+
+        // Somebody else is already in the venue and ONE unit of yield has
+        // accrued, so the share price stops dividing evenly.
+        usdc.mint(address(this), 1e6);
+        usdc.approve(address(venue), 1e6);
+        venue.deposit(1e6, address(this));
+        venue.accrue(1);
+
+        // Leave a 2 USDC buffer and park 10, so the treasury genuinely holds 12.
+        vm.prank(address(vault));
+        usdc.transfer(address(0xDEAD), 88e6);
+        vm.prank(address(vault));
+        usdc.approve(address(real), 10e6);
+        vm.prank(address(vault));
+        real.depositIdle(10e6);
+
+        assertEq(usdc.balanceOf(address(vault)), 2e6, "a 2 USDC buffer");
+        assertEq(real.valueUsdc(), 9_999_999, "and the sleeve reports a unit LESS than was parked");
+        assertEq(vault.totalValueUsdc(), 11_999_999, "so the treasury believes it holds 11.999999");
+
+        // The money is all there — 2 in the buffer, 10 in the venue — and the
+        // last unit of it cannot be spent.
+        FloatVault.SpendReq memory full = _req(SCOUT, 12e6, "n1");
+        vm.prank(executor);
+        vm.expectRevert(bytes("treasury cannot cover this"));
+        vault.requestSpend(full);
+
+        // One unit less clears. That is what makes this a one-unit boundary
+        // rather than some larger hole: the vault is wrong by exactly the
+        // rounding, and no more.
+        (bool ok,) = _spend(_req(SCOUT, 11_999_999, "n2"));
+        assertTrue(ok, "a unit under the reported total pays");
+        assertEq(usdc.balanceOf(seller), 11_999_999, "the seller was paid the reported total");
     }
 
     // --- the submitting keys -------------------------------------------------

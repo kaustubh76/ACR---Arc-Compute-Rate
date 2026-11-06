@@ -60,7 +60,10 @@ cast send 0x3600000000000000000000000000000000000000 'transfer(address,uint256)'
 cast send <EXECUTOR> --value 2ether --rpc-url ... --private-key ...   # EOAs, so --value is fine
 cast send <KEEPER>   --value 2ether --rpc-url ... --private-key ...
 
-# 6. PRINT, then VERIFY. 11/11 before anything is recorded.
+# 6. PRINT, then VERIFY. 15/15 before anything is recorded. (This said 11/11
+#    for as long as the suite had eleven checks; it has fifteen, and the same
+#    file's own timing table at the bottom already said "Fifteen" — a number
+#    nothing gated, so it drifted while the gated one stayed right.)
 cd ../float
 FLOAT_NET=arc-testnet npm run keeper -- --once
 FLOAT_NET=arc-testnet npm run verify
@@ -90,6 +93,18 @@ FLOAT_NET=arc-testnet npm run agents
 A placeholder there permanently kills the human-approval path, and the only
 remedy is a redeploy. It is set last, with the value the World session's
 enrollment prints, after a dry run proves the digest round-trips.
+
+**DRAIN A SLEEVE BEFORE RE-POINTING IT.** `setSleeves` has no guard beyond
+`onlyOwner` — no balance check, no drain, no pause requirement. `totalValueUsdc`
+sums only the sleeves that are wired *right now*, so re-pointing `working` away
+from a funded sleeve strands its balance: the money is still in the venue and
+still withdrawable by that sleeve, but the treasury stops counting it and starts
+refusing payments it could otherwise afford, with `"treasury cannot cover this"`
+— a message that names the treasury rather than the sleeve the money is in. So:
+`withdrawExact` the full `valueUsdc()` back to the vault first, confirm
+`totalValueUsdc` is unchanged, and only then call `setSleeves`. The behaviour is
+pinned by `test_setSleeves_orphans_a_funded_sleeve_and_the_treasury_stops_counting_it`,
+and a guard belongs in the next deploy of the vault.
 
 ## The three roles the chain and the press disagree about
 

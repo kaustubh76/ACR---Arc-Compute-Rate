@@ -293,7 +293,7 @@ Stated plainly, because a vague claim collapses under one question and a narrow
 one does not:
 
 - It did not write `FloatVault.sol`, `FloatPrintStore.sol`, the sleeves, or their
-  90 tests.
+  95 tests.
 - It did not write the keeper, the agents, the MCP server, the policy validator,
   or the acceptance harness.
 - **It did not deploy the contracts, and an earlier draft of this file said it

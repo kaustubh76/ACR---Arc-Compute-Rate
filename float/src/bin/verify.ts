@@ -285,9 +285,31 @@ console.log(`[verify] ${NET} — vault ${d.vault}\n`);
 
 // --- T1 · every print is fresh and sane -------------------------------------
 {
+  // THE AGE BOUND COMES FROM THE CHAIN, not from a constant in this file.
+  //
+  // This compared against a hardcoded 900 while the vault's own gate is
+  // `policy.maxPrintAge` — 1800, and SETTABLE precisely so the operator can
+  // widen it without redeploying (`FloatVault.sol:115-116`). Two independent
+  // numbers means a policy change moves the chain's rule and leaves this check
+  // asserting the old one. `1800` is already hardcoded in nine places across
+  // the repo, so the last thing this file should contribute is a tenth.
+  //
+  // BOTH BARS ARE REPORTED, because they mean different things:
+  //   `maxPrintAge` is what REFUSES a payment on chain (code 8, "stale ACR
+  //   print"), so exceeding it is a FAILURE.
+  //   The 15-minute bar is an operational preference — a demo would rather not
+  //   show a 25-minute-old print even though the chain accepts it — so
+  //   exceeding it is SAID OUT LOUD and does not fail the suite.
+  const pol = (await pub.readContract({
+    address: d.vault, abi: V.abi, functionName: "policy",
+  })) as readonly unknown[];
+  const maxPrintAge = Number(pol[2]); // field order pinned by float/src/policy.test.ts
+  const FRESH_S = 900;
+
   const now = Math.floor(Date.now() / 1000);
   const ages: string[] = [];
   let ok = true;
+  let overFresh = 0;
   for (const m of SEED_MODELS) {
     const p = await latest(m);
     if (p.printId === 0n) { ok = false; ages.push(`${m}: NO PRINT`); continue; }
@@ -296,10 +318,23 @@ console.log(`[verify] ${NET} — vault ${d.vault}\n`);
     // dollar. Outside that the keeper's unit conversion is wrong, which is a
     // bug that would otherwise surface as every quote being refused.
     const sane = p.priceWad > 10_000_000_000n && p.priceWad < 10n ** 18n;
-    if (age > 900 || !sane) ok = false;
-    ages.push(`${m.split("/")[1]} #${p.printId} ${age}s old ci=${p.ciBps}bp`);
+    if (age > maxPrintAge || !sane) ok = false;
+    if (age > FRESH_S) overFresh++;
+    ages.push(
+      `${m.split("/")[1]} #${p.printId} ${age}s old ci=${p.ciBps}bp`
+      + (age > maxPrintAge ? " OVER POLICY" : age > FRESH_S ? " over-15min" : ""),
+    );
   }
-  check("T1", "every print is under 15 minutes old and within sane bounds", ok, ages.join(" | "));
+  check(
+    "T1",
+    `every print is inside the policy's own maxPrintAge and within sane bounds`,
+    ok,
+    ages.join(" | ")
+    + ` — bound ${maxPrintAge}s read from the chain, not from this file`
+    + (overFresh > 0
+      ? `; ${overFresh} over the tighter ${FRESH_S}s operational bar, which the chain still accepts`
+      : `; all inside the tighter ${FRESH_S}s bar too`),
+  );
 }
 
 const gpt = await latest(SEED_MODELS[0]!);

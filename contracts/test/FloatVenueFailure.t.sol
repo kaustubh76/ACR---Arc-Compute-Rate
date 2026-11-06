@@ -7,7 +7,7 @@ import {FloatPrintStore} from "../src/float/FloatPrintStore.sol";
 import {Erc4626Sleeve} from "../src/float/Sleeves.sol";
 import {ISleeve} from "../src/float/IFloat.sol";
 import {MockUSDC} from "./MockUSDC.sol";
-import {RecordingSleeve, RevertingSleeve, GatedVault4626} from "./float/Doubles.sol";
+import {MockVault4626, RecordingSleeve, RevertingSleeve, GatedVault4626} from "./float/Doubles.sol";
 
 /// @notice What happens when the yield venue — which is somebody else's
 ///         contract — misbehaves.
@@ -282,5 +282,113 @@ contract FloatVenueFailureTest is Test {
         sleeve.depositIdle(10e6);
 
         assertEq(sleeve.valueUsdc(), 10e6, "shares were minted and the value reads back");
+    }
+
+    // --- 4 · a venue that pulls less than it was approved for ----------------
+
+    /// THE ONE CASE `Erc4626Sleeve`'s ALLOWANCE RESET WAS WRITTEN FOR.
+    ///
+    /// `depositIdle` approves exactly, deposits, then clears
+    /// (`Sleeves.sol:69`), and its comment gives the reason: *"A venue that
+    /// pulls less than it was approved for leaves a standing allowance against
+    /// this sleeve's balance."* Nothing asserted the reset, and the obvious
+    /// assertion could not have caught a regression: every deposit double in
+    /// the repo — `MockVault4626`, `GatedVault4626`, `SimUsycTeller` and all
+    /// four sleeve doubles — pulled the FULL amount, which consumes the whole
+    /// allowance by arithmetic. Deleting `approve(venue, 0)` from `Sleeves.sol`
+    /// left `FloatVault.t.sol`'s version of this assertion GREEN. Measured, not
+    /// assumed.
+    ///
+    /// `setPullShortfall` is the mode that makes the reset load-bearing, and
+    /// with it this test goes red when the reset is removed.
+    function test_an_under_pulling_venue_leaves_no_standing_allowance() public {
+        GatedVault4626 venue = new GatedVault4626(usdc);
+        Erc4626Sleeve sleeve = new Erc4626Sleeve(address(venue), address(usdc), address(this));
+
+        venue.setPullShortfall(1e6); // takes 1 USDC less than it is handed
+
+        usdc.mint(address(this), 40e6);
+        usdc.approve(address(sleeve), 40e6);
+        sleeve.depositIdle(40e6);
+
+        assertEq(venue.totalAssets(), 39e6, "the venue under-pulled, by design");
+        assertEq(
+            usdc.balanceOf(address(sleeve)),
+            1e6,
+            "so a USDC the venue declined is left sitting in the sleeve"
+        );
+        assertEq(
+            usdc.allowance(address(sleeve), address(venue)),
+            0,
+            "and the leftover APPROVAL over it was cleared - without the reset the venue keeps a live claim"
+        );
+    }
+
+    // --- 5 · a capped venue takes the whole rebalance tick with it -----------
+
+    /// A REBALANCE TICK IS ALL-OR-NOTHING, and that cuts both ways.
+    ///
+    /// `rebalance` deposits into working, then into reserve, with no try/catch
+    /// anywhere in `src/float` (`FloatVault.sol:973-980`). So one venue
+    /// refusing a deposit reverts the entire tick — including the leg that
+    /// already succeeded — and the keeper's tick dies with nothing recorded.
+    ///
+    /// This is the good half and the bad half of the same property. GOOD: no
+    /// partial rebalance can happen, so the treasury never ends up in a state
+    /// nobody designed. BAD: a cap on ONE venue stops the treasury rebalancing
+    /// at all, silently, until someone reads the keeper's logs — and Morpho V2
+    /// vaults do have caps.
+    ///
+    /// The working leg is wired to a healthy venue and the RESERVE is the
+    /// capped one, so the assertion is specifically that a SUCCESSFUL deposit
+    /// is rolled back. `GatedVault4626.setDepositCap` existed and was called by
+    /// no test.
+    function test_a_capped_reserve_venue_rolls_back_the_working_deposit_too() public {
+        MockVault4626 healthy = new MockVault4626(usdc);
+        Erc4626Sleeve working = new Erc4626Sleeve(address(healthy), address(usdc), address(vault));
+
+        GatedVault4626 capped = new GatedVault4626(usdc);
+        Erc4626Sleeve reserve = new Erc4626Sleeve(address(capped), address(usdc), address(vault));
+
+        vault.wire(executor, keeper, approver, registrar, studio, working, reserve);
+        _policy();
+
+        usdc.mint(address(vault), 100e6);
+        // Target 50: excess 50, workingShareBps 3000 -> 15 to working, 35 to
+        // reserve. A 10 USDC cap on the reserve refuses its 35.
+        capped.setDepositCap(10e6);
+
+        vm.prank(keeper);
+        vm.expectRevert(bytes("venue: deposit cap"));
+        vault.rebalance(50e6);
+
+        // Nothing moved anywhere — including the working leg, which had already
+        // taken its 15 USDC before the reserve refused.
+        assertEq(usdc.balanceOf(address(vault)), 100e6, "the buffer is untouched");
+        assertEq(healthy.totalAssets(), 0, "and the deposit that SUCCEEDED was rolled back");
+        assertEq(working.valueUsdc(), 0, "so the working sleeve holds nothing");
+    }
+
+    /// The control: the same wiring with the cap lifted parks both legs. Without
+    /// this, the test above would pass just as well if the split arithmetic were
+    /// wrong and nothing had ever been deposited.
+    function test_the_same_rebalance_parks_both_legs_once_the_cap_is_lifted() public {
+        MockVault4626 healthy = new MockVault4626(usdc);
+        Erc4626Sleeve working = new Erc4626Sleeve(address(healthy), address(usdc), address(vault));
+
+        GatedVault4626 capped = new GatedVault4626(usdc);
+        Erc4626Sleeve reserve = new Erc4626Sleeve(address(capped), address(usdc), address(vault));
+
+        vault.wire(executor, keeper, approver, registrar, studio, working, reserve);
+        _policy();
+
+        usdc.mint(address(vault), 100e6);
+        // No cap set this time.
+        vm.prank(keeper);
+        vault.rebalance(50e6);
+
+        assertEq(usdc.balanceOf(address(vault)), 50e6, "parked down to the target");
+        assertEq(working.valueUsdc(), 15e6, "30% of the excess to working");
+        assertEq(reserve.valueUsdc(), 35e6, "and the rest to the reserve");
     }
 }
