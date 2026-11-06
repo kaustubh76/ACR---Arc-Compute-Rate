@@ -138,7 +138,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/float/view.tsx": 26, // four honest states, the hero, the money path's caption and the three doors
   "components/float/Ladder.tsx": 39, // twelve rung names in both registers, the controls, the presets and the fork
   "components/float/VaultMeter.tsx": 8, // three sleeve labels, the total, and the banner for a sleeve that is not live
-  "components/float/MoneyPath.tsx": 3, // the diagram's nouns are register-neutral by necessity; the caption carries it
+  "components/float/MoneyPath.tsx": 10, // the diagram's nouns are register-neutral by necessity; the caption carries it
   "components/float/Runway.tsx": 15, // the two empty states, the slider, the stale and cheapest chips, the buffer gloss
   "components/float/Yield.tsx": 18, // the floor note, the withheld-gain state, and the reserve that is not live
   "components/float/Walk.tsx": 18, // four step titles in both registers, the four verdicts, and the no-log note

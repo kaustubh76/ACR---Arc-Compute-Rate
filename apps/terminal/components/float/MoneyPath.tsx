@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { Ed } from "@/components/Ed";
 import type { FloatVaultState } from "@/lib/float";
 import { fmtPrice } from "@/lib/format";
@@ -57,12 +59,16 @@ function Diagram({
   vault,
   paying,
   jit,
+  step,
 }: {
   l: Layout;
   cls: string;
   vault: FloatVaultState;
   paying: boolean;
   jit: boolean;
+  /** -1 when idle, otherwise how far the replay has walked. Cumulative: a
+   *  station that has lit stays lit, as `LoopFlow`'s stations do. */
+  step: number;
 }) {
   const buffer = vault.buffer_usdc;
   const working = vault.working;
@@ -75,7 +81,7 @@ function Diagram({
   return (
     <svg
       aria-label="the treasury pays the seller; the agent instructs and holds nothing"
-      className={`money ${cls}${paying ? " paying" : ""}${jit ? " jit" : ""}`}
+      className={`money ${cls}${paying || step === 2 ? " paying" : ""}${jit ? " jit" : ""}`}
       role="img"
       style={{ ["--travel" as string]: `${l.x2 - l.x1}px` }}
       viewBox={`0 0 ${l.w} ${l.h}`}
@@ -84,7 +90,7 @@ function Diagram({
 
       {/* the agent, above, tethered by instruction only */}
       <line className="tether" x1={l.midX} x2={l.midX} y1={agentY + agentH} y2={l.railY} />
-      <rect className="node-box held" height={agentH} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={agentY} />
+      <rect className={`node-box held${step >= 0 ? " on" : ""}`} height={agentH} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={agentY} />
       <text className="node-label" x={l.midX - (l.bw + 34) / 2 + l.pad} y={agentY + l.gap}>
         agent
       </text>
@@ -94,7 +100,7 @@ function Diagram({
 
       {/* the yield venue, below, joining the rail before the seller */}
       <line className="tether jit-leg" x1={l.midX} x2={l.midX} y1={l.railY} y2={sleeveY} />
-      <rect className={`node-box${jit ? " on" : ""}`} height={36} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={sleeveY} />
+      <rect className={`node-box${jit || step >= 1 ? " on" : ""}`} height={36} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={sleeveY} />
       <text className="node-label" x={l.midX - (l.bw + 34) / 2 + l.pad} y={sleeveY + l.gap}>
         earning
       </text>
@@ -112,7 +118,7 @@ function Diagram({
       </text>
 
       {/* the seller */}
-      <rect className="node-box" height={boxH} rx={8} width={l.bw} x={l.x2} y={sideY} />
+      <rect className={`node-box${step >= 2 ? " on" : ""}`} height={boxH} rx={8} width={l.bw} x={l.x2} y={sideY} />
       <text className="node-label" x={l.x2 + l.pad} y={sideY + l.gap + 1}>
         seller
       </text>
@@ -125,15 +131,23 @@ function Diagram({
   );
 }
 
+/** How long each station holds before the next lights. `LoopFlow` uses 650ms
+ *  for six stations; four want a little longer to be followed. */
+const STEP_MS = 900;
+const LAST_STEP = 3;
+
 export function MoneyPath({
   vault,
   paying,
   jitFunded,
+  quoteUsdc,
 }: {
   vault: FloatVaultState;
   paying: boolean;
   /** Whether the newest actual payment pulled from the sleeve. */
   jitFunded?: boolean;
+  /** What that payment cost, so the replay narrates a real number. */
+  quoteUsdc?: number;
 }) {
   /* "Funded just in time" is a property of a payment, not of a treasury. This
      used to light on the only proxy the diagram had — a working sleeve holding
@@ -142,10 +156,99 @@ export function MoneyPath({
      did, and falls back to the proxy only while the tape has not answered. */
   const jit = jitFunded ?? Boolean(vault.working && vault.working.value_usdc > 0);
 
+  /* THE DIAGRAM REPLAYS A PAYMENT THAT HAPPENED, not a cartoon. Every number
+     it narrates comes off the newest real receipt, and the sleeve step is
+     SKIPPED when that payment was not funded that way rather than animated
+     anyway. A diagram that always tells the same story is decoration.
+
+     Cumulative lighting and a `setInterval` cleared on unmount, as
+     `components/loop/LoopFlow.tsx` does. Under reduced motion the dot does not
+     travel, but the walk still advances and ends lit: the information is in
+     the stations, and only the dot was ever motion. */
+  const [step, setStep] = useState(-1);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearInterval(timer.current);
+    },
+    [],
+  );
+
+  const playing = step >= 0 && step < LAST_STEP;
+  function play() {
+    if (playing) return;
+    setStep(0);
+    let i = 0;
+    if (timer.current) clearInterval(timer.current);
+    timer.current = setInterval(() => {
+      i += 1;
+      if (i > LAST_STEP) {
+        if (timer.current) clearInterval(timer.current);
+        return;
+      }
+      setStep(i);
+    }, STEP_MS);
+  }
+
   return (
     <>
-      <Diagram cls="money-wide" jit={jit} l={WIDE} paying={paying} vault={vault} />
-      <Diagram cls="money-narrow" jit={jit} l={NARROW} paying={paying} vault={vault} />
+      <Diagram cls="money-wide" jit={jit} l={WIDE} paying={paying} step={step} vault={vault} />
+      <Diagram cls="money-narrow" jit={jit} l={NARROW} paying={paying} step={step} vault={vault} />
+
+      <div className="flow-controls">
+        <button
+          aria-pressed={playing}
+          className={`chip${playing ? " chip-gold" : ""}`}
+          onClick={play}
+          type="button"
+        >
+          {playing ? <i aria-hidden className="dot breathe" /> : null}
+          <Ed x="Watch a payment" p="Watch a payment" />
+        </button>
+        {step < 0 ? null : (
+          <span className="label muted">
+            <Ed x="replaying the newest one on the tape" p="replaying the latest one below" />
+          </span>
+        )}
+      </div>
+
+      {step < 0 ? null : (
+        <div aria-live="polite" className="flow-log" role="status">
+          {step === 0 ? (
+            <Ed
+              x="the agent asks. Its own wallet holds nothing, now and at the end."
+              p="the robot asks. Its own wallet is empty, now and after."
+            />
+          ) : step === 1 ? (
+            jit ? (
+              <Ed
+                x="the shortfall leaves the yield venue, in this same transaction."
+                p="the missing part comes out of savings, in the same go."
+              />
+            ) : (
+              <Ed
+                x="nothing is pulled: the buffer covered this one on its own."
+                p="nothing is taken from savings: there was enough ready."
+              />
+            )
+          ) : step === 2 ? (
+            <>
+              <Ed x="the treasury pays the seller" p="the treasury pays the shop" />
+              {quoteUsdc === undefined ? null : (
+                <>
+                  {" "}
+                  <span className="num">{fmtPrice(quoteUsdc)}</span> USDC
+                </>
+              )}
+            </>
+          ) : (
+            <Ed
+              x="the receipt is written, and the agent's wallet still holds nothing."
+              p="the receipt is written, and the robot still holds nothing."
+            />
+          )}
+        </div>
+      )}
       <Ed
         as="p"
         className="muted"

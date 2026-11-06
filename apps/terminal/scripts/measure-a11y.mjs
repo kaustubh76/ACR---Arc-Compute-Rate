@@ -81,6 +81,12 @@ const ROUTES = [
   "/attack",
   "/companion",
   "/index/ACR-INF",
+  /* The newest surface, and the one that showed why this list matters: a
+     site-wide target-size failure on every chip that is a button went unseen
+     because the page carrying nineteen of them was not audited. It is also
+     the most keyboard-dense route here, since each paid row on its tape is a
+     tab stop, which is why TABS below had to grow. */
+  "/float",
 ];
 
 const arg = (n, d) => {
@@ -90,6 +96,8 @@ const arg = (n, d) => {
 const BASE = arg("base", "http://127.0.0.1:3000").replace(/\/$/, "");
 const CHAIN = arg("chain", "testnet");
 const STRICT = process.argv.includes("--strict");
+/** How far to Tab per route. See the note at the walk itself. */
+const TAB_STOPS = Number(arg("tabs", "60"));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Runs in the page. Self-contained: it is stringified and evaluated there. */
@@ -460,7 +468,13 @@ async function main() {
          chrome costs a keyboard without one. */
       let firstStop = null;
       let stopsToMain = null;
-      for (let i = 0; i < 20; i++) {
+      /* Twenty was "about a screen of content" when the densest route had a
+         masthead and a handful of controls. /float's tape makes every paid row
+         a tab stop, so twenty now runs out inside the chrome and the page below
+         it audits as clean because it was never reached. Sixty costs a few
+         seconds per route and is the difference between a pass and an unread
+         page. */
+      for (let i = 0; i < TAB_STOPS; i++) {
         for (const type of ["rawKeyDown", "keyUp"]) {
           await cdp.send("Input.dispatchKeyEvent", {
             type,

@@ -520,6 +520,21 @@ h4 {
   padding: var(--s-2) var(--s-3);
   white-space: nowrap;
 }
+/* A chip that is a BUTTON is a target, and this padding leaves it 23px tall.
+   WCAG 2.2 SC 2.5.8 asks 24, so every interactive chip on the site missed it
+   by one pixel: measured `SCOUT` at 54x23 and `WASTER` at 61x23 on /float,
+   and nineteen of them across nine files share the class. It went unseen
+   because `scripts/measure-a11y.mjs` only exits non-zero under `--strict`
+   and did not list /float at all.
+
+   Scoped to `button` on purpose, twice over. A static chip is not a target,
+   so the many spans must not move; and the masthead has no button at all, so
+   its two-rows-not-three budget cannot be touched by this. The stylesheet
+   already carries this exact fix in four other places for the same reason —
+   see `.section-link`. */
+button.chip {
+  min-height: 24px;
+}
 .chip-gold {
   color: var(--gold);
   border-color: rgba(233, 161, 63, 0.45);

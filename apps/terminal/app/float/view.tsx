@@ -169,7 +169,12 @@ export function FloatView() {
                 )}
               </span>
             </div>
-            <MoneyPath jitFunded={newestPaid?.jit_funded} paying={code === 0} vault={data} />
+            <MoneyPath
+              jitFunded={newestPaid?.jit_funded}
+              paying={code === 0}
+              quoteUsdc={newestPaid?.quote_usdc}
+              vault={data}
+            />
           </section>
 
           {/* Runway before the ladder: a reader meets the money, learns what
