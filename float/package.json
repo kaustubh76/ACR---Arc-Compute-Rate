@@ -17,6 +17,7 @@
     "agents": "node --import tsx src/bin/agents.ts",
     "verify": "node --import tsx src/bin/verify.ts",
     "policy": "node --import tsx src/bin/policy.ts",
+    "sweep": "node --import tsx src/bin/sweep.ts",
     "mcp": "node --import tsx src/bin/mcp.ts"
   },
   "dependencies": {

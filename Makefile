@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-keeper float-agents float-policy float-verify float-diagram test-float rehearse-float
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram test-float rehearse-float
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -148,6 +148,32 @@ float-policy: float-abi
 
 float-verify: float-abi
 	cd float && FLOAT_NET=$(FLOAT_NET) npm run verify
+
+# Return the test seller's takings to the treasury. Not a convenience: every
+# payment moves USDC one way, so on a chain where the treasury holds exactly
+# what the faucet gave it, an unswept tape walks the whole balance into the
+# seller in about five payments and then prints hours of "treasury cannot cover
+# this" — which reads as a broken product, not a stopped tape.
+float-sweep: float-abi
+	cd float && FLOAT_NET=$(FLOAT_NET) npm run sweep
+
+# The overnight tape: one scout payment and one waster refusal per tick, with the
+# seller swept back each time, so ten dollars behaves like a loop instead of a
+# budget.
+#
+# The interval is set by the CAP, not by taste. scout's limit is 25 USDC per day
+# and a payment is ~$1.06, so the day holds about 19 of them; a faster tick does
+# not buy more tape, it just reaches the cap sooner and then repeats one refusal
+# until the period rolls. 30 minutes fills a night and stays inside it.
+FLOAT_TAPE_INTERVAL ?= 1800
+float-tape: float-abi
+	@echo "tape: every $(FLOAT_TAPE_INTERVAL)s on $(FLOAT_NET) — Ctrl-C to stop"
+	@cd float && while true; do \
+	  date -u +"--- %Y-%m-%dT%H:%M:%SZ ---"; \
+	  FLOAT_NET=$(FLOAT_NET) npm run --silent sweep || true; \
+	  FLOAT_NET=$(FLOAT_NET) npm run --silent agents -- --once || true; \
+	  sleep $(FLOAT_TAPE_INTERVAL); \
+	done
 
 float-diagram:
 	uv run python scripts/gen_float_diagram.py
