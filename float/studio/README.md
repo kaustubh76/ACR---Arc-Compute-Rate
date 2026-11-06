@@ -185,7 +185,19 @@ one does not:
 - It did not write the keeper, the agents, the MCP server, the policy validator,
   or the acceptance harness.
 - It did not author the dashboard. It **hosts** it — `index.html` was written in
-  Claude Code and Studio serves it byte-for-byte, which `arc-studio cat` confirms.
+  Claude Code and Studio serves it byte-for-byte. That is checkable rather than
+  asserted:
+
+  ```bash
+  shasum -a 256 float/app/index.html
+  arc-studio cat --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557 index.html | shasum -a 256
+  ```
+
+  Both print `315f2f2d6ff62485280c5850cb0ff3ca37b27ea5533f855ff14a438adb220c87`
+  (14,636 bytes, 304 lines). The file was delivered with `arc-studio run -f
+  'float/app/index.html:index.html'`, which places a file in the workspace
+  instead of asking the model to retype it — the only way the claim above can
+  be true. Studio was told not to reformat or "improve" it, and did not.
 - It did not touch the World ID gate, which belongs to a separate workstream and
   was written outside Studio.
 
