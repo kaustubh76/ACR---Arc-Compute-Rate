@@ -175,6 +175,18 @@ Every claim is re-derivable by a command in the repo.
   ignores, it is a requirement it cannot meet. The gate cross-checks its
   configured classes against discovery and stands down rather than sending a
   request that cannot succeed.
+- **A policy change is held to its own assurance list, but our shipped default
+  is not a stronger one.** `requirePolicyCheckpoint` really does gate
+  `setPolicy`, `setAgent` and `allowSeller` over a hash the chain derives
+  itself, and `make rehearse-float` leg 11 shows an unapproved change refused,
+  a face verification accepted and the band moving from 10% to 12% only once a
+  person signed. But the default list is `orb-face, orb`, which accepts a plain
+  orb token: it is a superset of the payment list, so what the default actually
+  gives is a second, independent, *fresh* verification rather than a higher
+  class. Narrowing it to `orb-face` alone makes the separation real, and the
+  rehearsal demonstrates that configuration. We ship the wider default because
+  a treasurer with no face credential would otherwise be locked out of their
+  own policy permanently, which is a worse failure than a weaker gate.
 - **The guest daily cap is fixed at deploy** (`guestDailyCap`, constructor-only).
   Changing it is a redeploy. We state it because "revocable budget" could
   otherwise be read as "adjustable budget".

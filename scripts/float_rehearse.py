@@ -78,6 +78,8 @@ KEYS = {
 }
 INDEX = b"ACR-GPU".ljust(32, b"\x00")
 AGENT_ID = b"scout".ljust(32, b"\x00")
+#: The vault's own kind constants: 1 spend, 2 policy.
+KIND_SPEND, KIND_POLICY = 1, 2
 GUEST_CAP = 2_000_000
 TTL_S = 300
 
@@ -88,6 +90,7 @@ SYNTH_ISS = "https://rehearsal.invalid/oidc"
 SYNTH_SUB = "rehearsal-treasurer-0001"
 SYNTH_AUD = "acr-float-rehearsal"
 ORB = "https://world.org/oidc/acr/orb"
+ORB_FACE = "https://world.org/oidc/acr/orb-face"
 
 fails: list[str] = []
 notes: list[str] = []
@@ -113,6 +116,19 @@ def bad(msg: str) -> None:
 def note(msg: str) -> None:
     print(f"  · {msg}")
     notes.append(msg)
+
+
+def revert_reason(exc: Exception) -> str:
+    """The vault's own sentence, out of web3's tuple-shaped error string.
+
+    Splitting on "revert" is wrong and printed `ed` for a whole run: the
+    message says "execution reverted: bad approval", so the naive split lands
+    inside the word. Matched explicitly instead.
+    """
+    import re
+
+    m = re.search(r"execution reverted:?\s*([^']*)", str(exc))
+    return (m.group(1) if m else str(exc)).strip().strip("',\"") or "no reason given"
 
 
 def usdc(units: int) -> str:
@@ -452,14 +468,19 @@ def leg_approve(rig, parked: dict, key, *, now: float | None = None) -> None:
         bad(f"checkpoint status {final.status} after a successful execute, expected CONSUMED")
 
 
-def validate(rig, key, token: str, *, opened_at: float):
-    """The same nine-rung ladder a live token goes through, local JWKS and all."""
+def validate(rig, key, token: str, *, opened_at: float, accepted=(ORB,)):
+    """The same nine-rung ladder a live token goes through, local JWKS and all.
+
+    `accepted` is a parameter because the policy path is held to a DIFFERENT
+    list from the spend path, and the whole question leg 11 asks is whether
+    that separation is real.
+    """
     from index_api.worldauth import IdTokenValidator
 
     return IdTokenValidator(
         issuer=SYNTH_ISS,
         audience=SYNTH_AUD,
-        accepted_acr=[ORB],
+        accepted_acr=list(accepted),
         jwks=lambda: [jwk_of(key)],
         treasurer=(SYNTH_ISS, SYNTH_SUB),
     ).check(token, opened_at=opened_at)
@@ -613,6 +634,107 @@ def leg_guest(rig) -> None:
             bad(f"the second attempt failed for the wrong reason: {str(exc)[:90]}")
 
 
+def leg_policy_gate(rig, key) -> None:
+    """Changing the RULES, which should not be clearable by whatever cleared a payment.
+
+    The vault supports this directly: `requirePolicyCheckpoint` gates
+    `setPolicy`, `setAgent` and `allowSeller` over a hash it derives ITSELF
+    rather than one the caller supplies -- which is the audit finding F1, and
+    the reason a stolen signature for "scout's cap becomes 77 USDC" cannot be
+    replayed against a different call.
+
+    WHAT THIS LEG DOES NOT CLAIM. Our shipped default for the policy path is
+    `orb-face, orb`, which ACCEPTS a plain orb token: it is a superset of the
+    spend path's list, not a stronger one. That default is deliberate -- a
+    deployment whose treasurer has no face credential would otherwise be unable
+    to change its own rules ever again -- but it means the honest description
+    of the default is "a second, independent, fresh verification", not "a
+    stronger class". So this leg configures the policy validator to orb-face
+    ALONE, which is the configuration that makes the separation real, and shows
+    both halves: the weaker token refused, the stronger one accepted.
+    """
+    step("11 \u00b7 a POLICY change, held to a class a payment is not")
+    c, w3, v = rig["client"], rig["w3"], rig["vault"]
+    owner = rig["acct"]["owner"]
+    zero = b"\x00" * 32
+
+    send(w3, owner, v.functions.setPolicyCheckpointRequired(True, 0, 0, zero, zero))
+    if v.functions.requirePolicyCheckpoint().call():
+        ok("policy checkpoints now required \u00b7 turning this gate back OFF needs a human too")
+    else:
+        bad("setPolicyCheckpointRequired(True) did not take")
+        return
+
+    #: Widen the human-approved band from 10% to 12%. Exactly the kind of
+    #: change a treasurer should not be able to make unattended.
+    wider = (100, 1200, 3600, 1500, 1000, 3000, 48, 25_000_000)
+    policy_hash = bytes(v.functions.policyApprovalHash(wider).call())
+    ok(f"the chain derives the approval hash itself: {policy_hash.hex()[:18]}\u2026")
+
+    #: SIMULATED first, deliberately. `send()` passes an explicit gas limit, so
+    #: there is no pre-flight estimate and an unapproved call mines with status
+    #: 0 -- refused, but with the vault's own sentence nowhere to be found. A
+    #: `.call()` is the only way to read the reason, and a reason is what this
+    #: script exists to print.
+    try:
+        v.functions.setPolicy(wider, b"\x33" * 32, 0, 0, zero, zero).call({"from": owner.address})
+        bad("an unapproved policy change simulated CLEANLY, so the gate is not holding")
+        return
+    except Exception as exc:
+        ok(f"unapproved policy change refused on chain: {revert_reason(exc)}")
+    #: And then actually send it, because a simulation that refuses while the
+    #: real call succeeds is the exact shape of a gate that fails open.
+    try:
+        send(w3, owner, v.functions.setPolicy(wider, b"\x33" * 32, 0, 0, zero, zero))
+        bad("the owner changed policy with NO human approval")
+        return
+    except Exception:
+        ok("and the sent transaction fails too, so the gate is not merely advisory")
+
+    parked = c.open_checkpoint(
+        agent_id=AGENT_ID, req_hash=policy_hash, kind=KIND_POLICY, ttl_s=TTL_S
+    )
+    cp = c.checkpoint_of(parked["id"])
+    if cp.kind == KIND_POLICY:
+        ok(
+            f"checkpoint #{parked['id']} open, kind POLICY not SPEND \u00b7 tx {parked['tx'][:18]}\u2026"
+        )
+    else:
+        bad(f"checkpoint kind {cp.kind}, expected POLICY ({KIND_POLICY})")
+
+    opened = time.time()
+    weak = mint_token(key, synth_claims(acr=ORB, now=opened))
+    verdict = validate(rig, key, weak, opened_at=opened, accepted=(ORB_FACE,))
+    if verdict.refused and verdict.reason == "assurance_not_accepted":
+        ok("the token that cleared the PAYMENT is refused here: assurance_not_accepted")
+    else:
+        bad(f"a plain orb token was accepted for a policy change: {verdict.reason}")
+
+    strong = mint_token(key, synth_claims(acr=ORB_FACE, now=opened))
+    verdict = validate(rig, key, strong, opened_at=opened, accepted=(ORB_FACE,))
+    if verdict.refused:
+        bad(f"the face token was refused for a policy change: {verdict.reason}")
+        return
+    ok(f"a face verification is accepted \u00b7 acr {verdict.claims.acr.rsplit('/', 1)[-1]}")
+
+    sv, sr, ss = c.sign_approval(
+        cp_id=parked["id"], req_hash=policy_hash, expires_at=cp.expires_at, signer=rig["approver"]
+    )
+    before = v.functions.policy().call()[1]
+    send(w3, owner, v.functions.setPolicy(wider, b"\x33" * 32, parked["id"], sv, sr, ss))
+    after = v.functions.policy().call()[1]
+    if after == 1200 and before == 1000:
+        ok(
+            f"human-approved band {before / 100:.0f}% -> {after / 100:.0f}% on chain, once a person said so"
+        )
+    else:
+        bad(f"the band read {before} then {after}, expected 1000 then 1200")
+    if c.checkpoint_of(parked["id"]).status == 1:
+        ok("the policy checkpoint is CONSUMED, so that approval cannot widen the band again")
+    else:
+        bad("the policy checkpoint did not consume")
+
+
 # --- the live issuer --------------------------------------------------------
 
 
@@ -686,6 +808,9 @@ def main() -> int:
         timings.append(("three refusals that are not the human's fault", time.time() - t))
         leg_agent_mismatch(rig)
         leg_guest(rig)
+        t = time.time()
+        leg_policy_gate(rig, key)
+        timings.append(("change the rules, held to a stronger class", time.time() - t))
 
     closing = leg_agent_holds_nothing(rig, "after everything")
     if opening == closing == 0:
