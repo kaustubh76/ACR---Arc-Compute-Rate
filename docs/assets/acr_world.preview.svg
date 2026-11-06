@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1390" viewBox="0 0 2200 1390" font-family="Helvetica,Arial,sans-serif">
+<rect width="2200" height="1390" fill="#ffffff"/>
+<defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#333"/></marker></defs>
+<rect x="40" y="130" width="2120" height="190" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="70" y="176" width="330" height="110" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="430" y="176" width="330" height="110" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="790" y="176" width="330" height="110" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="1150" y="176" width="330" height="110" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="1510" y="176" width="330" height="110" rx="4" fill="transparent" stroke="#0c8599" stroke-width="2"/>
+<rect x="1870" y="176" width="260" height="110" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<rect x="40" y="360" width="1400" height="240" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="70" y="406" width="300" height="110" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="430" y="406" width="330" height="110" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="790" y="406" width="300" height="110" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1130" y="406" width="280" height="110" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="40" y="640" width="1400" height="420" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="70" y="686" width="320" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="420" y="686" width="320" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="770" y="686" width="320" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="1120" y="686" width="290" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="70" y="836" width="320" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="420" y="836" width="320" height="116" rx="4" fill="transparent" stroke="#9c36b5" stroke-width="2"/>
+<rect x="770" y="836" width="640" height="116" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2"/>
+<rect x="1480" y="640" width="680" height="420" rx="4" fill="transparent" stroke="#1971c2" stroke-width="2"/>
+<rect x="40" y="1100" width="2120" height="250" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="70" y="1146" width="420" height="180" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="520" y="1146" width="460" height="180" rx="4" fill="transparent" stroke="#2f9e44" stroke-width="2"/>
+<rect x="1010" y="1146" width="420" height="180" rx="4" fill="transparent" stroke="#f08c00" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1460" y="1146" width="340" height="180" rx="4" fill="transparent" stroke="#e03131" stroke-width="2"/>
+<rect x="1830" y="1146" width="300" height="180" rx="4" fill="transparent" stroke="#495057" stroke-width="2"/>
+<polyline points="400,231.0 415.0,231.0 430,231.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760,231.0 775.0,231.0 790,231.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1120,231.0 1135.0,231.0 1150,231.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1480,231.0 1495.0,231.0 1510,231.0" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="370,461.0 400.0,461.0 430,461.0" fill="none" stroke="#f08c00" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760,461.0 775.0,461.0 790,461.0" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="760,461.0 945.0,461.0 1130,461.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="955.0,286 955.0,346.0 595.0,346.0 595.0,406" fill="none" stroke="#0c8599" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="390,744.0 405.0,744.0 420,744.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="740,744.0 755.0,744.0 770,744.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1090,744.0 1105.0,744.0 1120,744.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1265.0,802 1265.0,820 230.0,820 230.0,836" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="390,894.0 405.0,894.0 420,894.0" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1270.0,516 1270.0,601.0 930.0,601.0 930.0,686" fill="none" stroke="#9c36b5" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="740,894.0 1110.0,894.0 1110.0,850.0 1480,850.0" fill="none" stroke="#1971c2" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1820.0,1060 1820.0,1103.0 280.0,1103.0 280.0,1146" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#a)"/>
+<polyline points="1820.0,1060 1820.0,1103.0 750.0,1103.0 750.0,1146" fill="none" stroke="#2f9e44" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="60" y="63.4" font-size="26" fill="#1e1e1e">ACR Float · World ID Agent Pass, integrated into a product that already ran</text>
+<text x="60" y="92.4" font-size="16" fill="#495057">The existing product supplies the PRICE.  World ID supplies the PERSON.  The vault is where they meet.</text>
+<text x="58" y="155.5" font-size="15" fill="#0c8599">1 · WHAT ALREADY RAN — ACR on Arc, live since 2026-09-27, before this hackathon</text>
+<text x="83" y="199.5" font-size="15" fill="#0c8599">the compute-rate index</text>
+<text x="83" y="222.2" font-size="13" fill="#1e1e1e">ACR-INF · GPU · DATA</text>
+<text x="83" y="235.2" font-size="13" fill="#1e1e1e">a price for renting compute</text>
+<text x="443" y="199.5" font-size="15" fill="#0c8599">ACROracle / V2</text>
+<text x="443" y="222.2" font-size="13" fill="#1e1e1e">Arc chain 5042</text>
+<text x="443" y="235.2" font-size="13" fill="#1e1e1e">+ AttestationRegistry</text>
+<text x="803" y="199.5" font-size="15" fill="#0c8599">the hourly print</text>
+<text x="803" y="222.2" font-size="13" fill="#1e1e1e">posted on chain by the press</text>
+<text x="803" y="235.2" font-size="13" fill="#1e1e1e">every print carries its age</text>
+<text x="1163" y="199.5" font-size="15" fill="#0c8599">the press · acr-api</text>
+<text x="1163" y="222.2" font-size="13" fill="#1e1e1e">x402 seller, Circle Gateway</text>
+<text x="1163" y="235.2" font-size="13" fill="#1e1e1e">settles real USDC</text>
+<text x="1523" y="199.5" font-size="15" fill="#0c8599">the terminal</text>
+<text x="1523" y="222.2" font-size="13" fill="#1e1e1e">arc-compute-rate.vercel.app</text>
+<text x="1523" y="235.2" font-size="13" fill="#1e1e1e">public, reads the chain</text>
+<text x="1883" y="199.5" font-size="15" fill="#495057">none of it new</text>
+<text x="1883" y="222.2" font-size="13" fill="#1e1e1e">7 contracts, first prints</text>
+<text x="1883" y="235.2" font-size="13" fill="#1e1e1e">2026-09-27</text>
+<text x="58" y="385.5" font-size="15" fill="#f08c00">2 · THE TREASURY — every spend priced against that same print</text>
+<text x="83" y="429.5" font-size="15" fill="#f08c00">the agent</text>
+<text x="83" y="452.2" font-size="13" fill="#1e1e1e">its own wallet holds $0</text>
+<text x="83" y="465.2" font-size="13" fill="#1e1e1e">it may only ASK</text>
+<text x="443" y="429.5" font-size="15" fill="#f08c00">the vault classifies</text>
+<text x="443" y="452.2" font-size="13" fill="#1e1e1e">fair band from the LIVE print</text>
+<text x="443" y="465.2" font-size="13" fill="#1e1e1e">↑ this is the integration</text>
+<text x="803" y="429.5" font-size="15" fill="#2f9e44">in band → it pays</text>
+<text x="803" y="452.2" font-size="13" fill="#1e1e1e">no human, no delay</text>
+<text x="803" y="465.2" font-size="13" fill="#1e1e1e">Receipt on chain</text>
+<text x="1143" y="429.5" font-size="15" fill="#9c36b5">out of band → PARKED</text>
+<text x="1143" y="452.2" font-size="13" fill="#1e1e1e">code 10 · quote exceeds</text>
+<text x="1143" y="465.2" font-size="13" fill="#1e1e1e">ACR fair band</text>
+<text x="780" y="348.6" font-size="14" fill="#0c8599">the live print IS the policy input  ─ remove it and there is no ‘fair’ to exceed</text>
+<text x="58" y="665.5" font-size="15" fill="#9c36b5">3 · WORLD ID AGENT PASS — the only thing that may authorise exceeding it  ·  LIVE</text>
+<text x="83" y="709.5" font-size="15" fill="#9c36b5">discovery</text>
+<text x="83" y="732.2" font-size="13" fill="#1e1e1e">issuer checked against config</text>
+<text x="83" y="745.2" font-size="13" fill="#1e1e1e">1.6 s median of 5</text>
+<text x="433" y="709.5" font-size="15" fill="#9c36b5">essential acr claim</text>
+<text x="433" y="732.2" font-size="13" fill="#1e1e1e">a values ARRAY, not value</text>
+<text x="433" y="745.2" font-size="13" fill="#1e1e1e">a bare acr_values asks nothing</text>
+<text x="783" y="709.5" font-size="15" fill="#9c36b5">device authorization</text>
+<text x="783" y="732.2" font-size="13" fill="#1e1e1e">a user code on a phone</text>
+<text x="783" y="745.2" font-size="13" fill="#1e1e1e">no redirect, no browser</text>
+<text x="1133" y="709.5" font-size="15" fill="#9c36b5">the poll table</text>
+<text x="1133" y="732.2" font-size="13" fill="#1e1e1e">slow_down widens EVERY</text>
+<text x="1133" y="745.2" font-size="13" fill="#1e1e1e">later interval · 503 is</text>
+<text x="1133" y="758.2" font-size="13" fill="#1e1e1e">never an approval</text>
+<text x="83" y="859.5" font-size="15" fill="#9c36b5">an RS256 ID token</text>
+<text x="83" y="882.2" font-size="13" fill="#1e1e1e">approved by a person,</text>
+<text x="83" y="895.2" font-size="13" fill="#1e1e1e">twice: 84.0 s and 49.4 s</text>
+<text x="433" y="859.5" font-size="15" fill="#9c36b5">EIP-712 approval</text>
+<text x="433" y="882.2" font-size="13" fill="#1e1e1e">signed by the approver key</text>
+<text x="433" y="895.2" font-size="13" fill="#1e1e1e">single-use, bound to one</text>
+<text x="433" y="908.2" font-size="13" fill="#1e1e1e">checkpoint</text>
+<text x="783" y="859.5" font-size="15" fill="#f08c00">what only the live token revealed</text>
+<text x="783" y="881.3" font-size="12" fill="#1e1e1e">acr said orb while amr said [‘pop’,‘user’,‘mfa’] — a passkey unlock.</text>
+<text x="783" y="893.3" font-size="12" fill="#1e1e1e">acr answers HOW STRONG; amr answers HOW FRESH, and only amr can tell you.</text>
+<text x="783" y="905.3" font-size="12" fill="#1e1e1e">That token may move money and may NOT change the rules.</text>
+<text x="1493" y="663.5" font-size="15" fill="#1971c2">4 · VALIDATED IN THE BACKEND — nine rungs, first failure reported</text>
+<text x="1493" y="686.2" font-size="13" fill="#1e1e1e">1  malformed_token</text>
+<text x="1493" y="699.2" font-size="13" fill="#1e1e1e">2  bad_signature          ← alg pinned to RS256</text>
+<text x="1493" y="712.2" font-size="13" fill="#1e1e1e">3  wrong_issuer</text>
+<text x="1493" y="725.2" font-size="13" fill="#1e1e1e">4  wrong_audience</text>
+<text x="1493" y="738.2" font-size="13" fill="#1e1e1e">5  expired</text>
+<text x="1493" y="751.2" font-size="13" fill="#1e1e1e">6  assurance_not_accepted ← orb / orb-face</text>
+<text x="1493" y="764.2" font-size="13" fill="#1e1e1e">7  amr_not_accepted       ← face required, mfa forbidden</text>
+<text x="1493" y="777.2" font-size="13" fill="#1e1e1e">8  auth_time_outside_window</text>
+<text x="1493" y="790.2" font-size="13" fill="#1e1e1e">9  not_the_enrolled_treasurer</text>
+<text x="1493" y="803.2" font-size="13" fill="#1e1e1e"></text>
+<text x="1493" y="816.2" font-size="13" fill="#1e1e1e">The browser never sees the token. The device code never reaches a log,</text>
+<text x="1493" y="829.2" font-size="13" fill="#1e1e1e">a response or a public view. The client secret authenticates with Basic</text>
+<text x="1493" y="842.2" font-size="13" fill="#1e1e1e">and never enters a body. alg:none and HS256-signed-with-the-RSA-public-</text>
+<text x="1493" y="855.2" font-size="13" fill="#1e1e1e">key are both refused, so an unvalidated response is never authorization.</text>
+<text x="58" y="1125.5" font-size="15" fill="#2f9e44">5 · THE PROTECTED ACTION, AND EVERY WAY IT DOES NOT HAPPEN</text>
+<text x="83" y="1169.5" font-size="15" fill="#2f9e44">released  ·  BUILT, NOT YET RUN LIVE</text>
+<text x="83" y="1191.3" font-size="12" fill="#1e1e1e">executeApproved moves USDC to the seller,</text>
+<text x="83" y="1203.3" font-size="12" fill="#1e1e1e">then the checkpoint is CONSUMED and cannot</text>
+<text x="83" y="1215.3" font-size="12" fill="#1e1e1e">be replayed.</text>
+<text x="83" y="1227.3" font-size="12" fill="#1e1e1e"></text>
+<text x="83" y="1239.3" font-size="12" fill="#1e1e1e">Proven with a synthetic token and against a</text>
+<text x="83" y="1251.3" font-size="12" fill="#1e1e1e">local fake issuer. NEVER under a real token:</text>
+<text x="83" y="1263.3" font-size="12" fill="#1e1e1e">three live windows closed unapproved.</text>
+<text x="533" y="1169.5" font-size="15" fill="#2f9e44">refused  ·  LIVE, and six ways on chain</text>
+<text x="533" y="1191.3" font-size="12" fill="#1e1e1e">A real device authorization, no approval, and the</text>
+<text x="533" y="1203.3" font-size="12" fill="#1e1e1e">chain as the witness: balance unchanged and the</text>
+<text x="533" y="1215.3" font-size="12" fill="#1e1e1e">checkpoint still OPEN — recoverable, not spent.</text>
+<text x="533" y="1227.3" font-size="12" fill="#1e1e1e"></text>
+<text x="533" y="1239.3" font-size="12" fill="#1e1e1e">Denied · expired · replayed · wrong agent ·</text>
+<text x="533" y="1251.3" font-size="12" fill="#1e1e1e">wrong signer · fabricated id  — each asserted</text>
+<text x="533" y="1263.3" font-size="12" fill="#1e1e1e">against the chain, not against a log.</text>
+<text x="1023" y="1169.5" font-size="15" fill="#f08c00">the public vault  ·  AWAITING THREE TXS</text>
+<text x="1023" y="1191.3" font-size="12" fill="#1e1e1e">0xb030e7e5… on Arc chain 5042002.</text>
+<text x="1023" y="1203.3" font-size="12" fill="#1e1e1e"></text>
+<text x="1023" y="1215.3" font-size="12" fill="#1e1e1e">isExecutor(press) is false; humanApprover and</text>
+<text x="1023" y="1227.3" font-size="12" fill="#1e1e1e">guestRegistrar are still the deployer. The gate</text>
+<text x="1023" y="1239.3" font-size="12" fill="#1e1e1e">refuses BY NAME in advance, so this cannot be</text>
+<text x="1023" y="1251.3" font-size="12" fill="#1e1e1e">discovered mid-demo. Three owner calls fix it.</text>
+<text x="1473" y="1169.5" font-size="15" fill="#e03131">treasurerBinding = 0</text>
+<text x="1473" y="1191.3" font-size="12" fill="#1e1e1e">keccak(‘acr.treasurer::’ ‖ iss ‖ 0x1f ‖ sub),</text>
+<text x="1473" y="1203.3" font-size="12" fill="#1e1e1e">ONE-SHOT from zero.</text>
+<text x="1473" y="1215.3" font-size="12" fill="#1e1e1e"></text>
+<text x="1473" y="1227.3" font-size="12" fill="#1e1e1e">Still zero on the public vault, so the chain</text>
+<text x="1473" y="1239.3" font-size="12" fill="#1e1e1e">pins no particular person yet and the</text>
+<text x="1473" y="1251.3" font-size="12" fill="#1e1e1e">server-side ladder is what enforces identity.</text>
+<text x="1473" y="1263.3" font-size="12" fill="#1e1e1e">The value is computed and verified.</text>
+<text x="1843" y="1169.5" font-size="15" fill="#495057">how to read this board</text>
+<text x="1843" y="1191.3" font-size="12" fill="#1e1e1e">SOLID   runs today</text>
+<text x="1843" y="1203.3" font-size="12" fill="#1e1e1e">DASHED  built, not yet run live</text>
+<text x="1843" y="1215.3" font-size="12" fill="#1e1e1e">RED     a gap, stated in words</text>
+<text x="1843" y="1227.3" font-size="12" fill="#1e1e1e"></text>
+<text x="1843" y="1239.3" font-size="12" fill="#1e1e1e">A diagram that flatters the</text>
+<text x="1843" y="1251.3" font-size="12" fill="#1e1e1e">system is the one a reviewer</text>
+<text x="1843" y="1263.3" font-size="12" fill="#1e1e1e">catches first.</text>
+</svg>
