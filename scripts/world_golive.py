@@ -80,20 +80,37 @@ def main() -> int:
     from web3 import Web3
 
     s = get_settings()
+
+    #: THE LOCAL CHECKS FIRST, because they are free and they name the real
+    #: blocker. A fresh clone has no `.env` and no gitignored `data/`, and
+    #: discovering that after a 25-second connection timeout to whatever
+    #: `arc_rpc_url` defaulted to is a worse answer arriving later.
+    if not OWNER_KEY_FILE.exists():
+        bad(f"{OWNER_KEY_FILE.relative_to(ROOT)} is missing; only the owner can do this")
+        bad("this script rotates roles on a deployed vault, so it needs that key")
+        return 2
+
     rpc = getattr(s, "arc_rpc_url", "")
     if not rpc:
         bad("ACR_ARC_RPC_URL is unset")
         return 2
-    w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
-    chain_id = w3.eth.chain_id
-    vault_addr = s.float_vault_address or deployed_vault(chain_id)
-    if not vault_addr:
-        bad(f"no FloatVault for chain {chain_id}")
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
+        chain_id = w3.eth.chain_id
+    except Exception as exc:  # noqa: BLE001
+        #: Found by running this from a clone: unguarded, it ended in a
+        #: `requests.ConnectionError` traceback rather than a sentence. A
+        #: go-live script that crashes before it can say what is missing is
+        #: worse than useless, and the endpoint has to be in the message
+        #: because the default is a localhost port that is somebody else's.
+        bad(f"no chain answered at {rpc}: {type(exc).__name__}")
         return 2
 
-    if not OWNER_KEY_FILE.exists():
-        bad(f"{OWNER_KEY_FILE.relative_to(ROOT)} is missing; only the owner can do this")
+    vault_addr = s.float_vault_address or deployed_vault(chain_id)
+    if not vault_addr:
+        bad(f"no FloatVault for chain {chain_id}: this is not a chain we deployed to")
         return 2
+
     owner = w3.eth.account.from_key(OWNER_KEY_FILE.read_text().strip())
 
     import json as _json
