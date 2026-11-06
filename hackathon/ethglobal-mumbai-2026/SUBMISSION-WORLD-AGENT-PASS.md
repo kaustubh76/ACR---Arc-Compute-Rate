@@ -49,6 +49,118 @@ Three properties are the whole design:
    verification are each written on chain as `CheckpointResolved`. A treasury
    whose refusals are invisible cannot be audited.
 
+## The five qualification requirements, one by one
+
+Every row says **how to reproduce it** and whether the evidence is **LIVE**
+(World's own issuer answered) or **MECHANISM** (our validation, real and
+unmodified, against a token we minted or a local OIDC issuer we stood up). We
+keep those labels separate deliberately: four of the five requirements are
+satisfied partly by mechanism evidence, and saying so is what should make the
+live parts believable.
+
+### 1 · Integrate with the official World ID Agent Pass — **LIVE**
+
+A client registered at `sandbox.auth.world.org/portal`, `client_secret_basic`.
+Discovery validated against the configured issuer, an essential `acr` claim sent
+as a `values` **array**, a device authorization accepted, and a genuine RS256 ID
+token returned and verified against a JWKS fetched from the advertised
+`jwks_uri`.
+
+```
+make world-probe        # ~10s once a human approves; prints acr, amr, auth_time
+```
+
+Sandbox rather than production, which is stated plainly in *Status of the live
+run* below along with what we did and did not establish about the production
+portal.
+
+### 2 · The complete journey — **LIVE** for identity, **see the note** for the action
+
+| step | evidence |
+|---|---|
+| verification request | `make world-probe` opens a device authorization; user code and verification URI printed. **LIVE** |
+| user completion | a person approves in World App. **LIVE**, twice: **84.0 s** and **49.4 s** |
+| validated result | nine rungs pass on the returned token: signature, issuer, audience, expiry, assurance class, `auth_time` freshness, enrolled treasurer. `acr` = orb. **LIVE** |
+| protected action | the vault releases USDC only after that validation. `make rehearse-float` shows it end to end; `REHEARSE_WORLD=live` drives the same release from a token World issued |
+
+```
+make rehearse-float                 # the full journey, synthetic human
+REHEARSE_WORLD=live make rehearse-float   # the same legs, a real token
+```
+
+**The honest boundary.** The protected action runs on a **local chain** in the
+rehearsal, because the rehearsal stands up its own vault and wires its own
+roles. On the public Arc testnet vault
+(`0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc`, chain 5042002) the same action
+awaits three owner transactions that point `isExecutor`, `humanApprover` and
+`guestRegistrar` at the press's keys; until they land the press stands down by
+name rather than pretending. That is operator work, not missing mechanism, and
+`HumanGate.preflight()` refuses in advance precisely so it cannot be discovered
+mid-demo.
+
+### 3 · An unsuccessful path where the protected action does not occur — **MECHANISM, on chain**
+
+Six of them, each asserted against the chain rather than against a log, and the
+test names are the claim:
+
+```
+uv run pytest services/index_api/tests/test_floatgate_onchain.py
+```
+
+- `test_a_denial_is_recorded_on_chain_and_moves_nothing` — the human says no, the
+  denial is recorded on chain, the seller's balance is unchanged.
+- `test_an_expired_checkpoint_moves_nothing` — the window closes unused.
+- `test_a_signature_from_the_wrong_key_moves_nothing` — a valid signature from
+  the wrong signer.
+- `test_a_replayed_approval_is_refused_by_the_chain` — single-use enforced by the
+  vault, not by us.
+- `test_a_fabricated_checkpoint_id_is_refused`.
+- `test_a_real_checkpoint_executed_for_another_agent_is_refused` — the whole
+  transaction rolls back and the checkpoint stays open.
+
+Live too: a `REHEARSE_WORLD=live` run that is **not** approved asserts the same
+thing against the chain — the seller's balance unchanged and the checkpoint still
+`OPEN`, recoverable by a later approval rather than silently spent. A timeout, a
+refusal and a cancellation all arrive at that same assertion.
+
+### 4 · Validated in a secure backend, with no secret or unvalidated response trusted — **MECHANISM**
+
+```
+uv run pytest services/index_api/tests/test_worldauth.py services/index_api/tests/test_worldflow.py services/index_api/tests/test_floatgate.py
+```
+
+**The secret never leaves the server, and never enters a body it was not meant
+for:** `test_the_secret_authenticates_with_basic_and_never_reaches_the_body`.
+It lives only in a gitignored `.env`.
+
+**The device code is a bearer credential and is treated as one:**
+`test_neither_the_device_code_nor_the_id_token_reaches_the_public_view`,
+`test_the_device_code_never_appears_in_the_public_view`,
+`test_a_finished_checkpoint_forgets_its_device_code`,
+`test_the_public_view_carries_only_the_permitted_fields`. The browser is told the
+user code and nothing else; the token is never sent to a client.
+
+**No unvalidated client response is ever authorization.** The validator pins
+`alg` to RS256 and refuses the two attacks that a naive verifier accepts:
+`test_a_signature_from_another_key_is_refused`, and
+`test_a_token_signed_with_the_public_key_as_an_hmac_secret_is_refused` — the
+`alg` confusion where the RSA public key is used as an HMAC secret. `alg:none`
+is refused by the same pin. The chain is the final authority regardless: the
+vault verifies the EIP-712 approval itself and reverts `bad approval` on
+anything else.
+
+### 5 · The integration debrief — **done**
+
+[`docs/WORLD_DEBRIEF.md`](../../docs/WORLD_DEBRIEF.md), with all four asked-for
+parts: **time to first success** (§1, measured — discovery 1.6 s median of five,
+and 84.0 s / 49.4 s end to end), **friction** (§2, including a finding only the
+live token produced: `acr` says how strong, `amr` says how fresh, and only `amr`
+reveals that an orb-assurance token came from a passkey unlock), **missing
+capability and documentation** (§3, led by Selfie Check being withdrawn while the
+reference still documents it), and **the one improvement with the greatest
+impact** (§4: let the relying party put the transaction in front of the human —
+an optional `binding_message`, displayed and hashed into the ID token).
+
 ## Why it is a Continuity project
 
 ACR used World ID before this event, and the line is drawn in

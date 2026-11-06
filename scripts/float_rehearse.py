@@ -970,12 +970,30 @@ def device_flow_token(flow, *, asked, opened_at: float, timeout_s: float = 120.0
     started = flow.start(asked)
     ok(f"device grant · code {started.user_code} · poll every {started.interval}s")
     note(f"open {started.verification_uri}")
-    interval, deadline, polls = started.interval, opened_at + timeout_s, 0
+    interval, deadline, polls, dropped = started.interval, opened_at + timeout_s, 0, 0
     while time.time() < deadline:
-        polled = flow.poll_once(started.device_code)
+        try:
+            polled = flow.poll_once(started.device_code)
+        except Exception as exc:  # noqa: BLE001
+            #: A TRANSPORT FAILURE IS NOT AN ANSWER. Measured the hard way: a
+            #: live run died on `httpx.ConnectError: Connection reset by peer`
+            #: mid-poll and took the whole rehearsal down with a traceback,
+            #: after a human had already been asked to approve. This network
+            #: dropped DNS three times the same afternoon, so it recurs.
+            #:
+            #: It is deliberately NOT treated like the poll table's outcomes: a
+            #: reset is neither an approval nor a refusal, so the only correct
+            #: move is to keep asking until the deadline the caller set. Never
+            #: let it end the attempt, and never let it look like one.
+            dropped += 1
+            note(f"… the network dropped a poll ({type(exc).__name__}); still waiting")
+            time.sleep(interval)
+            continue
         polls += 1
         if polled.kind == "token":
             ok(f"a token came back after {polls} polls, {time.time() - opened_at:.1f}s")
+            if dropped:
+                ok(f"and it survived {dropped} dropped poll(s) on the way")
             return polled.id_token
         if polled.kind == "stop":
             bad(f"the attempt ended: {polled.reason}")
@@ -983,7 +1001,10 @@ def device_flow_token(flow, *, asked, opened_at: float, timeout_s: float = 120.0
         interval = widen(interval, polled)
         note(f"… {polled.reason} (waiting {interval}s)")
         time.sleep(interval)
-    bad("nothing was approved before the deadline")
+    if dropped:
+        bad(f"nothing was approved before the deadline ({dropped} polls never reached World)")
+    else:
+        bad("nothing was approved before the deadline")
     return None
 
 
@@ -1105,13 +1126,34 @@ def leg_device_flow(rig, *, fake: bool) -> None:
         #: be executed. 120s (the default) gave a human less than half the
         #: window the chain allows, against measured live approvals of 84s and
         #: 49s. 270s leaves margin to sign and execute inside the 300.
+        c = rig["client"]
+        #: Captured BEFORE the human is asked, because the unsuccessful path has
+        #: to be provable too: "nothing was approved" is a sentence, and the
+        #: qualification asks for a demonstration that the protected action
+        #: DOES NOT OCCUR. Only the chain can say that.
+        seller_before = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+
         token = device_flow_token(
             flow, asked=(ORB,), opened_at=opened, timeout_s=60.0 if fake else 270.0
         )
         if token is None:
+            #: THE UNSUCCESSFUL PATH, asserted rather than assumed. A timeout, a
+            #: refusal and a cancellation all arrive here, and in every one of
+            #: them the money must not have moved and the checkpoint must still
+            #: be open -- recoverable by a later approval, never silently spent.
+            still = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+            cp_now = c.checkpoint_of(parked["id"])
+            if still == seller_before and cp_now.status == 0:
+                ok(f"no token, so NOTHING MOVED · seller still {usdc(still)}")
+                ok(f"checkpoint #{parked['id']} is still OPEN, not consumed and not spent")
+                ok("the protected action did not occur, and the chain is the witness")
+            else:
+                bad(
+                    f"after a failed approval the seller moved "
+                    f"{usdc(still - seller_before)} and the checkpoint is {cp_now.status}"
+                )
             return
 
-        c = rig["client"]
         verdict = IdTokenValidator(
             issuer=issuer.issuer,
             audience=cid,
@@ -1136,7 +1178,7 @@ def leg_device_flow(rig, *, fake: bool) -> None:
             expires_at=cp.expires_at,
             signer=rig["approver"],
         )
-        before = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+        before = seller_before
         out = c.execute_approved(cp_id=parked["id"], req=parked["req"], v=v, r=r, s=sg)
         after = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
         if after - before == parked["req"].quote_total:
