@@ -171,6 +171,11 @@ VAULT_ABI: list[dict[str, Any]] = [
             {"name": "expiresAt", "type": "uint64"},
             {"name": "kind", "type": "uint8"},
             {"name": "status", "type": "uint8"},
+            #: Added by the vault's own audit fix: the agentId is now STORED,
+            #: not merely announced, and `executeApproved` compares the request
+            #: against it. Decoding four words from a five-word return read the
+            #: right four and silently dropped the one the comparison uses.
+            {"name": "agentId", "type": "bytes32"},
         ],
     },
     {
@@ -311,6 +316,11 @@ class Checkpoint:
     expires_at: int
     kind: int
     status: int
+    #: The agent the CHAIN committed to when the checkpoint opened. Carried so
+    #: the executor can send the request the human actually approved rather
+    #: than one it re-derived; the vault refuses the difference as
+    #: "agent mismatch".
+    agent_id: bytes = b"\x00" * 32
 
     @property
     def exists(self) -> bool:
@@ -411,8 +421,17 @@ class FloatVaultClient:
         }
 
     def checkpoint_of(self, cp_id: int) -> Checkpoint:
-        req_hash, expires_at, kind, status = self.contract.functions.checkpoints(int(cp_id)).call()
-        return Checkpoint(int(cp_id), bytes(req_hash), int(expires_at), int(kind), int(status))
+        req_hash, expires_at, kind, status, agent_id = self.contract.functions.checkpoints(
+            int(cp_id)
+        ).call()
+        return Checkpoint(
+            int(cp_id),
+            bytes(req_hash),
+            int(expires_at),
+            int(kind),
+            int(status),
+            bytes(agent_id),
+        )
 
     def treasurer_binding(self) -> bytes:
         return bytes(self.contract.functions.treasurerBinding().call())
@@ -588,6 +607,12 @@ class FloatVaultClient:
         args = logs[0]["args"]
         return {
             "id": int(args["id"]),
+            #: The chain's own agentId, not the one we passed in. They are the
+            #: same today, and reading it back is what keeps them the same
+            #: tomorrow: `executeApproved` compares the request against the
+            #: STORED value, so a caller that re-derives its own is one
+            #: refactor away from "agent mismatch".
+            "agent_id": bytes(args["agentId"]),
             "req_hash": bytes(args["reqHash"]),
             "expires_at": int(args["expiresAt"]),
             "kind": int(args["kind"]),

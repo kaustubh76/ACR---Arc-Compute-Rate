@@ -393,8 +393,61 @@ def test_a_fabricated_checkpoint_id_is_refused(rig):
         expires_at=int(time.time()) + 300,
         signer=rig["approver"],
     )
-    with pytest.raises(Exception, match="no such checkpoint"):
+    #: It IS refused, but not by the guard that names the real problem.
+    #: `executeApproved` compares `checkpoints[id].agentId` to the request's
+    #: BEFORE `_consumeApproval` reaches `require(c.reqHash != 0)`, and an
+    #: id nobody opened has a zero agentId -- so a bad id reports as an agent
+    #: derivation bug. Nothing moves either way; the cost is a debugger sent
+    #: hunting the wrong thing. Reported to the contract owner: the existence
+    #: check wants to sit above the comparison. Pinned to the real message so
+    #: that reordering shows up here as a failure rather than passing quietly.
+    with pytest.raises(Exception, match="agent mismatch"):
         c.execute_approved(cp_id=99_999, req=req, v=v, r=r, s=s)
+
+
+def test_a_real_checkpoint_executed_for_another_agent_is_refused(rig):
+    """The agentId the chain stored is the one the request must carry.
+
+    The vault used to announce an agentId in `CheckpointOpened` that it never
+    stored, so an executor could park a checkpoint naming one agent whose hash
+    committed to another: the public record said a human approved X while X was
+    never what moved. The vault now stores it and compares. This drives that
+    comparison from the signer's side, which is the half the contract's own
+    tests cannot reach -- a mismatch here means our client re-derived an
+    agentId instead of carrying the chain's.
+    """
+    c = rig["client"]
+    fair = _fair(rig)
+    req = _req(rig, quote=fair * 103 // 100, nonce=b"\x0e" * 32)
+    parked = c.open_checkpoint(
+        agent_id=req.agent_id, req_hash=c.req_hash(req), kind=KIND_SPEND, ttl_s=300
+    )
+    #: The chain hands back what it stored, so the two can be compared rather
+    #: than assumed equal.
+    assert parked["agent_id"] == req.agent_id
+    assert c.checkpoint_of(parked["id"]).agent_id == req.agent_id
+
+    other = SpendReq(
+        agent_id=b"waster".ljust(32, b"\x00"),
+        seller=req.seller,
+        index=req.index,
+        units=req.units,
+        quote_total=req.quote_total,
+        print_id=req.print_id,
+        nonce=b"\x0f" * 32,
+    )
+    v, r, s = c.sign_approval(
+        cp_id=parked["id"],
+        req_hash=c.req_hash(other),
+        expires_at=int(time.time()) + 300,
+        signer=rig["approver"],
+    )
+    with pytest.raises(Exception, match="agent mismatch"):
+        c.execute_approved(cp_id=parked["id"], req=other, v=v, r=r, s=s)
+
+    #: Refused, and the checkpoint is still open for the agent it was parked
+    #: for -- the whole transaction rolled back.
+    assert c.checkpoint_of(parked["id"]).status == OPEN
 
 
 # --- an unsuccessful escalation is evidence --------------------------------
