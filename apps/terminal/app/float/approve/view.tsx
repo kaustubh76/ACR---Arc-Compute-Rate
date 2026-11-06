@@ -12,12 +12,16 @@ import { fetcherFor } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useFloatQueue } from "@/lib/useLive";
 import { gateVerdict, type WorldGateState } from "@/lib/worldGate";
+import { shortAcr, unadvertisedForSpend, type WorldDiscovery } from "@/lib/worldIssuer";
 
 /* A MODULE CONSTANT, never an inline arrow: SWR restarts its timer whenever the
    refreshInterval identity changes, so an arrow rebuilt each render never lets
    a poll fire (lib/pollCadence.test.ts). A minute here matches the route's own
    memo, and these four slots change only when an owner transaction lands. */
 const GATE_POLL_MS = 60_000;
+/* Discovery changes approximately never, and the route memoizes it for ten
+   minutes anyway. A module constant for the same reason as above. */
+const WORLD_POLL_MS = 10 * 60_000;
 
 type GateAnswer = { status: string; reason?: string; gate?: WorldGateState };
 
@@ -28,6 +32,114 @@ type GateAnswer = { status: string; reason?: string; gate?: WorldGateState };
  *  the vault itself, so this panel keeps answering when the press is down -- and
  *  it moves on its own the moment the owner rotates a role or sets the binding,
  *  which makes the page the witness for that rather than a description of it. */
+type DiscoveryAnswer = { status: string; reason?: string; issuer?: string; discovery?: WorldDiscovery };
+
+/** World's own issuer, asked live.
+ *
+ *  THE TERMINAL NEVER CALLED WORLD UNTIL THIS. The IDKit route calls our press
+ *  and the gate panel below reads the chain, so the only World-track surface
+ *  showed Ethereum addresses and a reader had to take the integration on
+ *  trust. This is a real round trip to World, unauthenticated, and a visitor
+ *  can open the same URL and compare what they get.
+ *
+ *  What it proves is bounded and the panel says so: that we talk to World and
+ *  what World advertises. Not that anyone approved anything. */
+function WorldIssuerPanel() {
+  const chain = useChain();
+  const { data } = useSWR<{ live?: boolean; data?: DiscoveryAnswer }>(
+    `/api/world/discovery?chain=${chain}`,
+    fetcherFor(chain),
+    { refreshInterval: WORLD_POLL_MS, keepPreviousData: true },
+  );
+  const answer = data?.data;
+  const d = answer?.discovery;
+  const missing = d ? unadvertisedForSpend(d.advertised) : [];
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2 className="label">
+          <Ed x="World ID, asked just now" p="World ID, asked just now" />
+        </h2>
+        <span className="label">
+          <span className={`chip ${d ? "chip-live" : "chip-sim"}`}>
+            {d ? (
+              <Ed x={`answered in ${d.elapsedMs} ms`} p={`answered in ${d.elapsedMs} ms`} />
+            ) : (
+              <Ed x="asking World" p="asking World" />
+            )}
+          </span>
+        </span>
+      </div>
+
+      {!d ? (
+        <p className="muted">
+          <Ed
+            x={answer?.reason ?? "fetching the issuer's discovery document."}
+            p={answer?.reason ?? "asking World what it supports."}
+          />
+        </p>
+      ) : (
+        <>
+          <Ed
+            as="p"
+            className="muted"
+            x="This is a live, unauthenticated request to World's own issuer, made by our server when you loaded this page. Open the same URL yourself and you should see the same answer."
+            p="We just asked World directly. You can open the same link and check."
+          />
+          <p className="label">
+            <Ed x="issuer" p="who we ask" />
+          </p>
+          <p className="mono">{d.issuer}/.well-known/openid-configuration</p>
+          <p className="label">
+            <Ed x="assurance classes it advertises" p="proof levels it offers" />
+          </p>
+          <p className="mono">{d.advertised.map(shortAcr).join(" · ") || "none"}</p>
+          <p className="label">
+            <Ed x="we require, for a spend" p="we ask for" />
+          </p>
+          <p className="mono">
+            {missing.length === 0 ? (
+              <Ed x="orb, and it is advertised" p="orb, and World offers it" />
+            ) : (
+              <Ed
+                x={`${missing.map(shortAcr).join(", ")}, which this issuer does NOT advertise`}
+                p={`${missing.map(shortAcr).join(", ")}, which World does not offer`}
+              />
+            )}
+          </p>
+          <p className="label">
+            <Ed x="claims parameter supported" p="can we demand a level" />
+          </p>
+          <p className="mono">
+            {d.claimsParameterSupported ? (
+              <Ed x="true, so an essential acr is enforceable" p="yes, so we can insist" />
+            ) : (
+              <Ed x="false, so an acr is only a preference" p="no, we could only ask nicely" />
+            )}
+          </p>
+          <p className="label">
+            <Ed x="the document names itself" p="it says who it is" />
+          </p>
+          <p className="mono">
+            {d.issuerMatches ? (
+              <Ed x="matches, so this was not redirected" p="matches" />
+            ) : (
+              <Ed x="DOES NOT match the host we asked" p="does not match" />
+            )}
+          </p>
+          <Ed
+            as="p"
+            className="muted"
+            x="This shows that World answers us and what it will accept. It is not evidence that any person has approved anything, which is a different claim and has its own place below."
+            p="This shows World answers us. It does not mean anyone has approved a payment."
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
 function WorldGatePanel() {
   const chain = useChain();
   const { data } = useSWR<{ live?: boolean; data?: GateAnswer }>(
@@ -271,6 +383,7 @@ export function FloatApproveView() {
         />
       </div>
 
+      <WorldIssuerPanel />
       <WorldGatePanel />
 
       {!asked ? (
