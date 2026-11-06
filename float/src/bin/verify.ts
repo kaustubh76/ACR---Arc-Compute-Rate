@@ -283,11 +283,35 @@ const scoutBefore = await bal(SCOUT_EOA);
 
 // --- T5 · just in time, proven by log order ---------------------------------
 {
-  // Park the float down to less than one payment, so the next spend must pull.
-  await asKeeper("rebalance", [gpt.fair / 2n]);
+  const quote = (gpt.fair * 10_050n) / 10_000n;
+
+  // Park the float BELOW one payment, so the next spend has to pull.
+  //
+  // Parking to "half the fair price" looked right and was not. `rebalance`
+  // refuses any move smaller than `policy.minTicketUsdc` ($1) — fees must never
+  // eat the yield — so when the buffer sat a little above the target, the park
+  // silently did nothing, the payment came entirely out of the buffer, and this
+  // check reported `jitFunded=false, shortfall $-0.25635`. A NEGATIVE shortfall:
+  // the arithmetic saying the buffer already covered it. It read as the product
+  // failing when the precondition had failed.
+  //
+  // Parking to zero makes the delta the whole buffer, which clears the ticket
+  // whenever the buffer is big enough to matter, and is only attempted when the
+  // buffer would otherwise cover the payment on its own.
+  if ((await bal(d.vault)) >= quote) await asKeeper("rebalance", [0n]);
+
   const bufferBefore = await bal(d.vault);
   const sleeveBefore = await sleeveValue();
-  const quote = (gpt.fair * 10_050n) / 10_000n;
+
+  // And say so if it still did not take, rather than measuring a payment that
+  // never needed the sleeve and blaming the vault for it.
+  if (bufferBefore >= quote) {
+    check("T5", "the exact shortfall leaves the yield sleeve BEFORE the seller is paid, in one transaction",
+      false,
+      `could not set up: the buffer is ${usd(bufferBefore)} against a ${usd(quote)} payment, so nothing ` +
+      `would need pulling. rebalance refuses a move below the minimum ticket, so the float could not be ` +
+      `parked low enough. This is the check's own precondition, not a fault in the vault.`);
+  } else {
   const rc = await spend(req(SCOUT, gpt.index, quote, gpt.printId));
 
   let pulledIdx = -1, payIdx = -1, jit = false, requested = 0n, delivered = 0n;
@@ -317,6 +341,7 @@ const scoutBefore = await bal(SCOUT_EOA);
     `jitFunded=${jit}; sleeve pull at log ${pulledIdx} < payment at log ${payIdx}; ` +
     `requested ${usd(requested)} = shortfall ${usd(shortfall)}, delivered ${usd(delivered)}; ` +
     `sleeve ${usd(sleeveBefore)} -> ${usd(await sleeveValue())}`);
+  }
 }
 
 // --- T6 (after) · the invariant ---------------------------------------------

@@ -157,7 +157,12 @@ if (!CFG.vault || !CFG.store) {
   throw new Error("unconfigured");
 }
 
-const client = createPublicClient({ transport: http(CFG.rpc) });
+// Arc counts REQUESTS and refuses a burst with "Request exceeds defined limit".
+// It accepts JSON-RPC batches (checked: several calls in one POST, all
+// answered), so concurrent reads cost one request instead of N. This page used
+// to report every panel as unreadable on a loaded endpoint, and "could not
+// read" looks exactly like "closed" to anyone skimming it.
+const client = createPublicClient({ transport: http(CFG.rpc, { batch: true }) });
 const read = (address, abi, functionName, args = []) =>
   client.readContract({ address, abi, functionName, args });
 

@@ -124,11 +124,32 @@ const fail = (msg) => {
   $("err").innerHTML = `<div class="err">${esc(msg)}</div>`;
 };
 
-const client = createPublicClient({ transport: http(CFG.rpc) });
+// Arc counts REQUESTS and refuses a burst with "Request exceeds defined limit".
+// It accepts JSON-RPC batches (checked: several calls in one POST, all
+// answered), so concurrent reads cost one request instead of N. This page used
+// to report every panel as unreadable on a loaded endpoint, and "could not
+// read" looks exactly like "closed" to anyone skimming it.
+const client = createPublicClient({ transport: http(CFG.rpc, { batch: true }) });
 
-// One retry: a transient RPC hiccup should not be mistaken for "no payment".
+// Retry a rate limit, and ONLY a rate limit. The previous version retried
+// anything once, which meant a revert cost two calls to learn the same thing
+// twice — and a single immediate retry is no use against a limiter that wants
+// you to wait. A transient must not be mistaken for "no payment", and a real
+// error must not be mistaken for a transient.
+const rateLimited = (e) =>
+  /rate limit|exceeds defined limit|429|too many requests/i.test(
+    `${e?.shortMessage ?? ""} ${e?.details ?? ""} ${e?.message ?? e}`,
+  );
 async function retry(fn) {
-  try { return await fn(); } catch { return await fn(); }
+  let last;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try { return await fn(); } catch (e) {
+      if (!rateLimited(e)) throw e;
+      last = e;
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
+  }
+  throw last;
 }
 
 /** Newest Receipt with jitFunded, paging backwards in windows of CFG.window. */

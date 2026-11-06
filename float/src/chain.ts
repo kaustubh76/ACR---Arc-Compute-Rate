@@ -11,6 +11,7 @@ import {
   http,
   type Hex,
   type PublicClient,
+  type Transport,
   type WalletClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -25,6 +26,15 @@ const REPO = join(HERE, "..", "..");
  * AMOUNT this codebase handles is the 6-decimal one. Mixing them is a 1e12
  * error, which `apps/terminal/lib/walletPayer.ts` also carries a warning about.
  */
+/**
+ * Multicall3, at the address it has on every chain that has one. CHECKED, not
+ * assumed: `eth_getCode` returns code on Arc Testnet, and an `aggregate3` of
+ * the venue's `totalAssets()` returns 104539024487 — the same answer the direct
+ * call gives. A canonical address with nothing behind it would otherwise turn
+ * every batched read into a silent empty result.
+ */
+export const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+
 export const arcTestnet = defineChain({
   id: 5042002,
   name: "Arc Testnet",
@@ -33,6 +43,7 @@ export const arcTestnet = defineChain({
   blockExplorers: {
     default: { name: "Arc Explorer", url: "https://explorer.testnet.arc.io" },
   },
+  contracts: { multicall3: { address: MULTICALL3 } },
 });
 
 /**
@@ -55,6 +66,7 @@ export const arcFork = defineChain({
   name: "Arc Testnet (local fork)",
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: ["http://127.0.0.1:8547"] } },
+  contracts: { multicall3: { address: MULTICALL3 } },
 });
 
 export const anvil = defineChain({
@@ -128,8 +140,85 @@ export function rpcFor(net: Net): string {
   return process.env["FLOAT_RPC"] ?? chainFor(net).rpcUrls.default.http[0]!;
 }
 
+/** Arc answers a rate limit in words, so match on them. */
+const RATE_LIMITED = /rate limit|exceeds defined limit|429|too many requests/i;
+
+const napms = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * ARC FACT 3 — Arc counts REQUESTS, and it will refuse you.
+ *
+ * `Request exceeds defined limit. rate limit exceeded` arrived often enough to
+ * kill three acceptance runs in a row, at 10/13, 2/13 and 0/13. We were asking
+ * for it: every client here was a bare `http(url)`, one HTTP request per read,
+ * against an endpoint shared with a second session on the same address.
+ *
+ * Three things, in the one place every Node-side client is built:
+ *
+ *   - `batch: true` — Arc accepts JSON-RPC batches (checked: three calls in one
+ *     POST, all answered), so concurrent reads cost one request instead of N.
+ *   - `batch: { multicall: true }` on the client, with `multicall3` declared on
+ *     the chain, so concurrent `readContract`s collapse into a single
+ *     `eth_call`.
+ *   - A retry that fires ONLY on a rate limit. A revert is an answer; retrying
+ *     it four times just makes a failure slower, which is the mistake the
+ *     pages' naive `retry()` makes.
+ *
+ * The message test covers both shapes this can arrive in — an HTTP 429 and a
+ * JSON-RPC error inside a 200 — so it works without having to provoke the
+ * limiter to find out which one Arc uses.
+ */
+/**
+ * HTTP POSTs actually sent, which is what Arc counts.
+ *
+ * Counted here rather than at `request`, because batching is the whole point:
+ * one POST can carry twenty calls, so counting calls would report no
+ * improvement from the change that made the difference. `FLOAT_RPC_DEBUG=1`
+ * prints it, so "an order of magnitude fewer requests" is a number somebody
+ * measured and not a claim in a commit message.
+ */
+let httpPosts = 0;
+export const rpcPostCount = () => httpPosts;
+if (process.env["FLOAT_RPC_DEBUG"]) {
+  process.on("exit", () => console.log(`[rpc] ${httpPosts} HTTP POSTs to the node`));
+}
+
+function arcHttp(url: string): Transport {
+  const inner = http(url, {
+    batch: true,
+    retryCount: 2,
+    retryDelay: 300,
+    timeout: 30_000,
+    onFetchRequest: () => { httpPosts++; },
+  });
+  return ((config: never) => {
+    const t = inner(config);
+    const base = t.request;
+    const request = async (...args: Parameters<typeof base>) => {
+      let last: unknown;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          return await base(...args);
+        } catch (e) {
+          const err = e as { shortMessage?: string; details?: string; message?: string };
+          const text = `${err.shortMessage ?? ""} ${err.details ?? ""} ${err.message ?? String(e)}`;
+          if (!RATE_LIMITED.test(text)) throw e;
+          last = e;
+          await napms(500 * 2 ** attempt); // 0.5s, 1, 2, 4, 8
+        }
+      }
+      throw last;
+    };
+    return { ...t, request };
+  }) as Transport;
+}
+
 export function publicFor(net: Net): PublicClient {
-  return createPublicClient({ chain: chainFor(net), transport: http(rpcFor(net)) }) as PublicClient;
+  return createPublicClient({
+    chain: chainFor(net),
+    batch: { multicall: true },
+    transport: arcHttp(rpcFor(net)),
+  }) as PublicClient;
 }
 
 /**
@@ -147,7 +236,7 @@ export function walletFor(net: Net, role: Role): WalletClient {
   return createWalletClient({
     account: privateKeyToAccount(key),
     chain: chainFor(net),
-    transport: http(rpcFor(net)),
+    transport: arcHttp(rpcFor(net)),
   });
 }
 

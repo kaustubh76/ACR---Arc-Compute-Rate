@@ -217,10 +217,20 @@ payment, because `$0.50` was already liquid in the buffer. It pulls the
 **shortfall**, not the payment. The parked buffer plus the sleeve pull equals the
 payment to the cent, and none of those three figures is round.
 
-**What we changed afterwards:** nothing in `walk.html`. The dashboard needed two
-links added to reach it — one above the tape and one per paid row carrying that
-row's `?tx=` — because the Studio preview panel has no address bar, so a page
-nothing links to cannot be opened there at all.
+**What we changed afterwards.** For a long time, nothing. The dashboard needed
+two links added to reach it — one above the tape and one per paid row carrying
+that row's `?tx=` — because the Studio preview panel has no address bar, so a
+page nothing links to cannot be opened there at all.
+
+Later, one thing inside the page: its `retry()` was
+`try { return fn() } catch { return fn() }` — a single immediate retry of
+*anything*. That retries a revert as eagerly as a rate limit, learning the same
+failure twice, and an instant retry is no use against a limiter that wants you
+to wait. It now backs off, and only for a rate limit. Worth recording because
+the page Studio wrote with the `morpho` skill (§3d) had the better instinct
+unprompted — `batch: { wait: 25 }, retryCount: 5, retryDelay: 700` on its
+transport, which we discovered only when a patch to add batching found it
+already there.
 
 ## 3d · The Morpho onchain skill, pointed at the venue we actually use
 
@@ -301,8 +311,8 @@ one does not:
 
   | file | sha256 | bytes | written by |
   |---|---|---|---|
-  | `index.html` | `e33862fa…ce1eb54a` | 15,234 | Claude Code |
-  | `walk.html` | `337906e8…c415add2` | 20,997 | **Arc Studio** (§3c) |
+  | `index.html` | `655c5335…8d5a64f6` | 15,620 | Claude Code |
+  | `walk.html` | `7202bc60…862ac17f` | 22,023 | **Arc Studio** (§3c) |
   | `venue.html` | `bb09574d…c3430df2` | 45,788 | **Arc Studio**, `morpho` skill (§3d) |
 
   Files go out with `arc-studio run -f 'float/app/index.html:index.html'`, which
