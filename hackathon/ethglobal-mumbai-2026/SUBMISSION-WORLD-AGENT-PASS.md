@@ -98,7 +98,7 @@ name rather than pretending. That is operator work, not missing mechanism, and
 `HumanGate.preflight()` refuses in advance precisely so it cannot be discovered
 mid-demo.
 
-### 3 · An unsuccessful path where the protected action does not occur — **MECHANISM, on chain**
+### 3 · An unsuccessful path where the protected action does not occur — **LIVE, and MECHANISM six ways**
 
 Six of them, each asserted against the chain rather than against a log, and the
 test names are the claim:
@@ -118,10 +118,23 @@ uv run pytest services/index_api/tests/test_floatgate_onchain.py
 - `test_a_real_checkpoint_executed_for_another_agent_is_refused` — the whole
   transaction rolls back and the checkpoint stays open.
 
-Live too: a `REHEARSE_WORLD=live` run that is **not** approved asserts the same
-thing against the chain — the seller's balance unchanged and the checkpoint still
-`OPEN`, recoverable by a later approval rather than silently spent. A timeout, a
-refusal and a cancellation all arrive at that same assertion.
+**And LIVE, measured 2026-11-06 against World's own issuer.** A
+`REHEARSE_WORLD=live` run opened a real device authorization
+(`XA4SF-RKRGB`), the human did not approve it inside the window, and the run
+asserted the consequence against the chain rather than reporting a shrug:
+
+```
+✗ nothing was approved before the deadline
+✓ no token, so NOTHING MOVED · seller still 0.000000 USDC
+✓ checkpoint #1 is still OPEN, not consumed and not spent
+✓ the protected action did not occur, and the chain is the witness
+```
+
+That is the cancelled/expired path end to end on a real credential: World issued
+a genuine authorization, no approval came back, and **the money did not move**.
+The checkpoint stays `OPEN` rather than being consumed, so a later approval is
+still possible — an unsuccessful attempt is not a destroyed payment. A timeout,
+a refusal and a cancellation all arrive at that same assertion.
 
 ### 4 · Validated in a secure backend, with no secret or unvalidated response trusted — **MECHANISM**
 

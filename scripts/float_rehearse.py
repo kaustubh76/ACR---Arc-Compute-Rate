@@ -1256,12 +1256,21 @@ def main() -> int:
         #: default rehearsal never grows a port bind on the critical path.
         if WORLD in ("fake", "live"):
             t = time.time()
+            #: THIS leg's outcome, not the run's. `fails` is module-level and
+            #: accumulates, so `not fails` would mislabel this row whenever any
+            #: earlier leg had failed for an unrelated reason.
+            fails_before = len(fails)
             leg_device_flow(rig, fake=WORLD == "fake")
-            label = (
-                "a token fetched over HTTP from a local issuer"
-                if WORLD == "fake"
-                else "a token from World, approved by a person on a phone"
-            )
+            #: The label must not claim an approval that did not happen. A row
+            #: reading "approved by a person on a phone" against an elapsed
+            #: time is a lie whenever the leg timed out, and the timings table
+            #: is quoted in the debrief.
+            if WORLD == "fake":
+                label = "a token fetched over HTTP from a local issuer"
+            elif len(fails) == fails_before:
+                label = "a token from World, approved by a person on a phone"
+            else:
+                label = "asking World for a token (no approval arrived)"
             timings.append((label, time.time() - t))
 
     closing = leg_agent_holds_nothing(rig, "after everything")
