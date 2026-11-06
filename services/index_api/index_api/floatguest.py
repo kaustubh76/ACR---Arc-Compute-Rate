@@ -66,8 +66,14 @@ from index_api.humanid import mask
 
 log = logging.getLogger("index_api.floatguest")
 
-#: The action a guest proof is scoped to. A proof minted for another action
-#: must not authorize anything here, and World scopes uniqueness per action.
+#: The action a guest proof is scoped to -- and scoping is enforced by WORLD,
+#: not here. The action is hashed into the message the browser signs and World
+#: makes a uniqueness proof one-time per action, so a proof minted for another
+#: action authorizes nothing. This constant does NOT check that: it is read
+#: nowhere else in the press, and the earlier wording claimed otherwise.
+#: It is kept because the terminal reads the same variable
+#: (`app/api/float/idkit/context/route.ts`) and the two MUST agree -- if they
+#: diverge, every proof fails to match and the refusal says nothing about why.
 ACTION = os.environ.get("ACR_FLOAT_GUEST_ACTION", "acr-float-guest-budget-v1")
 
 #: Read at import, like `operator.LOG_PATH`, so the root conftest can redirect

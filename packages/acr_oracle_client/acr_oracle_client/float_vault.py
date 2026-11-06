@@ -436,6 +436,17 @@ class FloatVaultClient:
     def treasurer_binding(self) -> bytes:
         return bytes(self.contract.functions.treasurerBinding().call())
 
+    def human_approver(self) -> str:
+        """The one key the vault will accept an approval from.
+
+        Read, never assumed. `wire()` points every role at the deployer, and a
+        press is configured afterwards with its own keys -- so the two drift
+        apart with nothing to announce it. Measured on the public deploy
+        2026-11-06: the chain held the deployer while the press held three
+        separate role keys, and all three disagreed.
+        """
+        return str(self.contract.functions.humanApprover().call())
+
     def agent_of(self, agent_id: bytes) -> dict:
         """One agent's standing. `exists` is the whole answer to "already issued".
 
@@ -500,7 +511,7 @@ class FloatVaultClient:
             return "no contract code at the vault address on this chain"
         if self.contract.functions.paused().call():
             return "the treasury is paused"
-        approver = self.contract.functions.humanApprover().call()
+        approver = self.human_approver()
         if int(approver, 16) == 0:
             return "the vault has no human approver set"
         if self.signer is not None:

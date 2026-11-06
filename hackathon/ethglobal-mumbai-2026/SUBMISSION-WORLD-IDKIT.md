@@ -141,7 +141,8 @@ consumes it, because a nonce that can be retried is not single-use.
 |---|---|
 | 31 tests over the guest server, including the full rejection matrix | `uv run pytest services/index_api/tests/test_floatguest.py` |
 | The nullifier reaches neither a response nor a log | a test asserts it against both |
-| One budget per human, enforced on chain | `make rehearse-float` leg 10 — issues one, then the same human is refused and the budget is not widened |
+| One budget per human, enforced at **all three** layers | `make rehearse-float` leg 10 — issues one, then refuses the same human at our ledger, at the spent nonce, and at the chain, without widening the budget |
+| The SDK→wire rename the widget depends on | `cd apps/terminal && npm test` — `lib/rpContext.test.ts` pins the signer's field names and the route's, so a rename fails here rather than on a phone |
 | The guest cap is 2 USDC and fixed at deploy | `guestDailyCap()` on the vault returns `2000000` |
 | The $10 attacker-cost floor is the repo's own audited number, flagged unsourced | `load_cost_per_human()` returns `(10.0, 'unsourced', True)` |
 | The vault is deployed on a public chain | `eth_getCode` at `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` on `https://rpc.testnet.arc.io` (chain 5042002) |
@@ -149,12 +150,16 @@ consumes it, because a nonce that can be retried is not single-use.
 ## Honest limits
 
 - **The browser widget is the newest part of this**, and the server half is
-  older and better tested than the page in front of it. The repo recorded why
-  for months: *"IDKit v4 needs an `rp_context` and a preset only the Developer
-  Portal can supply, and shipping a widget built against guessed config would be
-  a button that can only fail."* That comment is in
+  still older and better tested than the page in front of it. The repo recorded
+  why for months: *"IDKit v4 needs an `rp_context` and a preset only the
+  Developer Portal can supply, and shipping a widget built against guessed
+  config would be a button that can only fail."* That comment is in
   `apps/terminal/app/api/humanid/tca/route.ts` and this submission is the thing
-  that reverses it.
+  that reverses it. What has since been closed is the part of that gap we could
+  close without the Portal: the camelCase-to-snake_case rename between the
+  signer and the widget is now pinned at both ends, because it was the one
+  defect that would have rendered perfectly and failed only on a real phone.
+  What remains open is everything that needs World to answer.
 - **Selfie Check carries a `sybil_score` and we apply a floor to it, but we did
   not calibrate that floor against measured abuse** — we have no abuse data. It
   is set conservatively and named as a configured number, not a finding.
@@ -169,10 +174,30 @@ consumes it, because a nonce that can be retried is not single-use.
 
 ## Status, stated plainly
 
-The server half — verification, the nonce binding, the ledger, the chain as
-authority, the eight refusals — is complete, tested and exercised end to end by
-`make rehearse-float`. The browser join page is built and the production build
-carries it; what it still needs is configuration, and the widget's own types
+**What runs end to end against a real vault.** `make rehearse-float` leg 10
+drives the guest server itself, not merely the vault call: a nonce bound to one
+wallet and spent once, the real verifier through the real HTTP client, the v4
+nullifier normalised, the floor applied, the ledger written, and the budget
+registered on chain. It then shows each of the three uniqueness layers refuse a
+second budget — our ledger, a spent nonce, and the chain's own `agent exists` —
+and the floor turning away a different human.
+
+**What is stood in for is one thing: World's answer.** The rehearsal posts to a
+local stand-in rather than `developer.world.org`, because the proof and the
+nullifier are World's to produce and we hold no credential. That makes the
+ceiling here narrower than the Agent Pass leg's, and the difference is worth
+stating precisely. There, what was synthetic was the *issuer* and the validation
+was ours and genuinely run. Here the **signature check is World's too**, so what
+is demonstrated is that our half is correct and valid-shaped — not that World
+accepts it. Nothing below should be read as evidence that it does.
+
+**Where the eight refusals are exercised.** Three of them in the rehearsal
+above, on chain. All eight, together with the verifier's own failure modes — the
+`app_not_migrated` fallback to v2, a missing nullifier, an unreadable answer —
+in `services/index_api/tests/test_floatguest.py`, with the HTTP layer faked at
+the transport rather than the function, so the client code itself still runs.
+
+The browser join page is built and the production build carries it; what it still needs is configuration, and the widget's own types
 say that is **three** values from the Developer Portal rather than two:
 `app_id` (typed `app_${string}`), `rp_id` (inside the signed `rp_context`), and
 the signing key. Supplying it is an operator action.

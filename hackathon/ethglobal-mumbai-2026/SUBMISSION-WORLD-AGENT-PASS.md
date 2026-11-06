@@ -137,11 +137,11 @@ Every claim is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 187 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
+| 189 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
 | Nine named refusals, and the prose cannot drift from them | `test_every_named_reason_is_reachable` |
 | `alg: none` and HS256-with-the-public-key are both refused | `test_an_unsigned_token_is_refused`, `test_a_token_signed_with_the_public_key_as_an_hmac_secret_is_refused` |
 | The signer refuses to broadcast a digest the vault disagrees with | `sign_approval` cross-checks `approvalDigest` and recovers the signature to our own key before sending |
-| Replay, re-aim, expiry and a fabricated id are refused **on chain** | `uv run pytest services/index_api/tests/test_floatgate_onchain.py` (21 tests, against a real vault on a local chain) |
+| Replay, re-aim, expiry and a fabricated id are refused **on chain** | `uv run pytest services/index_api/tests/test_floatgate_onchain.py` (23 tests, against a real vault on a local chain) |
 | A checkpoint opened for one agent cannot pay another | `test_a_real_checkpoint_executed_for_another_agent_is_refused` |
 | The whole journey, with its three unsuccessful paths | `make rehearse-float` |
 | The vault is deployed on a public chain | `eth_getCode` at `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` on `https://rpc.testnet.arc.io` returns 19,486 bytes (chain 5042002) |
@@ -233,10 +233,12 @@ than a production one we cannot. Concretely:
   through the same nine-rung ladder a live token goes through. **What is
   synthetic is the issuer, not the validation.**
 - What a live client adds is the device flow's own leg — a user code on a phone,
-  a real `sub`, a real `auth_time` — and the three timing rows still marked
-  *pending the live run* in the debrief. `make world-probe` produces them in
-  about twenty seconds once the client exists, and it was written before the
-  credentials did so the figure would be a measurement rather than a memory.
+  a real `sub`, a real `auth_time` — and the **two** device-flow timing rows
+  still marked *pending the live run* in the debrief. `make world-probe`
+  produces them in about twenty seconds once the client exists, and it was
+  written before the credentials did so the figure would be a measurement rather
+  than a memory. The debrief's third row is a **Selfie Check** measurement and
+  belongs to the IDKit entry, not to this one: no command here produces it.
 - The path up to "needs a real client" **was** verified against the live API
   without one: discovery answers on both issuers, `claims_parameter_supported`
   is true on both, and the device authorization endpoint correctly refuses an

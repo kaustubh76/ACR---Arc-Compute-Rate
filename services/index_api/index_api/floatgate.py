@@ -189,6 +189,22 @@ class HumanGate:
         status = self.vault.vault_status()
         if status != "ok":
             return status
+        ours = getattr(self.approver, "address", None)
+        if ours is not None:
+            theirs = self.vault.human_approver()
+            if ours.lower() != theirs.lower():
+                #: `vault_status` already refuses an approver of ZERO, and an
+                #: executor that is not authorized. It cannot check this one,
+                #: because it does not hold the approver key -- this gate does.
+                #: Unchecked, the first sign is `executeApproved` reverting
+                #: "bad approval" AFTER a human has answered on their phone,
+                #: which reads as the chain rejecting a verified person.
+                #: `setApprover` is onlyOwner and NOT one-shot, so the fix is
+                #: one transaction from the owner key.
+                return (
+                    "our approver key is not the one the vault accepts "
+                    f"(vault {theirs[:10]}…, ours {ours[:10]}…)"
+                )
         if self.treasurer is None:
             #: Correct exactly once -- during enrollment, which exists to learn
             #: the pair. After that, an unenrolled gate would let any verified

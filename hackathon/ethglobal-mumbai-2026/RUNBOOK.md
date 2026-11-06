@@ -91,6 +91,138 @@ A placeholder there permanently kills the human-approval path, and the only
 remedy is a redeploy. It is set last, with the value the World session's
 enrollment prints, after a dry run proves the digest round-trips.
 
+## The three roles the chain and the press disagree about
+
+**Measured on the live vault `0xb030e7e5…` on 2026-11-06. Do this before any
+hosted World run, or the demo fails at its last step.**
+
+The deploy wired the roles to the addresses in step 2 above. The press was
+configured later, from `.env`, with three keys of its own. Nobody reconciled
+them, and nothing announced it:
+
+| role | the chain holds | the press signs with |
+|---|---|---|
+| executor | `0x7FAAC6F8…83A0` (`isExecutor` true) | `0x89400a94…A4b0` (`isExecutor` **false**) |
+| `humanApprover` | `0x64E21e01…8d16` (the deployer) | `0x674f6f13…E7AF` |
+| `guestRegistrar` | `0x64E21e01…8d16` (the deployer) | `0xde52035E…6C10` |
+
+`treasurerBinding` is still zero and `paused()` is false.
+
+**Two of the three already fail loudly.** `vault_status()` refuses with "our
+signer is not an authorized executor", and `guest_preflight()` with "our signer
+is not the vault's guest registrar". The approver did not, which is why
+`HumanGate.preflight()` now checks it too: left unchecked, the approver is the
+one that fails **last** — a payment parked, a human sent to their phone, nine
+validation rungs cleared, a signature made, and then `executeApproved` reverting
+`bad approval`. On camera that reads as the chain rejecting a verified person.
+
+**The fix, from the owner key `0x64E21e01…8d16`.** All three setters are
+`onlyOwner` and none is one-shot, so this is a rotation rather than a redeploy.
+The guards pass in either order, because the press's executor and approver are
+different addresses from each other.
+
+```bash
+V=0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc
+R=https://rpc.testnet.arc.io
+# --- point the chain at the keys the press actually holds -----------------
+cast send $V "setExecutor(address,bool)" 0x89400a9462f0d7A19a22d183767fe6F2B1ABA4b0 true \
+  --rpc-url $R --private-key $OWNER_KEY
+cast send $V "setApprover(address)"      0x674f6f1347b0A73014B85f6CCe17a7ECCACAE7AF \
+  --rpc-url $R --private-key $OWNER_KEY
+cast send $V "setGuestRegistrar(address)" 0xde52035E5857ae08d308A4b33d01e63173eF6C10 \
+  --rpc-url $R --private-key $OWNER_KEY
+
+# --- read them BACK. A send that mined is not a role that changed. --------
+cast call $V "isExecutor(address)(bool)" 0x89400a9462f0d7A19a22d183767fe6F2B1ABA4b0 --rpc-url $R
+cast call $V "humanApprover()(address)"  --rpc-url $R
+cast call $V "guestRegistrar()(address)" --rpc-url $R
+```
+
+`humanApprover()` is the getter; there is no `approver()` and asking for one
+reverts, which looks like a broken vault rather than a wrong method name.
+
+**The alternative, if the deploy-time keys are to hand**, is the reverse: put
+`0x7FAA…`, `0x64E2…` and `0x64E2…` into the press's `.env` instead. Cheaper (no
+transactions) but it makes the approver the owner key, and the vault refuses an
+approver that is also an executor — so the executor must stay distinct.
+
+## Checking the IDKit credentials the moment they arrive
+
+There is no separate probe for this and none is needed: the context route
+already answers with a named reason for every configuration fault, so asking it
+once *is* the check. From `apps/terminal`, with the three values in
+`.env.local`:
+
+```bash
+npm run build && npm start &
+curl -s -XPOST localhost:3000/api/float/idkit/context \
+  -H 'content-type: application/json' \
+  -d '{"agent":"0x89400a9462f0d7A19a22d183767fe6F2B1ABA4b0"}' | python3 -m json.tool
+```
+
+`status: "ok"` with an `rp_context` means the key signs and the press bound the
+nonce. Anything else names which of the three values is wrong, and the join page
+shows the same sentence. Do this **before** pointing a camera at the page: every
+fault here is silent in the browser until the sheet fails on a phone.
+
+What it still cannot tell you is whether World accepts the signature, because
+that needs a real proof from World App against an `rp_id` registered to our key.
+That hop has no local witness, and the submission says so rather than implying
+a green light here covers it.
+
+**`treasurerBinding` stays last.** It is one-shot from zero, it hashes the
+issuer string, and a wrong value is worse than none: the approval would still be
+valid and would bind to the wrong person. Set it only from what `make
+world-enroll` prints, and only once the issuer is final.
+
+## Putting the float routes on the hosted press
+
+**The press currently serves none of them.** Probed 2026-11-06:
+`acr-api-1fto.onrender.com/openapi.json` lists **53 routes and no `/float/*`**,
+because `render.yaml` pins `acr-api:2026-10-16-0632` and that image predates the
+float work by about twenty days. `/float/checkpoints`,
+`/float/checkpoint/{id}`, `/float/guest/bind` and `/float/guest/claim` are all on
+`origin/main`; none of them is running anywhere.
+
+Everything needed is already in `deploy/redeploy-render.sh`. In order:
+
+```bash
+# 0. THE RIGHT KEY. Three Render accounts, and no key sees them all. The one
+#    named RENDER_API_KEY owns only acr-probe-free; testnet acr-api lives in
+#    the other workspace and a wrong key fails late, as "not found: service"
+#    AFTER the image is built and pushed.
+export RENDER_API_KEY="$RENDER_API_KEY_PYPI_WORKSPACE"
+
+# 1. The free tier has NO DISK and the seller rehydrates from a file inside
+#    the image, so a redeploy can silently erase production's own records.
+#    The script's preflights refuse for you; if they say production is ahead:
+make archive-decisions   # then COMMIT the archive before going on
+
+# 2. Build, push, pin, redeploy, verify. --platform linux/amd64 is mandatory
+#    from this Mac: an arm64 push produces an image Render accepts and then
+#    cannot start, and there is no second route to this host.
+./deploy/redeploy-render.sh
+
+# 3. THE WITNESS IS THE ROUTE LIST, never the latency. A pinned tag that
+#    shipped nothing answers /health perfectly.
+curl -s https://acr-api-1fto.onrender.com/openapi.json \
+  | python3 -c "import json,sys; p=json.load(sys.stdin)['paths']; f=sorted(x for x in p if 'float' in x); print(len(p),'routes;',f)"
+# expect 57 and all four /float paths. 53 and none means the tag did not move.
+```
+
+Then the env. `render.yaml` carries the float and World block, with nine values
+committed and nine marked `sync: false` for the dashboard. **It is unproven that
+blueprint edits auto-sync to this service** — the dashboard has been the truth
+for the image line before — so treat `render.yaml` as the authoritative
+checklist and confirm each key in the dashboard. And note that **editing an env
+var there does not restart the service**: finish with
+`SKIP_BUILD=1 ./deploy/redeploy-render.sh`.
+
+**What a redeploy does not buy.** The guest join still stands down without the
+IDKit signing key, and the approval card still stands down without the sandbox
+client. A redeploy turns a 404 into a page that says what it is waiting for,
+which is worth having and is not the same as a working flow.
+
 ## The cut
 
 | t | you do | you say |
@@ -102,7 +234,7 @@ enrollment prints, after a dry run proves the digest round-trips.
 | 1:25 | point at the agent EOA on the explorer: 0 USDC | "The agent's own wallet. Zero before, zero after, permanently. It never held a key that could move money — it asked, and the vault decided." |
 | 1:45 | the refused row; open its `Denied` event | "Now the same request at three times the rate. Refused, on chain, in English, with the fair counter-price attached. The benchmark is the bouncer." |
 | 2:10 | edit `policy.config.json` to freeze waster → `npm run policy` → next agent tick | "The treasurer writes a sentence, not Solidity. One transaction, and the refusal *reason* changes: it was 'quote exceeds ACR fair band', now it's 'agent frozen by policy'. The policy didn't just land — it's what answered." |
-| 2:40 | `npm run verify` — leave the tape running, it is fine | "Thirteen checks, re-derivable from one command, printing what they observed rather than a tick. Including the one that matters: the sleeve was pulled *before* the seller was paid, proven by log order inside a single transaction — Arc's RPC has no tracing, so this proof works for anyone with an ordinary node." |
+| 2:40 | `npm run verify` — leave the tape running, it is fine | "Fourteen checks, re-derivable from one command, printing what they observed rather than a tick. Including the one that matters: the sleeve was pulled *before* the seller was paid, proven by log order inside a single transaction — Arc's RPC has no tracing, so this proof works for anyone with an ordinary node." |
 | 2:55 | the continuity table | "ETHOnline we built the price of compute. This weekend the price runs the money." |
 
 ### Arc Studio has to be visible, and the honest way to show it is its own work

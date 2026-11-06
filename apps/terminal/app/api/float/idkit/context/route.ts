@@ -22,7 +22,8 @@ import { isAgentAddress } from "@/lib/float";
    expiresAt}`; the widget's `rp_context` wants `{signature, created_at,
    expires_at}`. A widget handed the signer's own shape renders perfectly and
    then fails at World, which is the worst way for this to break because it
-   looks like it works. `rpContextTest` pins the mapping.
+   looks like it works. `lib/rpContext.test.ts` pins the mapping, and it pins
+   the SDK's side too, so an upstream rename fails here rather than on a phone.
 
    WHY IT BINDS BEFORE IT ANSWERS. Selfie Check carries no signal of its own,
    so the signed nonce is the only thing tying a human's proof to a particular
@@ -116,13 +117,20 @@ export async function POST(req: Request) {
 
   let signed: { sig: string; nonce: string; createdAt: number; expiresAt: number };
   try {
-    const { signRequest } = await import("@worldcoin/idkit-core/signing");
+    const { signRequest } = await import("@worldcoin/idkit/signing");
     /* `action` is REQUIRED for a uniqueness proof, not optional: it is hashed
        to a field element and appended to the signed message, and World scopes
        uniqueness per action. Omitting it signs a session request instead. */
     signed = signRequest({ signingKeyHex: key, action, ttl: TTL_S });
   } catch {
     //: No detail, and no exception text: a signing failure is about the key.
+    //: That attribution is only HONEST because the specifier above resolves
+    //: through the declared dependency. It used to read
+    //: `@worldcoin/idkit-core/signing`, which this package.json never declares
+    //: and which resolved by hoisting alone -- so under an isolated
+    //: node_modules the import threw in here and the page blamed a missing
+    //: key, which is the one thing we were actually waiting for.
+    //: `@worldcoin/idkit` ships "./signing" in its own exports map.
     return stoodDown("this host could not sign a join request", chain);
   }
 

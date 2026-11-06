@@ -245,8 +245,8 @@ export function FloatJoinView() {
         <Ed
           as="p"
           className="standfirst"
-          x="An agent here holds no money of its own. Prove once that you are a person and a wallet you name is given a small daily allowance, revocable, enforced against the chain rather than against a list we keep."
-          p="Prove once that you are a real person, and a wallet you choose gets a small daily allowance."
+          x="An agent here holds no money of its own. Prove once that you are a person and a small daily allowance opens in your name, revocable, enforced against the chain rather than against a list we keep. The wallet you give is where it spends from."
+          p="Prove once that you are a real person, and a small daily allowance opens in your name. The wallet you give is where it spends from."
         />
       </div>
 
@@ -316,6 +316,15 @@ export function FloatJoinView() {
             className="muted"
             x="This deployment has no verification app configured, so it cannot mint a request a phone would accept. Showing a button that can only fail would be worse than saying so."
             p="This site is not set up to run the check yet, so there is no button to press."
+          />
+          {/* A stood-down panel that only says "no" is a dead end. This names
+              the thing a reader can run instead, which is the whole point of
+              keeping the page honest rather than hiding it. */}
+          <Ed
+            as="p"
+            className="muted"
+            x="The mechanism behind this page is not what is missing. Running make rehearse-float walks the same vault calls on a local chain, including a guest budget issued to a person and that same person refused a second one."
+            p="The parts behind this page do work. Running make rehearse-float shows them on a test chain."
           />
           {ctx?.reason ? <p className="label mono">{ctx.reason}</p> : null}
         </section>

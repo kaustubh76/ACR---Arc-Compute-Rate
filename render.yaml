@@ -273,6 +273,78 @@ services:
       # server-side: session-bound faucet, rate limits, qty clamps.
       - key: ACR_CORS_ORIGINS
         value: "*"
+      # --- Float: the World ID human gate and the guest join ---------------
+      # ADDED 2026-11-06, and the reason is worth recording: this file carried
+      # 166 ACR_* keys and not one of them matched world|float|idkit, so a
+      # press built from current main would have served the four /float routes
+      # and stood every one of them down. Two independent failures looked
+      # identical from outside -- a 20-day-old image that lacked the routes,
+      # and a config that would have refused them anyway.
+      #
+      # THE FREE PLAN HAS NO DISK, so both JSONL ledgers below are ephemeral.
+      # That is survivable here and only here: the guest path treats the CHAIN
+      # as the authority (`registerGuest` reverts "agent exists"), so a lost
+      # ledger costs a record, not a second budget. Do not copy that reasoning
+      # to the checkpoint log, which is evidence rather than state.
+      - key: ACR_FLOAT_GATE
+        value: "1"
+      # Without the line above the keeper never polls: no checkpoint is opened,
+      # no human is ever asked, and the only sign is `gate_status()`.
+      - key: ACR_FLOAT_VAULT_ADDRESS
+        value: "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc"
+      - key: ACR_FLOAT_CHECKPOINT_TTL_S
+        value: "300"
+      # THREE keys, three capabilities, and the vault refuses a shared one
+      # ("approver is an executor"). The addresses they must match are set ON
+      # CHAIN by the owner; `HumanGate.preflight()` and `guest_preflight()`
+      # refuse by name when they disagree, which is how a wrong paste here
+      # surfaces before a human is asked rather than after.
+      - key: ACR_FLOAT_EXECUTOR_PRIVATE_KEY
+        sync: false
+      - key: ACR_FLOAT_APPROVER_PRIVATE_KEY
+        sync: false
+      - key: ACR_FLOAT_GUEST_REGISTRAR_PRIVATE_KEY
+        sync: false
+      # The guest join. `rp_id` is `rp_` + at most 16 hex digits (a uint64, per
+      # idkit-core's own normalizer) and the terminal must hold the SAME value
+      # in ITS environment; if the two diverge every proof fails to match.
+      - key: ACR_FLOAT_GUEST_RP_ID
+        sync: false
+      - key: ACR_FLOAT_GUEST_ENVIRONMENT
+        value: production
+      - key: ACR_FLOAT_GUEST_MIN_SYBIL
+        sync: false
+      # --- World ID Agent Pass (the OIDC device flow) ----------------------
+      # SANDBOX, deliberately: the production portal does not open to a non-Orb
+      # developer account. The issuer string is hashed into `treasurerBinding`,
+      # which is one-shot from zero, so changing this line after enrollment
+      # strands the vault. See .env.example for the full consequence.
+      - key: ACR_WORLD_OIDC_ISSUER
+        value: https://sandbox.auth.world.org
+      - key: ACR_WORLD_OIDC_CLIENT_ID
+        sync: false
+      - key: ACR_WORLD_OIDC_CLIENT_SECRET
+        sync: false
+      # `client_secret_basic` is the portal default and is FIXED for a client's
+      # lifetime, so this cannot be changed later without a new client.
+      - key: ACR_WORLD_OIDC_AUTH_METHOD
+        value: basic
+      # Both issuers advertise exactly orb and orb-face. Naming a class the
+      # issuer does not advertise in an ESSENTIAL claim is refused as
+      # access_denied, which is indistinguishable from the human declining.
+      - key: ACR_WORLD_ACR_VALUES
+        value: https://world.org/oidc/acr/orb
+      - key: ACR_WORLD_POLICY_ACR_VALUES
+        value: https://world.org/oidc/acr/orb-face,https://world.org/oidc/acr/orb
+      # Printed by `make world-enroll`. Until both are set the gate refuses
+      # with "no treasurer is enrolled", because an unenrolled gate would let
+      # ANY verified human clear a payment.
+      - key: ACR_WORLD_TREASURER_ISS
+        sync: false
+      - key: ACR_WORLD_TREASURER_SUB
+        sync: false
+      - key: ACR_WORLD_AUTH_TIME_SKEW_S
+        value: "30"
 
   # =====================================================================
   # Arc MAINNET — the second service, recorded before it exists.

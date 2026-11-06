@@ -517,6 +517,52 @@ def test_the_status_check_refuses_an_executor_that_is_not_authorized(rig):
     assert stranger.vault_status() == "our signer is not an authorized executor"
 
 
+def test_an_approver_key_the_vault_will_not_accept_is_refused_before_parking(rig):
+    """The rung `vault_status` cannot reach, because it holds no approver key.
+
+    Measured on the public deploy 2026-11-06 and the reason this exists:
+    `wire()` points every role at the deployer, the press was configured later
+    with three keys of its own, and all three disagreed with the chain. Two of
+    those three were already caught -- an unauthorized executor by
+    `vault_status`, a wrong registrar by `guest_preflight`. The approver was
+    not, and it is the one that fails LAST: `executeApproved` reverting "bad
+    approval" after a human has already answered on their phone.
+    """
+    from index_api.floatgate import HumanGate
+
+    stranger = LocalKeySigner(KEYS["agent"])
+    gate = HumanGate(
+        flow=None,
+        vault=rig["client"],
+        validator_for=None,
+        approver=stranger,
+        treasurer=None,
+    )
+    verdict = gate.preflight()
+    assert "our approver key is not the one the vault accepts" in verdict
+    #: Both halves named, so an operator can see WHICH key to set without
+    #: reading either one out of a .env.
+    assert rig["approver"].address[:10] in verdict
+    assert stranger.address[:10] in verdict
+
+
+def test_the_right_approver_key_gets_past_that_rung(rig):
+    """The control. Without it the test above passes on any refusal at all."""
+    from index_api.floatgate import HumanGate
+
+    gate = HumanGate(
+        flow=None,
+        vault=rig["client"],
+        validator_for=None,
+        approver=rig["approver"],
+        treasurer=None,
+    )
+    verdict = gate.preflight()
+    assert "approver" not in verdict
+    #: It falls through to the NEXT rung, which proves it reached it.
+    assert verdict == "no treasurer is enrolled, so any verified human could approve"
+
+
 def test_only_an_executor_can_park(rig):
     rogue = FloatVaultClient(rig["w3"], rig["vault"].address, signer=LocalKeySigner(KEYS["agent"]))
     with pytest.raises(Exception, match="not executor"):

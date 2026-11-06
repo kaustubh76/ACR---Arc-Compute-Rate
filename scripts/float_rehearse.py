@@ -697,14 +697,77 @@ def leg_guest(rig) -> None:
         note(f"guest preflight says {pre!r}, so the join leg stands down")
         return
     ok(f"preflight ok \u00b7 our signer IS the vault's guest registrar {c.guest_registrar()}")
-    nullifier = "0x" + "7e" * 32
-    aid = guest_agent_id(nullifier)
-    ok(
-        f"agent id keccak('acr.guest::' + nullifier) = {aid.hex()[:18]}… (the nullifier never goes on chain)"
+
+    #: THE GUEST SERVER, not just the chain call. Until this existed the leg
+    #: drove `register_guest` directly from a hardcoded nullifier, which
+    #: proved the vault and skipped every refusal in front of it -- and the
+    #: submission still said the whole thing ran "end to end" here.
+    #:
+    #: What is synthetic: World's answer, and only World's answer. The nonce
+    #: binding, the environment observation, the v4 nullifier normalisation,
+    #: the floor, the ledger and the chain are the shipping code, reached
+    #: through the real httpx client. The rp_context signing on the browser
+    #: side is pinned separately, by apps/terminal/lib/rpContext.test.ts.
+    import httpx
+    from index_api.floatguest import GuestError, GuestGate, verify_uniqueness_proof
+
+    #: Decimal on the wire, as the v4 API returns it -- so `_as_hex32` has
+    #: something real to normalise rather than being handed its own output.
+    HUMAN_DECIMAL = "57896044618658097711785492504343953926634992332820282019728"
+
+    #: Steerable so a SECOND human can be presented. Without that, every
+    #: refusal below could be the one-per-human rule wearing another name.
+    answering = {"nullifier": HUMAN_DECIMAL}
+
+    def fake_world(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "success": True,
+                "nullifier": answering["nullifier"],
+                "environment": "production",
+            },
+        )
+
+    def verify(payload, *, rp_id, environment, **kw):
+        return verify_uniqueness_proof(
+            payload,
+            rp_id=rp_id,
+            environment=environment,
+            transport=httpx.MockTransport(fake_world),
+        )
+
+    gate = GuestGate(
+        vault=c,
+        rp_id="rp_00000000000000ac",
+        environment="production",
+        min_sybil=5,
+        verify=verify,
     )
+    wallet = rig["acct"]["agent"].address
+    proof = {"responses": [{"issuer_schema_id": 11, "sybil_score": 9}]}
+
+    #: Derive the id the SAME way the server will, so `before` is a real read
+    #: of the chain rather than an assumption about it -- and so the server's
+    #: answer can be cross-checked against an independently computed value.
+    from index_api.humanid import _as_hex32
+
+    nullifier = _as_hex32(HUMAN_DECIMAL)
+    aid = guest_agent_id(nullifier)
     before = c.agent_of(aid)
-    out = c.register_guest(aid)
+    ok(
+        f"agent id keccak('acr.guest::' + nullifier) = {aid.hex()[:18]}… "
+        "(the nullifier never goes on chain)"
+    )
+
+    gate.bind("nonce-one", wallet)
+    issued = gate.claim({**proof, "nonce": "nonce-one"})
+    if bytes.fromhex(issued["agent_id"][2:]) != aid:
+        bad(f"the server issued against {issued['agent_id'][:18]}…, not the derived id")
+    ok(f"the server's agent id matches the one derived here, independently")
+    ok(f"what came back to the browser names the human only as {issued['human']!r}")
     after = c.agent_of(aid)
+    out = {"tx": issued["tx"]}
     if not before["exists"] and after["exists"]:
         ok(
             f"budget issued · {usdc(after['daily_cap_units'])} a day, "
@@ -716,6 +779,41 @@ def leg_guest(rig) -> None:
         bad(
             f"register_guest did not create the agent (before {before['exists']}, after {after['exists']})"
         )
+    #: LAYER 2 -- our ledger plus a chain READ. The server refuses before it
+    #: spends any gas, which is the layer a visitor actually meets.
+    gate.bind("nonce-two", wallet)
+    try:
+        gate.claim({**proof, "nonce": "nonce-two"})
+        bad("the server issued the same human a SECOND budget")
+    except GuestError as e:
+        if e.reason == "one_guest_budget_per_human":
+            ok(f"the same human, asking again: refused by the SERVER · {e.reason}")
+        else:
+            bad(f"the server refused, but for the wrong reason: {e.reason}")
+
+    #: A nonce is spent either way, so a refused request cannot be retried.
+    try:
+        gate.claim({**proof, "nonce": "nonce-two"})
+        bad("a spent nonce was accepted a second time")
+    except GuestError as e:
+        if e.reason == "unknown_or_expired_request":
+            ok(f"that join request is spent, and spent on sight · {e.reason}")
+        else:
+            bad(f"a spent nonce gave {e.reason}")
+
+    #: The floor, against a DIFFERENT human, so this cannot be layer 2 again.
+    answering["nullifier"] = "42"
+    gate.bind("nonce-three", wallet)
+    try:
+        gate.claim({"responses": [{"issuer_schema_id": 11, "sybil_score": 1}], "nonce": "nonce-three"})
+        bad("a credential below the floor was issued a budget")
+    except GuestError as e:
+        if e.reason == "below_sybil_floor":
+            ok(f"a different human, below the configured floor: refused · {e.reason}")
+        else:
+            bad(f"the floor gave {e.reason}")
+
+    #: LAYER 3 -- the chain itself, asked directly, with the server bypassed.
     try:
         c.register_guest(aid)
         bad("the same human got a SECOND budget")
@@ -914,7 +1012,9 @@ def main() -> int:
         leg_wrong_human(rig, key)
         timings.append(("three refusals that are not the human's fault", time.time() - t))
         leg_agent_mismatch(rig)
+        t = time.time()
         leg_guest(rig)
+        timings.append(("a visitor joins and gets a guest budget", time.time() - t))
         t = time.time()
         leg_policy_gate(rig, key)
         timings.append(("change the rules, held to a stronger class", time.time() - t))

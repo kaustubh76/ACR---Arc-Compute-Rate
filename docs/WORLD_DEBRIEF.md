@@ -18,15 +18,22 @@ Separately, a venue visitor completes a **Selfie Check** and their agent gets a
 
 ## 1 · Time to first success
 
-| measurement | value |
-|---|---|
-| Discovery read and validated against the configured issuer | **pending the live run** |
-| Client registration → first device-flow token | **pending the live run** |
-| First Selfie Check → verified nullifier | **pending the live run** |
+| measurement | value | what can fill it |
+|---|---|---|
+| Discovery read and validated against the configured issuer | **pending the live run** | `make world-probe` |
+| Client registration → first device-flow token | **pending the live run** | `make world-probe` |
+| First Selfie Check → verified nullifier | **pending the live run** | a real proof in World App against a registered `rp_id` |
 
-Run `make world-probe`; it prints the achieved `acr`, `amr`, `auth_time` and the
-elapsed seconds, and those numbers replace this table. Written before the
-credentials existed so the figure would be a measurement rather than a memory.
+`make world-probe` fills the **first two** rows: it prints the achieved `acr`,
+`amr`, `auth_time` and the elapsed seconds. It cannot fill the third, and the
+third column exists because an earlier version of this table implied it could.
+Agent Pass and IDKit are separate systems with separate credentials, and the
+device-flow probe never touches a Selfie Check. Nothing we can run produces that
+row: the proof and the nullifier are World's to issue, so the only thing that
+fills it is a person with World App and an `rp_id` registered to our key.
+
+All three were written before the credentials existed, so each figure would be a
+measurement rather than a memory.
 
 What we **can** report now, because it was measured against the live API without
 any credential: discovery on both `auth.world.org` and
@@ -41,12 +48,19 @@ journey against a real vault on a local chain and times each leg:
 
 | leg, measured | elapsed |
 |---|---|
-| stand up a vault, wire three roles, seed a policy and fund it | 2.0 s |
-| park a payment, validate a human, release it to the seller | 0.4 s |
+| stand up a vault, wire three roles, seed a policy and fund it | 1.6 s |
+| park a payment, validate a human, release it to the seller | 0.5 s |
 | park and record a denial on chain | 0.4 s |
 | park and let the window close, recorded as expiry | 0.4 s |
 | three refusals that are not the human's fault | under 0.1 s |
+| a visitor joins and is issued a guest budget | 0.3 s |
 | change the rules, held to a stronger class than the payment was | 0.5 s |
+
+One run, on a local chain. The per-leg figures move by a few hundred
+milliseconds between runs, so they are worth reading as orders of magnitude
+rather than constants, and that is the whole point of them: nothing on our side
+is close to the seconds a person spends reaching for a phone. The guest row is
+our half only, because the proof it carries comes from a local stand-in.
 
 Those numbers are the *mechanism*, not the provider: the token in that run is
 one we mint ourselves and validate through the same nine-rung ladder, so what
@@ -173,3 +187,8 @@ and application policy without requiring a person for every test."*
 | The poll table: 503 never an approval, 429 ends the attempt, `slow_down` widens every later interval | `services/index_api/tests/test_worldflow.py` |
 | The device code never reaches a public view, a log or a response | `services/index_api/tests/test_floatgate.py` |
 | Approve, deny, expire, forged token, wrong human — on chain, nothing moved | `services/index_api/tests/test_floatgate_onchain.py` |
+| An approver key the vault will not accept is refused **before** a human is asked | same file |
+| A zero `treasurerBinding` still clears a payment, so the binding is not the guarantee | same file |
+| The guest path's eight named refusals, the v4→v2 fallback, and a nullifier that reaches neither a log nor a response | `services/index_api/tests/test_floatguest.py` |
+| The SDK→wire rename the widget depends on, pinned at both ends | `apps/terminal/lib/rpContext.test.ts` |
+| A visitor joins, is issued a budget, and is then refused by all three uniqueness layers | `make rehearse-float` leg 10 |
