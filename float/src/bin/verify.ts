@@ -17,12 +17,16 @@
  * ordered, and checkable by anyone with an RPC — no privileged node needed.
  */
 import { decodeEventLog, keccak256, parseAbiItem, toHex, formatUnits, type Address, type Hex } from "viem";
-import { addressFor, feeFor, netFromEnv, publicFor, walletFor } from "../chain.ts";
+import { addressFor, feeFor, netFromEnv, publicFor, rpcFor, walletFor } from "../chain.ts";
 import * as A from "../artifacts.ts";
 import { load } from "../deployments.ts";
 import { SEED_MODELS } from "../seed.ts";
 import { indexIdFor } from "../prices.ts";
 import { validate } from "../policy.ts";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const NET = netFromEnv();
 const pub = publicFor(NET);
@@ -366,6 +370,65 @@ const scoutBefore = await bal(SCOUT_EOA);
   check("T10", "a guest spending over its template is refused",
     reason === "over per-request threshold" || reason === "daily cap exceeded",
     `"${reason}" on a ${usd(bigFair)} request against a ${usd(cap)} template`);
+}
+
+// --- T13 · the Eco Sauce pre-flight, asked of the venue we do not control ---
+//
+// Float's claim is that the exact shortfall leaves Morpho in the same
+// transaction as the payment. T5 proves that it DID. This asks whether it
+// WOULD, before any transaction exists — as a compiled Sauce program run
+// against live Arc state.
+//
+// Both directions are run on purpose. A pre-flight that only ever says yes
+// proves nothing, so the check fails unless the coverable amount passes AND the
+// uncoverable one is refused with the program's own sentence.
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const dir = join(here, "..", "..", "sauce");
+  const cli = join(dir, "node_modules", ".bin", "sauce");
+  const prog = join(dir, "jit_preflight.sauce.ts");
+
+  // `@eco-incorp/sauce` is 22 MB and proprietary, so it is NOT a dependency of
+  // this package and CI never installs it. Absent, this prints why and the run
+  // still passes — the same shape as T0 on anvil.
+  if (NET !== "arc-testnet" || !existsSync(cli)) {
+    const why = NET !== "arc-testnet"
+      ? `the Sauce engine is deployed on arc-testnet, not ${NET}`
+      : "the Sauce CLI is not installed — run `make float-sauce`";
+    check("T13", "the Sauce pre-flight agrees with the venue about what it can deliver",
+      true, `skipped: ${why}`);
+  } else {
+    const held = await sleeveValue();
+    const run = (needed: bigint) => {
+      try {
+        return execFileSync(cli, [
+          "simulate", prog, "--chain", "arc-testnet", "--rpc-url", rpcFor(NET),
+          "--owner", d.deployer, "--args", d.venue, d.sleeve, needed.toString(),
+        ], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+      } catch (e) {
+        // A reverting cook exits non-zero; its reason is on stdout/stderr and
+        // is the thing we came for, not an error.
+        const x = e as { stdout?: string; stderr?: string };
+        return `${x.stdout ?? ""}${x.stderr ?? ""}`;
+      }
+    };
+
+    // Comfortably inside what the sleeve holds, and far outside it.
+    const canDo = held / 2n;
+    const cannot = held * 100n + 1_000_000n;
+    const okOut = run(canDo);
+    const noOut = run(cannot);
+
+    const passed = /The cook succeeds/.test(okOut);
+    const refused = /cannot cover this shortfall/.test(noOut);
+    // Stated rather than assumed: Arc serves no eth_simulateV1, so Sauce falls
+    // back to eth_call and says so. If that ever changes, this line changes.
+    const path = /did not run eth_simulateV1/.test(okOut) ? "eth_call fallback" : "eth_simulateV1";
+    check("T13", "the Sauce pre-flight agrees with the venue about what it can deliver",
+      passed && refused,
+      `sleeve holds ${usd(held)}: ${usd(canDo)} accepted, ${usd(cannot)} refused ` +
+      `with the program's own sentence; simulated via ${path}, nothing signed`);
+  }
 }
 
 // --- the verdict ------------------------------------------------------------

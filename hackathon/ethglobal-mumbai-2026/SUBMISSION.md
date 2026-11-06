@@ -85,7 +85,7 @@ Every claim below is re-derivable by a command in the repo.
 | A 3× quote is refused on chain with the fair counter-price | `npm run verify` T3 |
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |
 | The fair band is denominated correctly | `test_the_fair_band_is_denominated_in_usdc_not_wad` |
-| Twelve acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
+| Thirteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
 
 ## The number that makes the case
 

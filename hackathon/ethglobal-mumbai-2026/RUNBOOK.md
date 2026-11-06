@@ -102,7 +102,7 @@ enrollment prints, after a dry run proves the digest round-trips.
 | 1:25 | point at the agent EOA on the explorer: 0 USDC | "The agent's own wallet. Zero before, zero after, permanently. It never held a key that could move money — it asked, and the vault decided." |
 | 1:45 | the refused row; open its `Denied` event | "Now the same request at three times the rate. Refused, on chain, in English, with the fair counter-price attached. The benchmark is the bouncer." |
 | 2:10 | edit `policy.config.json` to freeze waster → `npm run policy` → next agent tick | "The treasurer writes a sentence, not Solidity. One transaction, and the refusal *reason* changes: it was 'quote exceeds ACR fair band', now it's 'agent frozen by policy'. The policy didn't just land — it's what answered." |
-| 2:40 | `npm run verify` | "Twelve checks, re-derivable from one command, printing what they observed rather than a tick. Including the one that matters: the sleeve was pulled *before* the seller was paid, proven by log order inside a single transaction — Arc's RPC has no tracing, so this proof works for anyone with an ordinary node." |
+| 2:40 | `npm run verify` | "Thirteen checks, re-derivable from one command, printing what they observed rather than a tick. Including the one that matters: the sleeve was pulled *before* the seller was paid, proven by log order inside a single transaction — Arc's RPC has no tracing, so this proof works for anyone with an ordinary node." |
 | 2:55 | the continuity table | "ETHOnline we built the price of compute. This weekend the price runs the money." |
 
 ## Questions you will be asked

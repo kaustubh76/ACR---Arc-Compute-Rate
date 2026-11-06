@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram test-float rehearse-float
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram test-float rehearse-float
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -183,6 +183,17 @@ float-tape: float-abi
 	  FLOAT_NET=$(FLOAT_NET) npm run --silent agents -- --once --park 0.5 || true; \
 	  sleep $(FLOAT_TAPE_INTERVAL); \
 	done
+
+# Eco Sauce: a compiled program that asks the Morpho venue whether it can
+# deliver a shortfall, against live Arc state, before any payment transaction
+# exists. Deliberately NOT a dependency of float/package.json — it is a 22 MB
+# proprietary package with Solana transitive deps, and CI's `npm ci` must not
+# pull it to run the acceptance suite. T13 skips with a printed reason when it
+# is absent.
+float-sauce:
+	cd float/sauce && npm install --ignore-scripts --no-audit --no-fund
+	@echo
+	@echo "installed. FLOAT_NET=arc-testnet make float-verify now runs T13 against it."
 
 float-diagram:
 	uv run python scripts/gen_float_diagram.py
