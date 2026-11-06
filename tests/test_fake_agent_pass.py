@@ -182,3 +182,85 @@ def test_the_issuer_binds_an_ephemeral_port(port_attr):
     with serve(quiet=True) as a, serve(quiet=True) as b:
         assert getattr(a, port_attr) != getattr(b, port_attr)
         assert a.issuer != b.issuer
+
+
+# --- the guest key: an Agent Pass identity as a one-per-human budget key -----
+#
+# The guest budget was built on Selfie Check, which World withdrew. Agent Pass
+# answers the same question -- "is this a unique human" -- with a `sub` that is
+# pairwise per client and stable, so it replaces the nullifier with no change to
+# `guest_agent_id` and nothing at all on chain. These pin the property that
+# makes that substitution safe.
+
+from index_api.floatguest import guest_agent_id  # noqa: E402
+from index_api.worldauth import treasurer_binding  # noqa: E402
+
+
+def _guest_key(iss: str, sub: str) -> str:
+    """The preimage the `guest` command hands to `guest_agent_id`."""
+    return f"{iss}\x1f{sub}"
+
+
+def test_the_guest_key_is_the_treasurer_binding_shape_with_a_different_prefix():
+    #: Deliberately the same preimage as `treasurer_binding` -- iss, 0x1f, sub --
+    #: so the two cannot drift apart in anyone's head. Only the domain prefix
+    #: inside the hash differs, which is what keeps a treasurer and a guest from
+    #: ever colliding.
+    from eth_utils import keccak
+
+    iss, sub = "https://sandbox.auth.world.org", "SUBJECT-A"
+    assert guest_agent_id(_guest_key(iss, sub)) == keccak(
+        b"acr.guest::" + f"{iss}\x1f{sub}".encode()
+    )
+    #: Same human, same two inputs, different answer per domain.
+    assert "0x" + guest_agent_id(_guest_key(iss, sub)).hex() != treasurer_binding(iss, sub)
+
+
+def test_the_same_human_always_gets_the_same_budget_id():
+    #: This IS the one-per-human rule. If it were not stable the chain could
+    #: never answer "has this person already been issued one", and every reload
+    #: would mint a fresh budget.
+    a = guest_agent_id(_guest_key("https://i", "SUB-1"))
+    b = guest_agent_id(_guest_key("https://i", "SUB-1"))
+    assert a == b
+
+
+def test_two_humans_get_different_budget_ids():
+    one = guest_agent_id(_guest_key("https://i", "SUB-1"))
+    two = guest_agent_id(_guest_key("https://i", "SUB-2"))
+    assert one != two
+
+
+def test_the_same_subject_on_a_different_issuer_is_a_different_human():
+    #: `sub` is pairwise per client, so it is only meaningful WITH its issuer.
+    #: Dropping the issuer from the preimage would let a sandbox identity and a
+    #: production one collide into one budget.
+    assert guest_agent_id(_guest_key("https://sandbox.auth.world.org", "S")) != guest_agent_id(
+        _guest_key("https://auth.world.org", "S")
+    )
+
+
+def test_a_live_agent_pass_token_yields_a_budget_key_end_to_end():
+    #: The whole substitution, over a real socket: device flow -> validated
+    #: token -> claims -> the key the chain would be asked about. `treasurer`
+    #: is None because a public door accepts ANY verified human, which is the
+    #: one argument that differs from `probe` and `enroll`.
+    with serve(pending_polls=0, quiet=True, sub="A-REAL-LOOKING-SUBJECT") as fake:
+        verdict, _ = _walk(fake, asked=(ORB,), accepted=(ORB,), treasurer=False)
+        assert verdict.ok, verdict.reason
+        c = verdict.claims
+        assert c.sub == "A-REAL-LOOKING-SUBJECT"
+        aid = guest_agent_id(_guest_key(c.iss, c.sub))
+        assert len(aid) == 32
+        #: And it is reproducible from the claims alone, which is what lets the
+        #: chain be the authority rather than a database of ours.
+        assert aid == guest_agent_id(_guest_key(c.iss, c.sub))
+
+
+def test_a_refused_token_yields_no_key_at_all():
+    #: The control. A budget key derived from an unvalidated token would be a
+    #: budget issued to anyone who can reach the endpoint.
+    with serve(pending_polls=0, quiet=True, advertised=(ORB,)) as fake:
+        verdict, polled = _walk(fake, asked=(ORB_FACE,), accepted=(ORB_FACE,), treasurer=False)
+        assert polled.kind == "stop"
+        assert verdict is None, "no claims, so nothing to derive a key from"

@@ -40,7 +40,9 @@ import time
 sys.path.insert(0, "services/index_api")
 
 from acr_core import get_settings  # noqa: E402
-from index_api.floatgate import ORB, ORB_FACE, _classes  # noqa: E402
+from index_api.floatgate import ORB, ORB_FACE, _classes, deployed_vault  # noqa: E402
+from index_api.floatguest import guest_agent_id  # noqa: E402
+from index_api.humanid import mask  # noqa: E402
 from index_api.worldauth import IdTokenValidator, treasurer_binding  # noqa: E402
 from index_api.worldflow import DeviceFlow, widen  # noqa: E402
 
@@ -57,13 +59,16 @@ def _missing(s) -> list[str]:
     ]
 
 
-def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool = False) -> int:
-    #: `settings` is how `--fake` points this at a local issuer WITHOUT
-    #: mutating the environment: `get_settings()` is a process-wide singleton,
-    #: so setting env vars here would leak into anything else in the process
-    #: and the override would depend on import order.
-    s = settings if settings is not None else get_settings()
+def _obtain_token(s, *, kind: str, timeout_s: float):
+    """Config → discovery → the device grant → the poll table → a raw token.
 
+    Shared by every command on purpose. The poll table is the one piece that
+    must not be copied: `slow_down` has to widen EVERY later interval, and a
+    divergent second copy is exactly how that silently stops being true in one
+    command while the other still looks right.
+
+    Returns `(ctx, rc)`. `ctx` is None when `rc` is the exit code to use.
+    """
     gaps = _missing(s)
     if gaps:
         print("✗ not configured yet. Set these and run again:")
@@ -72,7 +77,7 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
         print("\n  Register a client at https://auth.world.org/portal:")
         print("    auth method client_secret_basic · any HTTPS redirect URI (required, never used)")
         print("    'Default accepted accounts' = Any · the secret is shown ONCE")
-        return 2
+        return None, 2
 
     policy = kind == "policy"
     asked = _classes(
@@ -92,7 +97,7 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
         advertised = flow.supported_acr()
     except Exception as exc:  # noqa: BLE001
         print(f"  ✗ discovery did not answer: {exc}")
-        return 1
+        return None, 1
     print("  ✓ issuer matches, device grant advertised")
     for a in advertised:
         print(f"      advertises  {a}")
@@ -105,7 +110,7 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
         print("    An essential claim it cannot meet is refused as `access_denied`, which is")
         print("    indistinguishable from the human declining. Fix the configured classes")
         print(f"    ({'ACR_WORLD_POLICY_ACR_VALUES' if policy else 'ACR_WORLD_ACR_VALUES'}) first.")
-        return 1
+        return None, 1
 
     print(f"\n2 · starting a device authorization  (kind: {kind})")
     started_at = time.time()
@@ -113,7 +118,7 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
         started = flow.start(asked)
     except Exception as exc:  # noqa: BLE001
         print(f"  ✗ {exc}")
-        return 1
+        return None, 1
     pub = started.public()
     print(f"  ✓ code  {started.user_code}")
     print(f"    open  {pub['verification_uri']}")
@@ -137,12 +142,34 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
         if polled.kind != "token":
             print(f"  ✗ {polled.reason}")
             print(f"    {polled.sentence}")
-            return 1
+            return None, 1
         token = polled.id_token
         break
     if token is None:
         print("  ✗ nothing was approved before the deadline")
-        return 1
+        return None, 1
+
+    return {
+        "flow": flow,
+        "token": token,
+        "started_at": started_at,
+        "asked": asked,
+        "policy": policy,
+    }, 0
+
+
+def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool = False) -> int:
+    #: `settings` is how `--fake` points this at a local issuer WITHOUT
+    #: mutating the environment: `get_settings()` is a process-wide singleton,
+    #: so setting env vars here would leak into anything else in the process
+    #: and the override would depend on import order.
+    s = settings if settings is not None else get_settings()
+
+    ctx, rc = _obtain_token(s, kind=kind, timeout_s=timeout_s)
+    if ctx is None:
+        return rc
+    flow, token = ctx["flow"], ctx["token"]
+    started_at, asked, policy = ctx["started_at"], ctx["asked"], ctx["policy"]
 
     elapsed = time.time() - started_at
     print(f"  ✓ a token came back after {elapsed:.1f}s")
@@ -217,9 +244,139 @@ def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool
     return 0
 
 
+def _run_guest(*, timeout_s: float, settings=None, fake: bool = False) -> int:
+    """A verified human opens a guest budget on the vault, with no IDKit.
+
+    WHY THIS EXISTS. The guest budget was built on World ID **Selfie Check**,
+    which the World team confirmed on 2026-11-06 is no longer offered, and the
+    browser path additionally needs an `rp_id` and a signing key only the
+    Developer Portal issues. So `/float/join` cannot work and that entry is
+    withdrawn. But the property a guest budget actually needs is "one per
+    unique human", and **Agent Pass already answers exactly that**: `sub` is
+    pairwise per client, stable, and orb-backed -- a stronger credential than
+    the one that was withdrawn, not a weaker one.
+
+    THE KEY. `keccak256("acr.guest::" + iss + 0x1f + sub)`, computed by handing
+    `guest_agent_id` the same `iss ‖ 0x1f ‖ sub` string that `treasurer_binding`
+    hashes. Deliberately the same shape as the treasurer's, and it needs no new
+    function, no change to `guest_agent_id`, and nothing whatsoever on chain.
+
+    THE DIFFERENCE FROM EVERY OTHER COMMAND is one argument: `treasurer=None`.
+    Everywhere else an approval is held to the ONE enrolled treasurer, and a
+    different human is refused `not_the_enrolled_treasurer`. A public door has
+    to accept any verified human and give each their own budget, so this is the
+    one place that check is deliberately absent -- and the assurance class is
+    what carries the weight instead.
+
+    THE SUBJECT IDENTIFIER IS NEVER PRINTED. It identifies a person to our
+    client. Only its hash reaches the chain, and only `mask()` reaches a log.
+    """
+    s = settings if settings is not None else get_settings()
+
+    ctx, rc = _obtain_token(s, kind="spend", timeout_s=timeout_s)
+    if ctx is None:
+        return rc
+    flow, token = ctx["flow"], ctx["token"]
+    started_at, asked = ctx["started_at"], ctx["asked"]
+
+    elapsed = time.time() - started_at
+    print(f"  ✓ a token came back after {elapsed:.1f}s")
+
+    print("\n4 · validating — ANY verified human, not the enrolled treasurer")
+    verdict = IdTokenValidator(
+        issuer=s.world_oidc_issuer,
+        audience=s.world_oidc_client_id,
+        accepted_acr=asked,
+        jwks=flow.jwks,
+        #: The public door. See the docstring: this is the single argument that
+        #: makes this command different from `probe` and `enroll`.
+        treasurer=None,
+        skew_s=s.world_auth_time_skew_s,
+    ).check(token, opened_at=started_at)
+    if not verdict.ok:
+        print(f"  ✗ {verdict.reason}")
+        if verdict.reason == "assurance_not_accepted":
+            print("    The account authenticated, but not at a class we accept for a budget.")
+        return 1
+    c = verdict.claims
+    print("  ✓ every rung passed")
+    print(f"      acr        {c.acr}")
+    print(f"      amr        {list(c.amr)}")
+    print(f"      auth_time  {int(c.auth_time)} (after we asked, which is what fresh means)")
+    print(f"      human      {mask(c.sub)}  ← masked; the identifier itself is never printed")
+
+    print("\n5 · the guest budget")
+    #: The same preimage shape as the treasurer binding, so the two cannot
+    #: drift apart in anyone's head: iss, then 0x1f, then sub.
+    agent_id = guest_agent_id(f"{c.iss}\x1f{c.sub}")
+    print(f"      agent id   keccak('acr.guest::' + iss|sub) = 0x{agent_id.hex()}")
+    print("                 the identifier never goes on chain, only this hash")
+
+    rpc = getattr(s, "arc_rpc_url", "")
+    if not rpc:
+        print("  ✗ ACR_ARC_RPC_URL is unset, so there is no chain to register on")
+        return 1
+    if not s.float_guest_registrar_private_key:
+        print("  ✗ ACR_FLOAT_GUEST_REGISTRAR_PRIVATE_KEY is unset")
+        return 1
+
+    from acr_oracle_client.float_vault import FloatVaultClient
+    from acr_oracle_client.signer import LocalKeySigner
+    from web3 import Web3
+
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
+        chain_id = w3.eth.chain_id
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ✗ the chain did not answer: {exc}")
+        return 1
+    vault_addr = s.float_vault_address or deployed_vault(chain_id)
+    if not vault_addr:
+        print(f"  ✗ no FloatVault for chain {chain_id}: set ACR_FLOAT_VAULT_ADDRESS")
+        return 1
+    vault = FloatVaultClient(
+        w3, vault_addr, signer=LocalKeySigner(s.float_guest_registrar_private_key)
+    )
+    print(f"      vault      {vault_addr} on chain {chain_id}")
+
+    pre = vault.guest_preflight()
+    if pre != "ok":
+        #: Expected on the public vault until the owner rotates the role. Name
+        #: the transaction rather than leaving an operator to guess.
+        print(f"  ✗ {pre}")
+        print("    The identity half above is proven. What is missing is on chain:")
+        print(f"      cast send {vault_addr} 'setGuestRegistrar(address)' \\")
+        print(f"        {LocalKeySigner(s.float_guest_registrar_private_key).address} \\")
+        print("        --rpc-url $R --private-key $OWNER_KEY")
+        return 1
+    print("  ✓ preflight ok · our signer IS the vault's guest registrar")
+
+    before = vault.agent_of(agent_id)
+    if before["exists"]:
+        #: Not a failure. It is the one-per-human rule working, and it is the
+        #: repeatable beat: it needs no second human to demonstrate.
+        print("  ✓ this human ALREADY has a budget — refused, and nothing was widened")
+        print(f"      {before['daily_cap_units'] / 1_000_000:.6f} USDC a day, guest={before['guest']}")
+        print("\nworld-guest: ONE BUDGET PER HUMAN, ENFORCED BY THE CHAIN")
+        return 0
+
+    out = vault.register_guest(agent_id)
+    after = vault.agent_of(agent_id)
+    if not after["exists"]:
+        print("  ✗ register_guest did not create the agent")
+        return 1
+    print(f"  ✓ budget issued · tx {out['tx']}")
+    print(f"      {after['daily_cap_units'] / 1_000_000:.6f} USDC a day, "
+          f"{after['per_request_units'] / 1_000_000:.6f} a request")
+    if after["guest"]:
+        print("      flagged a GUEST on chain, so it is revocable without touching a named agent")
+    print("\nworld-guest: A VERIFIED HUMAN HAS A BUDGET")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="World ID Agent Pass: probe or enroll.")
-    ap.add_argument("command", choices=("probe", "enroll"))
+    ap.add_argument("command", choices=("probe", "enroll", "guest"))
     ap.add_argument(
         "--kind",
         choices=("spend", "policy"),
@@ -240,6 +397,8 @@ def main() -> int:
     a = ap.parse_args()
 
     if not a.fake:
+        if a.command == "guest":
+            return _run_guest(timeout_s=a.timeout)
         return _run(enroll=a.command == "enroll", kind=a.kind, timeout_s=a.timeout)
 
     #: WHY THIS MODE EXISTS. Everything below the device grant -- discovery
@@ -273,13 +432,16 @@ def main() -> int:
                 "world_treasurer_sub": fake.sub,
             }
         )
-        rc = _run(
-            enroll=a.command == "enroll",
-            kind=a.kind,
-            timeout_s=a.timeout,
-            settings=s,
-            fake=True,
-        )
+        if a.command == "guest":
+            rc = _run_guest(timeout_s=a.timeout, settings=s, fake=True)
+        else:
+            rc = _run(
+                enroll=a.command == "enroll",
+                kind=a.kind,
+                timeout_s=a.timeout,
+                settings=s,
+                fake=True,
+            )
         print()
         print(f"  ·· {len(fake.requests)} HTTP requests reached the fake issuer:")
         for r in fake.requests:

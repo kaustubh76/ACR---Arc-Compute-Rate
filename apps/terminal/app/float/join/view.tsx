@@ -303,19 +303,19 @@ export function FloatJoinView() {
         <section className="section">
           <div className="section-head">
             <h2 className="label">
-              <Ed x="Not running here" p="Not set up here" />
+              <Ed x="Retired by the provider" p="Closed" />
             </h2>
             <span className="label">
               <span className="chip chip-sim">
-                <Ed x="join stood down" p="switched off" />
+                <Ed x="join withdrawn" p="withdrawn" />
               </span>
             </span>
           </div>
           <Ed
             as="p"
             className="muted"
-            x="This deployment has no verification app configured, so it cannot mint a request a phone would accept. Showing a button that can only fail would be worse than saying so."
-            p="This site is not set up to run the check yet, so there is no button to press."
+            x="The uniqueness check this page was built on has been retired by the provider, so this door is closed rather than merely unconfigured. A button that could only fail would be worse than saying so."
+            p="The check this page used was retired by the provider, so there is no button to press."
           />
           {/* A stood-down panel that only says "no" is a dead end. This names
               the thing a reader can run instead, which is the whole point of
@@ -323,9 +323,14 @@ export function FloatJoinView() {
           <Ed
             as="p"
             className="muted"
-            x="The mechanism behind this page is not what is missing. Running make rehearse-float walks the same vault calls on a local chain, including a guest budget issued to a person and that same person refused a second one."
-            p="The parts behind this page do work. Running make rehearse-float shows them on a test chain."
+            x="A verified person can still open one, by the same identity that approves a parked payment: scripts/world_id.py guest runs the device flow and registers the budget on chain, one per human, with the identifier never leaving our side."
+            p="A verified person can still open a budget. The command scripts/world_id.py guest does it on chain."
           />
+          {/* Kept, because it IS the literal reason the route stood down and an
+              operator debugging a fresh deployment needs it. The prose above
+              sets the frame so it does not read as a fixable misconfiguration:
+              the variable is unset because the credential behind it was
+              retired, not because someone forgot to paste it. */}
           {ctx?.reason ? <p className="label mono">{ctx.reason}</p> : null}
         </section>
       ) : null}

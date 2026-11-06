@@ -134,6 +134,50 @@ Ten legs, from a real run:
 leaves every other line alone, so the rehearsal and the recording are the same
 script.
 
+## The same identity also opens a budget, which is new
+
+A verified human approving a parked payment and a verified human being *given* a
+small budget are the same question asked twice: **is this one unique person, and
+are they who they were last time.** Agent Pass answers both, so the guest budget
+now runs on it:
+
+```
+scripts/world_id.py guest          # the device flow, then a budget on chain
+scripts/world_id.py guest --fake   # the same path, no credential, no phone
+```
+
+`keccak256("acr.guest::" ‖ iss ‖ 0x1f ‖ sub)` is the budget's id — deliberately
+the same preimage shape as `treasurerBinding`, differing only in the domain
+prefix inside the hash, so a treasurer and a guest can never collide. The `sub`
+is pairwise per client and stable, so **one human is one budget by
+construction**: the chain answers "has this person already been issued one" from
+the id alone, and `registerGuest` reverts `agent exists`. Nothing of the
+identifier reaches the chain but that hash, and nothing reaches a log but
+`••••` and three characters.
+
+**This replaced a design that a provider change deleted under us.** The budget
+was built on World ID Selfie Check, which the World team confirmed on 2026-11-06
+is no longer offered. We did not patch around it: the substitution needed **no
+new function, no change to `guest_agent_id`, and nothing whatsoever on chain**,
+because the thing being hashed was always just "a stable per-human string". The
+credential it now rests on is **orb**, which is stronger than the one withdrawn,
+and the attacker-cost inequality in the withdrawn write-up only widens — a
+rented orb identity costs more than the `$10` floor that argument used, against
+the same 2 USDC a day.
+
+**One argument differs from every other command in this entry, and it is the
+whole point:** `treasurer=None`. Everywhere else an approval is held to the one
+enrolled treasurer and a different human is refused
+`not_the_enrolled_treasurer`. A public door must accept *any* verified human and
+give each their own budget, so that check is deliberately absent there and the
+assurance class carries the weight instead. It is one line, and it is the line
+that separates "the treasury's owner" from "a stranger at the door".
+
+**What is not yet true.** The public vault's `guestRegistrar` is still the
+deployer, so this command stands down against it by name and prints the single
+owner transaction that fixes it. The identity half above is proven either way,
+and `--fake` demonstrates the whole path offline.
+
 ## What is demonstrably true
 
 Every claim is re-derivable by a command in the repo.
