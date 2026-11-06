@@ -11,8 +11,10 @@ publishes an on-chain reference index for machine compute from an oracle on Arc,
 and it benchmarks real bills against real published prices. This App puts both
 answers inside Aomi's agent as five research tools. Version 0.2 also adds an
 owner-wallet payment inbox: review escalated bills, prepare an exact PolicyWallet
-payment, and verify its settlement. Deployment addresses remain placeholders;
-the default build is research-only. See [Treasury setup and workflow](TREASURY.md)
+payment, simulate and authorize it through the connected owner wallet, and verify
+its settlement. Every build uses **evm-core** with a deployment-specific treasury
+guard. Deployment addresses remain explicit placeholders in the template;
+missing, disabled, or invalid configuration fails the build. See [Treasury setup and workflow](TREASURY.md)
 for the app-specific skill, guard, API, contract upgrade and acceptance checks.
 
 ## What an Aomi agent gets
@@ -126,10 +128,13 @@ acr  › 0.49773 (CI 0.49449–0.49780) · costs 0.0156 USDC to move by 1 bp · 
   a throttled chain read, so re-ask once. `cargo test -- --ignored` runs all five
   tools against the real press. ACR's CI runs the suite on every push.
 
-## Deploy the research-only app from the dashboard
+## Deploy the configured treasury app
 
-For a treasury-enabled release, first follow [TREASURY.md](TREASURY.md). A normal
-dashboard build without a supplied deployment JSON remains research-only.
+First follow [TREASURY.md](TREASURY.md) and supply the enabled deployment JSON
+to the build runner through ACR_TREASURY_CONFIG. A dashboard build without that
+input fails; it cannot produce a fallback app. Configure private business access
+and the required treasury credential before activation. Existing public research
+releases do not acquire write capabilities until a configured release is deployed.
 
 The App lives in this subdirectory of the ACR repo. Aomi finds it through the root
 `.aomi/config.json`, the layout Aomi's own `docs/community-deployment.md` documents for
@@ -176,7 +181,9 @@ unset, the App reads the default Arc mainnet press.
 ## Develop
 
 ```bash
-cargo test                       # research and treasury unit tests
+python3 tests/check_deployment.py # build refusals + configured unit tests
+export ACR_TREASURY_CONFIG=/absolute/path/to/deployment.json
+cargo test                       # tests against your configured manifest
 cargo test -- --ignored          # every tool against the live ACR press
 ACR_API=https://acr-api-1fto.onrender.com cargo test -- --ignored   # the same, against Arc testnet
 cargo build --release            # target/release/libacr_compute_rate.{dylib,so}

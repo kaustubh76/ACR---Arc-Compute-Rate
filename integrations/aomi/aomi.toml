@@ -3,7 +3,8 @@
 # becomes the release tag.
 name         = "acr-compute-rate"
 display_name = "ACR · Arc Compute Rate"
-public       = true
+# Business billing records and treasury credentials require restricted app access.
+public       = false
 
 # PROD, AND MEASURED, NOT ASSUMED. The backend loads an App only when these tags
 # are a subset of its own (aomi-sdk sdk/bin/build/deploy/app.rs), and an App that

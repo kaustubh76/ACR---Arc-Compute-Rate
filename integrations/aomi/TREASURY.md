@@ -28,7 +28,7 @@ sequenceDiagram
     API-->>Aomi: Durable ledger resolution; paid
 ```
 
-## Default is research-only
+## One configured read/write app
 
 The author-supplied deployments and read-only compatibility checks are recorded
 in [DEPLOYMENTS.md](DEPLOYMENTS.md). Both existing testnet PolicyWallets fail
@@ -36,8 +36,12 @@ the replay-protection interface check; the compatible replacement address is
 still unknown. The committed
 `treasury-deployment.example.json` has `enabled=false` and explicit
 `<CHAIN_ID>`, `<POLICY_WALLET_ADDRESS>`, `<USDC_ADDRESS>` placeholders. An ordinary
-build has **no EVM namespace**, and treasury tool calls refuse before HTTP.
-Do not replace placeholders with zero addresses or remove guard constraints.
+build fails until an enabled, valid deployment JSON is supplied. Every successful
+build exposes **evm-core**, with the chain, treasury target and spendAsOwner
+selector guard generated from that same configuration. There is no unconfigured
+or read-only fallback artifact. Do not replace placeholders with zero addresses
+or remove guard constraints. The app is private and requires a business-scoped
+treasury credential.
 
 The app's deployment binding and guard are generated at build time from the
 same JSON the API consumes. They cannot be changed by model arguments or by
@@ -70,9 +74,11 @@ requires rebuilding and reviewing that artifact.
    rejection actions are disabled. Its automatic operator escalates payments
    into the owner inbox and preserves pending decisions.
 5. Build with `cargo build --locked --manifest-path integrations/aomi/Cargo.toml`.
-   Invalid enabled configuration fails the build. Inspect the manifest: exactly
+   Missing, disabled or invalid configuration fails the build. Inspect the manifest: exactly
    this chain, treasury target and `spendAsOwner` selector must be guarded.
-   Test both the configured artifact and the default research-only artifact.
+   Run tests/check_deployment.py to verify rejected configurations and the configured manifest.
+   The build runner must receive the JSON file and ACR_TREASURY_CONFIG; runtime
+   app secrets alone cannot supply this build input.
 6. Bind an interactive owner wallet. The app accepts only the host's connected
    account and chain, never an address override. If an AA provider uses a different
    execution account from the host-reported address, do not substitute an EOA or
@@ -147,13 +153,12 @@ uv sync --group dev
 forge test --root contracts
 uv run pytest services/index_api/tests/test_payments.py
 ACR_TEST_PLUGIN=1 uv run pytest services/index_api/tests/test_payments.py -k local_plugin
-cargo test --locked --manifest-path integrations/aomi/Cargo.toml
+python3 integrations/aomi/tests/check_deployment.py
 ```
 
 The optional native-plugin test starts an isolated Anvil and HTTP API, compiles a
 configured app, calls it through the public C ABI, simulates the returned bytes,
 submits from a local unlocked test owner, and verifies the receipt through the
-plugin. It uses no external RPC, deployed address, or real wallet key. Afterwards
-run an ordinary build without `ACR_TREASURY_CONFIG` to restore a research-only
-artifact. The normal API tests exercise refusals, event mismatches, concurrent
+plugin. It uses no external RPC, deployed address, or real wallet key. Local fixture artifacts must never be published as deployment artifacts.
+Rebuild from the intended deployment JSON for release. The normal API tests exercise refusals, event mismatches, concurrent
 reconciliation, finality and disk-write recovery against actual local contracts.

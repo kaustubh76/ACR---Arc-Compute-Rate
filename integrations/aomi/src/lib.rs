@@ -23,6 +23,7 @@ quantity in the unit (23 for 23,000 tokens at \"$/1k tokens\"). Leave vendor out
 - Is this wallet or agent overpaying, and where should it buy instead? -> acr_wallet_cost.
 - Is this seller trustworthy or fairly priced? -> acr_seller_rating.
 - Did a payment to ACR land? -> acr_receipts.
+- Inspect a deployed contract or treasury state? -> use get_contract, encode_and_call, and get_erc20_balance on the requested chain. Read owner(), paused(), usdc(), budgetOf(bytes32), and remaining(bytes32) as needed; derive category IDs from the documented category, never guess.
 
 Rules you must keep:
 - Never quote an acr_rate value as what compute costs. For what the market actually charges, use acr_check_bill, which \
@@ -33,46 +34,35 @@ a market verdict: relay the hint and, if it says so, call acr_check_bill again w
 - A wallet with seen: false has no purchases on ACR's tape. Never report that as zero spend.
 - Verdicts are suggestions, not promises, and compare against published list prices, not the user's contract.
 - Quote the cheapest seller by its label and cite its source when you recommend switching.
+- Contract reads must actually run before reporting ownership, balances, budgets, or payment readiness. If a read fails or tools are unavailable, state the limitation; never infer chain state from a bill API response or promise an inspection without doing it.
+- Read access does not authorize spending. Use the evm-core host tools to read contracts and stage, simulate, and commit only the configured treasury payment. Activate acr-compute-rate/treasury, prepare the exact logged obligation, simulate successfully, obtain explicit owner authorization, then verify the receipt. Never bypass preparation or use arbitrary transfers.
 - The five research tools do not move funds. For a business payment inbox, activate acr-compute-rate/treasury. Its tools prepare unsigned owner payments and verify receipts; follow its review and authorization workflow.";
 
-macro_rules! register_app {
-    ([$($namespace:expr),*] $(, $guard:expr)?) => {
-        dyn_aomi_app!(
-            app = AcrApp,
-            name = "acr-compute-rate",
-            version = "0.2.0",
-            preamble = PREAMBLE,
-            tools = [tool::RateTool, tool::CheckBillTool, tool::WalletCostTool,
-                     tool::SellerRatingTool, tool::ReceiptsTool],
-            secrets = [
-                Secret::new("ACR_API", "Optional research API override.", false),
-                Secret::new("ACR_TREASURY_API_TOKEN", "Business-scoped treasury API credential. Never an operations or signing key.", false)
-            ],
-            namespaces = [$($namespace),*],
-            skills = [{
-                id: "acr-compute-rate/treasury",
-                description: "Review escalated compute bills and pay through the business owner's PolicyWallet",
-                tags: ["treasury", "bills", "payment"],
-                tools: [treasury::PendingPayments, treasury::PreparePayment, treasury::VerifyPayment],
-                sections: {
-                    instructions: "skill/instructions.md",
-                    workflows: "skill/workflows.md",
-                    action_rules: "skill/action-rules.md",
-                    safety: "skill/safety.md"
-                }
-                $(, guard: $guard)?
-            }]
-        );
-    };
-}
-
-// Unconfigured artifacts have no EVM namespace and cannot prepare payments.
-#[cfg(not(treasury_configured))]
-register_app!([]);
-#[cfg(treasury_configured)]
-register_app!(
-    ["evm-core"],
-    concat!(env!("OUT_DIR"), "/treasury-guard.json")
+dyn_aomi_app!(
+    app = AcrApp,
+    name = "acr-compute-rate",
+    version = "0.2.0",
+    preamble = PREAMBLE,
+    tools = [tool::RateTool, tool::CheckBillTool, tool::WalletCostTool,
+             tool::SellerRatingTool, tool::ReceiptsTool],
+    secrets = [
+        Secret::new("ACR_API", "Optional research API override.", false),
+        Secret::new("ACR_TREASURY_API_TOKEN", "Business-scoped treasury API credential. Never an operations or signing key.", true)
+    ],
+    namespaces = ["evm-core"],
+    skills = [{
+        id: "acr-compute-rate/treasury",
+        description: "Review escalated compute bills and pay through the business owner's PolicyWallet",
+        tags: ["treasury", "bills", "payment"],
+        tools: [treasury::PendingPayments, treasury::PreparePayment, treasury::VerifyPayment],
+        sections: {
+            instructions: "skill/instructions.md",
+            workflows: "skill/workflows.md",
+            action_rules: "skill/action-rules.md",
+            safety: "skill/safety.md"
+        },
+        guard: concat!(env!("OUT_DIR"), "/treasury-guard.json")
+    }]
 );
 
 #[cfg(test)]
