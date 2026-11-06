@@ -51,6 +51,16 @@
   .pill.human { color: var(--warn); border-color: #4a3a1c; }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
   select#span { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 11px; max-width: 100%; }
+  #notPanel { overflow-wrap: anywhere; }
+  #notPanel .nsub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 18px 0 6px; font-weight: 500; }
+  #notPanel .nhead { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 12px 0 4px; }
+  #notPanel .nrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 3px 0; min-width: 0; }
+  #notPanel .nrow > span:last-child { text-align: right; min-width: 0; }
+  #notPanel .nk { color: var(--dim); }
+  #notPanel .nverdict { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  #notPanel .nverdict.ok { border-color: #1d4535; } #notPanel .nverdict.warn { border-color: #4a3a1c; } #notPanel .nverdict.bad { border-color: var(--bad); }
+  #notPanel code { color: var(--ink); font-size: 11px; }
+  #notPanel td { white-space: normal; vertical-align: top; }
 </style>
 </head>
 <body>
@@ -92,6 +102,11 @@
     </div>
     <div class="tape"><table id="tape"><tbody><tr><td class="k">reading…</td></tr></tbody></table></div>
     <div class="note" id="tapeNote"></div>
+  </div>
+
+  <div class="panel" id="notPanel" style="margin-top:12px">
+    <h2>Two things Float is not, read from the chain</h2>
+    <div class="note" style="margin:0">reading…</div>
   </div>
 </div>
 
@@ -306,6 +321,8 @@ async function tick() {
       `${cheapest.name.replace(/^ACR-INF:/, "")}, the cheapest model priced. ` +
       `Policy keeps ${bufferHours}h of forecast spend liquid.`;
   }
+
+  renderNot(prints, receipts, maxAge, now); // the "two things Float is not" panel; reuses the reads above
 }
 
 async function loop() {
@@ -345,6 +362,170 @@ loop();
       sel.disabled = false;
     }
   });
+}
+
+// ---- two things Float is not
+// Two comparisons of METHOD. Neither compares a number: Pyth has no feed for GPU
+// or inference anywhere, so a value comparison would be meaningless, and nothing
+// here estimates one. Every read goes through the page's own client and read()
+// above. This page has no retry of its own: a rate-limited read is shown as "could
+// not be read" and the 12-second loop tries again. A REVERT is different. For
+// Pyth here it is the expected answer, so it is caught, named from the ABI and
+// rendered as the finding, never as a failure.
+const NOT = {
+  pyth: "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
+  feeds: [
+    ["USDC/USD", "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a"],
+    ["ETH/USD", "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"],
+  ],
+  scout: "0x0420A5279cbD3257252Ba9CC524a2E09dd304E88",
+  // The vault's id for the scout agent: keccak256("scout"). It is the id on the
+  // tape's Receipts, and the tape count below is that cross-check.
+  scoutAgent: "0xd4b6ed56333389f45e60acf4deb7dca7c0ab16a4b24e2e8797959bbea4063636",
+};
+const PYTH_ABI = parseAbi([
+  "function version() pure returns (string)",
+  "function getValidTimePeriod() view returns (uint256)",
+  "function singleUpdateFeeInWei() view returns (uint256)",
+  "function governanceDataSource() view returns ((uint16 chainId, bytes32 emitterAddress))",
+  "function getPriceUnsafe(bytes32 id) view returns ((int64 price, uint64 conf, int32 expo, uint256 publishTime))",
+  "error PriceFeedNotFound()",
+]);
+const NOT_VAULT_ABI = parseAbi([
+  "function agentOf(bytes32 agentId) view returns (bool exists, uint256 dailyCapUsdc, uint256 spent, uint256 perRequestUsdc, uint64 periodStart, bool frozen, bool guest)",
+  "function remaining(bytes32 agentId) view returns (uint256)",
+]);
+
+const nesc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nrow = (k, v) => `<div class="nrow"><span class="nk">${k}</span><span>${v}</span></div>`;
+const nlink = (a, label) => `<a href="${CFG.explorer}/address/${nesc(a)}" target="_blank" rel="noopener" title="${nesc(a)}">${nesc(label ?? short(a))}</a>`;
+const nsecs = (s) => (s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`);
+const nverdict = (cls, html) => `<div class="nverdict ${cls}">${html}</div>`;
+const nwhy = (e) => String(e?.shortMessage ?? e?.message ?? e).split("\n")[0].slice(0, 160);
+
+/** One read. A revert comes back as a named answer; anything else as "could not be read". */
+async function notRead(address, abi, functionName, args = []) {
+  try {
+    return { ok: true, v: await read(address, abi, functionName, args) };
+  } catch (e) {
+    const rv = e?.walk?.((x) => x?.name === "ContractFunctionRevertedError") ?? null;
+    if (rv) {
+      const raw = String(rv.raw ?? rv.signature ?? "");
+      return { ok: false, reverted: true, name: rv.data?.errorName ?? null, selector: raw.length >= 10 ? raw.slice(0, 10) : null };
+    }
+    return { ok: false, reverted: false, err: nwhy(e) };
+  }
+}
+const notFail = (r) => (r.reverted
+  ? `<span class="warn">reverted: ${r.name ? `${nesc(r.name)}()` : "an error this page cannot name"}${r.selector ? ` <span class="nk">(${nesc(r.selector)})</span>` : ""}</span>`
+  : `<span class="bad">could not be read: ${nesc(r.err)}</span>`);
+const notVal = (r, f) => (r.ok ? f(r.v) : notFail(r));
+
+let notSeq = 0;
+async function renderNot(prints, receipts, maxAge, now) {
+  const my = ++notSeq;
+  const panel = el("notPanel");
+  try {
+    const feedJobs = NOT.feeds.map(([, id]) => notRead(NOT.pyth, PYTH_ABI, "getPriceUnsafe", [id]));
+    const [version, validPeriod, fee, gov, code, scoutBal, budget, left, ...feeds] = await Promise.all([
+      notRead(NOT.pyth, PYTH_ABI, "version"),
+      notRead(NOT.pyth, PYTH_ABI, "getValidTimePeriod"),
+      notRead(NOT.pyth, PYTH_ABI, "singleUpdateFeeInWei"),
+      notRead(NOT.pyth, PYTH_ABI, "governanceDataSource"),
+      client.getCode({ address: NOT.pyth }).then((v) => ({ ok: true, v: v ?? "0x" }), (e) => ({ ok: false, reverted: false, err: nwhy(e) })),
+      notRead(CFG.usdc, ERC20_ABI, "balanceOf", [NOT.scout]),
+      notRead(CFG.vault, NOT_VAULT_ABI, "agentOf", [NOT.scoutAgent]),
+      notRead(CFG.vault, NOT_VAULT_ABI, "remaining", [NOT.scoutAgent]),
+      ...feedJobs,
+    ]);
+    if (my !== notSeq) return; // a newer refresh superseded this one
+
+    // ---------------- 1 · pushed versus pulled
+    const codeBytes = code.ok ? (code.v.length - 2) / 2 : null;
+    const govUnset = gov.ok && Number(gov.v.chainId) === 0 && /^0x0*$/.test(gov.v.emitterAddress);
+    const allNotFound = feeds.every((r) => !r.ok && r.reverted && r.name === "PriceFeedNotFound");
+    const anyPrice = feeds.some((r) => r.ok);
+    const dormant = allNotFound && govUnset && codeBytes !== null && codeBytes > 0;
+
+    const cis = prints.map((p) => Number(p.ciBps) / 100);
+    const acrRows = prints.map((p) => {
+      const age = now - p.postedAt;
+      const cls = age > maxAge ? "bad" : age > maxAge * 0.8 ? "warn" : "good";
+      return nrow(nesc(p.name.replace(/^ACR-INF:/, "")),
+        `#${p.printId} · posted <span class="${cls}">${nsecs(age)} ago</span> · <span class="pill">±${(p.ciBps / 100).toFixed(1)}%</span>`);
+    }).join("") || nrow("prints", `<span class="nk">none on chain right now</span>`);
+
+    const pythRows =
+      nrow("contract", `${nlink(NOT.pyth)} <span class="nk">${nesc(codeBytes === null ? "code size not read" : `${codeBytes.toLocaleString("en-US")} bytes of code`)}</span>`)
+      + nrow("version()", notVal(version, (v) => nesc(v)))
+      + nrow("getValidTimePeriod()", notVal(validPeriod, (v) => String(v)))
+      + nrow("singleUpdateFeeInWei()", notVal(fee, (v) => String(v)))
+      + nrow("governanceDataSource()", notVal(gov, (v) => `chainId ${v.chainId}, emitter ${short(v.emitterAddress)}${govUnset ? ` <span class="warn">UNSET</span>` : ""}`))
+      + NOT.feeds.map(([name, id], i) => nrow(`getPriceUnsafe(${nesc(name)})`, notVal(feeds[i],
+        (v) => `price ${v.price} · conf ${v.conf} · expo ${v.expo} · published ${new Date(Number(v.publishTime) * 1000).toISOString().slice(0, 19)}Z`))).join("");
+
+    let verdict1;
+    if (dormant) {
+      verdict1 = nverdict("warn", `<b>Deployed but dormant.</b> A real contract (version ${nesc(version.ok ? version.v : "not read")}, ${codeBytes.toLocaleString("en-US")} bytes of code) with no governance data source and no feeds: `
+        + `every feed id tried reverts with <b>PriceFeedNotFound()</b>. A pull oracle with nobody paying to post has no price at all.`);
+    } else if (anyPrice) {
+      verdict1 = nverdict("ok", `At least one feed answered with a price (shown above). Pyth is not dormant on this chain right now, so the finding this panel was written around no longer holds.`);
+    } else {
+      verdict1 = nverdict("bad", `No conclusion: some of the reads above could not be completed, or a feed failed in a way other than PriceFeedNotFound(). The page will not call Pyth dormant without all of them.`);
+    }
+
+    const f0 = feeds[0];
+    const cmd = `cast call ${NOT.pyth} "getPriceUnsafe(bytes32)" ${NOT.feeds[0][1]} --rpc-url ${CFG.rpc}`;
+    const acrCi = cis.length ? `${prints.length} of ${prints.length} prints carry one, from ±${Math.min(...cis).toFixed(1)}% to ±${Math.max(...cis).toFixed(1)}%` : "there are no prints to read one from";
+    const pythConf = dormant ? "has no price to carry one"
+      : anyPrice ? `returned a price with conf ${feeds.find((r) => r.ok).v.conf}` : "could not be read";
+
+    // ---------------- 2 · holds money versus does not
+    const onTape = receipts.filter((l) => String(l.args.agentId).toLowerCase() === NOT.scoutAgent).length;
+    const bal = scoutBal.ok ? scoutBal.v : null;
+    const b = budget.ok ? budget.v : null;
+    const budgetRows = !budget.ok ? nrow("agentOf(scout)", notFail(budget))
+      : !b[0] ? nrow("agentOf(scout)", `<span class="bad">the vault has no agent with this id</span>`)
+      : nrow("daily cap", usd(b[1], 6))
+        + nrow("spent this period", `${usd(b[2], 6)} <span class="nk">(period began ${new Date(Number(b[4]) * 1000).toISOString().slice(0, 16).replace("T", " ")}Z)</span>`)
+        + nrow("remaining", notVal(left, (v) => `<span class="good">${usd(v, 6)}</span>`))
+        + nrow("per-request cap", usd(b[3], 6))
+        + nrow("frozen", b[5] ? `<span class="warn">yes</span>` : "no");
+
+    panel.innerHTML = `<h2>Two things Float is not, read from the chain</h2>
+      <div class="note" style="margin-top:6px">Each comparison below is of a METHOD, not of numbers. Nothing here is a price comparison and nothing here estimates one. A value that could not be read says so.</div>
+
+      <div class="nsub">1 · A pushed oracle, and a pulled one</div>
+      <div class="note" style="margin-top:0"><b>ACR pushes.</b> Our keeper posts a print on a schedule whether anyone asks or not, and the vault refuses a quote whose print is older than its max print age. <b>Pyth pulls.</b> A Pyth price exists on chain only once someone pays to post a signed update.
+        These are different assets: ACR prices inference, and Pyth has no feed for GPU or inference anywhere. Comparing their values would be meaningless, so none are compared.</div>
+      <div class="nhead">ACR · pushed · read from the store just now</div>
+      ${acrRows}
+      ${nrow("quote refused once a print is older than", `<b>${nsecs(maxAge)}</b> <span class="nk">(max print age, from the vault policy)</span>`)}
+      <div class="nhead">Pyth · pulled · read from Arc Testnet just now</div>
+      ${pythRows}
+      ${verdict1}
+      <div class="note" style="margin-top:0">Re-run it yourself: <code>${nesc(cmd)}</code>${f0 && !f0.ok && f0.reverted && f0.selector ? ` The revert data starts with ${nesc(f0.selector)}${f0.name ? `, which the contract's error list names ${nesc(f0.name)}()` : ", which this page cannot name"}.` : ""}</div>
+      <div class="nhead">What can be compared is the shape</div>
+      <div class="tape"><table><thead><tr><th></th><th>Pyth <code>Price</code></th><th>ACR print</th></tr></thead><tbody>
+        <tr><td class="k">price</td><td>price × 10^expo</td><td>priceWad, 18-decimal USD per 1k tokens</td></tr>
+        <tr><td class="k">its own uncertainty</td><td>conf, absolute, in the price's exponent</td><td>ciBps, relative, in basis points</td></tr>
+        <tr><td class="k">when</td><td>publishTime</td><td>postedAt</td></tr>
+      </tbody></table></div>
+      <div class="note">Both are a price published with its own uncertainty. They are not the same unit: conf is an absolute amount and ciBps is relative to the price. ACR's is populated here (${nesc(acrCi)}). Pyth's on this chain ${nesc(pythConf)}.</div>
+
+      <div class="nsub">2 · An agent that holds money, and one that does not</div>
+      <div class="note" style="margin-top:0">In the ordinary x402 or agent-wallet shape, the agent holds USDC in its own wallet and pays the seller directly, so a compromised agent can spend whatever the wallet holds.
+        In Float the vault pays the seller and the agent holds a <b>budget</b>, not money, so a compromised agent can at most spend what is left of its daily cap.
+        <b>Float does not use an agent wallet.</b> This is a contrast, not a feature, and nothing in Float holds funds in one.</div>
+      <div class="nhead">Float · the scout agent, read from the chain just now</div>
+      ${nrow(`scout EOA ${nlink(NOT.scout)}, USDC balance`, notVal(scoutBal, (v) => `<span class="${v === 0n ? "good" : "bad"}">${usd(v, 6)}</span>`))}
+      ${bal !== null && bal !== 0n ? nverdict("bad", `<b>The scout holds ${usd(bal, 6)} right now.</b> That contradicts the claim that the paying agent holds nothing.`) : ""}
+      ${budgetRows}
+      ${b && b[0] && left.ok ? nverdict("ok", `At most, a compromised scout could spend <b>${usd(left.v, 6)}</b>, the rest of its daily cap, and no more than ${usd(b[3], 6)} per request.${bal === 0n ? " It holds nothing of its own to spend." : ""}`) : ""}
+      <div class="note">This is one read, taken when the page last refreshed. “Zero before and after every payment” is what an acceptance check pins; this page does not run that check. The scout's agent id on the vault appears in ${onTape} of the ${receipts.length} payments on the tape above. Arc's USDC is one pool seen two ways (gas and ERC-20); this is the ERC-20 view, not a second balance.</div>`;
+  } catch (e) {
+    if (my === notSeq) panel.innerHTML = `<h2>Two things Float is not, read from the chain</h2><div class="err">${nesc(nwhy(e))}</div>`;
+  }
 }
 </script>
 </body>

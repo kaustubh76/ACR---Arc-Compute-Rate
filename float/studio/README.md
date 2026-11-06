@@ -329,7 +329,7 @@ one does not:
 
   | file | in the Studio workspace | in this repo | written by |
   |---|---|---|---|
-  | `index.html` | `7cc551eb…8615f640` · 17,420 | **identical** | Claude Code, then **Arc Studio** (§3f) |
+  | `index.html` | `c53181db…265b4a1a` · 31,328 | **identical** | Claude Code, then **Arc Studio** (§3f, §3g) |
   | `walk.html` | `ae8583da…1be2183d` · 27,787+ | `6efc9b0d…794f6bdd` · 27,787 | **Arc Studio** (§3c, §3f) |
   | `venue.html` | `48d9b548…e69273c3` · 59,600 | **identical** | **Arc Studio**, `morpho` skill (§3d, §3e) |
 
@@ -491,3 +491,49 @@ than silently re-querying Arc on every keystroke.
 See `hackathon/ethglobal-mumbai-2026/CONTINUITY.md` for the full attribution,
 including which parts of this repository were authored with AI assistance, as
 ETHGlobal's rules require.
+
+## 3g · Two comparisons, with the `pyth` and `circle-agent-wallet` skills
+
+Breadth was asked for, so the test applied to each was: can this be stated
+honestly? Two could, four could not, and the four were declined — `chainlink`
+and `pyth` have no feed for GPU or inference so a price cross-check would be
+fabricated, `ens` does not resolve on Arc, `uniswap` is mainnet-only,
+`polymarket` is unrelated. `pyth` survived on a different footing than the one
+it was offered on.
+
+**A pushed oracle, and a pulled one.** ACR's keeper posts a print on a schedule
+whether anyone asks or not. Pyth's price exists only once someone pays to post
+a signed update — and on Arc Testnet **nobody has**. Measured, and the page
+reads all of it live:
+
+| read | answer |
+|---|---|
+| `0xA2aa501b19aff244D90cc15a4Cf739D2725B5729` | Blockscout-verified `PythUpgradable`, 24,498 bytes |
+| `version()` | `1.4.5-alpha.1` — a real deployment |
+| `governanceDataSource()` | chainId 0, emitter `0x0000…0000` — **unset** |
+| `getPriceUnsafe(USDC/USD)` and `(ETH/USD)` | revert **`PriceFeedNotFound()`**, `0x14aebe68` |
+
+So: deployed but dormant. The page prints the `cast` command that reproduces
+it, which is the difference between a claim and evidence.
+
+It says in its own words that these are different assets, that comparing their
+values would be meaningless, and that **none are compared**. What it does
+compare is the shape: Pyth's struct carries `price`/`conf`/`publishTime` and
+ACR's print carries `priceWad`/`ciBps`/`postedAt` — both a price published with
+its own uncertainty, and it notes they are not the same unit, `conf` being
+absolute where `ciBps` is relative.
+
+**An agent that holds money, and one that does not.** The ordinary x402 shape
+gives the agent a wallet, so a compromised agent spends whatever it holds. Float
+gives it a budget: the vault pays, and the scout's own EOA reads **$0**. The
+page states plainly that *"Float does not use an agent wallet. This is a
+contrast, not a feature, and nothing in Float holds funds in one."*
+
+Three things it is careful about that were not asked for. It bounds the blast
+radius from what it read rather than asserting safety — *"at most, a compromised
+scout could spend $18.84525, the rest of its daily cap, and no more than $5 per
+request."* It separates what the page shows from what is proven: *"'Zero before
+and after every payment' is what an acceptance check pins; this page does not
+run that check."* And it heads off a double-count that would be easy to make,
+noting Arc's USDC is one pool seen two ways and this is the ERC-20 view, not a
+second balance.
