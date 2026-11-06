@@ -1,12 +1,126 @@
 "use client";
 
+import useSWR from "swr";
+
 import { Ed } from "@/components/Ed";
 import { TxLink } from "@/components/chain/TxLink";
 import { countdown, premiumPct, statusChip } from "@/lib/float";
 import type { FloatCheckpoint } from "@/lib/float";
 import { fmtPrice, shortAddr } from "@/lib/format";
-import { useFloatQueue } from "@/lib/useLive";
+import { useChain } from "@/lib/useChain";
+import { fetcherFor } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
+import { useFloatQueue } from "@/lib/useLive";
+import { gateVerdict, type WorldGateState } from "@/lib/worldGate";
+
+/* A MODULE CONSTANT, never an inline arrow: SWR restarts its timer whenever the
+   refreshInterval identity changes, so an arrow rebuilt each render never lets
+   a poll fire (lib/pollCadence.test.ts). A minute here matches the route's own
+   memo, and these four slots change only when an owner transaction lands. */
+const GATE_POLL_MS = 60_000;
+
+type GateAnswer = { status: string; reason?: string; gate?: WorldGateState };
+
+/** Where the gate actually stands on chain, whether or not any press is up.
+ *
+ *  The queue above can only say "the press did not answer", which tells a
+ *  reader nothing about an integration that works. These values are read from
+ *  the vault itself, so this panel keeps answering when the press is down -- and
+ *  it moves on its own the moment the owner rotates a role or sets the binding,
+ *  which makes the page the witness for that rather than a description of it. */
+function WorldGatePanel() {
+  const chain = useChain();
+  const { data } = useSWR<{ live?: boolean; data?: GateAnswer }>(
+    `/api/float/gate?chain=${chain}`,
+    fetcherFor(chain),
+    { refreshInterval: GATE_POLL_MS, keepPreviousData: true },
+  );
+  const answer = data?.data;
+  const gate = answer?.gate;
+  const verdict = gate ? gateVerdict(gate) : null;
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2 className="label">
+          <Ed x="The gate, on chain" p="Is it switched on" />
+        </h2>
+        <span className="label">
+          <span className={`chip ${verdict?.armed ? "chip-live" : "chip-sim"}`}>
+            {verdict ? (
+              verdict.armed ? (
+                <Ed x="armed" p="ready" />
+              ) : (
+                <Ed x="not armed yet" p="not ready yet" />
+              )
+            ) : (
+              <Ed x="reading the vault" p="checking" />
+            )}
+          </span>
+        </span>
+      </div>
+
+      {!gate ? (
+        <p className="muted">
+          <Ed
+            x={answer?.reason ?? "reading the vault's own slots."}
+            p="checking the treasury itself."
+          />
+        </p>
+      ) : (
+        <>
+          <Ed
+            as="p"
+            className="muted"
+            x="These four values live on the vault, not on our server, so this panel answers even when the press is down and it changes by itself the moment an owner transaction lands."
+            p="These come from the treasury itself, so this works even when our server is down."
+          />
+          <div>
+            <p className="label">
+              <Ed x="pins a person" p="knows who may say yes" />
+            </p>
+            <p className="mono">
+              {verdict?.bound ? (
+                <Ed x="yes · treasurerBinding is set" p="yes" />
+              ) : (
+                <Ed x="no · treasurerBinding is still zero" p="not yet" />
+              )}
+            </p>
+            <p className="label">
+              <Ed x="approver" p="who may say yes" />
+            </p>
+            <p className="mono">{shortAddr(gate.humanApprover)}</p>
+            <p className="label">
+              <Ed x="guest registrar" p="who may open a budget" />
+            </p>
+            <p className="mono">{shortAddr(gate.guestRegistrar)}</p>
+            <p className="label">
+              <Ed x="vault" p="treasury" />
+            </p>
+            <p className="mono">{shortAddr(gate.vault)}</p>
+          </div>
+          {verdict && !verdict.armed ? (
+            <>
+              <Ed
+                as="p"
+                className="muted"
+                x="Still outstanding, and each one is a single transaction from the address that deployed the vault:"
+                p="Still to do, one transaction each:"
+              />
+              <ul className="muted">
+                {verdict.outstanding.map((o) => (
+                  <li key={o} className="mono">
+                    {o}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
 
 /* The approvals card — the only place a human sees what they are approving.
 
@@ -156,6 +270,8 @@ export function FloatApproveView() {
           p="A payment an agent is not allowed to make on its own is not refused. It waits here until a real person says yes, once."
         />
       </div>
+
+      <WorldGatePanel />
 
       {!asked ? (
         <section className="section">
