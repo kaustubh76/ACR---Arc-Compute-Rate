@@ -122,11 +122,26 @@ ETHGlobal cautioning against entirely-AI work is named there rather than avoided
 ## Links to fill in at submission time
 
 - **Arc Studio project URL**: https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557
-  *(note: this requires a Circle login — see below)*
-- **Public dashboard URL**: _pending_ — but you do not need it to see the pages.
-  All three are in the repo at `float/app/{index,walk,venue}.html`, each a single
-  file with no build step and no server: open one in a browser and it reads Arc
-  Testnet live. The hosted mirror is the subject of the known gap below.
+  *(this is the right route — `/apps/<id>` and `/a/<id>` both 404 — but be told
+  exactly what it does rather than discovering it. Anonymously it **302s to
+  `login.circle.com/login/signout` with `fromURI` set to Studio's ROOT**, so the
+  project id is dropped and even a signed-in visitor lands on the Studio home,
+  not this app. And there is no public variant to offer: Arc Studio's own CLI
+  guide says the preview "renders only inside the workspace, not a standalone
+  link". The app is `b5aa43e1…`, "Onchain Agent Treasury Dashboard", and its
+  workspace holds `index.html`, `walk.html` and `venue.html` — checkable without
+  a login via the two hashing commands in `float/studio/README.md`, which now
+  print both the workspace and repo hashes for each.)*
+- **Public dashboard URL**: https://arc-compute-rate.vercel.app/float — live,
+  200, no login. This is the **terminal's** float surface: it drives the vault's
+  own twelve-rung refusal ladder against chain `5042002` through a `view`, so it
+  signs nothing, spends nothing and needs no key.
+  *(It is deliberately **not** the Studio-authored dashboard, and conflating the
+  two would overclaim. Those three are `float/app/{index,walk,venue}.html` — each
+  a single file, no build step, no server: open one in a browser and it reads Arc
+  Testnet live. **Do not use `arccomputerate.in`**, which answers `200` with a
+  registrar page titled "Your domain is suspended" — the status code flatters a
+  dead domain.)*
 - **GitHub**: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
 - **Architecture diagram**: `docs/assets/acr_float.preview.svg`
 - **Video (2–4 min, 720p+, human narration)**: _pending_

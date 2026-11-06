@@ -37,6 +37,16 @@ agents.waster.frozen: false -> true
 
 and left `maxPremiumBps` (100), `bufferHours` (48) and `workingShareBps` (10000)
 alone, correctly, because they already expressed what the treasurer asked for.
+
+**`policy.generated.json` is a record of that turn, not a mirror of the chain.**
+Diff it against `float/policy.config.json` today and you will find *two*
+differences, not the one above: the agents' `dailyCapUsdc` reads `25` here and
+`60` there. Studio did not touch it — the cap was raised afterwards, in Claude
+Code, because the demo tape pays $1.055 every half hour out of the same daily
+allowance the acceptance suite's T2 and T5 spend from, so at $25 the payment
+checks only passed in the first half of each 24-hour period. The reasoning is in
+`float/README.md`. Said here because the alternative is a judge finding a second
+diff and reasonably wondering what else moved quietly.
 It also left `humanMaxPremiumBps` at 2000 rather than "tidying" it, which matters:
 dropping it below `maxPremiumBps` would mean a human approval *narrowing* the
 allowed band, and both the schema and the vault refuse that.
