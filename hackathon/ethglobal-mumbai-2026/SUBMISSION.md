@@ -80,7 +80,7 @@ Every claim below is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 300 contract tests, 23 unit tests | `forge test`, `npm test` |
+| 300 contract tests, 25 unit tests | `forge test`, `npm test` |
 | The agent's wallet holds nothing, before and after | `test_the_agents_own_wallet_holds_nothing_before_and_after` |
 | A 3× quote is refused on chain with the fair counter-price | `npm run verify` T3 |
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |

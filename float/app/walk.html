@@ -136,8 +136,10 @@ const client = createPublicClient({ transport: http(CFG.rpc, { batch: true }) })
 // twice — and a single immediate retry is no use against a limiter that wants
 // you to wait. A transient must not be mistaken for "no payment", and a real
 // error must not be mistaken for a transient.
+// A hard Arc burst answers with a BARE 403 and no body, which reads like an
+// authorisation failure and is not: this endpoint has no auth to fail.
 const rateLimited = (e) =>
-  /rate limit|exceeds defined limit|429|too many requests|forbidden|\b403\b/i // 403: a hard Arc burst returns a bare 403, not a rate-limit message.test(
+  /rate limit|exceeds defined limit|429|too many requests|forbidden|\b403\b/i.test(
     `${e?.shortMessage ?? ""} ${e?.details ?? ""} ${e?.message ?? e}`,
   );
 async function retry(fn) {

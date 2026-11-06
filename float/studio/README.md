@@ -309,13 +309,48 @@ one does not:
   arc-studio cat --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557 index.html | shasum -a 256
   ```
 
-  All three agree:
+  **`index.html` agrees exactly. The two Studio pages do not, and should not** —
+  they were hardened here after they arrived, so the workspace holds what Studio
+  wrote and the repo holds what runs. Both columns are given, because a table
+  with one number invites a judge to run the command, get the other, and
+  conclude the evidence is fabricated. An earlier version of this section said
+  "all three agree" while a paragraph below it said two had been edited locally;
+  that contradiction is corrected here rather than quietly reworded.
 
-  | file | sha256 | bytes | written by |
+  | file | in the Studio workspace | in this repo | written by |
   |---|---|---|---|
-  | `index.html` | `655c5335…8d5a64f6` | 15,620 | Claude Code |
-  | `walk.html` | `7202bc60…862ac17f` | 22,023 | **Arc Studio** (§3c) |
-  | `venue.html` | `bb09574d…c3430df2` | 45,788 | **Arc Studio**, `morpho` skill (§3d) |
+  | `index.html` | `655c5335…8d5a64f6` · 15,620 | **identical** | Claude Code |
+  | `walk.html` | `7202bc60…862ac17f` · 22,023 | `13623e0c…5fdf0daf` · 22,190 | **Arc Studio** (§3c) |
+  | `venue.html` | `bb09574d…c3430df2` · 45,788 | `874ceca4…b00a3957` · 45,955 | **Arc Studio**, `morpho` skill (§3d) |
+
+  The whole of the difference is the bare-403 retry: Arc answers a hard burst
+  with an unbodied `403`, which neither page's original rate-limit predicate
+  matched. `make studio-pull` reports it as *"2 file(s) skipped to protect local
+  edits"*, which is the protection working.
+
+  **That edit shipped broken, and is worth recording because of how it got
+  through.** The note explaining the 403 was inserted INSIDE the expression:
+
+  ```js
+  /rate limit|…|\b403\b/i // 403: a hard Arc burst … message.test(
+  ```
+
+  `//` runs to end of line, so it ate `.test(`. In `walk.html` that left a
+  tagged template on a regex and an unmatched `)` — a **SyntaxError**, so the
+  inline module never parsed and the page rendered its shell and ran nothing at
+  all. In `venue.html` the same edit produced `(m) => /regex/i`, which returns a
+  RegExp and is therefore **always truthy**, so every error was read as rate
+  limiting. One page dead, one silently wrong, both committed and both on
+  `origin/main`.
+
+  Nothing in the repository could have caught it. These pages are single files
+  with no build step — the property that lets a judge open one with no server —
+  so `forge test`, `tsc`, the lint pass and the doc-claim audit all skip them,
+  and the broken line reads as ordinary code in a diff. `float/src/pages.test.ts`
+  now parses every page's module with `node --check` and separately asserts the
+  predicate reaches `.test(`, since `venue.html`'s version was valid JavaScript
+  that a parser cannot fault. Both assertions were confirmed against the broken
+  files before being trusted.
 
   Files go out with `arc-studio run -f 'float/app/index.html:index.html'`, which
   **places** a file in the workspace instead of asking the model to retype it —
