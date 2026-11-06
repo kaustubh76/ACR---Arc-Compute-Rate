@@ -89,6 +89,7 @@ pays the seller in **one transaction**.
 | `contracts/src/float/{IFloat,FloatTestSeller}.sol` | interfaces; the labelled demo counterparty |
 | `contracts/test/Float*.t.sol`, `contracts/test/float/Doubles.sol` | **89 tests**, plus doubles that reproduce Morpho V2's always-zero `max*` functions and 18-decimal shares |
 | `contracts/script/DeployFloat.s.sol` | the whole set in one broadcast |
+| `contracts/src/float/UsycSleeve.sol` | **The third sleeve, which the original design called for and never had.** Idle float in Circle's tokenised treasury fund, reached only when the working Morpho sleeve cannot cover a payment. Written against the Teller's **verified** ABI rather than a guessed one: Blockscout had not resolved the EIP-1967 proxy, so the implementation came from slot `0x3608…2bbc` -> `0x238dc235…adf6`, 60 functions. Two corrections to the original sketch fell out of that — **no price oracle** (the Teller previews its own redemption, net of its own fee, so an oracle would add a trusted third party and a staleness window to a number the counterparty already publishes) and **sizing by preview rather than by dividing through a NAV**, which fails at prices that do not divide evenly: replacing the ceiling arithmetic with naive division fails two tests, one of them a real vault payment. **Built and tested, not funded** — a staticcall of the live Teller reverts `NotPermissioned()` (`0x7f63bd0f`), and acceptance check **T15** asks on every run so the claim cannot drift. The trap worth carrying: `maxDeposit(address)` returned **5,723,443** for that same un-permissioned address, so `maxDeposit > 0` is not an eligibility check |
 | `float/src/prices.ts` + `prices.test.ts` | per-provider price medians and a measured confidence interval, using ACR's own blend and unit conversion |
 | `float/src/bin/{keeper,agents,local,prices}.ts` | the print/forecast/rebalance loop, the two demo agents, a local bootstrap, a spread report |
 | `float/src/{chain,artifacts,deployments,seed}.ts` | chain config, ABIs read from forge's output, per-network deployment records |
@@ -153,7 +154,7 @@ git diff --stat 6e6a827..HEAD
 git log --oneline 6e6a827..HEAD -- contracts/src/float float/
 
 # the contracts, verified on Arc
-cd contracts && forge test            # 309 tests
+cd contracts && forge test            # 320 tests
 cd float && npm test                  # the price layer
 ```
 

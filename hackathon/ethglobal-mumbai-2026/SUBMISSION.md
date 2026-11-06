@@ -80,15 +80,16 @@ Every claim below is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 309 contract tests, 32 unit tests | `forge test`, `npm test` |
+| 320 contract tests, 32 unit tests | `forge test`, `npm test` |
 | The agent's wallet holds nothing, before and after | `test_the_agents_own_wallet_holds_nothing_before_and_after` |
 | A 3× quote is refused on chain with the fair counter-price | `npm run verify` T3 |
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |
 | The fair band is denominated correctly | `test_the_fair_band_is_denominated_in_usdc_not_wad` |
-| Fourteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
+| Fifteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
 | An Eco **Sauce** program asks the Morpho venue whether it could deliver a shortfall, before anything is signed | `make float-sauce`, then `npm run verify` T13 — it is run in both directions, and fails unless the uncoverable amount is refused |
 | That Sauce program cooks on a **Pot deployed on Arc**, not a simulated one | tx [`0xabb5df02…baf3be`](https://explorer.testnet.arc.io/tx/0xabb5df023e20f260b565b0c0cbb916d82e25e265c439a6ab6a43361632baf3be), 667,003 gas through Sauce's Kitchen (verified as `KitchenProxy`). The witness is that `simulate` no longer prints a `deployPot` step |
 | The venue is still Morpho **Vault V2** — every `max*` returns zero and shares are 18 decimals against 6-decimal USDC | `npm run verify` T14. Asserted against the live vault with **no proprietary dependency**, so unlike T13 it also runs from a clone and in CI |
+| The **USYC reserve sleeve** is built and tested — and **not funded**, because Circle's allowlist is a support ticket | `forge test --match-path test/UsycSleeve.t.sol` (11 tests, including the vault paying a real bill out of the reserve). `npm run verify` T15 asks the live Teller every run and prints `NotPermissioned()` until the ticket clears. We claim no USYC position |
 | Our yield venue has **no timelock on any of its four gate setters**, and its owner and curator are one key | `venue.html`, written by Arc Studio's `morpho` skill; re-derive with `cast call <venue> "timelock(bytes4)(uint256)" <selector>` |
 | The three pages are **driven, not read** — a shortfall probe, a payment picker, a span selector | Open `float/app/{venue,walk,index}.html`. The probe asks the live vault the same four checks the compiled Sauce program asks, and agrees with it: one cent below the sleeve's position says *can cover*, one cent above says *refused* |
 | Pyth is **deployed but dormant** on Arc Testnet, so a pull oracle with nobody paying has no price at all | `index.html` reads it live; re-run `cast call 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729 "getPriceUnsafe(bytes32)" 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a --rpc-url https://rpc.testnet.arc.io` and read the `0x14aebe68` revert as `PriceFeedNotFound()` |

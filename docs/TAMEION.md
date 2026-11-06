@@ -347,13 +347,51 @@ explicit: USYC is for institutions outside the United States, with eligibility
 restrictions and a $100,000 minimum. On testnet the path is narrower but still
 gated — get testnet USDC from the faucet, then **open a Circle Support ticket
 asking for the Arc testnet wallet to be allowlisted, which takes 24 to 48
-hours**, and only then can the Teller be called. We could not read our own
-eligibility to confirm it: the Teller's allowlist accessor is not under any of
-the three usual names, so the real ABI is needed and guessing at it would be
-worse than saying so.
+hours**, and only then can the Teller be called.
+
+**The ABI half of that is now answered, 2026-11-06.** The paragraph above used
+to end "we could not read our own eligibility: the Teller's allowlist accessor
+is not under any of the three usual names, so the real ABI is needed and
+guessing at it would be worse than saying so." The real ABI was there; it was
+behind a proxy Blockscout had not resolved. Reading the EIP-1967 slot
+`0x3608…2bbc` on the Teller gives implementation `0x238dc235…adf6`, which **is**
+verified and declares 60 functions — `deposit(uint256,address)`,
+`redeem(uint256,address,address)`, `previewDeposit`, `previewRedeem`,
+`mintPrice()`, and ten custom errors including `NotPermissioned()`.
+
+So eligibility is readable after all, in one staticcall:
+
+```
+cast call 0x9fdF14c5B14173D74C08Af27AebFf39240dC105A \
+  "deposit(uint256,address)(uint256)" 1000000 <addr> --from <addr> \
+  --rpc-url https://rpc.testnet.arc.io
+```
+
+Ours reverts `0x7f63bd0f`, which that ABI names **`NotPermissioned()`**. A
+known-ineligible control reverts identically, so the probe discriminates on
+permission and nothing else. **We are not allowlisted, and now that is a
+measurement rather than an assumption** — the acceptance suite asks it on every
+run as T15 and prints the answer either way.
+
+**And a trap that would have cost somebody a day.** `maxDeposit(address)` is
+the obvious-looking eligibility check and it is wrong: it returned **5,723,443**
+for our deployer, a non-zero number, while that same deployer's deposits revert
+`NotPermissioned()`. `maxDeposit > 0` means nothing about permission. Use the
+staticcall.
+
+The practical consequence is that the sleeve could be written against a known
+ABI instead of a guessed one, and it has been: `contracts/src/float/UsycSleeve.sol`,
+eleven tests including a real payment made by the vault out of the reserve. It
+is **built and tested, not funded.** Two things the sketch assumed turned out to
+be unnecessary or wrong — the price oracle (the Teller previews its own
+redemption, net of its own fee) and sizing a redemption by dividing through a
+NAV, which fails at prices that do not divide evenly and was caught by a test
+written to catch exactly that.
 
 **So the honest position.** The capability is three lines of contract call
-behind a human approval with a two-day lead time. The part that is actually
+behind a human approval with a two-day lead time — and those three lines are
+now written and tested, so when the ticket clears it is a funding step rather
+than a development one. The part that is actually
 ours, and the part most treasury bots guess at, is the **forecast**: how much is
 provably idle past the longest committed outflow. We already hold what that
 needs — the obligations, their windows, the agreements they were made under, and

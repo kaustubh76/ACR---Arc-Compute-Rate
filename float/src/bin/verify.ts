@@ -16,7 +16,7 @@
  * lower index than the USDC `Transfer` that pays the seller. Same transaction,
  * ordered, and checkable by anyone with an RPC — no privileged node needed.
  */
-import { decodeEventLog, keccak256, parseAbiItem, toHex, formatUnits, type Address, type Hex } from "viem";
+import { decodeEventLog, encodeFunctionData, keccak256, parseAbiItem, toHex, formatUnits, type Address, type Hex } from "viem";
 import { addressFor, feeFor, netFromEnv, publicFor, rpcFor, walletFor } from "../chain.ts";
 import * as A from "../artifacts.ts";
 import { load } from "../deployments.ts";
@@ -656,6 +656,74 @@ const scoutBefore = await bal(SCOUT_EOA);
   }
   check("T14", "the venue is still Vault V2: every max* returns zero and shares are 18 decimals",
     ok, saw.join("; "));
+}
+
+// --- T15 · is the USYC reserve allowlisted yet? ----------------------------
+//
+// The reserve sleeve is BUILT AND TESTED BUT NOT FUNDED, and the thing in the
+// way is Circle's allowlist: a support ticket with a 24-48 hour turnaround,
+// not a line of code. That is a human dependency, and a human dependency left
+// unchecked is how a submission ends up claiming a position it does not hold.
+//
+// So the suite asks the chain on every run. A staticcall of the Teller's
+// `deposit` costs nothing, sends nothing, and answers exactly one question.
+//
+// WHY NOT `maxDeposit`, WHICH LOOKS LIKE THE OBVIOUS CHECK: because it lies.
+// Measured 2026-11-06, `maxDeposit(deployer)` returned 5,723,443 — non-zero —
+// for an address whose deposits revert. Anyone reading `maxDeposit > 0` as
+// eligibility ships a sleeve that fails on first use.
+{
+  const TELLER = "0x9fdF14c5B14173D74C08Af27AebFf39240dC105A" as Address;
+  // `NotPermissioned()`, from the Teller's own verified ABI.
+  const NOT_PERMISSIONED = "0x7f63bd0f";
+  if (NET !== "arc-testnet") {
+    check("T15", "the USYC reserve's allowlist standing is known, not assumed",
+      true, `skipped: the Teller is on arc-testnet, not ${NET}`);
+  } else {
+    let saw = "";
+    let ok = true;
+    try {
+      await pub.call({
+        to: TELLER,
+        account: addressFor("deployer") as Address,
+        data: encodeFunctionData({
+          abi: [{
+            type: "function", name: "deposit",
+            inputs: [{ type: "uint256" }, { type: "address" }],
+            outputs: [{ type: "uint256" }], stateMutability: "nonpayable",
+          }],
+          functionName: "deposit",
+          args: [1_000_000n, addressFor("deployer") as Address],
+        }),
+      });
+      // If this ever stops reverting, the ticket has cleared and the reserve
+      // can be funded. Until a human reads this line, nothing claims it has.
+      saw = "ALLOWLISTED: the Teller accepted a simulated deposit. The USYC "
+        + "reserve can now be funded, and the docs should stop saying it cannot.";
+    } catch (e) {
+      // The selector is NOT in `.message`. viem wraps the revert as
+      // CallExecutionError <- ExecutionRevertedError <- RpcRequestError, and
+      // only the inner one carries `.data`. Matching on the message looked
+      // right, failed, and correctly refused to call an unreadable answer a
+      // settled one — so walk the chain for the raw bytes instead.
+      let data: string | undefined;
+      for (let w: unknown = e; w && !data; w = (w as { cause?: unknown }).cause) {
+        const d = (w as { data?: unknown }).data;
+        if (typeof d === "string" && d.startsWith("0x")) data = d;
+      }
+      const m = String((e as Error).message ?? "");
+      if (data?.startsWith(NOT_PERMISSIONED)) {
+        saw = `not allowlisted yet: the Teller reverts NotPermissioned() (${NOT_PERMISSIONED}). `
+          + "The sleeve is built and tested; funding it is a Circle support ticket.";
+      } else {
+        // A different error means the probe itself stopped answering, and an
+        // unanswered question must not read as a settled one.
+        ok = false;
+        saw = `the probe did not get a legible answer: ${m.split("\n")[0]?.slice(0, 90)}`;
+      }
+    }
+    check("T15", "the USYC reserve's allowlist standing is known, not assumed", ok, saw);
+  }
 }
 
 // --- the verdict ------------------------------------------------------------
