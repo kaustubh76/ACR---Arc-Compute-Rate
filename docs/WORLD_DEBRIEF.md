@@ -46,6 +46,7 @@ journey against a real vault on a local chain and times each leg:
 | park and record a denial on chain | 0.3 s |
 | park and let the window close, recorded as expiry | 0.3 s |
 | three refusals that are not the human's fault | under 0.1 s |
+| change the rules, held to a stronger class than the payment was | 0.5 s |
 
 Those numbers are the *mechanism*, not the provider: the token in that run is
 one we mint ourselves and validate through the same nine-rung ladder, so what

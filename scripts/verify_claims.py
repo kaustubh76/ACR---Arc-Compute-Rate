@@ -596,6 +596,63 @@ def main() -> None:
     for d in divergent:
         print(f"      {d}")
 
+    # Naming a test is the strongest claim a document here makes: go run this
+    # one and watch it hold. A RENAMED test turns that into a citation of
+    # nothing, which still reads like evidence — the same failure as an address
+    # that is one character off, a layer up. This nearly landed on 2026-11-06,
+    # when a test was renamed four ways in a single commit and only luck meant
+    # no write-up had cited the old name.
+    #
+    # Scoped to the LIVE submission copy. The older `hackathon/` sets are
+    # frozen, post-hoc write-ups whose test names are a record of what the
+    # suite was called then, so holding them to today's suite would be wrong.
+    # BOTH languages, because the live copy cites both and a one-language scan
+    # reports the other one's tests as missing. That is not hypothetical: the
+    # first run of this check called two REAL Forge tests dangling.
+    defined: set[str] = set()
+    for top, pattern, expr in (
+        ("packages", "test_*.py", r"^def (test_[A-Za-z0-9_]+)"),
+        ("services", "test_*.py", r"^def (test_[A-Za-z0-9_]+)"),
+        ("tests", "test_*.py", r"^def (test_[A-Za-z0-9_]+)"),
+        ("contracts", "*.t.sol", r"function\s+(test_[A-Za-z0-9_]+)\s*\("),
+        ("float", "*.t.sol", r"function\s+(test_[A-Za-z0-9_]+)\s*\("),
+    ):
+        base = ROOT / top
+        if not base.is_dir():
+            continue
+        for f in sorted(base.rglob(pattern)):
+            # `contracts/out/` holds DIRECTORIES named `*.t.sol` — that is
+            # forge's artifact layout, and rglob walks straight into them. The
+            # build trees are excluded outright: `lib/` is vendored forge-std,
+            # whose tests are nobody's claim here.
+            if not f.is_file() or {"out", "cache", "lib", "node_modules"} & set(f.parts):
+                continue
+            defined |= set(re.findall(expr, f.read_text(errors="ignore"), re.M))
+
+    live_copy = sorted((ROOT / "hackathon" / "ethglobal-mumbai-2026").glob("*.md"))
+    live_copy.append(ROOT / "docs" / "WORLD_DEBRIEF.md")
+    dangling: list[str] = []
+    citations = 0
+    for path in live_copy:
+        if not path.exists():
+            continue
+        # `(?!\.py)` keeps module PATHS out of it: `test_floatgate.py` is a file
+        # the reader is told to run, not a function this could look up.
+        for name in sorted(
+            set(re.findall(r"\b(test_[A-Za-z0-9_]+)\b(?!\.py)",
+                           path.read_text(encoding="utf-8", errors="ignore")))
+        ):
+            citations += 1
+            if name not in defined:
+                dangling.append(f"{path.relative_to(ROOT)} cites {name}, which no file defines")
+    check(
+        not dangling,
+        f"every test the live submission copy names by hand exists "
+        f"({citations} citations against {len(defined)} defined tests)",
+    )
+    for d in dangling:
+        print(f"      {d}")
+
     print()
     if _failures:
         print(f"claims: {len(_failures)} STALE — the README is ahead of, or behind, reality")
