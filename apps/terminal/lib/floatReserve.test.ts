@@ -50,14 +50,52 @@ test("the record is the one in docs/TAMEION.md, not a second copy of it", () => 
   assert.match(doc, new RegExp(`decimals\\(\\) == ${RESERVE_RECORD.decimals}`));
 });
 
-test("both addresses in the doc are the ones the page would read", () => {
+test("the map holds well-formed addresses, one fund per chain, anchored to the doc's own labels", () => {
+  /* A PROPERTY TEST RATHER THAN A LIST OF EXPECTED VALUES, because the shape of
+     the mistake this map invites is not a typo — it is an address pasted under
+     the wrong `ChainKey`. The first version of this test asserted that both
+     addresses appear somewhere in `docs/TAMEION.md`, which a straight SWAP of
+     the two entries passes: both are still in the document. So the mainnet
+     entry is anchored to the sentence that calls it mainnet, and the rule below
+     holds for a third chain added later, which an expected list would not. */
+  const ADDR = /^0x[0-9a-fA-F]{40}$/;
   const doc = readFileSync(TAMEION, "utf8");
-  const t = reserveFund("testnet");
-  assert.ok(doc.includes(t.token), "the testnet fund address is the recorded one");
-  assert.ok(doc.includes(t.teller), "the teller address is the recorded one");
-  assert.ok(doc.includes(RESERVE_FUND.mainnet.token), "the mainnet fund address is the recorded one");
+
+  const tokens = new Set<string>();
+  for (const [chain, fund] of Object.entries(RESERVE_FUND)) {
+    /* The accessor the reader actually calls, checked against the map rather
+       than assumed to be a pass-through: `readReserveFacts` reaches the fund
+       only through this, so a wrong key here would be invisible above. */
+    assert.deepEqual(reserveFund(chain as "testnet" | "mainnet"), fund, `reserveFund("${chain}") is not its own entry`);
+    assert.match(fund.token, ADDR, `${chain} fund address is not 20 bytes`);
+    assert.ok(!tokens.has(fund.token.toLowerCase()), `${chain} reuses another chain's fund address`);
+    tokens.add(fund.token.toLowerCase());
+    /* Blank is allowed and meaningful; anything non-blank must be real. A
+       half-typed address is the one state that must not survive. */
+    if (fund.teller !== "") {
+      assert.match(fund.teller, ADDR, `${chain} teller address is not 20 bytes`);
+      assert.notEqual(fund.teller.toLowerCase(), fund.token.toLowerCase(), `${chain} teller is its own token`);
+    }
+  }
+
+  /* THE ANCHORS. Each one is the address the document itself LABELS, so a swap
+     between the two chains fails here rather than passing a presence check. */
+  const mainnetDoc = /Mainnet USYC is\s*`(0x[0-9a-fA-F]{40})`/.exec(doc);
+  assert.ok(mainnetDoc, "docs/TAMEION.md no longer names the mainnet fund");
+  assert.equal(RESERVE_FUND.mainnet.token.toLowerCase(), mainnetDoc[1].toLowerCase());
+
+  const tellerDoc = /Teller that mints and redeems it,\s*`(0x[0-9a-fA-F]{40})`/.exec(doc);
+  assert.ok(tellerDoc, "docs/TAMEION.md no longer names the teller");
+  assert.equal(RESERVE_FUND.testnet.teller.toLowerCase(), tellerDoc[1].toLowerCase());
+
+  /* And the testnet fund is in the document but is NOT the one it calls
+     mainnet, which is the swap this test exists to catch. */
+  assert.ok(doc.includes(RESERVE_FUND.testnet.token), "the testnet fund address is not the recorded one");
+  assert.notEqual(RESERVE_FUND.testnet.token.toLowerCase(), mainnetDoc[1].toLowerCase());
+
   /* THE MAINNET TELLER WAS NEVER READ FIRST-HAND, so there is nothing to put
-     here. An invented address would be the one thing this whole module exists
-     to avoid: a value on screen nobody checked. */
+     there. An address that looks plausible is strictly worse than a blank one:
+     a blank fails loudly at the first read, a wrong one fails quietly at the
+     worst possible moment. */
   assert.equal(RESERVE_FUND.mainnet.teller, "");
 });
