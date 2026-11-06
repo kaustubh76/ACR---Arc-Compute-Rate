@@ -2845,7 +2845,15 @@ a.colophon-act:hover::after {
   box-shadow: 0 0 22px rgba(239, 106, 90, 0.16);
 }
 .flow-node.dim {
-  opacity: 0.5;
+  /* 0.5 put the text at 4.0:1, under the 4.5 SC 1.4.3 asks, because opacity
+     multiplies into the contrast of everything inside. A dimmed rung still
+     SAYS something — which check was never reached — so it has to stay
+     readable; the dashed border and the lift carry the "not reached" signal
+     without the text paying for it. Measured on /float, whose ladder shows
+     several dim rungs whenever a quote stops early. Easy to miss: an earlier
+     pass over the same page found nothing because every rung happened to have
+     passed at that moment. */
+  opacity: 0.68;
   border-style: dashed;
 }
 .flow-node.gcp {
