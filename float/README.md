@@ -37,7 +37,7 @@ unapproved seller.
 ## Run it
 
 ```bash
-cd contracts && forge build && forge test     # 300 tests
+cd contracts && forge build && forge test     # 309 tests
 anvil                                          # in another shell
 cd float && npm install
 npm test                                       # 32 unit tests

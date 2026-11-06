@@ -87,7 +87,7 @@ pays the seller in **one transaction**.
 | `contracts/src/float/FloatPrintStore.sol` | per-model USD prices with an incrementing `printId`, so "this print is stale" and "this print is not the one you were quoted" are separately enforceable |
 | `contracts/src/float/Sleeves.sol` | `Erc4626Sleeve` against the Morpho Vault V2 that Circle's Earn Kit discovers on Arc Testnet; `NullSleeve` |
 | `contracts/src/float/{IFloat,FloatTestSeller}.sol` | interfaces; the labelled demo counterparty |
-| `contracts/test/Float*.t.sol`, `contracts/test/float/Doubles.sol` | **80 tests**, plus doubles that reproduce Morpho V2's always-zero `max*` functions and 18-decimal shares |
+| `contracts/test/Float*.t.sol`, `contracts/test/float/Doubles.sol` | **89 tests**, plus doubles that reproduce Morpho V2's always-zero `max*` functions and 18-decimal shares |
 | `contracts/script/DeployFloat.s.sol` | the whole set in one broadcast |
 | `float/src/prices.ts` + `prices.test.ts` | per-provider price medians and a measured confidence interval, using ACR's own blend and unit conversion |
 | `float/src/bin/{keeper,agents,local,prices}.ts` | the print/forecast/rebalance loop, the two demo agents, a local bootstrap, a spread report |
@@ -153,7 +153,7 @@ git diff --stat 6e6a827..HEAD
 git log --oneline 6e6a827..HEAD -- contracts/src/float float/
 
 # the contracts, verified on Arc
-cd contracts && forge test            # 300 tests
+cd contracts && forge test            # 309 tests
 cd float && npm test                  # the price layer
 ```
 

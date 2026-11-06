@@ -193,3 +193,137 @@ contract ReentrantSleeve is ISleeve {
         return usdcToken.balanceOf(address(this));
     }
 }
+
+/// @notice A sleeve that cannot pay out, the way a real venue cannot when its
+///         gates close, its market is illiquid, or its caps bite.
+/// @dev    This is the mode with no coverage at all before now, and it is the
+///         one that matters most: `FloatVault` is built so a refusal RETURNS
+///         FALSE and emits `Denied` rather than reverting — that is the whole
+///         premise of the refusal ladder. A venue outage bypasses it. There is
+///         no try/catch anywhere in `src/float`, so the revert propagates, the
+///         payment dies with no `Denied` event, and on real Morpho V2 it
+///         surfaces as a bare custom-error selector with nothing tying it to
+///         the venue. It will look exactly like our bug and it is not one.
+contract RevertingSleeve is ISleeve {
+    MockUSDC public immutable usdcToken;
+    uint256 public held;
+
+    constructor(MockUSDC usdc_, uint256 held_) {
+        usdcToken = usdc_;
+        held = held_;
+    }
+
+    function depositIdle(uint256 usdcAmount) external {
+        require(usdcToken.transferFrom(msg.sender, address(this), usdcAmount), "pull failed");
+        held += usdcAmount;
+    }
+
+    /// Reports value it will not actually hand over, which is the honest shape
+    /// of the hazard: `valueUsdc` reads a share balance, and shares are worth
+    /// nothing you cannot redeem.
+    function withdrawExact(uint256) external pure {
+        revert("venue: withdraw gated");
+    }
+
+    function valueUsdc() external view returns (uint256) {
+        return held;
+    }
+}
+
+/// @notice An ERC-4626 that can be switched into the ways a venue misbehaves.
+/// @dev    `MockVault4626` is a well-behaved vault with Morpho V2's two quirks.
+///         This one adds the hazards nothing modelled before: a closed exit, a
+///         deposit cap, and a deposit that takes the money and mints nothing.
+///         Each is off by default so a test turns on exactly the one it is about.
+contract GatedVault4626 {
+    MockUSDC public immutable usdcToken;
+    uint256 public totalShares;
+    uint256 public totalAssets;
+    mapping(address => uint256) public balanceOf;
+
+    bool public withdrawGated;
+    bool public mintZeroShares;
+    uint256 public depositCap; // 0 = uncapped
+
+    constructor(MockUSDC usdc_) {
+        usdcToken = usdc_;
+    }
+
+    function setWithdrawGated(bool v) external {
+        withdrawGated = v;
+    }
+
+    function setMintZeroShares(bool v) external {
+        mintZeroShares = v;
+    }
+
+    function setDepositCap(uint256 v) external {
+        depositCap = v;
+    }
+
+    function asset() external view returns (address) {
+        return address(usdcToken);
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function maxWithdraw(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function maxDeposit(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function maxMint(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function maxRedeem(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        if (totalShares == 0) return shares / 1e12;
+        return shares * totalAssets / totalShares;
+    }
+
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        if (totalAssets == 0) return assets * 1e12;
+        return (assets * totalShares + totalAssets - 1) / totalAssets;
+    }
+
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        require(depositCap == 0 || totalAssets + assets <= depositCap, "venue: deposit cap");
+        require(usdcToken.transferFrom(msg.sender, address(this), assets), "pull failed");
+        // The silent-loss mode: the USDC is taken and no claim is issued.
+        if (mintZeroShares) {
+            totalAssets += assets;
+            return 0;
+        }
+        shares = totalShares == 0 ? assets * 1e12 : assets * totalShares / totalAssets;
+        totalShares += shares;
+        totalAssets += assets;
+        balanceOf[receiver] += shares;
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner_)
+        external
+        returns (uint256 shares)
+    {
+        require(!withdrawGated, "venue: withdraw gated");
+        shares = previewWithdraw(assets);
+        require(balanceOf[owner_] >= shares, "insufficient shares");
+        balanceOf[owner_] -= shares;
+        totalShares -= shares;
+        totalAssets -= assets;
+        require(usdcToken.transfer(receiver, assets), "transfer failed");
+    }
+
+    function accrue(uint256 extraAssets) external {
+        usdcToken.mint(address(this), extraAssets);
+        totalAssets += extraAssets;
+    }
+}
