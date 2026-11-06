@@ -130,8 +130,14 @@ class PendingJoins:
 
     `humanid._Nonces` cannot be reused for this: it is an `OrderedDict` of
     nonce → issue time with no payload slot and no hook to add one. The binding
-    matters because `selfieCheck` carries no signal, so the signed nonce IS the
-    only thing tying a human's proof to one particular wallet.
+    matters because the signed nonce is the only thing tying a human's proof to
+    one particular wallet THAT WE CHECK. `selfieCheck` does take an optional
+    `signal` -- the installed types say `selfieCheck(opts?: {signal?: string})`
+    -- and committing the agent address to it would be a second, independent
+    binding. We do not, because nothing here verifies a signal, and an
+    unverified commitment on the wire reads like a guarantee while being
+    decoration. Binding it server-side is the obvious strengthening and it is
+    named as absent rather than implied.
     """
 
     ttl_s: float = NONCE_TTL_S

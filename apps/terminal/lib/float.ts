@@ -72,3 +72,82 @@ export function countdown(seconds: number): string {
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/* --- the guest join, as the press and the Developer Portal serve it -------
+
+   Types only, and deliberately no reader-facing copy. Every string a visitor
+   sees is a literal `<Ed x= p=>` in the view, because the coverage gates match
+   on literal props: copy hoisted into a helper here would render identically
+   and silently escape the 140-character plain limit, the banned-term list and
+   the em-dash check. A gate that a refactor can step around is not a gate. */
+
+/** The press's named refusals. This tuple IS the contract the join page is
+ *  written against — `floatguest.REASONS` is the same list, and a test walks
+ *  every one of them through the route. */
+export type GuestReason =
+  | "wrong_environment"
+  | "unknown_or_expired_request"
+  | "verify_failed"
+  | "no_nullifier"
+  | "below_sybil_floor"
+  | "one_guest_budget_per_human"
+  | "not_a_guest_agent"
+  | "the_till_is_empty";
+
+/** What the widget needs, minted server-side.
+ *
+ *  `rp_context` is snake_case and its signature field is `signature`, while
+ *  the signer returns `{sig, createdAt, expiresAt}` in camelCase. The rename
+ *  happens once, in the context route, and is pinned by a test: a widget
+ *  handed `sig` renders and then fails at World, which is the worst kind of
+ *  broken because it looks like it works.
+ */
+export type GuestRpContext = {
+  rp_id: string;
+  nonce: string;
+  created_at: number;
+  expires_at: number;
+  signature: string;
+};
+
+export type GuestContext = {
+  /** "ok" when this host can mint a request, "pending" when it cannot. */
+  status: "ok" | "pending";
+  /** Present when "pending": which piece of configuration is missing. */
+  reason?: string;
+  app_id?: string;
+  action?: string;
+  rp_context?: GuestRpContext;
+};
+
+/** What the chain did, with the nullifier already gone.
+ *
+ *  `human` is a mask the press applies before the value leaves it, and
+ *  `agent_id` is the hash the chain stores. Neither can be walked back to the
+ *  nullifier, which is the whole reason the id is a hash of it. */
+export type GuestBudget = {
+  ok: boolean;
+  agent: string;
+  agent_id: string;
+  daily_cap_usdc: number;
+  tx: string;
+  human: string;
+  sandbox_observed: boolean | null;
+};
+
+export type GuestClaim = {
+  status: "ok" | "pending";
+  reason?: string;
+  claim?: GuestBudget;
+};
+
+/** An address we are willing to attach a budget to.
+ *
+ *  Checksum is NOT required: a visitor pasting from a block explorer gets
+ *  mixed case and a visitor typing gets lower, and refusing the second would
+ *  be refusing the commoner case. Length and charset are the whole check,
+ *  because the only thing a wrong address costs here is a budget nobody can
+ *  spend. */
+export function isAgentAddress(s: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(s.trim());
+}

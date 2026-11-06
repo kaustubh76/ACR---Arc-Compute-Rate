@@ -171,8 +171,11 @@ consumes it, because a nonce that can be retried is not single-use.
 
 The server half — verification, the nonce binding, the ledger, the chain as
 authority, the eight refusals — is complete, tested and exercised end to end by
-`make rehearse-float`. The browser join page is the last piece and depends on a
-Developer Portal `rp_id` and signing key, which is an operator action. Our own
+`make rehearse-float`. The browser join page is built and the production build
+carries it; what it still needs is configuration, and the widget's own types
+say that is **three** values from the Developer Portal rather than two:
+`app_id` (typed `app_${string}`), `rp_id` (inside the signed `rp_context`), and
+the signing key. Supplying it is an operator action. Our own
 rule for this event is that **a track whose module is half-built is not
 entered**, because a half-entry burns judge goodwill the other entries need. So
 this submission stands or falls on the join flow actually working, and we would

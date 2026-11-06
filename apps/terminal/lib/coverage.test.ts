@@ -132,6 +132,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,
   "app/float/approve/view.tsx": 22, // the three honest states, the code, the countdown, and every label on the card
+  "app/float/join/view.tsx": 27, // measured: the eight named refusals each get their own sentence, plus the form and the issued card
   "components/chain/TxLink.tsx": 2,
   "components/chain/Badges.tsx": 2,
   "components/charts/AttackChart.tsx": 2,
@@ -164,6 +165,8 @@ const EXEMPT: Record<string, string> = {
   "app/ops/page.tsx": "metadata only",
   "app/float/approve/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/float/approve/loading.tsx": "skeleton",
+  "app/float/join/page.tsx": "metadata only — the client component owns the whole sequence, like /float/approve",
+  "app/float/join/loading.tsx": "skeleton",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
   "app/check/page.tsx": "metadata only — a price check has no answer until a visitor types one",
