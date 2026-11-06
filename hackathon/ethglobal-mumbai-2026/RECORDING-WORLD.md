@@ -41,23 +41,27 @@ Terminal set-up that makes the recording legible:
 - **Length is UNVERIFIED and must be checked on the submission form before you
   cut.** The event page would not load for us; the prizes page shows per-track
   limits ranging from "under 3 mins" to "5 minutes or less", and Arc's own block
-  says only "Video demonstration + presentation". Plan for ~2:40 of World
-  material so it fits inside the tightest limit we have seen.
+  says only "Video demonstration + presentation". Plan for ~2:45 of World
+  material. That fits "under 3 mins" with about fifteen seconds of margin and
+  nothing to spare, so **if the form says less, drop the nonce beat at 0:44
+  first** — it is the newest and the most technical, and the parked checkpoint
+  still carries the argument without it.
 
 ---
 
-## Cut 1 · Agent Pass (target 0:00 – 1:50)
+## Cut 1 · Agent Pass (target 0:00 – 1:58)
 
 | time | screen | say, roughly |
 |---|---|---|
 | 0:00 | step 1, the roles | "The approver and the executor are different keys. One compromised key cannot open a payment and then approve it — the vault refuses that wiring." |
 | 0:12 | step 2, agent wallet | "This is the agent's own wallet. Zero. It holds nothing before this run and nothing after it." |
-| 0:20 | step 3, in policy | "A small purchase inside policy just pays. No human is asked. That contrast matters." |
-| 0:32 | step 4, parked | "Now it asks to pay 18.54 against a fair price of 18.00 — a 3% premium. The chain refuses it, **and does not throw it away.** A checkpoint opens, on chain, naming the agent and the exact request hash." |
-| 0:55 | step 5, approved | "A human authenticates. The token is validated against nine named checks. Then one single-use signature, and the money moves — 18.54 lands on the seller. The checkpoint is consumed; the same approval cannot be used twice." |
-| 1:20 | **step 6, DENIED** | "Same request, human says no. `CheckpointResolved(denied)` on chain, **and the seller's balance does not move.** The refusal is evidence, not silence." |
-| 1:35 | step 7, EXPIRED | "Nobody answers. The window closes on chain time, not ours, and it is recorded as expired." |
-| 1:42 | step 8, wrong human | "A perfectly valid proof from the wrong person. Correct signature, right assurance class, in date — refused, because it is not the enrolled treasurer." |
+| 0:20 | step 3, in policy | "A small purchase inside policy just pays. No human is asked. And the line under it is the vault's own receipt — its record of the quote, the fair price and the premium, not our claim about them. That contrast matters." |
+| 0:32 | step 4, parked | "Now it asks to pay 18.54 against a fair price of 18.00 — a 3% premium. Watch the vault refuse it in its own words, from a transaction and not from a preview. **And it does not throw the request away.** A checkpoint opens, on chain, naming the agent and the exact request hash." |
+| 0:44 | step 4, the two nonces | "One detail that makes the escalation real. That refusal burns the nonce of the request it refused, so a price move can never make it payable later. The request we parked still holds its nonce — and that is the one a human is about to clear." |
+| 1:03 | step 5, approved | "A human authenticates. The token is validated against nine named checks. Then one single-use signature, and the money moves — 18.54 lands on the seller. The checkpoint is consumed; the same approval cannot be used twice." |
+| 1:28 | **step 6, DENIED** | "Same request, human says no. `CheckpointResolved(denied)` on chain, **and the seller's balance does not move.** The refusal is evidence, not silence." |
+| 1:43 | step 7, EXPIRED | "Nobody answers. The window closes on chain time, not ours, and it is recorded as expired." |
+| 1:50 | step 8, wrong human | "A perfectly valid proof from the wrong person. Correct signature, right assurance class, in date — refused, because it is not the enrolled treasurer." |
 
 **The sentence to get right**, because it is the whole argument and the easiest
 thing to overstate:
@@ -71,7 +75,7 @@ found that the executor can resolve an open checkpoint, including writing
 EXPIRED over a signature a human already gave. It is disclosed in the
 submission; if a judge asks, say so plainly and say it is unrepaired.
 
-## Cut 2 · IDKit (target 2:00 – 2:40)
+## Cut 2 · IDKit (target 2:05 – 2:45)
 
 Needs the Developer Portal credential. If it has not landed, **do not record
 this cut** — our rule is that a half-built module is not entered, and an
@@ -79,9 +83,9 @@ unfinished widget on camera costs more than an absent entry.
 
 | time | screen | say, roughly |
 |---|---|---|
-| 2:00 | the join page | "A visitor proves they are a person once. Not an Orb — Selfie Check, which anyone with the app can complete." |
-| 2:12 | the budget arrives | "The vault issues a guest agent with a 2 USDC daily cap, flagged a guest so it is revocable on its own." |
-| 2:24 | **the same human again** | "Same person, second agent. Refused — and refused by the chain itself, not by our database. The agent id is a hash of the nullifier, so the chain can answer 'has this human already been funded' in one call." |
+| 2:05 | the join page | "A visitor proves they are a person once. Not an Orb — Selfie Check, which anyone with the app can complete." |
+| 2:17 | the budget arrives | "The vault issues a guest agent with a 2 USDC daily cap, flagged a guest so it is revocable on its own." |
+| 2:29 | **the same human again** | "Same person, second agent. Refused — and refused by the chain itself, not by our database. The agent id is a hash of the nullifier, so the chain can answer 'has this human already been funded' in one call." |
 
 **The credential sentence, verbatim** — it is a required deliverable and it is
 quoted in the submission, so say it as written rather than paraphrasing:
