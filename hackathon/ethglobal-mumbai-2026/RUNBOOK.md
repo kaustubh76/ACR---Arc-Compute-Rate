@@ -105,6 +105,25 @@ enrollment prints, after a dry run proves the digest round-trips.
 | 2:40 | `npm run verify` | "Thirteen checks, re-derivable from one command, printing what they observed rather than a tick. Including the one that matters: the sleeve was pulled *before* the seller was paid, proven by log order inside a single transaction — Arc's RPC has no tracing, so this proof works for anyone with an ordinary node." |
 | 2:55 | the continuity table | "ETHOnline we built the price of compute. This weekend the price runs the money." |
 
+### Arc Studio has to be visible, and the honest way to show it is its own work
+
+Two of the three pages on screen were written by Arc Studio, so say which:
+`walk.html` at 0:45 and `venue.html` if you open it. The line that lands is the
+one Studio found and we did not ask for — *"no timelock on 4 of the 4 gate
+setters"* on the Morpho vault our float sits in, which its `morpho` onchain
+skill got by reading the verified Vault V2 source.
+
+If there is room, open the workspace itself at
+`studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557` and show the **trace
+panel**, which lines up what the page asked for against what happened on chain.
+Skip it rather than rush it — the pages are the evidence, the workspace is
+provenance.
+
+**Do not claim Studio built Float.** It compiled the policy from English,
+audited the vault, deployed the contracts and wrote those two pages. The
+contracts, the keeper, the agents and the harness were written in Claude Code.
+`float/studio/README.md` draws that line and a judge may well read it.
+
 ## Questions you will be asked
 
 **"Portal already has spending limits."** → "Limits cap. Float forecasts, funds
