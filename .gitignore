@@ -24,7 +24,11 @@ apps/terminal/.env.local
 contracts/out/
 contracts/cache/
 contracts/broadcast/
-contracts/lib/
+# contracts/lib/ is NOT ignored. forge-std is vendored there as plain files —
+# no submodule, no .gitmodules — so ignoring it meant every clone of this repo
+# failed to compile: "import {Test} from "forge-std/Test.sol"" resolves to
+# nothing, and `forge test` is the command the submission tells a judge to run.
+# 68 files, 1.3 MB, MIT.
 
 # Data / artifacts
 data/
