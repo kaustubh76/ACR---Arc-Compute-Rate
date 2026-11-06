@@ -133,6 +133,40 @@ export function refusalName(selector: string | null): string | null {
   return TELLER_ERRORS[selector] ?? selector;
 }
 
+/** Whether the vault's reserve slot holds no venue at all.
+ *
+ *  THE NEGATIVE ANSWER IS THE ONE THAT MATTERS. "No venue, which is the honest
+ *  answer" is a reassuring sentence, and it must only ever be printed for an
+ *  address that really is twenty zero bytes. So the shape is exact: anything
+ *  short, long, malformed or merely zero-ish reads as NOT empty, which drives
+ *  the cautious branch instead — "a venue is wired that this panel has not
+ *  described". Being wrong in that direction costs a reader a question; being
+ *  wrong the other way tells them nothing is there when something is. */
+export function slotIsEmpty(addr: string | undefined | null): boolean {
+  return typeof addr === "string" && /^0x0{40}$/.test(addr);
+}
+
+/** The share of a rebalance that would reach the reserve sleeve, in basis
+ *  points, or null when the policy was not read.
+ *
+ *  `FloatVault.rebalance` computes `toWorking = excess * workingShareBps /
+ *  10_000` and then `toReserve = excess - toWorking`, so the reserve's share is
+ *  exactly the remainder and there is no second knob. On the live vault
+ *  `workingShareBps` is 10000, which makes that remainder ZERO — the T-bill
+ *  leg would receive nothing on every sweep even if a sleeve were wired and
+ *  Circle had allowlisted us. That is a gate the panel used to leave out while
+ *  naming the allowlist as the only obstacle.
+ *
+ *  CLAMPED, THOUGH THE CONTRACT ALREADY GUARDS IT. `setPolicy` requires
+ *  `workingShareBps <= 10_000`, so a larger value cannot be stored — but this
+ *  function's job is to produce a share a surface can print, and a negative
+ *  percentage on screen would be a worse answer than a clamped one. `null` for
+ *  anything unreadable, because an unread policy must not render as 0%. */
+export function reserveShareBps(workingShareBps: number | undefined | null): number | null {
+  if (typeof workingShareBps !== "number" || !Number.isFinite(workingShareBps)) return null;
+  return Math.max(0, Math.min(10_000, 10_000 - workingShareBps));
+}
+
 /** Bytes of code at an address, from the hex a node returns.
  *
  *  `undefined` and `"0x"` both mean NOTHING IS DEPLOYED THERE, which is the one

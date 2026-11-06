@@ -3,6 +3,7 @@
 import { Ed } from "@/components/Ed";
 import { TickerNumber } from "@/components/TickerNumber";
 import { addrUrl } from "@/lib/chain";
+import { reserveShareBps, slotIsEmpty } from "@/lib/floatReserve";
 import { CHAINS } from "@/lib/chainChoice";
 import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
@@ -128,6 +129,14 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
      panel exists to be able to give; `null` and `undefined` both mean "not
      read". They must not share a rendering. */
   const num = (v: number | null | undefined) => (v === null || v === undefined ? "…" : fmtInt(v));
+
+  /* THE SECOND GATE, AND IT IS OURS. `rebalance` computes
+     `toReserve = excess - excess * workingShareBps / 10_000`, so the reserve's
+     share of every sweep is exactly what the working sleeve did not take. The
+     vault sits at 10000, which makes that remainder zero: the T-bill leg would
+     receive nothing even with a sleeve wired and Circle's permission granted.
+     The panel named the allowlist as the only obstacle and left this out. */
+  const reserveShare = reserveShareBps(vault.policy?.working_share_bps);
 
   const pf = d?.performance_fee_pct;
   const mf = d?.management_fee_pct_year;
@@ -334,8 +343,8 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-            x="The reserve sleeve was designed for a tokenized Treasury bill fund. It is deployed on this chain and we read it rather than taking the page's word: the token answers to its own name and six decimals, and a teller buys and sells it against USDC. What stops it is an allowlist, not a contract, and the ticket that opens one takes a day or two."
-            p="The second pot was meant to hold Treasury bills. The fund is real and on this chain. What stops us is a waiting list, not the code."
+            x="The reserve sleeve was designed for a tokenized Treasury bill fund. It is deployed on this chain and we read it rather than taking the page's word: the token answers to its own name and six decimals, and a teller mints and redeems it against USDC. Three things have to be true before it earns anything, and only the last of them is Circle's."
+            p="The second pot was meant to hold Treasury bills. The fund is real. Three things must be true before it earns, and two are ours."
           />
           <p className="label mono">
             <Ed x="the fund" p="the fund" />{" "}
@@ -457,7 +466,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               {/* A zero address is the only value that means "no venue". Any
                   other would be a venue this panel has not described, so it
                   says which it got rather than assuming. */}
-              {/^0x0+$/.test(vault.reserve_slot) ? (
+              {slotIsEmpty(vault.reserve_slot) ? (
                 <span className="chip chip-teal chip-wrap">
                   <Ed x="no venue, which is the honest answer" p="nothing, which is the honest answer" />
                 </span>
@@ -468,11 +477,30 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               )}
             </p>
           ) : null}
+          {/* GATE TWO, read from the same policy tuple the meter prints. Shown
+              next to the slot because both are ours: a sleeve has to be wired
+              AND the sweep has to send it something, and today neither is. */}
+          {reserveShare === null ? null : (
+            <p className="label mono">
+              <Ed x="policy sends it" p="the rules send it" />{" "}
+              <span className="num">{(reserveShare / 100).toFixed(0)}</span>
+              {"% "}
+              <Ed x="of every sweep" p="of the spare money" />{" "}
+              {reserveShare === 0 ? (
+                <span className="chip chip-gold chip-wrap">
+                  <Ed
+                    x="so nothing would reach it even if the door opened"
+                    p="so nothing would reach it even if the door opened"
+                  />
+                </span>
+              ) : null}
+            </p>
+          )}
           <Ed
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-            x="The vault holds a zero address for it rather than a stand-in, which is the whole reason this panel can be believed: a mock yield venue would have printed a number here."
+            x="The vault holds a zero address for it rather than a stand-in, which is the whole reason this panel can be believed: a mock yield venue would have printed a number here. The share is ours to move and the allowlist is not, so the queue at Circle is the last of the three rather than the only one."
             p="The vault holds nothing there rather than a stand-in. A fake one would have shown a number here."
           />
         </>

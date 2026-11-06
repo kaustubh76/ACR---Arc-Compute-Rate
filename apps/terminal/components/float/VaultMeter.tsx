@@ -248,7 +248,11 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
         <p className="label mono">
           <Ed x="policy sends" p="the rules send" /> <span className="num">{(workingShareBps / 100).toFixed(0)}</span>
           {"% "}
-          <Ed x="of free float to the venue to earn" p="of the spare money to the vault to earn" />
+          {/* NAMES THE SLEEVE NOW THAT THREE TIERS ARE DRAWN. "the venue" was
+              unambiguous when only one sleeve was on screen; with the reserve
+              tier visible above it reads as either, and the whole content of
+              this line is which one the sweep feeds. */}
+          <Ed x="of free float to the working sleeve" p="of the spare money to the earning pot" />
         </p>
       )}
 

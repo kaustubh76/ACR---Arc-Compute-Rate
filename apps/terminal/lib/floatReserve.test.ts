@@ -11,6 +11,8 @@ import {
   codeBytes,
   refusalName,
   reserveFund,
+  reserveShareBps,
+  slotIsEmpty,
   revertSelector,
 } from "./floatReserve";
 
@@ -144,4 +146,43 @@ test("nothing legible is null, and null never becomes a refusal name", () => {
   /* `data` that is not a selector is not a selector. */
   assert.equal(revertSelector({ cause: { data: "0x" } }), null);
   assert.equal(revertSelector({ cause: { data: 12345 } }), null);
+});
+
+test("only twenty zero bytes reads as an empty slot", () => {
+  const ZERO = "0x" + "0".repeat(40);
+  assert.equal(slotIsEmpty(ZERO), true);
+
+  /* THE NEGATIVE CASES ARE THE POINT. "No venue, which is the honest answer"
+     is reassuring, so it must never be printed for an address that is merely
+     zero-ish. Anything malformed drives the cautious branch instead. */
+  assert.equal(slotIsEmpty("0x0"), false, "short is not empty");
+  assert.equal(slotIsEmpty("0x" + "0".repeat(39)), false, "one byte short is not empty");
+  assert.equal(slotIsEmpty("0x" + "0".repeat(41)), false, "one over is not empty");
+  assert.equal(slotIsEmpty("0x" + "0".repeat(39) + "1"), false, "a venue is a venue");
+  assert.equal(slotIsEmpty("0xdBeCAE19B2A082B51FC4f0dF59cBFfd1cB12ad14"), false);
+  assert.equal(slotIsEmpty(undefined), false, "not read is not empty");
+  assert.equal(slotIsEmpty(null), false);
+  assert.equal(slotIsEmpty(""), false);
+  assert.equal(slotIsEmpty("0".repeat(40)), false, "a missing 0x prefix is malformed");
+});
+
+test("the reserve's share of a sweep is the remainder, and 10000 leaves it nothing", () => {
+  /* `rebalance` does `toWorking = excess * workingShareBps / 10_000` and then
+     `toReserve = excess - toWorking`, so the reserve's share is exactly what
+     the working sleeve did not take. The live vault sits at 10000. */
+  assert.equal(reserveShareBps(10_000), 0, "100% to working leaves the T-bill leg nothing");
+  assert.equal(reserveShareBps(0), 10_000);
+  assert.equal(reserveShareBps(7_500), 2_500);
+  assert.equal(reserveShareBps(9_999), 1);
+
+  /* `setPolicy` guards this, so a stored value cannot exceed 10000 — but a
+     negative percentage on screen is a worse answer than a clamped one. */
+  assert.equal(reserveShareBps(12_000), 0);
+  assert.equal(reserveShareBps(-5), 10_000);
+
+  /* Not read is not zero. An unread policy rendering as "0% reaches the
+     reserve" would be a confident claim about a number nobody fetched. */
+  assert.equal(reserveShareBps(undefined), null);
+  assert.equal(reserveShareBps(null), null);
+  assert.equal(reserveShareBps(Number.NaN), null);
 });
