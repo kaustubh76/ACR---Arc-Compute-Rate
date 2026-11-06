@@ -62,6 +62,41 @@ Terminal set-up that makes the recording legible:
 | 1:43 | step 7, EXPIRED | "Nobody answers. The window closes on chain time, not ours, and it is recorded as expired." |
 | 1:50 | step 8, wrong human | "A perfectly valid proof from the wrong person. Correct signature, right assurance class, in date — refused, because it is not the enrolled treasurer." |
 
+### Two optional beats, in the order to cut them
+
+Both sit outside the 1:58 and are listed worst-last, so nobody is improvising at
+two in the morning. Cut the second one first.
+
+**1 · The page, 15 seconds, as the closing frame.** Everything above is terminal
+output, and this entry has one thing a judge can verify without running
+anything. Open `/float/approve`:
+
+> "This is the page asking World right now, not a screenshot. It fetched the
+> issuer's own discovery document when I loaded it: these are the assurance
+> classes World advertises, this is the round trip in milliseconds, and this is
+> the check that the document names itself as the host we asked. It is
+> unauthenticated, so you can open the same URL and compare. Below it, the gate
+> read off the chain: still three transactions short of armed, and it says
+> which."
+
+**Do not say** that the page proves anyone approved anything. It proves World
+answers us and what World will accept. Those are different claims and the second
+one is still unearned.
+
+*Closing rather than opening on purpose:* the terminal run builds the argument,
+and the page is the "check it yourself" payoff. It is also the cheaper thing to
+drop, because cutting a closing frame costs nothing while re-shooting an opening
+one costs a take.
+
+**2 · Leg 10, the guest budget, 20 seconds.** It stopped being covered by
+anything when Cut 2 was deleted with the IDKit entry, and it is now an Agent
+Pass capability rather than an IDKit one:
+
+> "The same verified identity that approves a payment also opens a budget. One
+> human, one budget — and watch the second attempt refused three times over: by
+> our ledger, by the spent nonce, and by the chain itself saying `agent exists`.
+> That last one needs no second person to demonstrate."
+
 **The sentence to get right**, because it is the whole argument and the easiest
 thing to overstate:
 
