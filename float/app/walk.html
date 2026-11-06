@@ -137,7 +137,7 @@ const client = createPublicClient({ transport: http(CFG.rpc, { batch: true }) })
 // you to wait. A transient must not be mistaken for "no payment", and a real
 // error must not be mistaken for a transient.
 const rateLimited = (e) =>
-  /rate limit|exceeds defined limit|429|too many requests/i.test(
+  /rate limit|exceeds defined limit|429|too many requests|forbidden|\b403\b/i // 403: a hard Arc burst returns a bare 403, not a rate-limit message.test(
     `${e?.shortMessage ?? ""} ${e?.details ?? ""} ${e?.message ?? e}`,
   );
 async function retry(fn) {

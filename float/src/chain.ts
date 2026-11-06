@@ -140,8 +140,21 @@ export function rpcFor(net: Net): string {
   return process.env["FLOAT_RPC"] ?? chainFor(net).rpcUrls.default.http[0]!;
 }
 
-/** Arc answers a rate limit in words, so match on them. */
-const RATE_LIMITED = /rate limit|exceeds defined limit|429|too many requests/i;
+/**
+ * Arc answers a rate limit in words — and, past a certain burst, in silence.
+ *
+ * The soft refusal is `Request exceeds defined limit. rate limit exceeded`. A
+ * HARD burst stops saying that and returns a **bare HTTP 403 with no body**,
+ * which looks like an authorisation failure and is not: this endpoint has no
+ * auth to fail. viem does not retry 403 either (it retries 408, 413, 429 and
+ * the 5xx family), so without this a hard burst aborts the acceptance suite in
+ * exactly the way the retry exists to prevent.
+ *
+ * Retrying a genuine 403 costs four backoffs and then fails anyway, which is a
+ * price worth paying to not lose a run. Found by a third session on this
+ * machine hitting the harder limit than I did.
+ */
+const RATE_LIMITED = /rate limit|exceeds defined limit|429|too many requests|forbidden|\b403\b/i;
 
 const napms = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

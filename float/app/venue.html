@@ -165,7 +165,7 @@ const rdSlot = () => new Promise((resolve) => {
   const go = () => { rdActive++; resolve(); };
   if (rdActive < RD_CONCURRENCY) go(); else rdQueue.push(go);
 });
-const rateLimited = (m) => /rate limit|exceeds defined limit|429|too many requests/i.test(m);
+const rateLimited = (m) => /rate limit|exceeds defined limit|429|too many requests|forbidden|\b403\b/i // 403: a hard Arc burst returns a bare 403, not a rate-limit message.test(m);
 const nap = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const rd = async (address, abi, functionName, args = []) => {
