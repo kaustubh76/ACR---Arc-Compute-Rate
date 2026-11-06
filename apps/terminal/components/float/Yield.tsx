@@ -111,7 +111,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
 
           {gain === null ? (
             <p className="label">
-              <span className="chip chip-sim">
+              <span className="chip chip-sim chip-wrap">
                 <Ed
                   x="no gain shown: the walk did not reach the first deposit"
                   p="no figure here: we could not read far enough back"

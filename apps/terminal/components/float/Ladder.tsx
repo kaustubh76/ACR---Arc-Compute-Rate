@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Ed } from "@/components/Ed";
 import type { FloatVaultState } from "@/lib/float";
 import { LADDER, bandCeiling, escalates, headroom, parseDenialCode, rungState } from "@/lib/floatLadder";
+import { modelOf } from "@/lib/floatRunway";
 import { fmtPrice } from "@/lib/format";
 import type { DryRun } from "@/lib/routeInput";
 import { useDebounced } from "@/lib/useDebounced";
@@ -52,8 +53,12 @@ type Preset = { key: string; quote: number; units: number };
 export function Ladder({
   vault,
   onVerdict,
+  index,
 }: {
   vault: FloatVaultState;
+  /** The model to price against, as the runway picked it. Undefined leaves the
+   *  choice to the chain, which uses the store's first index. */
+  index?: string;
   /** The code the chain just returned, so the money path above can run only
    *  when the vault says it would pay. Reported rather than recomputed: two
    *  surfaces reading one answer cannot disagree about it. */
@@ -70,6 +75,11 @@ export function Ladder({
   const [units, setUnits] = useState(UNITS_FAIR);
 
   const standing = agents.find((a) => a.name === agent) ?? null;
+  /* The print behind the numbers below. `index` when the runway picked one,
+     otherwise the store's first, which is what `classifyQuote` falls back to —
+     so the chip names what the chain used rather than what we asked for. */
+  const prints = vault.prints ?? [];
+  const priceFor = (index ? prints.find((p) => p.index === index) : prints[0]) ?? null;
 
   /* The read is keyed on the settled value, not the live one: dragging a range
      input fires a change per step and each step is a different SWR key, so an
@@ -79,12 +89,17 @@ export function Ladder({
      timer on the value's IDENTITY, so a fresh object literal here would re-arm
      the timer on every render — and worse, settling triggers a render, which
      builds another literal, which re-arms, which settles: a loop with no
-     steady state. Memoized on the four primitives, the object changes only
+     steady state. Memoized on the five primitives, the object changes only
      when a control does. Same hazard as an inline `refreshInterval`, which
-     `lib/pollCadence.test.ts` guards for the same reason. */
+     `lib/pollCadence.test.ts` guards for the same reason.
+
+     `index` IS ONE OF THE FIVE because it arrives from the runway, a sibling
+     panel: picking a model there has to settle through the same debounce as a
+     slider here, or a click would fire a chain read the next keystroke
+     replaces. */
   const controls = useMemo(
-    () => ({ quote, units, agent, toStranger }),
-    [quote, units, agent, toStranger],
+    () => ({ quote, units, agent, toStranger, index }),
+    [quote, units, agent, toStranger, index],
   );
   const settled = useDebounced(controls, DEBOUNCE_MS);
   const req: DryRun | null = seller
@@ -93,6 +108,7 @@ export function Ladder({
         seller: settled.toStranger ? STRANGER_SELLER : seller,
         units: settled.units,
         quoteUsdc: settled.quote,
+        ...(settled.index ? { index: settled.index } : {}),
       }
     : null;
   const { verdict, reading } = useFloatClassify(req);
@@ -162,6 +178,15 @@ export function Ladder({
           <Ed x="The ladder, and where your quote stops on it" p="Try to make it pay too much" />
         </h2>
         <span className="label">
+          {/* WHICH MODEL, NAMED. The runway offers the choice one panel up and
+              the band, the fair total and the verdict below all move with it,
+              so a reader who picks a model has to be able to see that this is
+              the one being asked about. The chain supplies the string. */}
+          {priceFor ? (
+            <span className="chip chip-wrap">
+              <Ed x="pricing" p="using" /> <span className="mono">{modelOf(priceFor)}</span>
+            </span>
+          ) : null}{" "}
           {reading ? (
             <span className="chip chip-sky">
               <i className="dot breathe" aria-hidden />

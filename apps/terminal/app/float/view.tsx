@@ -36,6 +36,10 @@ export function FloatView() {
   const { tape } = useFloatTape();
   const newestPaid = tape?.data?.rows?.find((r) => r.kind === "paid");
   const [code, setCode] = useState<number | null>(null);
+  /* WHICH MODEL THE LADDER PRICES AGAINST, picked in the runway and spent in
+     the ladder, so it lives in the one place that renders both. Null means
+     nobody has chosen and the chain's own default stands. */
+  const [index, setIndex] = useState<string | null>(null);
 
   /* A stable identity: `Ladder` reports its verdict from an effect, and an
      inline arrow here would be a new function every render and re-fire it. The
@@ -170,6 +174,7 @@ export function FloatView() {
               </span>
             </div>
             <MoneyPath
+              fairUsdc={newestPaid?.fair_usdc}
               jitFunded={newestPaid?.jit_funded}
               paying={code === 0}
               quoteUsdc={newestPaid?.quote_usdc}
@@ -179,9 +184,9 @@ export function FloatView() {
 
           {/* Runway before the ladder: a reader meets the money, learns what
               it buys, and only then drives the policy that spends it. */}
-          <Runway vault={data} />
+          <Runway index={index} onIndex={setIndex} vault={data} />
 
-          <Ladder onVerdict={onVerdict} vault={data} />
+          <Ladder index={index ?? undefined} onVerdict={onVerdict} vault={data} />
 
           <VaultMeter vault={data} />
 

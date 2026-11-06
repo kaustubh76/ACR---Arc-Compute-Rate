@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Ed } from "@/components/Ed";
 import { TickerNumber } from "@/components/TickerNumber";
 import type { FloatPrint, FloatVaultState } from "@/lib/float";
-import { cheapest, scaledPrice, toUnits, tokensFor, wad } from "@/lib/floatRunway";
+import { cheapest, modelOf, scaledPrice, toUnits, tokensFor, wad } from "@/lib/floatRunway";
 import { fmtInt, fmtPrice } from "@/lib/format";
 
 /* Runway, in compute.
@@ -34,22 +34,21 @@ const PRICE_MIN = 25;
 const PRICE_MAX = 300;
 const CHAIN_PRICE = 100;
 
-/** The model, as the store names itself, minus the index prefix. Data rather
- *  than copy: the chain supplies the string. */
-function modelOf(p: FloatPrint): string {
-  return p.name.replace(/^ACR-INF:/, "") || p.index.slice(0, 10);
-}
-
 function PriceRow({
   p,
   totalUnits,
   factorPct,
   isCheapest,
+  active,
+  onPick,
 }: {
   p: FloatPrint;
   totalUnits: bigint;
   factorPct: number;
   isCheapest: boolean;
+  /** Whether the ladder below is pricing against this model. */
+  active: boolean;
+  onPick: () => void;
 }) {
   const base = wad(p.price_wad);
   const moved = base === null ? null : scaledPrice(base, factorPct);
@@ -94,11 +93,37 @@ function PriceRow({
           </span>
         ) : null}
       </p>
+      {/* THE ROW'S FIRST AFFORDANCE, and the only control on the page that
+          changes another panel. Three models were listed here and the ladder
+          silently priced every dry run against the store's index 0, so a
+          reader could read three prices and test exactly one. A chip rather
+          than making the whole card a button: `.fact` is a grid, `button.chip`
+          already clears 24x24 with a focus ring, and the ladder's own agent
+          and seller pickers express a choice this same way. */}
+      <p className="label">
+        <button aria-pressed={active} className={`chip${active ? " chip-teal" : ""}`} onClick={onPick} type="button">
+          {active ? (
+            <Ed x="the ladder prices this one" p="the ladder is using this one" />
+          ) : (
+            <Ed x="price the ladder with this" p="use this one below" />
+          )}
+        </button>
+      </p>
     </div>
   );
 }
 
-export function Runway({ vault }: { vault: FloatVaultState }) {
+export function Runway({
+  vault,
+  index,
+  onIndex,
+}: {
+  vault: FloatVaultState;
+  /** Which model the ladder is pricing against, or null for the chain's own
+   *  default. Held by the page rather than here: the ladder is a sibling. */
+  index: string | null;
+  onIndex: (index: string) => void;
+}) {
   const [factorPct, setFactorPct] = useState(CHAIN_PRICE);
 
   const prints = vault.prints ?? [];
@@ -106,6 +131,11 @@ export function Runway({ vault }: { vault: FloatVaultState }) {
   const totalUnits = toUnits(vault.total_usdc ?? 0);
   const best = cheapest(priced);
   const hours = vault.policy?.buffer_hours;
+  /* WHAT THE CHAIN DOES WHEN NOBODY HAS PICKED. `classifyQuote` falls back to
+     `indexAt(0)` — the store's first index, which is `prints[0]` here — so
+     marking that row as active before any click describes the real default
+     rather than inventing a neutral state nothing is in. */
+  const active = index ?? prints[0]?.index;
 
   return (
     <section className="section anchor-target" id="runway">
@@ -139,17 +169,32 @@ export function Runway({ vault }: { vault: FloatVaultState }) {
           <Ed x="the treasury is empty, so there is no runway to show." p="the treasury is empty, so there is nothing to show." />
         </p>
       ) : priced.length === 0 ? (
+        /* UNREAD IS NOT UNPRINTED, and the panel used to say the keeper had
+           printed nothing whenever the chain rate-limited the print read —
+           which it does often enough that a judge was being told the keeper
+           was idle while it was running. `undefined` is not-read and `[]` is
+           genuinely empty: the same distinction `VaultMeter` keeps between a
+           sleeve that is not live and one that did not answer. */
         <p className="muted awaiting">
-          <Ed x="no price yet, so no runway. The keeper has not printed one." p="no rate yet, so nothing to show yet." />
+          {vault.prints === undefined ? (
+            <Ed
+              x="the chain did not answer for the prints just now, so there is no runway to show yet. It retries by itself."
+              p="we could not read today's rates just now. This keeps trying."
+            />
+          ) : (
+            <Ed x="no price yet, so no runway. The keeper has not printed one." p="no rate yet, so nothing to show yet." />
+          )}
         </p>
       ) : (
         <>
           <div className="facts">
             {priced.map((p) => (
               <PriceRow
+                active={active === p.index}
                 factorPct={factorPct}
                 isCheapest={best?.index === p.index}
                 key={p.index}
+                onPick={() => onIndex(p.index)}
                 p={p}
                 totalUnits={totalUnits}
               />

@@ -30,8 +30,16 @@ import { fmtPrice } from "@/lib/format";
 
    THE LABELS ARE REGISTER-NEUTRAL ON PURPOSE. SVG `<text>` cannot host an
    `<Ed>`, and `useEdition()` resolves to expert on the server, so a dual
-   register here would flash on hydration. Four plain nouns in the picture, and
-   the sentence that explains them underneath where it dual-renders properly. */
+   register here would flash on hydration. Five plain nouns in the picture, and
+   the sentence that explains them underneath where it dual-renders properly.
+
+   THE BENCHMARK IS IN THE PICTURE BECAUSE THE BENCHMARK IS THE PRODUCT. The
+   diagram used to show the money moving and leave out the one check that makes
+   this treasury different from a wallet with a limit: the price the vault reads
+   off the chain and recomputes the fair total from, before it pays anything.
+   The ladder tests it at rung 10 and a tape row proves it at step 1, and this
+   is the picture a reader meets first. It hangs over the treasury rather than
+   the rail because the treasury is what does the checking. */
 
 type Layout = {
   w: number;
@@ -59,6 +67,7 @@ function Diagram({
   vault,
   paying,
   jit,
+  fair,
   step,
 }: {
   l: Layout;
@@ -66,6 +75,8 @@ function Diagram({
   vault: FloatVaultState;
   paying: boolean;
   jit: boolean;
+  /** The fair total the newest payment was checked against. */
+  fair?: number;
   /** -1 when idle, otherwise how far the replay has walked. Cumulative: a
    *  station that has lit stays lit, as `LoopFlow`'s stations do. */
   step: number;
@@ -77,11 +88,17 @@ function Diagram({
   const agentY = 12;
   const agentH = 40;
   const sleeveY = l.h - 42;
+  /* Directly over the treasury, in its column and at the agent's height. The
+     agent is centred on `midX` and spans `bw + 34`, so this column is free in
+     both layouts: 16..132 against the agent's 245..395 wide, 4..100 against
+     117..247 narrow. */
+  const benchX = l.x1 - l.bw;
+  const benchH = 38;
 
   return (
     <svg
-      aria-label="the treasury pays the seller; the agent instructs and holds nothing"
-      className={`money ${cls}${paying || step === 2 ? " paying" : ""}${jit ? " jit" : ""}`}
+      aria-label="the treasury checks the price against the benchmark, then pays the seller; the agent instructs and holds nothing"
+      className={`money ${cls}${paying || step === 3 ? " paying" : ""}${jit ? " jit" : ""}`}
       role="img"
       style={{ ["--travel" as string]: `${l.x2 - l.x1}px` }}
       viewBox={`0 0 ${l.w} ${l.h}`}
@@ -100,12 +117,22 @@ function Diagram({
 
       {/* the yield venue, below, joining the rail before the seller */}
       <line className="tether jit-leg" x1={l.midX} x2={l.midX} y1={l.railY} y2={sleeveY} />
-      <rect className={`node-box${jit || step >= 1 ? " on" : ""}`} height={36} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={sleeveY} />
+      <rect className={`node-box${jit || step >= 2 ? " on" : ""}`} height={36} rx={8} width={l.bw + 34} x={l.midX - (l.bw + 34) / 2} y={sleeveY} />
       <text className="node-label" x={l.midX - (l.bw + 34) / 2 + l.pad} y={sleeveY + l.gap}>
         earning
       </text>
       <text className="node-figure" x={l.midX - (l.bw + 34) / 2 + l.pad} y={sleeveY + l.gap + 14}>
         {working ? `${fmtPrice(working.value_usdc)} USDC` : "not live"}
+      </text>
+
+      {/* the benchmark, above the treasury and tethered down to it */}
+      <line className="tether" x1={benchX + l.bw / 2} x2={benchX + l.bw / 2} y1={agentY + benchH} y2={sideY} />
+      <rect className={`node-box${step >= 1 ? " on" : ""}`} height={benchH} rx={8} width={l.bw} x={benchX} y={agentY} />
+      <text className="node-label" x={benchX + l.pad} y={agentY + l.gap}>
+        benchmark
+      </text>
+      <text className="node-figure" x={benchX + l.pad} y={agentY + l.gap + 14}>
+        {fair === undefined ? "…" : `${fmtPrice(fair)} USDC`}
       </text>
 
       {/* the treasury */}
@@ -118,7 +145,7 @@ function Diagram({
       </text>
 
       {/* the seller */}
-      <rect className={`node-box${step >= 2 ? " on" : ""}`} height={boxH} rx={8} width={l.bw} x={l.x2} y={sideY} />
+      <rect className={`node-box${step >= 3 ? " on" : ""}`} height={boxH} rx={8} width={l.bw} x={l.x2} y={sideY} />
       <text className="node-label" x={l.x2 + l.pad} y={sideY + l.gap + 1}>
         seller
       </text>
@@ -132,15 +159,21 @@ function Diagram({
 }
 
 /** How long each station holds before the next lights. `LoopFlow` uses 650ms
- *  for six stations; four want a little longer to be followed. */
+ *  for six stations; five want a little longer to be followed. */
 const STEP_MS = 900;
-const LAST_STEP = 3;
+/* FIVE BEATS, IN THE CONTRACT'S OWN ORDER: the agent asks, the print is read
+   and the fair total recomputed, the shortfall is pulled if there is one, the
+   seller is paid, the receipt is written. The walkthrough a tape row opens
+   tells the same story, and it used to tell it in a different number of
+   steps than the diagram above it. */
+const LAST_STEP = 4;
 
 export function MoneyPath({
   vault,
   paying,
   jitFunded,
   quoteUsdc,
+  fairUsdc,
 }: {
   vault: FloatVaultState;
   paying: boolean;
@@ -148,6 +181,9 @@ export function MoneyPath({
   jitFunded?: boolean;
   /** What that payment cost, so the replay narrates a real number. */
   quoteUsdc?: number;
+  /** What the chain itself said it should have cost. The pair is the product's
+   *  whole claim, so the picture carries both rather than only what was paid. */
+  fairUsdc?: number;
 }) {
   /* "Funded just in time" is a property of a payment, not of a treasury. This
      used to light on the only proxy the diagram had — a working sleeve holding
@@ -192,8 +228,8 @@ export function MoneyPath({
 
   return (
     <>
-      <Diagram cls="money-wide" jit={jit} l={WIDE} paying={paying} step={step} vault={vault} />
-      <Diagram cls="money-narrow" jit={jit} l={NARROW} paying={paying} step={step} vault={vault} />
+      <Diagram cls="money-wide" fair={fairUsdc} jit={jit} l={WIDE} paying={paying} step={step} vault={vault} />
+      <Diagram cls="money-narrow" fair={fairUsdc} jit={jit} l={NARROW} paying={paying} step={step} vault={vault} />
 
       <div className="flow-controls">
         <button
@@ -220,6 +256,30 @@ export function MoneyPath({
               p="the robot asks. Its own wallet is empty, now and after."
             />
           ) : step === 1 ? (
+            /* THE BEAT THE DIAGRAM WAS MISSING, and the only one that is about
+               the price rather than the money. Both numbers, because either
+               alone says nothing: a fair total is not a verdict and a quote is
+               not a check. The chain computed both. */
+            <>
+              <Ed
+                x="the vault reads the print and recomputes the fair total itself"
+                p="the vault looks up the real rate and works the total out itself"
+              />
+              {fairUsdc === undefined ? null : (
+                <>
+                  {": "}
+                  <Ed x="fair" p="fair" /> <span className="num">{fmtPrice(fairUsdc)}</span>
+                  {quoteUsdc === undefined ? null : (
+                    <>
+                      {", "}
+                      <Ed x="asked" p="asked" /> <span className="num">{fmtPrice(quoteUsdc)}</span>
+                    </>
+                  )}{" "}
+                  USDC
+                </>
+              )}
+            </>
+          ) : step === 2 ? (
             jit ? (
               <Ed
                 x="the shortfall leaves the yield venue, in this same transaction."
@@ -231,7 +291,7 @@ export function MoneyPath({
                 p="nothing is taken from savings: there was enough ready."
               />
             )
-          ) : step === 2 ? (
+          ) : step === 3 ? (
             <>
               <Ed x="the treasury pays the seller" p="the treasury pays the shop" />
               {quoteUsdc === undefined ? null : (
@@ -253,8 +313,8 @@ export function MoneyPath({
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-        x="The treasury pays the seller. The agent sends the instruction down the dashed line and holds nothing at either end, which is the one property this whole design exists to keep. Idle money earns underneath, and a payment short of the buffer pulls the exact shortfall up and pays in the same transaction."
-        p="The treasury pays the shop. The robot only asks; it never holds the money. Spare money earns below, and comes up when a bill needs it."
+        x="The treasury pays the seller, but only after it checks the asking price against the benchmark above it and recomputes the fair total from the chain's own print. The agent sends the instruction down the dashed line and holds nothing at either end, which is the one property this whole design exists to keep. Idle money earns underneath, and a payment short of the buffer pulls the exact shortfall up and pays in the same transaction."
+        p="The treasury checks the price is fair before it pays the shop. The robot only asks; it never holds the money. Spare money earns below."
       />
     </>
   );

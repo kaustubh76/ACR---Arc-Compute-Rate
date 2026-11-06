@@ -77,6 +77,18 @@ export function scaledPrice(priceWad: bigint, factorPct: number): bigint | null 
  *  Stale prints are eligible: a stale print is still the last thing the chain
  *  said, and dropping it would make a quiet keeper look like an empty store.
  *  The row says it is stale; the arithmetic does not pretend it is absent. */
+/** The model, as the store names itself, minus the index prefix.
+ *
+ *  Data rather than copy: the chain supplies the string, so this is never an
+ *  `<Ed>` and never a literal. Shared because the runway offers the choice and
+ *  the ladder has to say which one it is pricing against — the same name read
+ *  off the same field, or the two panels would disagree about what a reader
+ *  just picked. The 10-character fallback is the index itself, for a print
+ *  whose name the store left empty. */
+export function modelOf(p: { name: string; index: string }): string {
+  return p.name.replace(/^ACR-INF:/, "") || p.index.slice(0, 10);
+}
+
 export function cheapest<T extends { price_wad: string }>(prints: readonly T[]): T | null {
   let best: T | null = null;
   let bestWad: bigint | null = null;

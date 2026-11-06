@@ -535,6 +535,23 @@ h4 {
 button.chip {
   min-height: 24px;
 }
+/* A CHIP HOLDING A SENTENCE IS NOT A BADGE. `white-space: nowrap` above is
+   right for the two-word kind and wrong for the few that carry prose: measured
+   on /float at 390 and 414, the yield panel's "the walk did not reach the
+   first deposit" chip is 421px wide and takes the whole PAGE sideways — a
+   horizontal scroll on a phone caused by one unbreakable pill. The same trap
+   `.addr-chip` is on record for: an inline-flex atom with nowrap cannot be
+   rescued by `min-width: 0` on its parent, because the atom itself has no
+   break opportunity.
+
+   A MODIFIER RATHER THAN A CHANGE TO `.chip`, so the short badges — which must
+   never break mid-label — keep nowrap. `overflow-wrap: anywhere` because a
+   model id like meta-llama/llama-3.3-70b-instruct offers a line breaker very
+   little to work with. */
+.chip-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .chip-gold {
   color: var(--gold);
   border-color: rgba(233, 161, 63, 0.45);
@@ -3086,6 +3103,27 @@ a.colophon-act:hover::after {
 .meter .fill-reserve {
   background: var(--plum);
 }
+/* WHAT A WHAT-IF DRAW TAKES OUT, sitting immediately to the right of what is
+   left, so one row reads as "this much stays, this much goes" rather than as a
+   bar that mysteriously shrank. `.meter i` already transitions width, which is
+   why the drain needed no keyframe; `left` has to join it or the band jumps
+   while the band beside it glides. The offset is inline because it IS the
+   remaining width, a number the row has already computed — the stacking the
+   panel's own comment warns about is across rows, not within one.
+
+   THE PULLED BAND IS GOLD BECAUSE GOLD IS ALREADY "WHAT-IF" HERE (the runway's
+   chip) AND "A HUMAN TOUCHED IT" (.fill-human). Both readings are true of a
+   shortfall a reader conjured with a slider, and it is the one event in the
+   panel worth looking at: the sleeve giving up the exact difference. */
+.meter .fill-taken {
+  background: rgba(172, 198, 233, 0.16);
+  transition: width 0.6s var(--ease-expo), left 0.6s var(--ease-expo);
+}
+.meter .fill-pull {
+  background: var(--gold);
+  box-shadow: 0 0 12px rgba(233, 161, 63, 0.4);
+  transition: width 0.6s var(--ease-expo), left 0.6s var(--ease-expo);
+}
 .tier-cols {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3218,7 +3256,7 @@ a.colophon-act:hover::after {
   /* The float money path's travelling dot. INFINITE, like the two above, so a
      reader cannot wait it out — and it sits beside the ladder a reader is
      meant to be reading. Stilled at the start of the rail: the diagram's
-     static composition is the three boxes and the agent's dashed tether, and
+     static composition is the four boxes and the agent's dashed tether, and
      the dot is the only thing that moves. */
   .money.paying .money-dot,
   .skel::after {
@@ -3227,6 +3265,14 @@ a.colophon-act:hover::after {
   .money.paying .money-dot {
     transform: none !important;
     opacity: 1 !important;
+  }
+  /* The sleeve meters. This transition predates the draw slider and was fine
+     while only a chain update moved it — a once-in-a-while glide nobody asked
+     for. A reader dragging the slider re-fires it continuously, which is the
+     kind a reduced-motion request is actually about. The bars still show the
+     draw; they just arrive at it. */
+  .meter i {
+    transition: none;
   }
   /* dawn band stills to exactly the static composition */
   .arc-horizon .sun,
