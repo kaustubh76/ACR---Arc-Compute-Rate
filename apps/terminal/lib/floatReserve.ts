@@ -21,20 +21,26 @@ import type { ChainKey } from "./chainChoice";
  * than saying so". The blocker is a Circle Support ticket with a 24 to 48 hour
  * lead time, which is a fact about a queue and not something on chain.
  *
- * AND THERE IS NO ACCESSOR TO FIND. Measured on Circle's Teller, 2026-11-06:
- * `maxDeposit(address)` returns a NON-ZERO allowance for an address it will not
- * let deposit — ours read 5,723,443 while the deposit itself reverts
- * `NotPermissioned()`. So the permission is only legible by attempting the
- * thing: a staticcall of the deposit, whose revert selector lives on `.data`
- * three levels down viem's cause chain and not in `.message`.
+ * THERE IS NO ACCESSOR ON THE TELLER, and for a while this file said there was
+ * none anywhere. Corrected 2026-11-07: the allowlist is a SEPARATE contract, a
+ * Solmate `RolesAuthority` at an address nobody here had, so the search of the
+ * Teller was honest and its conclusion was still wrong. `docs/TAMEION.md`
+ * carries the three reads that answer it positively — no roles held, the
+ * deposit capability gated to role 0 or 9, and not public. Left on the record
+ * because this panel has now been wrong twice in the same direction, about
+ * `buy()`/`sell()` and about this, and both times by concluding from an absence.
+ *
+ * What stands, and is why the probe still exists: `maxDeposit(address)` returns
+ * a NON-ZERO allowance for an address it will not let deposit — ours read
+ * 5,723,443 while the deposit reverts `NotPermissioned()`. The revert selector
+ * lives on `.data` three levels down viem's cause chain and not in `.message`.
  *
  * DO NOT RENDER `maxDeposit > 0` AS A GREEN STATE. It is the single most
  * plausible-looking wrong answer this panel could give: a number that reads as
  * headroom, on an address with none, in the one section of the page whose whole
  * job is to be honest about not being live yet. If this surface ever shows
- * whether the fund would accept a deposit, it has to come from the attempt and
- * from a signature somebody READ, not from an allowance getter and not from a
- * guessed ABI.
+ * whether the fund would accept a deposit, it has to come from the attempt or
+ * from the registry, not from an allowance getter and not from a guessed ABI.
  */
 
 export type ReserveFund = {
