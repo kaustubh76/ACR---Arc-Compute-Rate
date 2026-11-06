@@ -20,6 +20,7 @@ import { decodeEventLog, formatUnits, keccak256, toHex, type Address, type Hex }
 import { addressFor, feeFor, netFromEnv, publicFor, walletFor } from "../chain.ts";
 import * as A from "../artifacts.ts";
 import { load } from "../deployments.ts";
+import { fundingCheck, fundingReason } from "../funding.ts";
 import { SEED_MODELS } from "../seed.ts";
 import { indexIdFor } from "../prices.ts";
 
@@ -70,6 +71,26 @@ async function balance(who: Address): Promise<bigint> {
   })) as bigint;
 }
 
+/**
+ * What the treasury actually controls: the buffer plus every sleeve.
+ *
+ * `classify` does not answer this, and that is the gap this closes. Its twelve
+ * rungs are all policy and price — paused, unknown agent, frozen, seller,
+ * replay, units, no print, stale, rotated, band, per-request, daily cap — and
+ * NONE of them asks whether the money is there. `_check` never consults the
+ * sleeve at all, so a quote can clear all twelve and still revert at the pull.
+ *
+ * Not hypothetical: `sweep.ts` exists because an overnight tape walked the
+ * balance into the seller and then produced "hours of `treasury cannot cover
+ * this`, one per tick, which looks precisely like a broken product to anyone
+ * reading the dashboard in the morning".
+ */
+async function coverage(): Promise<bigint> {
+  return (await pub.readContract({
+    address: d.vault, abi: V.abi, functionName: "totalValueUsdc",
+  })) as bigint;
+}
+
 /** What the chain says this model costs right now, and which print said so. */
 async function quoteFor(model: string) {
   const index = keccak256(toHex(indexIdFor(model)));
@@ -105,6 +126,36 @@ async function submit(agent: { id: Hex; eoa: Address }, model: string, quote: bi
     functionName: "classify",
     args: [req],
   })) as [string, number, bigint, bigint];
+
+  // DO NOT SEND A TRANSACTION THAT CANNOT SUCCEED.
+  //
+  // Advisory, not authoritative: the chain still decides, and a keeper
+  // rebalance landing between this read and the send can make it wrong in
+  // either direction. The point is not to make the revert impossible but to
+  // stop walking into it predictably — without this, a treasury that has run
+  // dry buys one revert per tick all night, and the dashboard reads as a
+  // broken product rather than an empty one.
+  //
+  // ONLY when policy would otherwise ALLOW it. A quote the ladder already
+  // refuses is worth sending even on an empty treasury: `requestSpend` emits
+  // `Denied` rather than reverting, and that event is the refusal evidence the
+  // tape exists to show. Suppressing those would quietly delete the waster's
+  // 3x refusal from the record whenever the buffer happened to dip below three
+  // times fair — trading a real demonstration for a saved cent.
+  const funding = fundingCheck(code, await coverage(), quote);
+  if (!funding.send) {
+    return {
+      code: 0,
+      reason: fundingReason(funding),
+      hash: null,
+      ok: false,
+      jit: null,
+      fairOnChain: null,
+      receiptId: null,
+      raced: false,
+      notSent: true,
+    };
+  }
 
   const hash = await executor.writeContract({
     address: d.vault,
@@ -174,6 +225,8 @@ async function submit(agent: { id: Hex; eoa: Address }, model: string, quote: bi
     // True when the pre-flight and the chain disagreed: worth seeing, because it
     // is the signature of a keeper print landing mid-tick.
     raced: !paid && code === 0,
+    // This one reached the chain; the local pre-check let it through.
+    notSent: false,
   };
 }
 
@@ -209,13 +262,16 @@ async function tick(i: number) {
       (s.ok
         ? `PAID receipt #${s.receiptId} (vault recomputed fair ${usd(s.fairOnChain ?? 0n)}` +
           `${s.jit ? ", JIT: pulled out of the yield sleeve in the same transaction" : ", from buffer"})`
-        : `REFUSED (${s.reason})${s.raced ? " [pre-flight said allowed: the chain moved between the two]" : ""}`),
+        : s.notSent
+          ? `NOT SENT (${s.reason})`
+          : `REFUSED (${s.reason})${s.raced ? " [pre-flight said allowed: the chain moved between the two]" : ""}`),
   );
 
   // waster quotes three times the going rate.
   const w = await submit(WASTER, model, fair * 3n, index, printId);
   console.log(
-    `waster ${model.padEnd(34)} fair ${usd(fair)} quote ${usd(fair * 3n)} -> ${w.ok ? "PAID" : `REFUSED (${w.reason})`}`,
+    `waster ${model.padEnd(34)} fair ${usd(fair)} quote ${usd(fair * 3n)} -> ` +
+      `${w.ok ? "PAID" : `${w.notSent ? "NOT SENT" : "REFUSED"} (${w.reason})`}`,
   );
 
   const after = { scout: await balance(SCOUT.eoa), waster: await balance(WASTER.eoa) };

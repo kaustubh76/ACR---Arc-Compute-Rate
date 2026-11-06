@@ -16,10 +16,24 @@
  * drained treasury. That is the whole argument, and it is why the dangerous tool
  * is safe to expose at all.
  *
- * `float_quote` is READ-ONLY and costs nothing — it runs the same ladder the
- * payment runs, through the vault's own `classify` view. An agent should call it
- * before anything expensive, which is also how a caller discovers that a price
- * is bad without spending gas to find out.
+ * `float_quote` is READ-ONLY and costs nothing — it runs the same POLICY ladder
+ * the payment runs, through the vault's own `classify` view. An agent should
+ * call it before anything expensive, which is how a caller discovers that a
+ * price is bad without spending gas to find out.
+ *
+ * POLICY is the honest word there, and the distinction cost us something. The
+ * vault's twelve refusal codes are all policy and price — paused, unknown
+ * agent, frozen, seller, replay, units, no print, stale, rotated, band,
+ * per-request, daily cap. `_check` never consults the sleeve, so NONE of them
+ * asks whether the treasury can actually cover the payment. A quote can clear
+ * all twelve and still revert at the pull with "treasury cannot cover this",
+ * and a revert is not a `Denied` event: it costs gas and emits nothing.
+ *
+ * `sweep.ts` exists because exactly that happened for hours, once per tick,
+ * overnight. So `float_quote` also returns what the treasury controls, and
+ * `would_be` accounts for it — otherwise this tool would be telling a caller
+ * it cannot spend gas to find out, while handing it the one answer that lets
+ * it do precisely that.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -28,6 +42,7 @@ import { decodeEventLog, formatUnits, keccak256, parseAbiItem, toHex, type Addre
 import { explorerTx, feeFor, netFromEnv, publicFor, walletFor } from "../chain.ts";
 import * as A from "../artifacts.ts";
 import { load } from "../deployments.ts";
+import { fundingCheck } from "../funding.ts";
 import { indexIdFor } from "../prices.ts";
 
 const NET = netFromEnv();
@@ -182,14 +197,28 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       })) as [string, number, bigint, bigint];
 
       if (name === "float_quote") {
+        // What the treasury controls, which `classify` does not look at.
+        const held = (await pub.readContract({
+          address: d.vault, abi: V.abi, functionName: "totalValueUsdc",
+        })) as bigint;
+        const unfunded = !fundingCheck(code, held, quote).send;
         return text({
           model,
           units: Number(units),
           acr_fair_price_usdc: usd(fairOnChain > 0n ? fairOnChain : fair),
           your_quote_usdc: usd(quote),
           premium_percent: fair > 0n ? Number(((quote - fair) * 10000n) / fair) / 100 : null,
-          would_be: code === 0 ? "paid" : "refused",
-          reason: code === 0 ? "inside policy and inside the fair band" : reason,
+          // Three outcomes, not two. A policy refusal is a `Denied` EVENT and
+          // the transaction succeeds; an unfunded treasury is a REVERT, which
+          // emits nothing and still costs gas. Collapsing them would tell a
+          // caller to send the one request guaranteed to waste money.
+          would_be: unfunded ? "revert_unfunded" : code === 0 ? "paid" : "refused",
+          treasury_controls_usdc: usd(held),
+          reason: unfunded
+            ? `policy allows it, but the treasury controls ${usd(held)} against a ` +
+              `${usd(quote)} quote — ${usd(quote - held)} short. This reverts rather ` +
+              `than emitting a refusal, so it costs gas and tells you nothing.`
+            : code === 0 ? "inside policy and inside the fair band" : reason,
           print_id: Number(p.printId),
           print_age_seconds: Math.floor(Date.now() / 1000) - p.postedAt,
           provider_spread_bps: p.ciBps,

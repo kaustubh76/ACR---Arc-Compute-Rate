@@ -40,7 +40,7 @@ unapproved seller.
 cd contracts && forge build && forge test     # 300 tests
 anvil                                          # in another shell
 cd float && npm install
-npm test                                       # 25 unit tests
+npm test                                       # 32 unit tests
 npm run local                                  # deploy the whole system
 npm run keeper -- --once                       # put real prices on chain
 npm run verify                                 # 14 checks against the live chain
