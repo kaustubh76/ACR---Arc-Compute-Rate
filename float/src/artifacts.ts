@@ -38,6 +38,7 @@ function load(file: string, name: string): Artifact {
 export const FloatVault = () => load("FloatVault.sol", "FloatVault");
 export const FloatPrintStore = () => load("FloatPrintStore.sol", "FloatPrintStore");
 export const Erc4626Sleeve = () => load("Sleeves.sol", "Erc4626Sleeve");
+export const UsycSleeve = () => load("UsycSleeve.sol", "UsycSleeve");
 export const FloatTestSeller = () => load("FloatTestSeller.sol", "FloatTestSeller");
 
 /** Test doubles, used only to stand up a local chain. Never deployed to Arc. */

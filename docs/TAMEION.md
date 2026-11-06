@@ -396,6 +396,40 @@ redemption, net of its own fee) and sizing a redemption by dividing through a
 NAV, which fails at prices that do not divide evenly and was caught by a test
 written to catch exactly that.
 
+**What reaching the yield costs, measured rather than assumed.** `make
+float-bench` estimates the same two calls against each sleeve's real
+counterparty on the live chain, and `contracts/test/SleeveBenchmark.t.sol`
+repeats them against *equally trivial* doubles so the venue's share can be
+separated from ours:
+
+| | Morpho, real Vault V2 | USYC, stand-in Teller |
+|---|---|---|
+| `withdrawExact`, live | **249,801** | **76,070** |
+| `withdrawExact`, matched doubles | **55,698** | **32,778** |
+| `valueUsdc`, matched doubles | **10,769** | **13,302** |
+
+**The sleeve Float actually uses is the expensive one, by 3.3x.** At Arc's 25
+Gwei that is **$0.006245 of venue gas per just-in-time pull** — about **0.59%
+of a $1.055 payment**, spent reaching the yield. For a product whose argument
+is about not overpaying, the number belongs in the open.
+
+Two readings the table supports and one it does not. The ratio **narrows from
+3.3x to 1.7x** when both sleeves face the same trivial counterparty, so roughly
+half the live gap is real Morpho's own work — adapters, then MorphoBlue — and
+roughly half is the difference between the two code paths. And `valueUsdc`
+**reverses**: `UsycSleeve` pays about a quarter more gas there because it
+prices through `previewRedeem`, net of the exit fee, rather than at NAV. That
+is the right trade — it reports a number the treasury can actually spend — and
+it is a cost, so it is listed as one.
+
+What the table does **not** support is "the architecture is wrong". Morpho is
+permissionless with six figures of depth; USYC needs an allowlist and a
+$100,000 minimum. Depth and permission put Morpho in the working slot. Gas is
+the price of that choice, now quantified.
+
+Every USYC figure above is **our code against a stand-in**, so it is a floor
+and not a prediction of what Circle's Teller will cost.
+
 **So the honest position.** The capability is three lines of contract call
 behind a human approval with a two-day lead time — and those three lines are
 now written and tested, so when the ticket clears it is a funding step rather

@@ -93,3 +93,11 @@ docs/fundraise/
 
 # aomi-build writes local deploy state here; .aomi/config.json is committed.
 .aomi/deployment.json
+
+# forge's gas snapshots from `vm.snapshotGas`. Generated, and they move with
+# every compiler bump and every change to a test double — committing them
+# would churn and conflict between the sessions sharing this tree for no added
+# safety. The measured numbers live in docs/TAMEION.md, re-derivable with
+# `make float-bench`, and SleeveBenchmark.t.sol asserts RELATIONSHIPS rather
+# than these values precisely so they are free to drift.
+contracts/snapshots/
