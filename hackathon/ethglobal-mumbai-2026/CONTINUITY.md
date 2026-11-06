@@ -92,6 +92,9 @@ pays the seller in **one transaction**.
 | `float/src/prices.ts` + `prices.test.ts` | per-provider price medians and a measured confidence interval, using ACR's own blend and unit conversion |
 | `float/src/bin/{keeper,agents,local,prices}.ts` | the print/forecast/rebalance loop, the two demo agents, a local bootstrap, a spread report |
 | `float/src/{chain,artifacts,deployments,seed}.ts` | chain config, ABIs read from forge's output, per-network deployment records |
+| `float/sauce/jit_preflight.sauce.ts` | **Eco Sauce.** A compiled program that asks the Morpho venue — against live Arc state, with nothing signed — whether it could deliver a given shortfall. It asserts Vault V2's always-zero `max*` trap on chain rather than describing it. Acceptance check **T13** runs it in both directions and fails unless the coverable amount is accepted and the uncoverable one refused |
+| `float/app/walk.html` | **written by Arc Studio.** One transaction walked step by step: the price read, the shortfall leaving the sleeve, the seller paid, the receipt written — by log index, because Arc serves no `debug_traceTransaction` |
+| `float/app/venue.html` | **written by Arc Studio with its `morpho` onchain skill.** What we are trusting in the vault we do not control: the four transfer gates, who can change them and how fast, depth against our exposure, fees, and the rate. It read Morpho's verified Vault V2 source and found that **all four gate setters have no timelock**, and that the owner and curator are the same single key |
 
 ### 4.2 World ID Agent Pass — a verification that releases money
 

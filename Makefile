@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram test-float rehearse-float
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram studio-pull studio-pull-apply test-float rehearse-float
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -194,6 +194,32 @@ float-sauce:
 	cd float/sauce && npm install --ignore-scripts --no-audit --no-fund
 	@echo
 	@echo "installed. FLOAT_NET=arc-testnet make float-verify now runs T13 against it."
+
+# --- the Arc Studio round trip -------------------------------------------
+#
+# Out with `arc-studio run -f <local>:<path>`, which PLACES a file in the
+# workspace instead of asking the model to retype it. Back with `pull`, never
+# with `cat`.
+#
+# `cat > file` is a dumb read: no record of what came from where, no diff, and
+# no protection. `pull` tracks what it downloaded and SKIPS files edited
+# locally since, which is the difference between being told about a conflict
+# and losing the edit. Both of this repo's Studio-authored pages were edited
+# locally after they arrived, so that protection is not hypothetical.
+#
+# `cat` keeps exactly one job: reading a file to hash or inspect without
+# writing anything, which is how float/studio/README.md's byte-for-byte claim
+# is checked.
+STUDIO_APP ?= b5aa43e1-4d5c-4d47-b079-dcc9aea0e557
+
+# Look first. Always.
+studio-pull:
+	cd float/app && arc-studio pull --app $(STUDIO_APP) --paths "*.html" --dry-run --diff
+
+# Then take it. No --force: its only effect is to destroy the local edits the
+# default exists to protect.
+studio-pull-apply:
+	cd float/app && arc-studio pull --app $(STUDIO_APP) --paths "*.html"
 
 float-diagram:
 	uv run python scripts/gen_float_diagram.py

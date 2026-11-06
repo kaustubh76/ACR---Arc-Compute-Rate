@@ -86,6 +86,8 @@ Every claim below is re-derivable by a command in the repo.
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |
 | The fair band is denominated correctly | `test_the_fair_band_is_denominated_in_usdc_not_wad` |
 | Thirteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
+| An Eco **Sauce** program asks the Morpho venue whether it could deliver a shortfall, before anything is signed | `make float-sauce`, then `npm run verify` T13 — it is run in both directions, and fails unless the uncoverable amount is refused |
+| Our yield venue has **no timelock on any of its four gate setters**, and its owner and curator are one key | `venue.html`, written by Arc Studio's `morpho` skill; re-derive with `cast call <venue> "timelock(bytes4)(uint256)" <selector>` |
 
 ## The number that makes the case
 

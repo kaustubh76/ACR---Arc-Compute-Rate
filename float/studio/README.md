@@ -221,6 +221,49 @@ links added to reach it — one above the tape and one per paid row carrying tha
 row's `?tx=` — because the Studio preview panel has no address bar, so a page
 nothing links to cannot be opened there at all.
 
+## 3d · The Morpho onchain skill, pointed at the venue we actually use
+
+`venue.html` — **Arc Studio wrote this one too**, with its `morpho` onchain
+skill (`arc-studio run --skills morpho`). Studio's skills are a first-class
+feature of the product, so using one is a fairer demonstration of Arc Studio
+than another page of ours that it merely hosts.
+
+The brief was deliberately not "show the yield". Float parks its idle float in a
+Morpho vault **we do not control**, and the page answers the question a sceptical
+reader actually has:
+
+> What exactly are we trusting, and what would break us if it changed?
+
+The skill did something we had not asked for and would not have thought to do by
+hand: it pulled Morpho's **verified Vault V2 source** into the workspace and read
+it. That is where the page's sharpest line comes from, and it is a fact about the
+venue that no amount of calling `totalAssets()` would surface:
+
+> The owner can also replace the curator, and add or remove sentinels,
+> **instantly: those three functions have no timelock in the verified VaultV2
+> source.** A sentinel can only cancel a pending change, never make one.
+
+It also honoured the one instruction that mattered. Asked to show the four
+transfer gates, it refuses to summarise them unless it has read all four:
+
+> Some gate reads failed (shown above). **The page will not call the gates open
+> without reading all four.**
+
+That is the right behaviour and we saw it fire for real — the first render hit
+Arc's rate limiter and the page reported every gate as unread rather than
+guessing. The same instinct runs through it: a fee it cannot read says so, and
+the yield panel prints "no figure could be read" instead of annualising a number
+from one observation.
+
+**What we changed afterwards.** One thing, in `rd`, the single helper every
+contract read passes through: a concurrency gate of three and a backoff that
+retries only a rate-limited answer. The page asked Arc about thirty questions at
+once, and on a loaded endpoint — which is exactly what a demo is, with the
+keeper, the tape and the dashboard all talking to it — every panel came back
+unreadable. A risk page that cannot read the risk is worse than no page, because
+"could not read" and "closed" look the same to anyone skimming. The fix is in one
+place rather than at the five call sites, so the two cannot drift apart.
+
 ## 4 · What Arc Studio did not do
 
 Stated plainly, because a vague claim collapses under one question and a narrow
@@ -241,15 +284,36 @@ one does not:
   arc-studio cat --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557 index.html | shasum -a 256
   ```
 
-  Both print `4ff87625a8d4b89c2145e3ef9036765de26b9d25714d141a4bc3e099e57461f5`
-  (15,062 bytes, 310 lines), and `walk.html` is
-  `337906e8eafd11b9b3de98781888d919dfa7ae5c2cf40256ea3ac752c415add2` (20,997
-  bytes). Both files were delivered with `arc-studio run -f
-  'float/app/index.html:index.html'`, which places a file in the workspace
-  instead of asking the model to retype it — the only way the claim above can
-  be true. Studio was told not to reformat or "improve" it, and did not.
+  All three agree:
 
-  **"Byte-identical" is a claim about the file, not about what the preview
+  | file | sha256 | bytes | written by |
+  |---|---|---|---|
+  | `index.html` | `e33862fa…ce1eb54a` | 15,234 | Claude Code |
+  | `walk.html` | `337906e8…c415add2` | 20,997 | **Arc Studio** (§3c) |
+  | `venue.html` | `bb09574d…c3430df2` | 45,788 | **Arc Studio**, `morpho` skill (§3d) |
+
+  Files go out with `arc-studio run -f 'float/app/index.html:index.html'`, which
+  **places** a file in the workspace instead of asking the model to retype it —
+  the only way the claim above can be true. Studio was told not to reformat or
+  "improve" them, and did not.
+
+  **Files come back with `pull`, never with `cat`.** `make studio-pull` runs
+  `arc-studio pull --dry-run --diff` first, and `studio-pull-apply` takes it.
+  This is not a style preference. `cat > file` is a dumb read: no record of what
+  came from where, no diff, and no protection. `pull` tracks what it downloaded
+  and skips anything edited locally since:
+
+  ```
+  1 file(s) skipped to protect local edits — re-run with --force to overwrite
+  ```
+
+  That is not hypothetical here — both Studio-authored pages were edited locally
+  after they arrived (§3d), and a second `cat` would have destroyed those edits
+  without saying so. `cat` keeps one job: reading a file to hash or inspect it
+  without writing anything, which is what the commands above do. `--force` is
+  never the answer; its only effect is to defeat the protection.
+
+    **"Byte-identical" is a claim about the file, not about what the preview
   renders**, and the distinction is Arc Studio's own correction rather than ours.
   Asked to confirm the preview served these bytes, it declined and said why: the
   preview is a Vite dev server, which injects a `/@vite/client` module and a

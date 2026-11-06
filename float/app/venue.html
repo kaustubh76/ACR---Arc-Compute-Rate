@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACR Float · what we are trusting</title>
+<!--
+  A risk page, not a yield panel.
+
+  Our treasury parks idle float in a Morpho Vault V2 that we do not control.
+  This page reads that vault live and answers one question: what are we
+  trusting, and what would break us if it changed? There is no server and no
+  build step. Every figure is an eth_call or an eth_getLogs against the Arc
+  Testnet RPC. Where a figure could not be read, the page says which call failed.
+
+  ABIs are written by hand and checked against the verified VaultV2 source on
+  the explorer. The only external resource is viem, so the Morpho SDK (a second
+  external import) is deliberately not used.
+-->
+<style>
+  :root {
+    --bg: #07090c; --panel: #0e1218; --line: #1c2430; --ink: #e8eef5;
+    --dim: #7c8a9b; --accent: #5ad1a0; --warn: #e0a84e; --bad: #e4635a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 var(--mono); padding: 24px 16px 64px;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 8px; }
+  .back { display: inline-block; font-size: 12px; margin-bottom: 4px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; margin-top: 12px; border-left: 3px solid var(--line); }
+  .panel.ok { border-left-color: var(--accent); }
+  .panel.warn { border-left-color: var(--warn); }
+  .panel.bad { border-left-color: var(--bad); }
+  .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0; font-weight: 500; }
+  .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .head .pill { margin-left: auto; }
+  .num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink); font-size: 12px; flex-shrink: 0; }
+  .big { font-size: 26px; line-height: 1.15; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; min-width: 0; }
+  .row span:last-child { text-align: right; min-width: 0; }
+  .row .k { flex-shrink: 0; }
+  .k { color: var(--dim); }
+  .good { color: var(--accent); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  a { color: var(--accent); }
+  .err { color: var(--bad); padding: 6px 0; }
+  .note { color: var(--dim); font-size: 12px; margin-top: 10px; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .pill.ok { color: var(--accent); border-color: #1d4535; }
+  .pill.warn { color: var(--warn); border-color: #4a3a1c; }
+  .pill.bad { color: var(--bad); border-color: #5a2723; }
+  .verdict { font-size: 14px; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+  .verdict.ok { border-color: #1d4535; }
+  .verdict.warn { border-color: #4a3a1c; color: var(--warn); }
+  .verdict.bad { border-color: var(--bad); color: var(--bad); }
+  .tbl { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 4px 8px 4px 0; border-bottom: 1px solid #141a22; vertical-align: top; }
+  .sep { border-top: 1px solid var(--line); margin: 10px 0 6px; }
+  .spin { color: var(--dim); }
+  .spin::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ACR Float · what we are trusting</h1>
+  <div class="sub" id="headline">connecting…</div>
+  <a class="back" href="index.html">← back to the dashboard (index.html)</a>
+  <div id="err"></div>
+
+  <div class="panel" id="glance"><div class="head"><h2>At a glance</h2></div><div class="spin">reading the venue</div></div>
+  <div class="panel" id="s1"><div class="head"><span class="num">1</span><h2>The four gates</h2></div><div class="spin">reading</div></div>
+  <div class="panel" id="s2"><div class="head"><span class="num">2</span><h2>Who can change that, and how fast</h2></div><div class="spin">reading</div></div>
+  <div class="panel" id="s3"><div class="head"><span class="num">3</span><h2>Depth, against our actual exposure</h2></div><div class="spin">reading</div></div>
+  <div class="panel" id="s4"><div class="head"><span class="num">4</span><h2>What it costs us</h2></div><div class="spin">reading</div></div>
+  <div class="panel" id="s5"><div class="head"><span class="num">5</span><h2>What it earns</h2></div><div class="spin">reading</div></div>
+</div>
+
+<script type="module">
+import {
+  createPublicClient, http, formatUnits, parseAbi,
+  keccak256, encodeAbiParameters, decodeAbiParameters, toFunctionSelector, parseEventLogs,
+} from "https://cdn.jsdelivr.net/npm/viem@2.55.8/+esm";
+
+// Baked-in defaults so the page renders with no query string. ?venue= and
+// ?sleeve= override the two addresses that are about someone else's setup.
+const ADDR = /^0x[0-9a-fA-F]{40}$/;
+const q = new URLSearchParams(location.search);
+const CFG = {
+  rpc: "https://rpc.testnet.arc.io",
+  chainId: 5042002,
+  explorer: "https://explorer.testnet.arc.io",
+  usdc: "0x3600000000000000000000000000000000000000",
+  venue: q.get("venue") || "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88",
+  sleeve: q.get("sleeve") || "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
+  vault: "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc",
+  window: 9000n,   // Arc rejects eth_getLogs above a 10,000-block range
+  windows: 6,
+};
+const ZERO = "0x0000000000000000000000000000000000000000";
+const YEAR = 31_536_000; // seconds, the unit Morpho annualises with
+const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const addr = (a, label) => `<a href="${CFG.explorer}/address/${esc(a)}" target="_blank" rel="noopener" title="${esc(a)}">${esc(label ?? short(a))}</a>`;
+const row = (k, v) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+const pill = (t, cls = "") => `<span class="pill ${cls}">${esc(t)}</span>`;
+const verdict = (cls, html) => `<div class="verdict ${cls}">${html}</div>`;
+const note = (html, cls = "") => `<div class="note ${cls}">${html}</div>`;
+
+/** Replace a panel's contents and its left-border state. */
+function setPanel(id, state, num, title, badge, body) {
+  const el = $(id);
+  el.className = `panel ${state}`;
+  el.innerHTML = `<div class="head">${num ? `<span class="num">${num}</span>` : ""}<h2>${esc(title)}</h2>${badge ?? ""}</div>${body}`;
+}
+
+const pct = (x) => `${x.toLocaleString("en-US", { maximumSignificantDigits: 3, maximumFractionDigits: 12 })}%`;
+const dur = (s) => {
+  s = Number(s);
+  if (s === 0) return "none (instant)";
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  if (s < 172800) return `${(s / 3600).toFixed(1).replace(/\.0$/, "")} h`;
+  return `${(s / 86400).toFixed(1).replace(/\.0$/, "")} days`;
+};
+
+// The public RPC rate-limits bursts, so reads are JSON-RPC batched and retried
+// with backoff rather than fired one by one.
+const client = createPublicClient({
+  transport: http(CFG.rpc, { batch: { wait: 25 }, retryCount: 5, retryDelay: 700 }),
+});
+const why = (e) => {
+  const m = String(e?.shortMessage ?? e?.message ?? e).split("\n")[0];
+  return (e?.details && !m.includes(e.details) ? `${m} ${e.details}` : m).slice(0, 160);
+};
+/**
+ * Arc rate-limits hard, and this page asks it about thirty questions at once.
+ *
+ * Every contract read goes through `rd`, so the pacing lives here rather than
+ * at the five `Promise.all` sites — one gate instead of five that can drift
+ * apart. At most RD_CONCURRENCY in flight, and a rate-limited answer is retried
+ * with backoff instead of being rendered as "could not read".
+ *
+ * Without this the page reported EVERY gate as unreadable on the one occasion
+ * that matters: a demo, when the keeper, the tape and the dashboard are all
+ * talking to the same endpoint. A risk page that cannot read the risk is worse
+ * than no page, and "could not read" is indistinguishable from "closed" to
+ * anyone skimming it.
+ */
+const RD_CONCURRENCY = 3;
+let rdActive = 0;
+const rdQueue = [];
+const rdRelease = () => { rdActive--; const next = rdQueue.shift(); if (next) next(); };
+const rdSlot = () => new Promise((resolve) => {
+  const go = () => { rdActive++; resolve(); };
+  if (rdActive < RD_CONCURRENCY) go(); else rdQueue.push(go);
+});
+const rateLimited = (m) => /rate limit|exceeds defined limit|429|too many requests/i.test(m);
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const rd = async (address, abi, functionName, args = []) => {
+  await rdSlot();
+  try {
+    let last = "";
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        return { ok: true, v: await client.readContract({ address, abi, functionName, args }) };
+      } catch (e) {
+        last = why(e);
+        // Only a rate limit is worth retrying. A reverting call or a missing
+        // method is an answer, and repeating it just makes the page slower.
+        if (!rateLimited(last)) return { ok: false, call: functionName, err: last };
+        await nap(400 * 2 ** attempt);
+      }
+    }
+    return { ok: false, call: functionName, err: last };
+  } finally {
+    rdRelease();
+  }
+};
+/** A figure that could not be read says which call failed instead of vanishing. */
+const unread = (r) => `<span class="bad">could not read ${esc(r.call)}: ${esc(r.err)}</span>`;
+const show = (r, f) => (r.ok ? f(r.v) : unread(r));
+
+// Hand-written, minimal ABIs, checked against the verified VaultV2 source.
+const VENUE = parseAbi([
+  "function owner() view returns (address)",
+  "function curator() view returns (address)",
+  "function receiveSharesGate() view returns (address)",
+  "function sendSharesGate() view returns (address)",
+  "function receiveAssetsGate() view returns (address)",
+  "function sendAssetsGate() view returns (address)",
+  "function canReceiveShares(address) view returns (bool)",
+  "function canSendShares(address) view returns (bool)",
+  "function canReceiveAssets(address) view returns (bool)",
+  "function canSendAssets(address) view returns (bool)",
+  "function isAllocator(address) view returns (bool)",
+  "function isSentinel(address) view returns (bool)",
+  "function timelock(bytes4) view returns (uint256)",
+  "function abdicated(bytes4) view returns (bool)",
+  "function totalAssets() view returns (uint256)",
+  "function totalSupply() view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function convertToAssets(uint256 shares) view returns (uint256)",
+  "function virtualShares() view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function asset() view returns (address)",
+  "function liquidityAdapter() view returns (address)",
+  "function liquidityData() view returns (bytes)",
+  "function adaptersLength() view returns (uint256)",
+  "function adapters(uint256) view returns (address)",
+  "function performanceFee() view returns (uint96)",
+  "function performanceFeeRecipient() view returns (address)",
+  "function managementFee() view returns (uint96)",
+  "function managementFeeRecipient() view returns (address)",
+  "function maxRate() view returns (uint64)",
+]);
+const ERC20 = parseAbi(["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"]);
+const ADAPTER = parseAbi(["function morpho() view returns (address)", "function realAssets() view returns (uint256)"]);
+const MORPHO = parseAbi([
+  "function market(bytes32) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
+  "function position(bytes32, address) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)",
+]);
+const IRM = parseAbi([
+  "function borrowRateView((address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) marketParams, (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee) market) view returns (uint256)",
+]);
+const EVENTS = parseAbi([
+  "event SetOwner(address indexed newOwner)",
+  "event SetCurator(address indexed newCurator)",
+  "event SetIsSentinel(address indexed account, bool newIsSentinel)",
+  "event SetIsAllocator(address indexed account, bool newIsAllocator)",
+  "event SetReceiveSharesGate(address indexed newReceiveSharesGate)",
+  "event SetSendSharesGate(address indexed newSendSharesGate)",
+  "event SetReceiveAssetsGate(address indexed newReceiveAssetsGate)",
+  "event SetSendAssetsGate(address indexed newSendAssetsGate)",
+  "event SetAdapterRegistry(address indexed newAdapterRegistry)",
+  "event AddAdapter(address indexed account)",
+  "event RemoveAdapter(address indexed account)",
+  "event Submit(bytes4 indexed selector, bytes data, uint256 executableAt)",
+  "event Accept(bytes4 indexed selector, bytes data)",
+  "event Revoke(address indexed sender, bytes4 indexed selector, bytes data)",
+  "event IncreaseTimelock(bytes4 indexed selector, uint256 newDuration)",
+  "event DecreaseTimelock(bytes4 indexed selector, uint256 newDuration)",
+  "event Abdicate(bytes4 indexed selector)",
+  "event SetLiquidityAdapterAndData(address indexed sender, address indexed newLiquidityAdapter, bytes indexed newLiquidityData)",
+  "event SetPerformanceFee(uint256 newPerformanceFee)",
+  "event SetPerformanceFeeRecipient(address indexed newPerformanceFeeRecipient)",
+  "event SetManagementFee(uint256 newManagementFee)",
+  "event SetManagementFeeRecipient(address indexed newManagementFeeRecipient)",
+  "event IncreaseAbsoluteCap(bytes32 indexed id, bytes idData, uint256 newAbsoluteCap)",
+  "event IncreaseRelativeCap(bytes32 indexed id, bytes idData, uint256 newRelativeCap)",
+  "event SetMaxRate(uint256 newMaxRate)",
+]);
+
+// The curator actions that go through the timelock, and what each one can do to us.
+const GATE_SIGS = [
+  "setReceiveSharesGate(address)", "setSendSharesGate(address)",
+  "setReceiveAssetsGate(address)", "setSendAssetsGate(address)",
+];
+const TL_ROWS = [
+  ...GATE_SIGS,
+  "setIsAllocator(address,bool)", "addAdapter(address)", "setAdapterRegistry(address)",
+  "increaseAbsoluteCap(bytes,uint256)", "increaseRelativeCap(bytes,uint256)",
+  "setPerformanceFee(uint256)", "setManagementFee(uint256)",
+  "setPerformanceFeeRecipient(address)", "setManagementFeeRecipient(address)",
+  "setForceDeallocatePenalty(address,uint256)", "decreaseTimelock(bytes4,uint256)",
+].map((sig) => ({ sig, name: sig.split("(")[0], sel: toFunctionSelector(sig) }));
+const SELNAME = Object.fromEntries(TL_ROWS.map((t) => [t.sel, t.name]));
+
+const S = {}; // everything read, shared by the renderers and the summary
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const dec = () => (S.usdcDecimals?.ok ? Number(S.usdcDecimals.v) : null);
+const usd = (n, dp = 4) => (dec() === null
+  ? `${n} raw units`
+  : `$${Number(formatUnits(n, dec())).toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`);
+
+// ---------------------------------------------------------------- reads
+async function stage1() {
+  const names = ["owner", "curator", "receiveSharesGate", "sendSharesGate", "receiveAssetsGate", "sendAssetsGate",
+    "totalAssets", "totalSupply", "virtualShares", "decimals", "asset", "liquidityAdapter", "liquidityData",
+    "adaptersLength", "performanceFee", "performanceFeeRecipient", "managementFee", "managementFeeRecipient", "maxRate"];
+  const can = ["canReceiveShares", "canSendShares", "canReceiveAssets", "canSendAssets"];
+  const jobs = [
+    ...names.map((n) => rd(CFG.venue, VENUE, n).then((r) => [n, r])),
+    rd(CFG.venue, VENUE, "balanceOf", [CFG.sleeve]).then((r) => ["shares", r]),
+    ...can.map((n) => rd(CFG.venue, VENUE, n, [CFG.sleeve]).then((r) => [n, r])),
+    rd(CFG.usdc, ERC20, "balanceOf", [CFG.venue]).then((r) => ["idle", r]),
+    rd(CFG.usdc, ERC20, "decimals").then((r) => ["usdcDecimals", r]),
+    ...TL_ROWS.flatMap((t) => [
+      rd(CFG.venue, VENUE, "timelock", [t.sel]).then((r) => ["tl:" + t.sel, r]),
+      rd(CFG.venue, VENUE, "abdicated", [t.sel]).then((r) => ["ab:" + t.sel, r]),
+    ]),
+    client.getBlockNumber().then((v) => ["head", { ok: true, v }])
+      .catch((e) => ["head", { ok: false, call: "eth_blockNumber", err: why(e) }]),
+  ];
+  for (const [k, r] of await Promise.all(jobs)) S[k] = r;
+}
+
+async function stage2() {
+  const jobs = [];
+  if (S.shares.ok) {
+    // convertToAssets takes SHARES (18 decimals), never an asset amount.
+    jobs.push(rd(CFG.venue, VENUE, "convertToAssets", [S.shares.v]).then((r) => ["position", r]));
+  } else {
+    S.position = { ok: false, call: "convertToAssets", err: "the sleeve's share balance was not read" };
+  }
+  const who = [];
+  if (S.owner.ok) who.push(["owner", S.owner.v]);
+  if (S.curator.ok && !(S.owner.ok && same(S.curator.v, S.owner.v))) who.push(["curator", S.curator.v]);
+  for (const [tag, a] of who) {
+    jobs.push(rd(CFG.venue, VENUE, "isAllocator", [a]).then((r) => [tag + "Alloc", r]));
+    jobs.push(rd(CFG.venue, VENUE, "isSentinel", [a]).then((r) => [tag + "Sent", r]));
+  }
+  if (S.owner.ok) {
+    jobs.push(client.getCode({ address: S.owner.v }).then((v) => ["ownerCode", { ok: true, v: v ?? "0x" }])
+      .catch((e) => ["ownerCode", { ok: false, call: "eth_getCode", err: why(e) }]));
+  }
+  const n = S.adaptersLength.ok ? Math.min(Number(S.adaptersLength.v), 10) : 0;
+  jobs.push((async () => {
+    const list = [];
+    for (let i = 0; i < n; i++) {
+      const a = await rd(CFG.venue, VENUE, "adapters", [BigInt(i)]);
+      if (!a.ok) { list.push({ read: a }); continue; }
+      list.push({ addr: a.v, real: await rd(a.v, ADAPTER, "realAssets") });
+    }
+    return ["adapters", { ok: true, v: list }];
+  })());
+  if (S.liquidityAdapter.ok && !same(S.liquidityAdapter.v, ZERO)) {
+    jobs.push(rd(S.liquidityAdapter.v, ADAPTER, "morpho").then((r) => ["morpho", r]));
+  }
+  for (const [k, r] of await Promise.all(jobs)) S[k] = r;
+}
+
+const MP_TYPES = [{ type: "address" }, { type: "address" }, { type: "address" }, { type: "address" }, { type: "uint256" }];
+function marketParamsOf(data) {
+  // The market adapter's liquidityData is abi.encode(MarketParams): five words.
+  if (typeof data !== "string" || (data.length - 2) / 2 !== 160) return null;
+  try {
+    const [loanToken, collateralToken, oracle, irm, lltv] = decodeAbiParameters(MP_TYPES, data);
+    return { loanToken, collateralToken, oracle, irm, lltv };
+  } catch { return null; }
+}
+
+async function stage3() {
+  const m = { ok: false, call: "liquidityData", err: "no liquidity adapter set, or its data is not a Morpho market" };
+  S.mkt = m;
+  if (!S.liquidityData?.ok || !S.morpho?.ok) { if (S.morpho && !S.morpho.ok) S.mkt = S.morpho; return; }
+  const p = marketParamsOf(S.liquidityData.v);
+  if (!p) { m.err = "liquidityData is not abi.encode(MarketParams), so no Morpho market can be located"; return; }
+  const id = keccak256(encodeAbiParameters(MP_TYPES, [p.loanToken, p.collateralToken, p.oracle, p.irm, p.lltv]));
+  const [mk, pos] = await Promise.all([
+    rd(S.morpho.v, MORPHO, "market", [id]),
+    rd(S.morpho.v, MORPHO, "position", [id, S.liquidityAdapter.v]),
+  ]);
+  if (!mk.ok) { S.mkt = mk; return; }
+  const [a, b, c, d, e, f] = mk.v;
+  const market = { totalSupplyAssets: a, totalSupplyShares: b, totalBorrowAssets: c, totalBorrowShares: d, lastUpdate: e, fee: f };
+  const rate = await rd(p.irm, IRM, "borrowRateView", [p, market]);
+  S.mkt = { ok: true, params: p, id, market, pos, rate };
+}
+
+// ---------------------------------------------------------------- 1 · gates
+const GATES = [
+  ["receiveSharesGate", "canReceiveShares", "needed to receive shares: our deposits"],
+  ["sendSharesGate", "canSendShares", "needed to send shares: our redemptions. If closed, this traps our money"],
+  ["receiveAssetsGate", "canReceiveAssets", "needed to receive USDC on exit: our redemptions. If closed, this traps our money"],
+  ["sendAssetsGate", "canSendAssets", "needed to pay USDC in: our deposits"],
+];
+function render1() {
+  const unreadAny = GATES.some(([g, c]) => !S[g].ok || !S[c].ok);
+  const set = GATES.filter(([g]) => S[g].ok && !same(S[g].v, ZERO));
+  const blocked = GATES.filter(([, c]) => S[c].ok && S[c].v === false);
+  let body = "";
+  for (const [g, , what] of GATES) {
+    const r = S[g];
+    const v = !r.ok ? unread(r)
+      : same(r.v, ZERO) ? `<span class="good">address(0) · open</span>`
+      : `<span class="bad">SET → ${addr(r.v)}</span>`;
+    body += row(g, v) + `<div class="note" style="margin:0 0 6px">${esc(what)}</div>`;
+  }
+  body += `<div class="sep"></div>` + row("what the vault says about our sleeve now", addr(CFG.sleeve, short(CFG.sleeve)));
+  for (const [, c] of GATES) {
+    const r = S[c];
+    body += row(`${c}(sleeve)`, show(r, (v) => (v ? `<span class="good">yes</span>` : `<span class="bad">NO, blocked</span>`)));
+  }
+  let state, badge;
+  if (set.length) {
+    state = "bad"; badge = pill("GATE SET", "bad");
+    body += verdict("bad", `<b>GATE SET.</b> ${set.map(([g]) => `${esc(g)} is ${addr(S[g].v)}`).join("; ")}. `
+      + `Our sleeve may no longer be able to hold or redeem shares, and the just-in-time pull would then fail. `
+      + (blocked.length
+        ? `Right now the vault says our sleeve <b>cannot</b>: ${blocked.map(([, c]) => esc(c)).join(", ")}.`
+        : `Right now the gate still admits our sleeve, but whoever controls it can change that without involving us.`));
+  } else if (unreadAny) {
+    state = "warn"; badge = pill("partly unread", "warn");
+    body += verdict("warn", `Some gate reads failed (shown above). The page will not call the gates open without reading all four.`);
+  } else if (blocked.length) {
+    state = "bad"; badge = pill("sleeve blocked", "bad");
+    body += verdict("bad", `All four gates read as address(0), yet the vault says our sleeve cannot: ${blocked.map(([, c]) => esc(c)).join(", ")}.`);
+  } else {
+    state = "ok"; badge = pill("open", "ok");
+    body += verdict("ok", `<b class="good">OPEN.</b> All four gates are address(0), which means permissionless. `
+      + `This is the only reason a <i>contract</i> (our sleeve) may hold shares at all, and it is exactly what makes our `
+      + `just-in-time pull possible: the sleeve can redeem shares for USDC on demand, with no one approving it.`);
+  }
+  body += note(`A gate is not a fee or a cap. It is a yes/no switch, set by the curator, that can be turned on at any time. See section 2 for how fast.`);
+  setPanel("s1", state, 1, "The four gates", badge, body);
+}
+
+// ---------------------------------------------------------------- 2 · governance
+const tlOf = (t) => S["tl:" + t.sel];
+const abOf = (t) => S["ab:" + t.sel];
+function render2() {
+  const o = S.owner, c = S.curator;
+  let body = "";
+  const codeBadge = !S.ownerCode ? "" : !S.ownerCode.ok ? pill("code unread", "warn")
+    : S.ownerCode.v === "0x" ? pill("no contract code: a single key", "warn") : pill("has code: a contract", "ok");
+  body += row("owner", show(o, (v) => `${addr(v)} ${codeBadge}`));
+  body += row("curator", show(c, (v) => `${addr(v)}${o.ok && same(v, o.v) ? ` <span class="k">(same as owner)</span>` : ""}`));
+  if (S.ownerAlloc) body += row("owner is an allocator", show(S.ownerAlloc, (v) => (v ? "yes" : "no")));
+  if (S.ownerSent) body += row("owner is a sentinel", show(S.ownerSent, (v) => (v ? "yes" : "no")));
+  if (S.curatorAlloc) body += row("curator is an allocator", show(S.curatorAlloc, (v) => (v ? "yes" : "no")));
+  if (S.curatorSent) body += row("curator is a sentinel", show(S.curatorSent, (v) => (v ? "yes" : "no")));
+  body += note(`The vault has no allocator or sentinel list. It can only be asked about one address at a time, so the full set is not knowable from state. The recent-events scan below is the only other evidence, and it covers a bounded window.`);
+
+  const gateRows = TL_ROWS.slice(0, 4);
+  const gateUnread = gateRows.some((t) => !tlOf(t).ok || !abOf(t).ok);
+  const instant = gateRows.filter((t) => tlOf(t).ok && tlOf(t).v === 0n && abOf(t).ok && !abOf(t).v);
+  const delayed = gateRows.filter((t) => tlOf(t).ok && tlOf(t).v > 0n && abOf(t).ok && !abOf(t).v);
+  let state, badge;
+  if (instant.length) {
+    state = "bad"; badge = pill("no timelock", "bad");
+    body += verdict("bad", `<b>NO TIMELOCK</b> on ${instant.length} of the 4 gate setters (table below). The curator can change a gate, a cap or the allocation, `
+      + `and it takes effect in the same block it is announced, so the on-chain Submit event gives no advance warning at all. `
+      + `We would find out when a payment failed.`);
+  } else if (gateUnread) {
+    state = "warn"; badge = pill("partly unread", "warn");
+    body += verdict("warn", `Some timelock reads failed (table below), so the page makes no claim about warning time.`);
+  } else if (delayed.length) {
+    const min = delayed.reduce((m, t) => (tlOf(t).v < m ? tlOf(t).v : m), tlOf(delayed[0]).v);
+    state = "warn"; badge = pill(`${dur(min)} delay`, "warn");
+    body += verdict("warn", `Gate changes are delayed by at least <b>${dur(min)}</b>. That is a warning window only if someone is watching the Submit event, and this page does not alert anyone.`);
+  } else {
+    state = "ok"; badge = pill("gates abdicated", "ok");
+    body += verdict("ok", `Every gate setter is abdicated, so the gates can never be changed again.`);
+  }
+  body += note(`These addresses can change the gates, the caps and the allocation. The owner can also replace the curator, and add or remove sentinels, instantly: those three functions have no timelock in the verified VaultV2 source. A sentinel can only cancel a pending change, never make one.`);
+
+  body += `<div class="tbl"><table><thead><tr><th>curator action</th><th>timelock</th><th>abdicated</th></tr></thead><tbody>${
+    TL_ROWS.map((t) => `<tr><td>${esc(t.name)}</td><td>${show(tlOf(t), (v) => (v === 0n ? `<span class="bad">none</span>` : esc(dur(v))))}</td><td>${show(abOf(t), (v) => (v ? `<span class="good">yes, disabled</span>` : `<span class="k">no</span>`))}</td></tr>`).join("")
+  }</tbody></table></div>`;
+  body += `<div class="sep"></div><div id="events"><div class="spin">scanning recent governance events</div></div>`;
+  setPanel("s2", state, 2, "Who can change that, and how fast", badge, body);
+}
+
+// ---------------------------------------------------------------- 2b · recent events
+function detail(l) {
+  const a = l.args;
+  const val = (v) => (typeof v === "string" && ADDR.test(v) ? short(v) : typeof v === "bigint" ? v.toString() : String(v).slice(0, 18));
+  if (l.eventName === "Submit") return `${SELNAME[a.selector] ?? a.selector}, executable at ${new Date(Number(a.executableAt) * 1000).toISOString().slice(0, 19)}Z`;
+  if (l.eventName === "Accept" || l.eventName === "Revoke") return SELNAME[a.selector] ?? a.selector;
+  return Object.entries(a).filter(([k]) => k !== "data" && k !== "idData").map(([k, v]) => `${k}=${val(v)}`).join(", ");
+}
+async function scanEvents() {
+  const el = $("events");
+  if (!S.head.ok) { el.innerHTML = `<div class="err">Could not scan events: ${esc(S.head.err)}</div>`; return; }
+  const head = S.head.v;
+  const found = [];
+  let err = null, lowest = head, done = 0;
+  for (let w = 0; w < CFG.windows; w++) {
+    const to = head - BigInt(w) * CFG.window;
+    const from = to - (CFG.window - 1n);
+    if (from < 0n) break;
+    el.innerHTML = `<div class="spin">scanning governance events, window ${w + 1} of ${CFG.windows}</div>`;
+    // A rate-limited window is retried rather than ending the scan. Breaking on
+    // the first one left `lowest` at `head`, so the summary below reported "no
+    // governance events" over a window one block wide — an answer that sounds
+    // like reassurance and was really a failure to look.
+    let got = null, last = null;
+    for (let attempt = 0; attempt < 4 && got === null; attempt++) {
+      try {
+        // The RPC rejects a topic filter with more than about ten events, so it
+        // returns the venue's logs for the window and the governance ones are kept here.
+        got = await client.getLogs({ address: CFG.venue, fromBlock: from, toBlock: to });
+      } catch (e) {
+        last = why(e);
+        if (!rateLimited(last)) break;
+        await sleep(600 * 2 ** attempt);
+      }
+    }
+    if (got === null) { err = `blocks ${from}–${to}: ${last}`; break; }
+    found.push(...parseEventLogs({ abi: EVENTS, logs: got, strict: false }));
+    lowest = from; done++;
+    await sleep(300);
+  }
+  found.sort((a, b) => Number(b.blockNumber - a.blockNumber) || b.logIndex - a.logIndex);
+  const shown = found.slice(0, 12);
+  const blocks = await Promise.all([...new Set(shown.map((l) => l.blockNumber))].map((n) =>
+    client.getBlock({ blockNumber: n }).then((b) => [n, Number(b.timestamp)]).catch(() => [n, 0])));
+  const ts = Object.fromEntries(blocks.map(([n, t]) => [String(n), t]));
+  let spanH = null, older = null;
+  try {
+    const [a, b] = await Promise.all([client.getBlock({ blockNumber: head }), client.getBlock({ blockNumber: lowest })]);
+    spanH = (Number(a.timestamp) - Number(b.timestamp)) / 3600;
+    const code = await client.getCode({ address: CFG.venue, blockNumber: lowest });
+    older = !!code && code !== "0x";
+  } catch { /* the span is context, not a finding */ }
+  let html = `<h2 style="margin-bottom:6px">Recent governance events</h2>`;
+  // "No events" is only green when we actually looked. A scan that read nothing
+  // and a scan that read nothing USEFUL are different claims, and the second one
+  // must not borrow the first one's reassurance.
+  const looked = done > 0;
+  const summary = found.length
+    ? `${found.length} governance event${found.length === 1 ? "" : "s"}`
+    : (looked ? "No governance events" : "The scan read no window, so this proves nothing about governance events");
+  html += `<div class="${found.length ? "" : (looked ? "good" : "bad")}">${summary} in blocks ${lowest}–${head}${spanH ? ` (about ${spanH.toFixed(1)} hours)` : ""}.</div>`;
+  if (shown.length) {
+    html += `<div class="tbl"><table><thead><tr><th>when (UTC)</th><th>event</th><th>detail</th><th>tx</th></tr></thead><tbody>${shown.map((l) => `<tr><td>${ts[String(l.blockNumber)] ? esc(new Date(ts[String(l.blockNumber)] * 1000).toISOString().slice(5, 19).replace("T", " ")) : "block " + l.blockNumber}</td><td>${esc(l.eventName)}</td><td>${esc(detail(l))}</td><td><a href="${CFG.explorer}/tx/${esc(l.transactionHash)}" target="_blank" rel="noopener">${esc(short(l.transactionHash))}</a></td></tr>`).join("")}</tbody></table></div>`;
+  }
+  if (err) html += `<div class="err">The scan stopped after ${done} of ${CFG.windows} windows: ${esc(err)}. What is shown is partial.</div>`;
+  html += note(older ? `The vault already existed at the start of this window, so earlier governance history is not shown. Arc caps eth_getLogs at 10,000 blocks per request, so this page pages back only ${CFG.windows} windows. Absence here is not proof that nothing was ever changed.` : `This window reaches back to where this scan stopped; it does not claim to cover the vault's whole history.`);
+  el.innerHTML = html;
+}
+
+const FLAG = {};
+const flag = (k, state, text) => { FLAG[k] = { state, text }; };
+
+// ---------------------------------------------------------------- 3 · depth
+function render3() {
+  const T = S.totalAssets, P = S.position;
+  let body = "";
+  body += row("venue totalAssets()", show(T, (v) => `<span style="font-size:18px">${usd(v, 2)}</span>`));
+  body += row("our position: convertToAssets(balanceOf(sleeve))", show(P, (v) => `<span style="font-size:18px">${usd(v, 4)}</span>`));
+  body += row("our shares (18 decimals)", show(S.shares, (v) => Number(formatUnits(v, 18)).toFixed(4)));
+  const share = T.ok && P.ok && T.v > 0n ? (Number(P.v) / Number(T.v)) * 100 : null;
+  body += row("our share of the vault", share === null ? `<span class="k">not computable</span>` : pct(share));
+  if (S.asset.ok && !same(S.asset.v, CFG.usdc)) body += row("venue asset", `<span class="bad">${addr(S.asset.v)} is NOT the USDC this page expects</span>`);
+
+  // Exit path, from the verified source: redeem pays from the vault's idle USDC and,
+  // for the rest, deallocates from the liquidityAdapter. Nothing else is touched.
+  body += `<div class="sep"></div>`;
+  body += row("idle USDC held by the venue itself", show(S.idle, (v) => usd(v, 2)));
+  body += row("exit route (its liquidity adapter)", show(S.liquidityAdapter, (v) => (same(v, ZERO) ? `<span class="bad">none set</span>` : addr(v))));
+  let liquid = null, posAssets = null, free = null;
+  if (S.mkt?.ok) {
+    const m = S.mkt.market;
+    free = m.totalSupplyAssets > m.totalBorrowAssets ? m.totalSupplyAssets - m.totalBorrowAssets : 0n;
+    body += row("Morpho market: supplied", usd(m.totalSupplyAssets, 2));
+    body += row("Morpho market: borrowed out", usd(m.totalBorrowAssets, 2));
+    body += row("Morpho market: free to withdraw", usd(free, 2));
+    if (S.mkt.pos.ok) {
+      posAssets = (S.mkt.pos.v[0] * (m.totalSupplyAssets + 1n)) / (m.totalSupplyShares + 1_000_000n);
+      body += row("the venue's claim on that market", usd(posAssets, 2));
+      if (S.idle.ok) liquid = S.idle.v + (posAssets < free ? posAssets : free);
+    } else body += row("the venue's claim on that market", unread(S.mkt.pos));
+  } else if (S.mkt) body += row("Morpho market behind the exit route", unread(S.mkt));
+  body += row("redeemable right now (idle + min of claim, free)", liquid === null ? `<span class="warn">not computable</span>` : `<span style="font-size:18px">${usd(liquid, 2)}</span>`);
+
+  let state = "warn", badge = pill("partly unread", "warn");
+  if (liquid !== null && P.ok) {
+    if (P.v === 0n) {
+      state = "warn"; badge = pill("no position", "warn");
+      body += verdict("warn", `The sleeve holds no shares in this venue right now.`);
+    } else if (liquid >= P.v) {
+      const x = Number(liquid) / Number(P.v);
+      const big = x >= 100;
+      state = big ? "ok" : "warn"; badge = pill(big ? "deep enough" : "thin", big ? "ok" : "warn");
+      body += verdict(big ? "ok" : "warn", `The largest single amount we could ever need to pull is our whole position, <b>${usd(P.v, 4)}</b>. `
+        + `The venue could pay out about <b>${usd(liquid, 2)}</b> right now, ${x >= 10 ? Math.round(x).toLocaleString("en-US") : x.toFixed(1)}× that. `
+        + `${big ? "A full exit clears with room to spare." : "A full exit would clear, but not by a wide margin."}`);
+    } else {
+      state = "bad"; badge = pill("exit would not clear", "bad");
+      body += verdict("bad", `<b>A full exit would NOT clear right now.</b> Only ${usd(liquid, 2)} is redeemable against our ${usd(P.v, 4)}.`);
+    }
+    flag("depth", state, liquid >= P.v ? `redeemable ${usd(liquid, 2)} vs our ${usd(P.v, 4)}` : `only ${usd(liquid, 2)} redeemable vs our ${usd(P.v, 4)}`);
+  } else flag("depth", "warn", "could not size the exit");
+  if (share !== null) {
+    body += note(`<b>Plainly: we are small.</b> Our position is ${usd(P.v, 4)} of ${usd(T.v, 2)}, which is ${pct(share)} of this vault. We are too small to matter to the venue and too small to move it. At this size depth is not what protects us; the gates and the owner key (sections 1 and 2) are.`);
+  }
+  body += note(`Two traps avoided on purpose. maxWithdraw, maxRedeem, maxDeposit and maxMint always return zero on Vault V2, so none is read here. And shares have 18 decimals while USDC has ${dec() ?? "?"} (virtualShares ${show(S.virtualShares, (v) => v.toString())}), so convertToAssets is fed the sleeve's <i>share</i> balance, never an asset amount: convertToAssets(1e6) would return roughly zero.`);
+  body += note(`Free liquidity is the market's last accrued supply minus borrow. It can move between blocks.`);
+  setPanel("s3", state, 3, "Depth, against our actual exposure", badge, body);
+}
+
+// ---------------------------------------------------------------- 4 · fees
+function render4() {
+  const pf = S.performanceFee, mf = S.managementFee;
+  let body = "";
+  const pfPct = pf.ok ? (Number(pf.v) / 1e18) * 100 : null;
+  const mfYear = mf.ok ? ((Number(mf.v) * YEAR) / 1e18) * 100 : null;
+  body += row("performance fee", show(pf, (v) => (v === 0n ? `<span class="good">0%</span>` : `<span class="bad">${pct(pfPct)} of interest</span>`)));
+  body += row("&nbsp;&nbsp;recipient", show(S.performanceFeeRecipient, (v) => (same(v, ZERO) ? `<span class="k">none set</span>` : addr(v))));
+  body += row("management fee", show(mf, (v) => (v === 0n ? `<span class="good">0% a year</span>` : `<span class="bad">${pct(mfYear)} a year</span>`)));
+  body += row("&nbsp;&nbsp;recipient", show(S.managementFeeRecipient, (v) => (same(v, ZERO) ? `<span class="k">none set</span>` : addr(v))));
+  let state, badge;
+  if (!pf.ok || !mf.ok) {
+    state = "warn"; badge = pill("unread", "warn");
+    flag("fees", "warn", "could not read the fees");
+  } else if (pf.v === 0n && mf.v === 0n) {
+    state = "ok"; badge = pill("no fees", "ok");
+    body += verdict("ok", `<b class="good">No fee.</b> Both fees are zero, so depositors keep everything the venue earns.`);
+    flag("fees", "ok", "none (performance 0%, management 0%)");
+  } else {
+    state = "bad"; badge = pill("FEE ON", "bad");
+    body += verdict("bad", `<b>A FEE HAS APPEARED.</b> ${pf.v ? `Performance ${pct(pfPct)} of interest. ` : ""}${mf.v ? `Management ${pct(mfYear)} a year.` : ""} It is taken from what the venue earns, before we see it.`);
+    flag("fees", "bad", `performance ${pct(pfPct)}, management ${pct(mfYear)} a year`);
+  }
+  const t = TL_ROWS.find((r) => r.name === "setPerformanceFee");
+  body += note(`The contract caps the performance fee at 50% and the management fee at 5% a year. Turning either on is a curator action with ${tlOf(t).ok ? (tlOf(t).v === 0n ? "<b>no timelock</b>, so it could be switched on in a single block" : `a ${esc(dur(tlOf(t).v))} timelock`) : "an unread timelock"}.`);
+  setPanel("s4", state, 4, "What it costs us", badge, body);
+}
+
+// ---------------------------------------------------------------- 5 · yield
+function render5() {
+  const m = S.mkt;
+  let body = "", state = "warn", badge = pill("no figure", "warn");
+  if (!m || !m.ok || !m.rate.ok) {
+    const r = !m || !m.ok ? m : m.rate;
+    body += verdict("warn", `<b>No rate figure.</b> The page could not get a real one, and it will not substitute an estimate. ${r ? unread(r) : ""}`);
+    flag("yield", "warn", "no figure could be read");
+  } else {
+    const mk = m.market;
+    const bRate = Number(m.rate.v) / 1e18;                       // per second
+    const util = mk.totalSupplyAssets > 0n ? Number(mk.totalBorrowAssets) / Number(mk.totalSupplyAssets) : 0;
+    const fee = Number(mk.fee) / 1e18;
+    const sRate = bRate * util * (1 - fee);                      // Morpho's own supply-rate formula
+    const sApr = sRate * YEAR;
+    const sApy = Math.expm1(sApr);
+    const li = (S.adapters?.ok ? S.adapters.v : []).find((a) => a.addr && same(a.addr, S.liquidityAdapter.v));
+    const weight = li?.real?.ok && S.totalAssets.ok && S.totalAssets.v > 0n ? Number(li.real.v) / Number(S.totalAssets.v) : null;
+    const feesZero = S.performanceFee.ok && S.managementFee.ok && S.performanceFee.v === 0n && S.managementFee.v === 0n;
+    state = "warn"; badge = pill("instantaneous rate", "warn");
+    body += `<div class="big">${pct(sApy * 100)} <span style="font-size:14px;color:var(--dim)">APY, at this instant</span></div>`;
+    body += row("Morpho market borrow rate (IRM, now)", `${pct(bRate * YEAR * 100)} APR`);
+    body += row("market utilisation (borrowed ÷ supplied)", pct(util * 100));
+    body += row("Morpho market fee", pct(fee * 100));
+    body += row("supply rate = borrow × utilisation × (1 − fee)", `${pct(sApr * 100)} APR`);
+    body += row("share of venue assets in this market", weight === null ? `<span class="warn">unread</span>` : pct(weight * 100));
+    body += row("venue growth cap (maxRate)", show(S.maxRate, (v) => `${pct(((Number(v) * YEAR) / 1e18) * 100)} APR`));
+    body += row("venue fees", feesZero ? `<span class="good">none, so this is also the net rate</span>` : `<span class="warn">non-zero (section 4), so this is before fees</span>`);
+    if (weight !== null && weight < 0.999) body += note(`Only ${pct(weight * 100)} of the venue's assets sit in this market. The rest is not rated here, so this is not the venue's blended rate.`, "warn");
+    if (S.position.ok && S.position.v > 0n && dec() !== null) {
+      const yr = Number(formatUnits(S.position.v, dec())) * sApy;
+      body += verdict("warn", `At this rate our ${usd(S.position.v, 4)} would earn about <b>$${yr.toFixed(7)}</b> over a year, if the rate never moved. `
+        + (sApy * 100 < 0.01 ? "That is effectively nothing: the yield is real but it is not a number to rely on." : "It will move."));
+    }
+    body += note(`<b>What this is not.</b> It is the rate the venue's interest-rate model quotes for the next accrual, from one read of the chain. It is not a return we have earned, not a trailing average, and no interval was measured or annualised. It moves with utilisation.`);
+    body += note(`Calls: liquidityAdapter().morpho() → Morpho.market(id) → IRM.borrowRateView(params, market). APR = per-second rate × ${YEAR.toLocaleString("en-US")}; APY = e^APR − 1. Morpho's public API does not list Arc Testnet (chain 5042002, checked 2026-11-06), so there is no published APY to quote, and this page calls nothing but Arc's RPC.`);
+    flag("yield", "warn", `${pct(sApy * 100)} APY right now (instantaneous, not a trailing return)`);
+  }
+  setPanel("s5", state, 5, "What it earns", badge, body);
+}
+
+// ---------------------------------------------------------------- at a glance
+function renderGlance() {
+  const g = (k) => FLAG[k] ?? { state: "warn", text: "unread" };
+  const cls = (s) => (s === "ok" ? "good" : s === "bad" ? "bad" : "warn");
+  const line = (label, k) => row(label, `<span class="${cls(g(k).state)}">${esc(g(k).text)}</span>`);
+  const worst = ["gates", "gov", "depth", "fees", "yield"].map((k) => g(k).state);
+  const state = worst.includes("bad") ? "bad" : worst.includes("warn") ? "warn" : "ok";
+  setPanel("glance", state, null, "At a glance: what we are trusting", pill(new Date().toISOString().slice(0, 19) + "Z"),
+    line("gates (can our sleeve hold and redeem?)", "gates") + line("who can change it, and how fast", "gov")
+    + line("depth against our exposure", "depth") + line("fees", "fees") + line("yield", "yield")
+    + note(`Read live from the chain when this page loaded. Reload to read again.`));
+}
+
+// ---------------------------------------------------------------- main
+function flagsFromGates() {
+  const set = GATES.filter(([g]) => S[g].ok && !same(S[g].v, ZERO));
+  const un = GATES.some(([g, c]) => !S[g].ok || !S[c].ok);
+  const blocked = GATES.some(([, c]) => S[c].ok && S[c].v === false);
+  if (set.length || blocked) flag("gates", "bad", set.length ? `${set.length} gate${set.length > 1 ? "s" : ""} SET` : "sleeve blocked");
+  else if (un) flag("gates", "warn", "partly unread");
+  else flag("gates", "ok", "all four open (address(0))");
+  const gateRows = TL_ROWS.slice(0, 4);
+  const instant = gateRows.filter((t) => tlOf(t).ok && tlOf(t).v === 0n && abOf(t).ok && !abOf(t).v).length;
+  const who = S.ownerCode?.ok ? (S.ownerCode.v === "0x" ? "owner is a single key" : "owner is a contract") : "owner type unread";
+  if (instant) flag("gov", "bad", `no timelock on ${instant} of 4 gate setters; ${who}`);
+  else if (gateRows.some((t) => !tlOf(t).ok)) flag("gov", "warn", `timelock unread; ${who}`);
+  else flag("gov", "warn", `timelocked; ${who}`);
+}
+
+async function main() {
+  for (const k of ["venue", "sleeve"]) if (!ADDR.test(CFG[k])) throw new Error(`?${k}= must be a 0x-prefixed 20-byte address, got "${CFG[k].slice(0, 60)}".`);
+  $("headline").innerHTML = `chain ${CFG.chainId} · venue ${addr(CFG.venue)} <span class="k">(Morpho Vault V2, not ours)</span> · our sleeve ${addr(CFG.sleeve)} · our vault ${addr(CFG.vault)} · read live from ${esc(new URL(CFG.rpc).host)}`;
+  await stage1();
+  if (!S.owner.ok && !S.totalAssets.ok && !S.head.ok) {
+    throw new Error(`The RPC answered none of the first reads (${S.owner.err}). Nothing below can be trusted or shown, so every panel stays unread. Reload to retry.`);
+  }
+  render1(); render4();
+  await stage2();
+  flagsFromGates();
+  render2(); render3();
+  await stage3();
+  render3(); render5();
+  renderGlance();
+  await scanEvents();
+  window.__venue = S;
+}
+
+main().catch((e) => {
+  $("err").innerHTML = `<div class="err">${esc(String(e.shortMessage ?? e.message ?? e))}</div>`;
+  for (const id of ["glance", "s1", "s2", "s3", "s4", "s5"]) {
+    const el = $(id); const sp = el.querySelector(".spin"); if (sp) { sp.className = "bad"; sp.textContent = "not read"; }
+  }
+});
+</script>
+</body>
+</html>
