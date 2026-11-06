@@ -331,7 +331,7 @@ Every claim is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 189 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
+| 191 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
 | Nine named refusals, and the prose cannot drift from them | `test_every_named_reason_is_reachable` |
 | `alg: none` and HS256-with-the-public-key are both refused | `test_an_unsigned_token_is_refused`, `test_a_token_signed_with_the_public_key_as_an_hmac_secret_is_refused` |
 | The signer refuses to broadcast a digest the vault disagrees with | `sign_approval` cross-checks `approvalDigest` and recovers the signature to our own key before sending |
@@ -361,6 +361,25 @@ Every claim is re-derivable by a command in the repo.
   containment claim honestly: the approver cannot invent a spend, but the
   executor can nullify an approval. Narrowing `resolveCheckpoint` to the
   checkpoint's own opener is the fix and it is not in this submission.
+- **The human gate covers payments and policy, not the treasury's yield path.**
+  This treasury also earns: idle float is parked into a yield sleeve. But
+  `rebalance(uint256)` is `require(msg.sender == keeper)` and nothing else, with
+  no signature, no per-transaction cap and no cooldown, and `openCheckpoint`
+  accepts only the spend and policy kinds, so **a sleeve move cannot be parked
+  for a human even in principle** — the approval machinery has no shape that
+  fits one. Re-pointing a sleeve is finding **M5** in `docs/SECURITY-AUDIT.md`,
+  accepted rather than repaired. The only share cap (30%) and minimum interval
+  (10 minutes) live off chain in `float/src/bin/keeper.ts`, so a keeper key
+  calling `rebalance` directly bypasses both and the contract does not notice.
+  Measured on the public vault rather than assumed: `reserve()` is the zero
+  address, so the reserve share of every rebalance is computed and then stays in
+  the buffer. What this submission *does* add is a press that refuses to run
+  when the vault's keeper is one of its own gate keys
+  (`test_the_gate_refuses_when_the_keeper_is_also_our_executor`), because the
+  contract permits that and forbids only `approver != executor`; and a
+  `/float/approve` that prints what the human governs beside what moves on a
+  single key. Putting the yield path behind a checkpoint needs a third
+  checkpoint kind and a redeploy, and it is not in this submission.
 - **The chain never requires a treasurer binding, so the human half of an
   approval is enforced off chain.** `_consumeApproval` feeds `treasurerBinding`
   into the digest whatever it holds, and guards only the *approver* against

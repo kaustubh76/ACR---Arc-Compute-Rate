@@ -26,8 +26,13 @@ export const runtime = "nodejs";
    another session on this machine. These values change only when an owner
    transaction lands -- a handful of times, ever -- so a minute of staleness
    costs nothing and an unthrottled poll would be rude to every other reader on
-   the same host. `Promise.all` over a `batch: true` transport puts all five
-   reads in one JSON-RPC round. */
+   the same host. `Promise.all` over a `batch: true` transport keeps all eight
+   reads in one JSON-RPC round.
+
+   THE KEEPER AND THE SLEEVES ARE READ HERE because the gate panel has to be
+   able to say what the enrolled human does NOT govern. `rebalance` is
+   keeper-only and no checkpoint kind exists for a sleeve move, so a page that
+   showed only the approval slots would imply the human governs the treasury. */
 
 const MEMO_MS = 60_000;
 const TIMEOUT_MS = 9_000;
@@ -38,6 +43,9 @@ const ABI = [
   { type: "function", name: "guestRegistrar", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "owner", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "paused", inputs: [], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "keeper", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "working", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "reserve", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
 ] as const;
 
 type Memo = { at: number; state: WorldGateState };
@@ -69,14 +77,18 @@ export async function GET(req: Request) {
     const read = (functionName: (typeof ABI)[number]["name"]) =>
       client.readContract({ address: cfg.vault, abi: ABI, functionName });
 
-    const [binding, approver, registrar, owner, paused, chainId] = await Promise.all([
-      read("treasurerBinding"),
-      read("humanApprover"),
-      read("guestRegistrar"),
-      read("owner"),
-      read("paused"),
-      client.getChainId(),
-    ]);
+    const [binding, approver, registrar, owner, paused, keeper, working, reserve, chainId] =
+      await Promise.all([
+        read("treasurerBinding"),
+        read("humanApprover"),
+        read("guestRegistrar"),
+        read("owner"),
+        read("paused"),
+        read("keeper"),
+        read("working"),
+        read("reserve"),
+        client.getChainId(),
+      ]);
 
     const state: WorldGateState = {
       vault: cfg.vault,
@@ -86,6 +98,9 @@ export async function GET(req: Request) {
       guestRegistrar: String(registrar),
       owner: String(owner),
       paused: Boolean(paused),
+      keeper: String(keeper),
+      working: String(working),
+      reserve: String(reserve),
     };
     memo.set(chain, { at: Date.now(), state });
     return NextResponse.json(envelope({ status: "ok", gate: state }, { live: true, chain }), {

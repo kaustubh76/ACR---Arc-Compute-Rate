@@ -5,6 +5,18 @@
  * decision duplicated in two places is a decision that will disagree with
  * itself. It also means the truth table can be tested without a chain.
  *
+ * WHY `governs` AND `ungoverned` ARE NOT IN `outstanding`. `outstanding` is
+ * rendered under a standfirst promising that each entry is a single transaction
+ * from the address that deployed the vault, and `armed` is literally
+ * `outstanding.length === 0`. The yield path's facts are neither: `rebalance`
+ * takes the keeper key and nothing else, `openCheckpoint` accepts only
+ * KIND_SPEND and KIND_POLICY so a sleeve move cannot be parked for a human even
+ * in principle, and the share cap lives off chain in the keeper's own
+ * arithmetic. No owner transaction changes any of that, so putting it in
+ * `outstanding` would make the standfirst a lie and would hold `armed` false
+ * for ever, destroying the one thing this file is for. They get their own
+ * fields, and `armed` keeps its exact meaning and formula.
+ *
  * WHAT THIS DELIBERATELY DOES NOT DO. It never says the gate "works" or that a
  * payment has been released. Armed means only that the chain is in a state
  * where an approval COULD clear: a person is pinned and the roles have been
@@ -22,6 +34,7 @@
  */
 
 export const ZERO_BYTES32 = `0x${"0".repeat(64)}`;
+export const ZERO_ADDRESS = `0x${"0".repeat(40)}`;
 
 export type WorldGateState = {
   /** The vault these slots were read from, and the chain it sits on. */
@@ -33,6 +46,11 @@ export type WorldGateState = {
   guestRegistrar: string;
   owner: string;
   paused: boolean;
+  /** The one key `rebalance` accepts. Moves float with no checkpoint at all. */
+  keeper: string;
+  /** The sleeves the buffer is parked into. `ZERO_ADDRESS` when unwired. */
+  working: string;
+  reserve: string;
 };
 
 export type GateVerdict = {
@@ -41,6 +59,13 @@ export type GateVerdict = {
   outstanding: string[];
   /** True once the chain pins a particular person. */
   bound: boolean;
+  /** Paths the contract routes through a checkpoint, and what enforces each.
+   *  Phrased as a property of the CONTRACT, not of the person, so it stays
+   *  true on a vault that pins nobody yet. */
+  governs: string[];
+  /** Paths that move on one key. Facts about the deployed bytecode and the
+   *  off-chain keeper, not tasks: no owner transaction changes these. */
+  ungoverned: string[];
 };
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -58,6 +83,17 @@ export function gateVerdict(s: WorldGateState): GateVerdict {
   if (same(s.guestRegistrar, s.owner)) {
     outstanding.push("setGuestRegistrar: the registrar is still the deployer");
   }
+  //: THE ONE YIELD FACT THAT IS A TASK. A keeper equal to a gated role is
+  //: fixed by a single setKeeper, and it matters for approvals: the key that
+  //: releases a parked payment could also move float at will. Every other
+  //: yield fact is bytecode and belongs in `ungoverned`.
+  if (same(s.keeper, s.humanApprover)) {
+    outstanding.push(
+      "setKeeper: the keeper is also the approver, so the key that releases a payment can also move float",
+    );
+  } else if (same(s.keeper, s.guestRegistrar)) {
+    outstanding.push("setKeeper: the keeper is also the guest registrar");
+  }
   if (!bound) {
     outstanding.push(
       "setTreasurerBinding: the chain pins no particular person yet, so identity rests on the server-side ladder",
@@ -69,5 +105,32 @@ export function gateVerdict(s: WorldGateState): GateVerdict {
     outstanding.unshift("the treasury is paused, so no spend can be released at all");
   }
 
-  return { armed: outstanding.length === 0, outstanding, bound };
+  //: UNCONDITIONAL, because they describe the contract rather than this
+  //: deployment. A reader needs to know what the gate reaches before they can
+  //: read anything else on the page as evidence.
+  const governs = [
+    "payments: executeApproved needs a signature from the approver over this checkpoint's own hash",
+    "policy: setPolicy, setAgent and allowSeller route through a checkpoint while requirePolicyCheckpoint is on",
+  ];
+  const ungoverned = [
+    "rebalance moves float between the buffer and the sleeves on the keeper key alone: no signature, no cap, no cooldown",
+    "openCheckpoint takes only the spend and policy kinds, so a sleeve move cannot be parked for a human even in principle",
+    "setSleeves re-points a sleeve on the owner key alone (audit finding M5, accepted rather than repaired)",
+    "the share cap and the minimum interval live in the keeper's own arithmetic off chain, so a direct rebalance bypasses both",
+  ];
+  if (same(s.reserve, ZERO_ADDRESS)) {
+    //: Not cosmetic. FloatVault guards `reserve != 0` before depositing, so the
+    //: reserve share of every rebalance is computed and then silently stays in
+    //: the buffer, and the drain ladder has one rung instead of two.
+    ungoverned.push(
+      "no reserve sleeve is wired, so the reserve share of each rebalance is computed and then stays in the buffer",
+    );
+  }
+  if (same(s.keeper, s.owner)) {
+    //: A disclosure, not a task: the owner can already withdraw outright, so a
+    //: keeper equal to the owner grants no power it did not have.
+    ungoverned.push("the keeper is the address that deployed the vault, which can already withdraw");
+  }
+
+  return { armed: outstanding.length === 0, outstanding, bound, governs, ungoverned };
 }

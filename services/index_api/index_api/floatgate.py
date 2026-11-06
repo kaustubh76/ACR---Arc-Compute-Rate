@@ -205,6 +205,33 @@ class HumanGate:
                     "our approver key is not the one the vault accepts "
                     f"(vault {theirs[:10]}…, ours {ours[:10]}…)"
                 )
+        #: THE KEEPER IS THE ONE MONEY-MOVING ROLE WITH NO CHECKPOINT.
+        #: `rebalance` is `require(msg.sender == keeper)` and nothing else: no
+        #: signature, no cap, no cooldown. `openCheckpoint` takes only
+        #: KIND_SPEND and KIND_POLICY, so a sleeve move cannot be parked for a
+        #: human even in principle. The 30% share cap and the 10-minute floor
+        #: live in the keeper's own forecast arithmetic OFF CHAIN, so a key
+        #: calling `rebalance` directly bypasses both and the vault will not
+        #: notice. The chain cannot refuse this for us -- its only distinctness
+        #: rule is `approver_ != executor_` -- so a keeper that is ALSO one of
+        #: our gate keys leaves an ungated path out of the treasury with nothing
+        #: on chain to say so. `setKeeper` is onlyOwner and NOT one-shot, so the
+        #: fix is one transaction from the owner key.
+        reader = getattr(self.vault, "keeper", None)
+        if reader is not None:
+            kept = str(reader() or "")
+            jobs = (
+                ("executor", getattr(getattr(self.vault, "signer", None), "address", None)),
+                ("approver", getattr(self.approver, "address", None)),
+            )
+            for job, addr in jobs:
+                if addr and kept and str(addr).lower() == kept.lower():
+                    return (
+                        f"the vault's keeper is our {job} key, so one key both holds a "
+                        "gated job and moves float between the buffer and the sleeves "
+                        f"with no checkpoint (keeper {kept[:10]}…) -- setKeeper from the "
+                        "owner is the fix"
+                    )
         if self.treasurer is None:
             #: Correct exactly once -- during enrollment, which exists to learn
             #: the pair. After that, an unenrolled gate would let any verified

@@ -207,6 +207,10 @@ function WorldGatePanel() {
             </p>
             <p className="mono">{shortAddr(gate.guestRegistrar)}</p>
             <p className="label">
+              <Ed x="keeper" p="who moves the savings" />
+            </p>
+            <p className="mono">{shortAddr(gate.keeper)}</p>
+            <p className="label">
               <Ed x="vault" p="treasury" />
             </p>
             <p className="mono">{shortAddr(gate.vault)}</p>
@@ -223,6 +227,40 @@ function WorldGatePanel() {
                 {verdict.outstanding.map((o) => (
                   <li key={o} className="mono">
                     {o}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {/* THE BOUNDARY. Without this the page shows four approval slots and
+              lets a reader infer the human governs the treasury. It does not:
+              the yield path moves on one key and no checkpoint kind exists for
+              it, so the honest surface has to say so next to the slots. */}
+          {verdict ? (
+            <>
+              <Ed
+                as="p"
+                className="muted"
+                x="What a verified human governs on this vault:"
+                p="What a real person has to agree to:"
+              />
+              <ul className="muted">
+                {verdict.governs.map((g) => (
+                  <li key={g} className="mono">
+                    {g}
+                  </li>
+                ))}
+              </ul>
+              <Ed
+                as="p"
+                className="muted"
+                x="And what moves on a single key, with no person in the path:"
+                p="And what one key can do with nobody agreeing:"
+              />
+              <ul className="muted">
+                {verdict.ungoverned.map((g) => (
+                  <li key={g} className="mono">
+                    {g}
                   </li>
                 ))}
               </ul>

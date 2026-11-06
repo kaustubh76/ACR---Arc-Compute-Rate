@@ -225,6 +225,57 @@ The ask, in order of how much each would help:
 
 ---
 
+## 5 · What the human gate does not govern
+
+Worth stating plainly, because a reader who sees a World-verified approval on a
+treasury will reasonably assume it covers the treasury. It does not, and the
+limit is structural rather than a configuration we forgot.
+
+**What the verified human governs.** `executeApproved` requires a signature from
+the enrolled approver over that checkpoint's own request hash, and the chain
+re-derives the hash itself. While `requirePolicyCheckpoint` is on, `setPolicy`,
+`setAgent` and `allowSeller` route through the same machinery.
+
+**What moves without any human.** This treasury also earns: idle float is parked
+into a yield sleeve (Circle's USYC for the reserve leg, an ERC-4626 venue for the
+working leg). None of that path touches the gate.
+
+- `rebalance(uint256 targetBuffer)` is `require(msg.sender == keeper)` and
+  nothing else — no signature, no per-transaction cap, no cooldown. The
+  `targetBuffer` argument is unvalidated, so `rebalance(0)` parks the whole
+  buffer and a large value empties both sleeves.
+- `openCheckpoint` accepts only `KIND_SPEND` and `KIND_POLICY`. **There is no
+  sleeve kind**, so a sleeve move cannot be parked for a human even in
+  principle. This is the part that makes it structural: the approval machinery
+  has no shape that fits a yield move.
+- `setSleeves` re-points a sleeve on the owner key alone. That is finding **M5**
+  in `docs/SECURITY-AUDIT.md`, accepted rather than repaired, because the
+  deployed vault is verified and cited in three submission documents.
+- The only share cap (30%) and minimum interval (10 minutes) live in the
+  keeper's own forecast arithmetic, **off chain**, in `float/src/bin/keeper.ts`.
+  A keeper key calling `rebalance` directly bypasses both and the contract does
+  not notice.
+
+**Two things we measured on the public deployment rather than assumed**
+(vault `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc`, chain 5042002, 2026-11-07):
+
+1. `reserve()` is the zero address. No reserve sleeve was ever wired, and
+   `FloatVault` guards `reserve != 0` before depositing — so the reserve share
+   of every rebalance is computed and then silently stays in the buffer.
+2. `keeper()` is `0x3111B1a0…f597`, a key distinct from the approver and the
+   executor. The contract would permit them to be the same: its only
+   distinctness rule is `approver != executor`. So the press now refuses to run
+   when the vault's keeper is one of its own gate keys — a guard against a
+   future misconfiguration, not a repair of a present one.
+
+**Why this is in a World debrief at all.** The useful generalisation for an
+identity provider is that a system usually has more than one way for value to
+leave, and an identity gate placed on the obvious one can read as though it
+covers all of them. The honest surface names both lists side by side, which is
+what `/float/approve` now does.
+
+---
+
 ## Appendix · what we validated, and how
 
 Every claim above is checkable. The validation ladder and the device-flow poll
@@ -248,3 +299,6 @@ and application policy without requiring a person for every test."*
 | The device flow over a real socket: discovery, the claims parameter, the poll table, a JWKS fetch, and the nine rungs on a token we did not mint | `tests/test_fake_agent_pass.py` |
 | An unadvertised essential `acr` and a human refusing produce the **same** code, asserted as one string | same file |
 | A mismatched JWKS and a non-enrolled subject each refuse by name | same file |
+| The press refuses to run when the vault's keeper is its own executor key, because `rebalance` passes through no checkpoint: `test_the_gate_refuses_when_the_keeper_is_also_our_executor` | `services/index_api/tests/test_floatgate.py` |
+| The same for the approver key, which also pins that the check runs *after* the approver-versus-chain rung: `test_the_gate_refuses_when_the_keeper_is_also_our_approver` | same file |
+| The yield boundary is reported on a fully armed vault **without** disarming it, so a bytecode fact can never masquerade as an outstanding transaction | `apps/terminal/lib/worldGate.test.ts` |

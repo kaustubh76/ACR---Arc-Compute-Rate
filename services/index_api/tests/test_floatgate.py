@@ -83,10 +83,20 @@ class StubVault:
     executed: list = field(default_factory=list)
     resolved: list = field(default_factory=list)
     execute_raises: Exception | None = None
+    #: Distinct from anything the fixture holds, so the keeper rung is inert
+    #: for every test that is not about it.
+    keeper_addr: str = "0x000000000000000000000000000000000000dEaD"
+    approver_addr: str = ""
     _next_id: int = 40
 
     def vault_status(self):
         return self.status
+
+    def keeper(self):
+        return self.keeper_addr
+
+    def human_approver(self):
+        return self.approver_addr
 
     def treasurer_binding(self):
         return self.binding
@@ -243,6 +253,43 @@ def test_the_gate_will_not_park_when_the_vault_binds_to_somebody_else(gate):
     assert "not the enrolled treasurer" in gate["g"].preflight()
     with pytest.raises(RuntimeError, match="not the enrolled treasurer"):
         gate["g"].open(_req())
+
+
+class _Addr:
+    """Something with an `.address`, which is all the gate reads off a signer."""
+
+    def __init__(self, a: str) -> None:
+        self.address = a
+
+
+KEEPER = "0x3111B1a058AE3ec480A186b21362b0DF85b0f597"
+
+
+def test_the_gate_refuses_when_the_keeper_is_also_our_executor(gate):
+    """`rebalance` passes through no checkpoint, so a keeper that is also the
+    executor moves the whole float with no human. The chain cannot refuse it:
+    its only distinctness rule is `approver_ != executor_`."""
+    v = gate["vault"]
+    v.keeper_addr = KEEPER
+    v.signer = _Addr(KEEPER)
+    said = gate["g"].preflight()
+    assert "keeper is our executor key" in said
+    assert "setKeeper" in said
+    with pytest.raises(RuntimeError, match="keeper is our executor"):
+        gate["g"].open(_req())
+
+
+def test_the_gate_refuses_when_the_keeper_is_also_our_approver(gate):
+    """Then the key that releases a parked payment can also move float at will,
+    which weakens "a verified human cleared this" without touching bytecode."""
+    v = gate["vault"]
+    v.keeper_addr = KEEPER
+    #: So the approver-vs-chain rung PASSES and we reach the keeper rung: this
+    #: also pins the order of the two.
+    v.approver_addr = KEEPER
+    gate["g"].approver = _Addr(KEEPER)
+    said = gate["g"].preflight()
+    assert "keeper is our approver key" in said
 
 
 # --- the poll table, as the gate sees it ------------------------------------

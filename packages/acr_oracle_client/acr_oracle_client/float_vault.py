@@ -208,6 +208,13 @@ VAULT_ABI: list[dict[str, Any]] = [
     },
     {
         "type": "function",
+        "name": "keeper",
+        "stateMutability": "view",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address"}],
+    },
+    {
+        "type": "function",
         "name": "isExecutor",
         "stateMutability": "view",
         "inputs": [{"name": "", "type": "address"}],
@@ -473,6 +480,21 @@ class FloatVaultClient:
 
     def guest_registrar(self) -> str:
         return str(self.contract.functions.guestRegistrar().call())
+
+    def keeper(self) -> str:
+        """The one key `rebalance` accepts, and the only money-moving role that
+        passes through no checkpoint at all.
+
+        Read because the contract cannot police it. `wire` and the setters
+        enforce exactly one distinctness rule -- `approver_ != executor_` -- so
+        nothing on chain forbids the keeper from ALSO being our executor or our
+        approver. A key holding both jobs can move the whole float between the
+        buffer and the sleeves with no human involved, and `openCheckpoint`
+        takes no sleeve kind, so no approval could be required of it even in
+        principle. `setKeeper` is onlyOwner and not one-shot, so a collision is
+        one owner transaction away from fixed.
+        """
+        return str(self.contract.functions.keeper().call())
 
     def total_value_usdc(self) -> int:
         """Buffer plus both sleeves, in units: the treasury's own free float."""
