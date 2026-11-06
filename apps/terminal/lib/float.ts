@@ -52,6 +52,29 @@ export type FloatQueue = {
  *  already made once on the curve. `null` when there is no fair price to
  *  compare against, which renders as an ellipsis rather than as zero.
  */
+/** Whether a vault payload means "the reader is on the wrong chain".
+ *
+ *  `status: "pending"` IS OVERLOADED AND THIS IS THE FIX FOR IT.
+ *  `readVaultState` returns pending for two unrelated things: a config refusal,
+ *  which sets `switch_to` only when the reader's chain really differs from the
+ *  vault's home chain, and a failed `paused` read — rate limited, or no answer
+ *  — which sets nothing. A surface branching on `status` alone therefore shows
+ *  "NOT ON THIS CHAIN. Switch the network" to a reader who is on the correct
+ *  chain and whose only problem is that the chain was busy, and it shows that
+ *  without a switch button, because there is no chain to switch to.
+ *
+ *  Witnessed on a freshly started server: the wall rendered with
+ *  `data-chain="testnet"` while the route answered `status: "ok"` seconds
+ *  later. On a serverless deployment that window is the first visitor after an
+ *  idle period.
+ *
+ *  `switch_to` is the field that actually MEANS wrong-chain, and the type's own
+ *  comment says it exists so the causes "must not be told apart by matching on
+ *  prose". This is that field being used. */
+export function wrongChain(data: Pick<FloatVaultState, "status" | "switch_to"> | null | undefined): boolean {
+  return data?.status === "pending" && Boolean(data.switch_to);
+}
+
 export function premiumPct(c: Pick<FloatCheckpoint, "quote_usdc" | "fair_usdc">): number | null {
   if (!Number.isFinite(c.fair_usdc) || c.fair_usdc <= 0) return null;
   if (!Number.isFinite(c.quote_usdc)) return null;
@@ -477,6 +500,31 @@ export type FloatWalk = {
   jit_funded?: boolean;
   guest?: boolean;
   human_approved?: boolean;
+  /* --- the venue's own leg ------------------------------------------------
+   *
+   * THE PARTY THAT IS NOT OURS, AND IT MOVES FIRST. A just-in-time payment
+   * pulls through an ERC-4626 venue we do not control, and that venue's own
+   * `Withdraw` sits one log BEFORE our sleeve records the delivery. Carried
+   * beside `steps[]` rather than inside it on purpose: the step list's log
+   * indices are what normalise the scene's axis, so folding a fifth index in
+   * there would silently move every other station.
+   *
+   * Every one of these is optional and absent means absent: no `Withdraw` is a
+   * payment the buffer covered, or one pulled from the USYC reserve, neither of
+   * which is a zero. */
+  venue?: string;
+  venue_log_index?: number;
+  venue_usdc?: number;
+  /** A STRING, because 18-decimal share counts exceed `Number.MAX_SAFE_INTEGER`
+   *  and `1054134341145566439` would round. Same discipline as `price_wad`. */
+  venue_shares?: string;
+  /** Who the venue paid. It is the TREASURY, not our sleeve, which is the
+   *  one-hop claim `Sleeves.sol:87` makes and the reason this field exists. */
+  venue_receiver?: string;
+  /** How many logs the venue emitted here, named or not. Counted off the
+   *  receipt rather than off what decoded: two of the four on the canonical
+   *  payment match no ABI this repo holds. */
+  venue_log_count?: number;
   steps?: FloatWalkStep[];
   /** "in_order" the pull preceded the pay; "out_of_order" it did not;
    *  "unproven" it claimed just-in-time and a log is missing; "not_jit" it

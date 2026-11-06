@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { countdown, isAgentAddress, premiumPct, statusChip, type FloatStatus } from "./float";
+import { countdown, isAgentAddress, premiumPct, statusChip, type FloatStatus, wrongChain } from "./float";
 
 /* The four helpers every float surface renders through, which had no test.
 
@@ -76,4 +76,31 @@ test("an agent address is checked for shape, not for checksum", () => {
   assert.ok(!isAgentAddress("0x64e21e01e7d9abfd4c32cfac4f590b24ecf38d160"));
   assert.ok(!isAgentAddress("0xZZZ1e01e7d9abfd4c32cfac4f590b24ecf38d16"));
   assert.ok(!isAgentAddress(""));
+});
+
+test("a chain that would not answer is not a chain the reader is on the wrong side of", () => {
+  /* `status: "pending"` means two unrelated things and only one of them has a
+     network to switch to. `/float` branched on the status alone and showed
+     "NOT ON THIS CHAIN. Switch the network" — with no button, because there was
+     nothing to switch to — to a reader on the correct chain whose only problem
+     was a rate limit. Witnessed on a freshly started server while the route
+     answered `status: "ok"` seconds later. */
+
+  /* The genuine case: the config refused AND named somewhere to go. */
+  assert.equal(wrongChain({ status: "pending", switch_to: "testnet" }), true);
+  assert.equal(wrongChain({ status: "pending", switch_to: "mainnet" }), true);
+
+  /* THE CASE THAT WAS WRONG. Both of these are "the chain did not answer", and
+     neither is the reader's fault; they must fall through to the unreachable
+     copy, which already says it retries by itself. */
+  assert.equal(wrongChain({ status: "pending" }), false, "rate limited is not wrong-chain");
+  assert.equal(wrongChain({ status: "pending", switch_to: undefined }), false);
+
+  /* A healthy read is not pending at all, whatever else it carries. */
+  assert.equal(wrongChain({ status: "ok" }), false);
+  assert.equal(wrongChain({ status: "ok", switch_to: "testnet" }), false, "ok outranks a stale hint");
+
+  /* Nothing asked yet is not an answer about chains. */
+  assert.equal(wrongChain(null), false);
+  assert.equal(wrongChain(undefined), false);
 });

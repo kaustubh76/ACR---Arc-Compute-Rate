@@ -10,6 +10,7 @@ import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
 import { WhoTouches } from "@/components/float/WhoTouches";
 import { Yield } from "@/components/float/Yield";
+import { wrongChain } from "@/lib/float";
 import { fmtPrice } from "@/lib/format";
 import { setChain } from "@/lib/useChain";
 import { useFloatVault } from "@/lib/useLive";
@@ -49,7 +50,14 @@ export function FloatView() {
   const asked = vault !== undefined || Boolean(error);
   const data = vault?.data ?? null;
   const live = Boolean(vault?.live);
-  const standingDown = data?.status === "pending";
+  /* `wrongChain`, NOT `status === "pending"`. Pending means two unrelated
+     things — the reader is on another chain, or the chain would not answer —
+     and only the first has a network to switch to. Branching on the status
+     alone showed "NOT ON THIS CHAIN. Switch the network" to a reader who was on
+     the correct chain and had merely hit a rate limit, with no button, because
+     there was nothing to switch to. The other case now falls through to
+     `unreachable`, whose copy is already right for it. */
+  const standingDown = wrongChain(data);
   const unreachable = asked && !live && !standingDown;
 
   return (
