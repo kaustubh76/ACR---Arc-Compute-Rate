@@ -627,11 +627,24 @@ def leg_guest(rig) -> None:
         c.register_guest(aid)
         bad("the same human got a SECOND budget")
     except Exception as exc:
-        if "agent exists" in str(exc):
-            ok("the same human, asking again: refused by the chain itself as 'agent exists'")
+        #: The STATE is the assertion; the sentence is only what we SHOW. A
+        #: revert string is not an API -- deciding on one is the coupling that
+        #: broke the checkpoint read -- but it is exactly what a viewer should
+        #: hear, so print the vault's own words and judge the chain's state.
+        still = c.agent_of(aid)
+        if (
+            still["exists"]
+            and still["guest"]
+            and still["daily_cap_units"] == after["daily_cap_units"]
+        ):
+            ok(f"the same human, asking again: refused by the chain · {revert_reason(exc)}")
+            ok(
+                f"one budget, still {usdc(still['daily_cap_units'])} a day — "
+                "asking twice did not widen it"
+            )
             ok("this is the repeatable beat — it needs no new human to demonstrate")
         else:
-            bad(f"the second attempt failed for the wrong reason: {str(exc)[:90]}")
+            bad(f"the second attempt left the budget changed: {still}")
 
 
 def leg_policy_gate(rig, key) -> None:

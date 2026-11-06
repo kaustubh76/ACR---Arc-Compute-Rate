@@ -42,6 +42,8 @@ ROOT = Path(__file__).resolve().parent.parent
 #: set is the exception — it is live submission copy, and its counts are held to
 #: reality by FLOAT_DOC_CLAIMS below.
 README = ROOT / "README.md"
+AGENT_PASS = "hackathon/ethglobal-mumbai-2026/SUBMISSION-WORLD-AGENT-PASS.md"
+IDKIT = "hackathon/ethglobal-mumbai-2026/SUBMISSION-WORLD-IDKIT.md"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
 _failures: list[str] = []
@@ -272,6 +274,52 @@ def measured_float_checks() -> int | None:
     return len(ids) or None
 
 
+@cache
+def _collected(rel: tuple[str, ...]) -> int | None:
+    """Tests COLLECTED under these files.
+
+    Collection, not execution, for the same reason `measured_pytest` chooses it:
+    the number is stable across machines and it counts the anvil-gated tests
+    that SKIP where there is no node, which is what a reader re-running the
+    document's command on a laptop will see claimed.
+    """
+    missing = [r for r in rel if not (ROOT / r).exists()]
+    if not rel or missing:
+        return None
+    out = run(["uv", "run", "pytest", *rel, "-p", "no:cacheprovider", "--collect-only"])
+    m = re.search(r"(\d+)\s+tests? collected", out)
+    return int(m.group(1)) if m else None
+
+
+def measured_world_suites() -> int | None:
+    """The World and gate suites, counted from the command the document PRINTS.
+
+    Deliberately not a list in this file. The write-up's promise is that its
+    numbers are re-derivable by the command beside them, so the honest
+    measurement runs that command's own file list: add a seventh suite to the
+    document and the count it is held to moves with it, while a list kept here
+    would have drifted exactly the way the nine hand-copied numbers did.
+    """
+    doc = ROOT / AGENT_PASS
+    if not doc.exists():
+        return None
+    m = re.search(r"test_\{([^}]+)\}\.py", doc.read_text())
+    if m is None:
+        return None
+    names = [n.strip() for n in m.group(1).split(",") if n.strip()]
+    return _collected(tuple(f"services/index_api/tests/test_{n}.py" for n in names))
+
+
+def measured_guest_tests() -> int | None:
+    """The guest server's own suite — the one the IDKit write-up cites."""
+    return _collected(("services/index_api/tests/test_floatguest.py",))
+
+
+def measured_gate_onchain() -> int | None:
+    """The on-chain gate suite, which runs against a real vault or skips."""
+    return _collected(("services/index_api/tests/test_floatgate_onchain.py",))
+
+
 #: Count claims in the Float and submission documents: (file, label, pattern,
 #: measure, costly).
 #:
@@ -305,6 +353,14 @@ FLOAT_DOC_CLAIMS: tuple[tuple[str, str, str, object, bool], ...] = (
      r"the (\w+) checks above", measured_float_checks, False),
     ("float/studio/README.md", "float tests",
      r"the sleeves, or their\s+(\d+) tests", measured_forge_float, True),
+    #: The two World write-ups make the same promise in the same words, so they
+    #: get held to it the same way. Both drifted within a day of being written.
+    (AGENT_PASS, "World and gate suites",
+     r"\| (\d+) tests across the World and gate suites", measured_world_suites, False),
+    (AGENT_PASS, "on-chain gate tests",
+     r"\((\d+) tests, against a real vault", measured_gate_onchain, False),
+    (IDKIT, "guest server tests",
+     r"\| (\d+) tests over the guest server", measured_guest_tests, False),
 )
 
 #: Prose states small counts as words. A check that only read digits would have

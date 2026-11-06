@@ -139,9 +139,9 @@ consumes it, because a nonce that can be retried is not single-use.
 
 | claim | how to check |
 |---|---|
-| 28 tests over the guest server, including the full rejection matrix | `uv run pytest services/index_api/tests/test_floatguest.py` |
+| 31 tests over the guest server, including the full rejection matrix | `uv run pytest services/index_api/tests/test_floatguest.py` |
 | The nullifier reaches neither a response nor a log | a test asserts it against both |
-| One budget per human, enforced on chain | `make rehearse-float` leg 10 — issues one, then the same human is refused `agent exists` |
+| One budget per human, enforced on chain | `make rehearse-float` leg 10 — issues one, then the same human is refused and the budget is not widened |
 | The guest cap is 2 USDC and fixed at deploy | `guestDailyCap()` on the vault returns `2000000` |
 | The $10 attacker-cost floor is the repo's own audited number, flagged unsourced | `load_cost_per_human()` returns `(10.0, 'unsourced', True)` |
 | The vault is deployed on a public chain | `eth_getCode` at `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` on `https://rpc.testnet.arc.io` (chain 5042002) |

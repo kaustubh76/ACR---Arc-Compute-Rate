@@ -385,7 +385,27 @@ class GuestGate:
             out = self.vault.register_guest(agent_id)
         except Exception as exc:  # noqa: BLE001
             text = str(exc)
-            if "agent exists" in text:
+            #: ASK THE CHAIN, never the revert string. A write that reverted
+            #: and a write that LANDED before its receipt reached us are the
+            #: same exception here, and no sentence tells them apart -- while
+            #: `"agent exists"` is a sentence in a contract we do not own, the
+            #: exact coupling that broke this package's checkpoint read when
+            #: the struct grew a field. The agent either exists now or it does
+            #: not, and that question has an authoritative answer.
+            try:
+                landed = self.vault.agent_of(agent_id)
+            except Exception:  # noqa: BLE001
+                landed = None
+            if landed is not None and landed["exists"]:
+                if not landed["guest"]:
+                    #: One chain state, one reason, whichever side of the write
+                    #: we learn it on. We hold no budget, so the slot goes back.
+                    self.ledger.release(nullifier)
+                    raise GuestError(
+                        500,
+                        "not_a_guest_agent",
+                        "that agent id is already in use and is not a guest",
+                    ) from exc
                 #: NOT an error. The budget exists for this human, which is
                 #: what the caller wanted -- and this is the branch that makes
                 #: a crash between the claim and the receipt safe, because a
@@ -394,6 +414,14 @@ class GuestGate:
                 raise GuestError(
                     409, "one_guest_budget_per_human", "one guest budget per human"
                 ) from exc
+            #: Either the write genuinely failed, or the chain went unreadable
+            #: in the same breath and we cannot tell. RELEASE in both cases: a
+            #: kept slot locks a human out of a budget they may never have got,
+            #: while a released one self-heals, because the retry's own
+            #: pre-check reads this same `agent_of` and answers 409 if the write
+            #: did land. What stops a second budget is the chain and not this
+            #: ledger -- one nullifier derives one agent id, and `registerGuest`
+            #: refuses it twice.
             self.ledger.release(nullifier)
             raise GuestError(
                 502, "verify_failed", f"the budget could not be issued: {text}"

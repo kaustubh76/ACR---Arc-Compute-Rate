@@ -1,6 +1,6 @@
 """One guest budget per unique human. No network, no chain.
 
-The happy path is one test. The other twenty are the ones that matter, because
+The happy path is one test. The rest are the ones that matter, because
 the product's whole sentence is "one per unique human" and the interesting part
 is what stops the second one.
 """
@@ -40,13 +40,19 @@ class StubVault:
     free_raises: bool = False
     chain_raises: bool = False
     register_raises: Exception | None = None
+    #: The write reached the chain and the RECEIPT did not reach us. Raising
+    #: AND landing is the state the gate has to read its way out of, because
+    #: no revert string distinguishes it from a write that simply failed.
+    lands_anyway: bool = False
+    chain_raises_after_the_write: bool = False
+    wrote: bool = False
     registered: list = field(default_factory=list)
 
     def guest_preflight(self):
         return self.ready
 
     def agent_of(self, agent_id):
-        if self.chain_raises:
+        if self.chain_raises or (self.chain_raises_after_the_write and self.wrote):
             raise RuntimeError("rpc throttled")
         return {
             "exists": self.exists,
@@ -67,7 +73,12 @@ class StubVault:
         return self.free
 
     def register_guest(self, agent_id):
+        self.wrote = True
         if self.register_raises is not None:
+            if self.lands_anyway:
+                #: The agent is THERE now, whatever the caller was told.
+                self.exists = True
+                self.registered.append(agent_id)
             raise self.register_raises
         self.registered.append(agent_id)
         return {"tx": "0xissued"}
@@ -324,14 +335,19 @@ def test_an_id_already_held_by_a_non_guest_is_not_a_409(gate):
     assert exc.value.status == 500
 
 
-def test_the_agent_exists_revert_is_success_rather_than_an_error(gate):
+def test_a_write_that_landed_without_a_receipt_is_success_rather_than_an_error(gate):
     """The budget exists for this human, which is what the caller wanted.
 
     This is also what makes a crash between the claim and the receipt safe: on
     restart the disk is empty and the chain read is the only backstop, so a
     retry lands here rather than on a 500 for a budget that actually worked.
+
+    Read the exception text: it says NOTHING about an existing agent. The gate
+    reaches this branch by asking the chain, so a lost receipt and a revert take
+    the same -- correct -- path.
     """
-    gate["vault"].register_raises = Exception("execution reverted: agent exists")
+    gate["vault"].register_raises = Exception("timed out waiting for the receipt")
+    gate["vault"].lands_anyway = True
     with pytest.raises(GuestError) as exc:
         gate["g"].claim(_join(gate))
     assert exc.value.reason == "one_guest_budget_per_human"
@@ -339,6 +355,57 @@ def test_the_agent_exists_revert_is_success_rather_than_an_error(gate):
     #: And the slot is KEPT, not released: the human does have a budget.
     assert gate["g"].ledger.held(NULL_A)
     assert [r["event"] for r in _rows(gate)] == ["claimed", "issued"]
+
+
+def test_the_revert_sentence_is_not_what_decides(gate):
+    """A revert string is not an API, so it gets no vote.
+
+    The exact inverse of the test above, and the regression for a coupling that
+    has already bitten this repo once: an exception saying the magic words while
+    the chain says the agent does NOT exist must be reported as the failure it
+    is, never as a 409 for a budget nobody holds.
+    """
+    gate["vault"].register_raises = Exception("execution reverted: agent exists")
+    with pytest.raises(GuestError) as exc:
+        gate["g"].claim(_join(gate))
+    assert exc.value.reason == "verify_failed"
+    assert exc.value.status == 502
+    assert not gate["g"].ledger.held(NULL_A)
+
+
+def test_a_chain_that_goes_dark_mid_write_frees_the_slot(gate):
+    """Unreadable right after the write is the one genuinely ambiguous case.
+
+    Releasing is the safer of the two wrong answers. A kept slot locks a human
+    out of a budget they may never have got; a released one self-heals, because
+    the retry's own pre-check reads the same `agent_of` and answers 409 if the
+    write did land. Either way the chain stops a second budget, since one
+    nullifier derives one agent id.
+    """
+    gate["vault"].register_raises = Exception("timed out waiting for the receipt")
+    gate["vault"].chain_raises_after_the_write = True
+    with pytest.raises(GuestError) as exc:
+        gate["g"].claim(_join(gate))
+    assert exc.value.status == 502
+    assert not gate["g"].ledger.held(NULL_A)
+
+
+def test_a_collision_found_after_the_write_reads_the_same_as_before_it(gate):
+    """One chain state, one reason, whichever side of the write we learn it on.
+
+    An operator registering this exact id between our pre-check and our write is
+    astronomically unlikely, but which reason it reports should not depend on
+    the timing.
+    """
+    gate["vault"].guest = False
+    gate["vault"].register_raises = Exception("execution reverted: agent exists")
+    gate["vault"].lands_anyway = True
+    with pytest.raises(GuestError) as exc:
+        gate["g"].claim(_join(gate))
+    assert exc.value.reason == "not_a_guest_agent"
+    assert exc.value.status == 500
+    #: We hold no budget, so the slot goes back.
+    assert not gate["g"].ledger.held(NULL_A)
 
 
 # --- failing closed ---------------------------------------------------------

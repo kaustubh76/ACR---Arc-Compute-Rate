@@ -137,7 +137,7 @@ Every claim is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 174 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
+| 186 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
 | Nine named refusals, and the prose cannot drift from them | `test_every_named_reason_is_reachable` |
 | `alg: none` and HS256-with-the-public-key are both refused | `test_an_unsigned_token_is_refused`, `test_a_token_signed_with_the_public_key_as_an_hmac_secret_is_refused` |
 | The signer refuses to broadcast a digest the vault disagrees with | `sign_approval` cross-checks `approvalDigest` and recovers the signature to our own key before sending |
