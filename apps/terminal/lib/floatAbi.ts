@@ -143,6 +143,31 @@ export const STORE_ABI = [
 
 export const SLEEVE_ABI = [
   { type: "function", name: "valueUsdc", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  /* The venue this sleeve earns in, read off the sleeve rather than configured.
+     Keeps the "only the vault is configured" rule intact and keeps a venue
+     address out of shipping source, which is what `mainnetOnly.test.ts` is for. */
+  { type: "function", name: "venue", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  /* The sleeve's whole cash history, and the only way to recover a cost basis.
+     `Parked` is what went in; `Pulled` carries BOTH what was asked for and what
+     the treasury's balance actually moved by, because a venue may deliver less
+     than it was asked for and the event records the gap rather than hiding it.
+
+     BOTH ARE ENTIRELY NON-INDEXED. topic0 is the only topic, so a query must be
+     addressed to the sleeve: these are emitted by the sleeve, not the vault, and
+     filtering by the vault's address matches nothing. */
+  {
+    type: "event",
+    name: "Parked",
+    inputs: [{ name: "usdcAmount", type: "uint256", indexed: false }],
+  },
+  {
+    type: "event",
+    name: "Pulled",
+    inputs: [
+      { name: "usdcRequested", type: "uint256", indexed: false },
+      { name: "usdcDelivered", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;
 
 export const ERC20_ABI = [

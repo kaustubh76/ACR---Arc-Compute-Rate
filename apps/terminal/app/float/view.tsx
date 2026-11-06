@@ -8,6 +8,7 @@ import { MoneyPath } from "@/components/float/MoneyPath";
 import { Runway } from "@/components/float/Runway";
 import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
+import { Yield } from "@/components/float/Yield";
 import { fmtPrice } from "@/lib/format";
 import { setChain } from "@/lib/useChain";
 import { useFloatVault } from "@/lib/useLive";
@@ -173,6 +174,9 @@ export function FloatView() {
           <Ladder onVerdict={onVerdict} vault={data} />
 
           <VaultMeter vault={data} />
+
+          {/* Where the float is, then what being there earned it. */}
+          <Yield vault={data} />
 
           <Tape />
 

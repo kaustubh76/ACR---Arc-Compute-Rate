@@ -43,6 +43,7 @@ import "server-only";
 import { createPublicClient, formatUnits, http, keccak256, toHex, type Address, type Hex } from "viem";
 
 import type { ChainKey } from "./chainChoice";
+import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
 import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI } from "./floatAbi";
 import type {
@@ -54,6 +55,7 @@ import type {
   FloatTapeRow,
   FloatVaultState,
   FloatVerdict,
+  FloatYield,
 } from "./float";
 
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
@@ -524,6 +526,91 @@ export async function classifyQuote(
 const LOG_WINDOW = 9_000n;
 /** Enough to fill a screen without asking the node for a page nobody reads. */
 const MAX_ROWS = 40;
+/** A ceiling so a misconfigured floor cannot walk the chain forever. Twelve
+ *  windows is about fifteen hours at Arc's measured block time, and the live
+ *  deployment is younger than that. */
+const MAX_PAGES = 12;
+
+/** The oldest block worth walking to: the block the sleeve was created in.
+ *
+ *  From the environment rather than a literal, so no block number or chain
+ *  detail enters shipping source. Unset, the walk still runs to its page budget
+ *  and simply reports that it did not reach the start — which is what makes the
+ *  yield panel withhold a gain it cannot stand behind. */
+function floorBlock(): number | null {
+  const raw = Number(process.env.ACR_FLOAT_FROM_BLOCK);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : null;
+}
+
+type LogRow = { args: Record<string, unknown>; blockNumber: bigint; transactionHash: string };
+type Walk = { logs: LogRow[][]; from: number; to: number; reachedFloor: boolean; busy: boolean };
+
+/** Walk `getLogs` backwards in windows the node will accept.
+ *
+ *  Arc refuses a range wider than about ten thousand blocks, so reach comes
+ *  from paging rather than from asking for more. Newest page first, because
+ *  every caller wants the newest rows and most want to stop early.
+ *
+ *  A REFUSED WINDOW ENDS THE WALK AND SAYS SO. `float/app/index.html` swallows
+ *  a failed page with a bare `catch` and returns what it has, which reads as a
+ *  complete answer and is not one; `walk.html` aborts with the range it got to.
+ *  This follows the second: the span and `reachedFloor` travel with the result,
+ *  so a caller can tell a short walk from a quiet chain.
+ *
+ *  Every spec for one page is issued in the same tick, so `batch: true`
+ *  collapses the page into a single request.
+ */
+async function walkLogs(
+  c: ReturnType<typeof createPublicClient>,
+  head: bigint,
+  specs: Array<{ address: Address; event: unknown }>,
+  opts: { floor: number | null; enough?: (total: number) => boolean },
+  note: <T>(r: Promise<Read<T>>) => Promise<Read<T>>,
+): Promise<Walk> {
+  const out: LogRow[][] = specs.map(() => []);
+  const floor = BigInt(opts.floor ?? 0);
+  /* The span to REPORT is the walk's outer bounds, not the last page's. The
+     first version returned the loop variables as they stood at exit, which is
+     the OLDEST page — so a walk that covered eighty thousand blocks captioned
+     itself as nine thousand, and a tape showing the whole deployment claimed
+     to show seventy-six minutes of it. */
+  let oldest = head;
+  let reachedFloor = false;
+  let busy = false;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const to = head - BigInt(page) * LOG_WINDOW;
+    if (to < floor) break;
+    let from = to > LOG_WINDOW - 1n ? to - (LOG_WINDOW - 1n) : 0n;
+    if (from < floor) from = floor;
+
+    const got = await Promise.all(
+      specs.map((spec) =>
+        note(
+          one(() =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (c as any).getLogs({ address: spec.address, event: spec.event, fromBlock: from, toBlock: to }),
+          ),
+        ),
+      ),
+    );
+    if (got.some((r) => !r.ok)) {
+      busy = true;
+      break;
+    }
+    got.forEach((r, i) => out[i].push(...((r as { ok: true; value: LogRow[] }).value ?? [])));
+    oldest = from;
+
+    if (opts.floor !== null && from <= floor) {
+      reachedFloor = true;
+      break;
+    }
+    if (from === 0n) break;
+    if (opts.enough?.(out.reduce((n, rows) => n + rows.length, 0))) break;
+  }
+
+  return { logs: out, from: Number(oldest), to: Number(head), reachedFloor, busy };
+}
 
 /** A receipt states its own premium; a refusal does not, but carries both
  *  numbers that make it.
@@ -561,33 +648,29 @@ export async function readTape(chain: ChainKey): Promise<FloatTape> {
       rows: [],
     };
   }
-  const toBlock = head.value;
-  const fromBlock = toBlock > LOG_WINDOW ? toBlock - LOG_WINDOW : 0n;
-
   const receiptEvent = VAULT_ABI.find((e) => e.type === "event" && e.name === "Receipt");
   const deniedEvent = VAULT_ABI.find((e) => e.type === "event" && e.name === "Denied");
 
-  /* Both queries in one tick, so `batch: true` sends them as a single request.
-     Two sequential calls here would be two trips against a shared limit. */
-  const [paid, refused] = await Promise.all([
-    note(
-      one(() =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (c as any).getLogs({ address: cfg.vault, event: receiptEvent, fromBlock, toBlock }),
-      ),
-    ),
-    note(
-      one(() =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (c as any).getLogs({ address: cfg.vault, event: deniedEvent, fromBlock, toBlock }),
-      ),
-    ),
-  ]);
+  /* Walk back until the screen is full or the vault's own first block, instead
+     of reading one window and calling it the record. One window is about
+     seventy-six minutes, which on a quiet chain is two rows and reads as a
+     treasury that has barely done anything. */
+  const walk = await walkLogs(
+    c,
+    head.value,
+    [
+      { address: cfg.vault, event: receiptEvent },
+      { address: cfg.vault, event: deniedEvent },
+    ],
+    { floor: floorBlock(), enough: (n) => n >= MAX_ROWS },
+    note,
+  );
+  const [paid, refused] = walk.logs;
 
   const rows: FloatTapeRow[] = [];
 
-  if (paid.ok) {
-    for (const l of paid.value as Array<{ args: Record<string, unknown>; blockNumber: bigint; transactionHash: string }>) {
+  {
+    for (const l of paid) {
       const a = l.args;
       const fair = (a.fair as bigint) ?? 0n;
       rows.push({
@@ -608,8 +691,8 @@ export async function readTape(chain: ChainKey): Promise<FloatTape> {
     }
   }
 
-  if (refused.ok) {
-    for (const l of refused.value as Array<{ args: Record<string, unknown>; blockNumber: bigint; transactionHash: string }>) {
+  {
+    for (const l of refused) {
       const a = l.args;
       const fair = (a.fair as bigint) ?? 0n;
       rows.push({
@@ -635,9 +718,100 @@ export async function readTape(chain: ChainKey): Promise<FloatTape> {
   return {
     status: "ok",
     rows: rows.slice(0, MAX_ROWS),
-    from_block: Number(fromBlock),
-    to_block: Number(toBlock),
-    window_blocks: Number(LOG_WINDOW),
-    ...(busy || !paid.ok || !refused.ok ? { partial: true } : {}),
+    from_block: walk.from,
+    to_block: walk.to,
+    window_blocks: Math.max(0, walk.to - walk.from + 1),
+    reached_start: walk.reachedFloor,
+    ...(busy || walk.busy ? { partial: true } : {}),
+  };
+}
+
+/* --- what the idle float earned ------------------------------------------
+
+   The treasury's whole premise is that money not needed this minute earns
+   until the second a bill needs it. This is the number that says whether that
+   was worth doing, and it is recoverable exactly because the sleeve emits its
+   own cash movements. See `lib/floatYield.ts` for why it is a floor rather
+   than a point estimate, and why an incomplete basis yields nothing. */
+
+export async function readYield(chain: ChainKey): Promise<FloatYield> {
+  const cfg = floatConfig(chain);
+  if (typeof cfg === "string") return { status: "pending", reason: cfg };
+
+  const c = client(cfg.rpc);
+  let busy = false;
+  const note = async <T,>(r: Promise<Read<T>>): Promise<Read<T>> => {
+    const v = await r;
+    if (!v.ok && v.busy) busy = true;
+    return v;
+  };
+  const stuck = "the float vault's chain is rate limiting this host; it retries by itself";
+
+  /* Round one: which sleeve, and where the head is. The sleeve address comes
+     off the vault rather than from configuration, so a sleeve swap cannot
+     leave this reading a stale address. */
+  const [head, sleeveAddr] = await Promise.all([
+    note(one<bigint>(() => c.getBlockNumber())),
+    note(one<Address>(() => c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "working" }))),
+  ]);
+  if (!head.ok || !sleeveAddr.ok) {
+    /* Narrowed one at a time: an `||` over two discriminated unions does not
+       tell the compiler which side failed. */
+    const throttled = (!head.ok && head.busy) || (!sleeveAddr.ok && sleeveAddr.busy);
+    return { status: "pending", reason: throttled ? stuck : "the chain did not answer this host" };
+  }
+  if (sleeveAddr.value.toLowerCase() === ZERO) {
+    return { status: "pending", reason: "this treasury has no working sleeve, so nothing is earning" };
+  }
+
+  /* Round two: the live mark and the venue behind it. */
+  const [value, venue] = await Promise.all([
+    note(one<bigint>(() => c.readContract({ address: sleeveAddr.value, abi: SLEEVE_ABI, functionName: "valueUsdc" }))),
+    note(one<Address>(() => c.readContract({ address: sleeveAddr.value, abi: SLEEVE_ABI, functionName: "venue" }))),
+  ]);
+  if (!value.ok) {
+    return { status: "pending", reason: value.busy ? stuck : "the sleeve would not value itself" };
+  }
+
+  /* Round three onwards: the sleeve's whole cash history. No `enough` cap —
+     a basis missing its oldest deposits is worse than no basis, so this walk
+     wants everything or admits it did not get it. */
+  const parkedEvent = SLEEVE_ABI.find((e) => e.type === "event" && e.name === "Parked");
+  const pulledEvent = SLEEVE_ABI.find((e) => e.type === "event" && e.name === "Pulled");
+  const walk = await walkLogs(
+    c,
+    head.value,
+    [
+      { address: sleeveAddr.value, event: parkedEvent },
+      { address: sleeveAddr.value, event: pulledEvent },
+    ],
+    { floor: floorBlock() },
+    note,
+  );
+  const [parkedLogs, pulledLogs] = walk.logs;
+
+  const parked = parkedLogs.map((l) => (l.args.usdcAmount as bigint) ?? 0n);
+  /* DELIVERED, not requested: a venue may hand back less than it was asked
+     for, and the contract emits both numbers precisely so this one can be the
+     honest side of the subtraction. */
+  const delivered = pulledLogs.map((l) => (l.args.usdcDelivered as bigint) ?? 0n);
+
+  const principal = principalFrom(parked, delivered);
+  const complete = walk.reachedFloor && !walk.busy && !busy;
+  const gain = accruedFrom(value.value, principal, complete);
+
+  return {
+    status: "ok",
+    sleeve: sleeveAddr.value,
+    ...(venue.ok ? { venue: venue.value } : {}),
+    value_usdc: usdc6(value.value),
+    principal_usdc: usdc6(principal),
+    accrued_usdc: gain === null ? null : Number(gain) / 1e6,
+    parked_count: parkedLogs.length,
+    pulled_count: pulledLogs.length,
+    from_block: walk.from,
+    to_block: walk.to,
+    complete,
+    ...(busy || walk.busy ? { partial: true } : {}),
   };
 }

@@ -14,7 +14,7 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
-import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict } from "./float";
+import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict, FloatYield } from "./float";
 import type { DryRun } from "./routeInput";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
@@ -726,4 +726,23 @@ export function useFloatTape() {
     { refreshInterval: floatTapePollMs, ...RETRY },
   );
   return { tape: data, error: error as FetchError | undefined };
+}
+
+/** What the idle float earned.
+ *
+ *  Slower than the others because it walks the sleeve's whole event history,
+ *  and the number it produces moves on the venue's share price rather than on
+ *  anything a reader does. Sixty seconds: often enough that a rebalance shows
+ *  up while someone is still looking, rare enough that paging the logs is not
+ *  the page's dominant cost. */
+export const floatYieldPollMs = 60_000;
+
+export function useFloatYield() {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<FloatYield>>(
+    apiKey("/api/float/yield", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatYieldPollMs, ...RETRY },
+  );
+  return { earned: data, error: error as FetchError | undefined };
 }

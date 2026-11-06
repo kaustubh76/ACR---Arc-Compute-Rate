@@ -114,10 +114,10 @@ test("every function we call exists on the contract we call it on", () => {
   for (const e of VAULT_ABI.filter((x) => x.type === "function")) {
     assert.ok(declares(vault, e.name), `FloatVault does not declare ${e.name}`);
   }
-  for (const e of STORE_ABI) {
+  for (const e of STORE_ABI.filter((x) => x.type === "function")) {
     assert.ok(declares(store, e.name), `FloatPrintStore does not declare ${e.name}`);
   }
-  for (const e of SLEEVE_ABI) {
+  for (const e of SLEEVE_ABI.filter((x) => x.type === "function")) {
     assert.ok(declares(sleeves, e.name), `Sleeves does not declare ${e.name}`);
   }
   assert.deepEqual(
@@ -164,4 +164,51 @@ test("premiumBps is read as signed, because a quote below fair is legal", () => 
     inputs: Array<{ name: string; type: string }>;
   };
   assert.equal(e.inputs.find((i) => i.name === "premiumBps")?.type, "int256");
+});
+
+test("the sleeve's cash events are the ones Sleeves.sol emits, field for field", () => {
+  const src = readFileSync(join(FLOAT_SRC, "Sleeves.sol"), "utf8");
+
+  const eventFields = (name: string): string[] => {
+    const m = src.match(new RegExp("event\\s+" + name + "\\s*\\(([^)]*)\\)"));
+    assert.ok(m, `no event ${name} in Sleeves.sol`);
+    return m[1]
+      .split(",")
+      .map((f) => {
+        const words = f.trim().split(/\s+/).filter((w) => w !== "indexed");
+        return words[words.length - 1] ?? "";
+      })
+      .filter(Boolean);
+  };
+
+  const ours = (name: string) => {
+    const e = SLEEVE_ABI.find((x) => x.name === name && x.type === "event") as
+      | { inputs: Array<{ name: string; indexed?: boolean }> }
+      | undefined;
+    assert.ok(e, `our SLEEVE_ABI carries no ${name} event`);
+    return e.inputs;
+  };
+
+  assert.deepEqual(ours("Parked").map((i) => i.name), eventFields("Parked"));
+  assert.deepEqual(ours("Pulled").map((i) => i.name), eventFields("Pulled"));
+
+  /* Non-indexed is load-bearing: it is why the query must carry the sleeve's
+     address. If either ever gained an index the filter would have to change. */
+  for (const n of ["Parked", "Pulled"]) {
+    for (const i of ours(n)) assert.equal(i.indexed, false, `${n}.${i.name} is indexed on our side`);
+  }
+  assert.doesNotMatch(src, /event\s+Parked\s*\([^)]*indexed/);
+  assert.doesNotMatch(src, /event\s+Pulled\s*\([^)]*indexed/);
+});
+
+test("the cost basis uses what was DELIVERED, not what was requested", () => {
+  /* `withdrawExact` measures the treasury's balance before and after and emits
+     the difference as the second field. Using the first would count money that
+     never arrived, which is the whole reason the contract emits both. */
+  const src = readFileSync(join(FLOAT_SRC, "Sleeves.sol"), "utf8");
+  assert.match(src, /emit\s+Pulled\(usdcAmount,\s*usdc\.balanceOf\(treasury\)\s*-\s*before\)/);
+  const pulled = SLEEVE_ABI.find((x) => x.name === "Pulled" && x.type === "event") as unknown as {
+    inputs: Array<{ name: string }>;
+  };
+  assert.equal(pulled.inputs[1].name, "usdcDelivered");
 });

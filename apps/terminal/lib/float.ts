@@ -329,5 +329,42 @@ export type FloatTape = {
   from_block?: number;
   to_block?: number;
   window_blocks?: number;
+  /** True when the walk reached the vault's own first block, so this IS the
+   *  whole record rather than the part of it that fitted. */
+  reached_start?: boolean;
+  partial?: boolean;
+};
+
+/* --- what the idle money earned ------------------------------------------
+
+   The treasury's point: float that is not needed this minute sits in a real
+   yield venue and comes back the instant a bill needs it. This is the number
+   that says whether that was worth doing. */
+
+export type FloatYield = {
+  status: "ok" | "pending";
+  reason?: string;
+  /** The sleeve, and the venue it earns in, both read off the chain. */
+  sleeve?: string;
+  venue?: string;
+  /** The live mark: what the sleeve's shares convert to right now. */
+  value_usdc?: number;
+  /** Net USDC that has crossed the sleeve boundary, summed from its own
+   *  events: every `Parked` in, every `Pulled` delivered back out. */
+  principal_usdc?: number;
+  /** `value − principal`. SIGNED: a share-priced venue can mark down, and a
+   *  meter that cannot show a loss is not a meter.
+   *
+   *  `null` when the paging did not reach the sleeve's first event, because a
+   *  basis missing its opening deposits would overstate the gain by exactly
+   *  the amount it missed. Withholding is the honest answer there. */
+  accrued_usdc?: number | null;
+  parked_count?: number;
+  pulled_count?: number;
+  /** The block span the events were read over, and whether it reached the
+   *  sleeve's own beginning. */
+  from_block?: number;
+  to_block?: number;
+  complete?: boolean;
   partial?: boolean;
 };
