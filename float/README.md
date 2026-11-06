@@ -52,11 +52,29 @@ T5 make real payments (~$2.10 a run), and `make float-tape` pays $1.055 every
 half hour — about $50 a day. At the original $25 cap the payment checks passed
 only in the first half of each 24-hour period and were refused for the cap after
 that, which looks exactly like the vault failing and is not. The cap is $60 in
-`policy.config.json`, which covers the tape plus roughly four runs a day. If T2
-and T5 are refused while everything else passes, read `agentOf(scout).spent`
-against its cap before suspecting anything else — and the cleaner fix, if this
-keeps biting, is to give the acceptance suite its own agent instead of sharing
-the tape's budget.
+`policy.config.json`, which covers the tape plus roughly four runs a day.
+
+THIS HAPPENED, and the arithmetic is worth keeping because it shows the budget
+model is right rather than drifting. On 2026-11-06 the window closed with
+$59.094 of $60.00 spent and T2 and T5 red: the tape's half-hourly $1.055 is
+$49.6 of it, and about four and a half suite runs at $2.11 are the remaining
+$9.5. $49.6 + 4.5 x $2.11 = $59.1. Exactly the documented allowance, exactly
+spent.
+
+**The suite now says this itself.** T2 and T5 used to report only the absence of
+a payment — "moved $0 to the seller, receipt #none" — because `requestSpend`
+does not revert when the vault refuses: it returns a code and mines
+successfully, emitting no Transfer and no Receipt. A correctly refused payment
+and a broken payment path were therefore the same sight. Both checks now
+re-ask `classify` with a fresh nonce when nothing moved and print the code, the
+reason, the budget, and the hour the window rolls, so a red run names its own
+cause instead of implying the vault failed.
+
+If it keeps biting, the cleaner fix is still to give the acceptance suite its
+own agent instead of sharing the tape's budget. That was not done on the eve of
+the submission on purpose: it means registering a second agent on chain and
+re-deciding what T6's "the agent's own wallet holds nothing" refers to, which is
+a change to the suite's identity model rather than a bug fix.
 
 `npm run verify` prints what it observed, not just a verdict:
 

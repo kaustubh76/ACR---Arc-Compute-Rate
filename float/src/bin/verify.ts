@@ -125,6 +125,52 @@ async function classify(r: ReturnType<typeof req>) {
   return (await pub.readContract({ address: d.vault, abi: V.abi, functionName: "classify", args: [r] })) as
     [string, number, bigint, bigint];
 }
+/**
+ * WHY DID NOTHING MOVE? — asked of the chain rather than guessed.
+ *
+ * `requestSpend` DOES NOT REVERT when the vault refuses. It returns a code and
+ * mines successfully, emitting no Transfer and no Receipt. So from the receipt
+ * alone, a correctly refused payment and a BROKEN payment path are the same
+ * sight: "$0 moved, receipt #none". T3 and T4 never suffer this because they
+ * expect a refusal and print its code; T2 and T5 expect a payment and so
+ * printed the absence of one without its cause.
+ *
+ * That is not hypothetical. On 2026-11-06 both read exactly that way, and the
+ * cause was the scout's daily cap: the tape pays this same agent on a loop and
+ * had spent $59.09 of $60.00, leaving less than one payment. The vault was
+ * perfect. The suite said "moved $0" and sent the reader hunting.
+ *
+ * For the cap the reason alone is still not actionable — the operator has to
+ * choose between raising it and waiting — so the budget and the moment the
+ * window rolls go in too.
+ *
+ * The probe carries a FRESH NONCE. A refused spend still records its nonce, so
+ * re-classifying the original request would answer about nonce reuse and name
+ * the wrong cause.
+ */
+async function whyNothingMoved(r: ReturnType<typeof req>): Promise<string> {
+  try {
+    const [reason, code] = await classify({ ...r, nonce: nonce() });
+    if (!reason) {
+      return " — AND THE CHAIN SAYS IT SHOULD HAVE PAID: classify returns code 0 on the same"
+        + " request, so the refusal is not a policy decision and this is the payment path itself";
+    }
+    let extra = "";
+    if (code === 12 /* D_DAILY_CAP */) {
+      const [, cap, spent, , periodStart] = (await pub.readContract({
+        address: d.vault, abi: V.abi, functionName: "agentOf", args: [r.agentId],
+      })) as readonly [boolean, bigint, bigint, bigint, bigint, boolean, boolean];
+      const rolls = (Number(periodStart) + 86_400) * 1000;
+      extra = ` — ${usd(spent)} of ${usd(cap)} spent in this window, ${usd(cap - spent)} left,`
+        + ` which rolls at ${new Date(rolls).toISOString()} (${((rolls - Date.now()) / 3_600_000).toFixed(1)}h).`
+        + ` The tape pays this agent on a loop, so either raise the cap or wait for the roll`;
+    }
+    return ` — THE CHAIN REFUSED IT, code ${code} "${reason}"${extra}.`
+      + " The vault behaved correctly; what failed is this check's precondition";
+  } catch (e) {
+    return ` — and classify could not be asked why (${((e as Error).message ?? "").split("\n")[0]})`;
+  }
+}
 async function spend(r: ReturnType<typeof req>) {
   const hash = await executor.writeContract({
     address: d.vault, abi: V.abi, functionName: "requestSpend", args: [r],
@@ -264,7 +310,8 @@ const scoutBefore = await bal(SCOUT_EOA);
 // --- T2 · a fair spend pays the seller --------------------------------------
 {
   const quote = (gpt.fair * 10_050n) / 10_000n;
-  const r = await spend(req(SCOUT, gpt.index, quote, gpt.printId));
+  const spendReq = req(SCOUT, gpt.index, quote, gpt.printId);
+  const r = await spend(spendReq);
 
   // Read what THIS transaction did, out of its own receipt.
   //
@@ -300,7 +347,8 @@ const scoutBefore = await bal(SCOUT_EOA);
   check("T2", "a fair quote pays the seller and writes a receipt",
     r.status === "success" && paid === quote && receiptId !== null && receiptQuote === quote,
     `this transaction moved ${usd(paid)} to the seller on a ${usd(quote)} quote, ` +
-    `receipt #${receiptId ?? "none"} recording ${receiptQuote === null ? "nothing" : usd(receiptQuote)}`);
+    `receipt #${receiptId ?? "none"} recording ${receiptQuote === null ? "nothing" : usd(receiptQuote)}` +
+    (paid === 0n ? await whyNothingMoved(spendReq) : ""));
 }
 
 // --- T3 · an overcharge is refused, on chain, in English --------------------
@@ -430,7 +478,8 @@ const scoutBefore = await bal(SCOUT_EOA);
       `would need pulling. rebalance refuses a move below the minimum ticket, so the float could not be ` +
       `parked low enough. This is the check's own precondition, not a fault in the vault.`);
   } else {
-  const rc = await spend(req(SCOUT, gpt.index, quote, gpt.printId));
+  const jitReq = req(SCOUT, gpt.index, quote, gpt.printId);
+  const rc = await spend(jitReq);
 
   let pulledIdx = -1, payIdx = -1, jit = false, requested = 0n, delivered = 0n;
   for (const log of rc.logs) {
@@ -468,7 +517,8 @@ const scoutBefore = await bal(SCOUT_EOA);
     `sleeve ${usd(sleeveBefore)} -> ${usd(await sleeveValue())}` +
     (raced
       ? ` — the pull and its order are right and only the arithmetic disagrees, which is what a keeper rebalance between the buffer read and the spend looks like; re-run before suspecting the vault`
-      : ""));
+      : "")
+    + (payIdx < 0 ? await whyNothingMoved(jitReq) : ""));
   }
 }
 
