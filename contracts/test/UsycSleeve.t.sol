@@ -7,7 +7,9 @@ import {FloatVault} from "../src/float/FloatVault.sol";
 import {FloatPrintStore} from "../src/float/FloatPrintStore.sol";
 import {ISleeve} from "../src/float/IFloat.sol";
 import {MockUSDC} from "./MockUSDC.sol";
-import {MockUsyc, MockUsycTeller, RecordingSleeve} from "./float/Doubles.sol";
+import {RecordingSleeve} from "./float/Doubles.sol";
+import {SimUsyc, SimUsycTeller} from "../src/sim/SimUsyc.sol";
+import {IERC20} from "../src/float/IFloat.sol";
 
 /// @notice The reserve leg: idle float in Circle's tokenised treasury fund.
 ///
@@ -22,16 +24,16 @@ import {MockUsyc, MockUsycTeller, RecordingSleeve} from "./float/Doubles.sol";
 /// not a development one.
 contract UsycSleeveTest is Test {
     MockUSDC usdc;
-    MockUsyc usyc;
-    MockUsycTeller teller;
+    SimUsyc usyc;
+    SimUsycTeller teller;
     UsycSleeve sleeve;
 
     address treasury = address(0x7EA);
 
     function setUp() public {
         usdc = new MockUSDC();
-        usyc = new MockUsyc();
-        teller = new MockUsycTeller(usdc, usyc);
+        usyc = new SimUsyc();
+        teller = new SimUsycTeller(IERC20(address(usdc)), usyc);
         sleeve = new UsycSleeve(address(teller), address(usdc), address(usyc), treasury);
         // The Teller needs USDC to pay redemptions out of.
         usdc.mint(address(teller), 1_000e6);
@@ -58,7 +60,7 @@ contract UsycSleeveTest is Test {
         _fundTreasury(100e6);
         // permissioned defaults to false, which is our real standing.
         vm.prank(treasury);
-        vm.expectRevert(MockUsycTeller.NotPermissioned.selector);
+        vm.expectRevert(SimUsycTeller.NotPermissioned.selector);
         sleeve.depositIdle(100e6);
     }
 
@@ -73,7 +75,7 @@ contract UsycSleeveTest is Test {
 
         _fundTreasury(100e6);
         vm.prank(treasury);
-        vm.expectRevert(MockUsycTeller.NotPermissioned.selector);
+        vm.expectRevert(SimUsycTeller.NotPermissioned.selector);
         sleeve.depositIdle(100e6);
     }
 
@@ -167,8 +169,8 @@ contract UsycSleeveTest is Test {
     /// cover a payment — and makes a real payment through it.
     function test_the_vault_can_pay_a_bill_out_of_the_usyc_reserve() public {
         MockUSDC vusdc = new MockUSDC();
-        MockUsyc vusyc = new MockUsyc();
-        MockUsycTeller vteller = new MockUsycTeller(vusdc, vusyc);
+        SimUsyc vusyc = new SimUsyc();
+        SimUsycTeller vteller = new SimUsycTeller(IERC20(address(vusdc)), vusyc);
         vusdc.mint(address(vteller), 1_000e6);
 
         FloatPrintStore store = new FloatPrintStore();

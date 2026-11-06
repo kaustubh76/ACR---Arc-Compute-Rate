@@ -191,6 +191,23 @@ float-tape: float-abi
 # proprietary package with Solana transitive deps, and CI's `npm ci` must not
 # pull it to run the acceptance suite. T13 skips with a printed reason when it
 # is absent.
+# The USYC reserve leg, SIMULATED. The sleeve is the real contract; the fund
+# behind it is a stand-in, because Circle's allowlist is a support ticket. The
+# production vault's reserve stays address(0) and T15 asserts it, so nothing
+# here reaches `totalValueUsdc()`. Seeding uses `cast` rather than the script
+# because Arc's USDC is precompile-backed and forge cannot simulate a transfer.
+float-usyc-sim:
+	@test -n "$(FLOAT_KEYSTORE)" || { echo "FLOAT_KEYSTORE not set - path to a v3 keystore for the deployer"; exit 1; }
+	@test -n "$(FLOAT_KEYSTORE_PW)" || { echo "FLOAT_KEYSTORE_PW not set - path to its password file"; exit 1; }
+	cd contracts && forge script script/DeploySimUsyc.s.sol:DeploySimUsyc \
+	  --rpc-url $(ACR_ARC_RPC_URL) --keystore $(FLOAT_KEYSTORE) \
+	  --password-file $(FLOAT_KEYSTORE_PW) --broadcast
+	@echo
+	@echo "Deployed. Seeding and the round trip use cast, because Arc's USDC is"
+	@echo "precompile-backed and forge cannot simulate a transfer of it."
+	@echo "The four commands, and the hashes from the run already on chain, are"
+	@echo "in hackathon/ethglobal-mumbai-2026/CONTINUITY.md."
+
 float-sauce:
 	cd float/sauce && npm install --ignore-scripts --no-audit --no-fund
 	@echo

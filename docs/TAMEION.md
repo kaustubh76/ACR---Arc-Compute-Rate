@@ -338,8 +338,16 @@ Read first-hand over the public testnet RPC on 2026-10-04 (chain 5042002):
 `0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C` holds 183 bytes of proxy code,
 answers `symbol() == "USYC"`, `decimals() == 6`, and reports a testnet supply of
 1,377,750.228757. The Teller that mints and redeems it,
-`0x9fdF14c5B14173D74C08Af27AebFf39240dC105A`, is deployed too — `buy()` takes
-USDC and gives USYC, `sell()` goes back. Mainnet USYC is
+`0x9fdF14c5B14173D74C08Af27AebFf39240dC105A`, is deployed too.
+
+**Correction, 2026-11-06: it has no `buy()` and no `sell()`.** This paragraph
+used to say "`buy()` takes USDC and gives USYC, `sell()` goes back", and the
+verified implementation's function list has neither name. The surface is
+ERC-4626-shaped — `deposit(uint256,address)`, `mint(uint256,address)`,
+`redeem(uint256,address,address)`, `withdraw(uint256,address,address)`. The
+error matters more than the names: a probe written against `buy()` reverts for
+"no such function" and renders as "not permitted", which is a wrong answer that
+looks exactly like the right one. Mainnet USYC is
 `0x8a5D989Bbb96929F689B0200f435f53dA42bF490`.
 
 **What stops it is an allowlist, not a contract.** Circle's own documentation is

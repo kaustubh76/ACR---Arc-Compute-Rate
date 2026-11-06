@@ -722,7 +722,32 @@ const scoutBefore = await bal(SCOUT_EOA);
         saw = `the probe did not get a legible answer: ${m.split("\n")[0]?.slice(0, 90)}`;
       }
     }
-    check("T15", "the USYC reserve's allowlist standing is known, not assumed", ok, saw);
+    // AND THE SIMULATION MUST NOT HAVE BECOME PRODUCTION.
+    //
+    // A stand-in Teller is deployed on this chain so the reserve leg can be
+    // shown working during the event. The thing that keeps it honest is that
+    // the production vault's reserve is `address(0)`, so no invented value can
+    // reach `totalValueUsdc()` — which the terminal, `funding.ts` and this
+    // suite all read. `DeployFloat.s.sol` says so in its own words: a zero
+    // address "is honest, where a mock yield venue would not be".
+    //
+    // Asserted rather than remembered, because wiring the stand-in in later
+    // would be a one-line change that nothing else would notice.
+    const wiredReserve = (await pub.readContract({
+      address: d.vault, abi: V.abi, functionName: "reserve",
+    })) as Address;
+    const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+    if (wiredReserve.toLowerCase() !== ZERO_ADDR) {
+      ok = false;
+      saw += ` — AND THE VAULT'S RESERVE IS ${wiredReserve}, not the zero address.`
+        + " A simulated fund must never be wired into the production treasury's"
+        + " accounting; if this is a real allowlisted sleeve, update this check.";
+    } else {
+      saw += "; the vault's reserve is still address(0), so nothing simulated"
+        + " reaches totalValueUsdc()";
+    }
+
+    check("T15", "the USYC reserve's allowlist standing is known, and the simulation is not wired into production", ok, saw);
   }
 }
 
