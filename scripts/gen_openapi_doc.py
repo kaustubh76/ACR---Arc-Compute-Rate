@@ -88,6 +88,11 @@ OMIT = {
     "/operator/payments/verify": "owner payment inbox, token-gated",
     "/float/checkpoints": "the World gate's approval queue, owner tooling",
     "/float/checkpoint/{cp_id}": "the World gate's approval queue, owner tooling",
+    # The guest join pair: browser steps a person walks, not calls a machine
+    # makes. Off the API reference for the same reason as /ops/* -- audience,
+    # not access -- and excused by name in test_endpoint_register_parity.py too.
+    "/float/guest/bind": "the public join page's first step, walked in a browser",
+    "/float/guest/claim": "the public join page's second step, needs a proof only World can mint",
 }
 
 

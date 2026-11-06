@@ -1026,6 +1026,82 @@ def float_checkpoint(cp_id: int, request: Request) -> dict:
         raise HTTPException(status_code=404, detail="no such checkpoint on this host") from None
 
 
+class GuestBindBody(BaseModel):
+    """What the join page registers before it opens the widget."""
+
+    nonce: str
+    agent: str
+
+
+class GuestClaimBody(BaseModel):
+    """The IDKit result, forwarded whole.
+
+    `proof` is deliberately an opaque dict and is passed to World UNTOUCHED.
+    World's docs are explicit that the result needs no field remapping, and
+    renaming one here would be re-deriving a contract we do not own against a
+    service that will simply reject it. We add exactly one field, `environment`,
+    and we add it on the way out rather than trusting the one on the way in.
+    """
+
+    nonce: str
+    proof: dict
+
+
+@app.post("/float/guest/bind")
+def float_guest_bind(body: GuestBindBody, request: Request) -> dict:
+    """Tie a join request to one wallet, before any proof exists.
+
+    Ungated on purpose, and the reason is worth stating because an open write
+    looks alarming. The nonce it binds is useless on its own: World will only
+    accept a nonce that our signing key signed into the widget's `rp_context`,
+    so a caller inventing nonces here gets rows that can never be spent. What
+    stops farming is the nullifier, not this. And uniqueness is checked in
+    three places, none of which is this table.
+
+    It exists at all because Selfie Check carries no signal of its own, so the
+    signed nonce is the only thing tying a human's proof to a particular wallet.
+    """
+    from . import floatguest, ratelimit
+
+    ratelimit.check(request, "float")
+    gate = floatguest.ensure_guest_gate()
+    if gate is None:
+        return {"status": "pending", "reason": floatguest.guest_status()}
+    try:
+        gate.bind(body.nonce, body.agent)
+    except floatguest.GuestError as e:
+        raise HTTPException(e.status, e.detail) from None
+    return {"status": "ok"}
+
+
+@app.post("/float/guest/claim")
+def float_guest_claim(body: GuestClaimBody, request: Request) -> dict:
+    """Spend a join request for one guest budget, once per human.
+
+    Every refusal is named -- `floatguest.REASONS` is the tuple -- because a
+    join page that can only say "verification failed" cannot tell a visitor
+    whether to try again, install something, or stop.
+
+    The nullifier never appears in this response. What comes back is a mask and
+    the hash the chain stores, which is the whole point of keying on
+    `keccak256("acr.guest::" + nullifier)`.
+    """
+    from . import floatguest, ratelimit
+
+    ratelimit.check(request, "float")
+    gate = floatguest.ensure_guest_gate()
+    if gate is None:
+        return {"status": "pending", "reason": floatguest.guest_status()}
+    try:
+        #: Nested, not flattened. A claim result has its own `ok`, and merging
+        #: it with the envelope's `status` would make one word mean two things.
+        return {"status": "ok", "claim": gate.claim({**body.proof, "nonce": body.nonce})}
+    except floatguest.GuestError as e:
+        #: The reason is machine-readable and the detail is for a person. Both,
+        #: because a page needs to branch on one and show the other.
+        raise HTTPException(e.status, detail={"reason": e.reason, "detail": e.detail}) from None
+
+
 @app.get("/x402/info")
 def x402_info(fac: Facilitator = Depends(get_facilitator)) -> dict:
     """The payment gate, described dynamically (ungated). The Terminal's API

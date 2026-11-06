@@ -406,3 +406,84 @@ class GuestGate:
             "human": mask(nullifier),
             "sandbox_observed": established["sandbox_observed"],
         }
+
+
+# --- the one the service holds ---------------------------------------------
+
+_guest_gate: GuestGate | None = None
+_guest_why: str = "not built yet"
+
+
+def build_guest_gate(settings: Any = None) -> tuple[GuestGate | None, str]:
+    """`(gate, why)`. Never raises, for the reason `floatgate.build_gate` does
+    not: this is reached from a request handler, and an unconfigured join page
+    should answer a sentence rather than a stack trace.
+
+    Offline by construction -- no chain read and no network -- so a service can
+    be told what it is missing before it has either. The check that needs the
+    chain is `GuestGate.vault.guest_preflight()`, which `claim` runs per call
+    because the registrar can be rotated out from under us at any moment.
+    """
+    from acr_core import get_settings
+
+    s = settings or get_settings()
+    missing = [
+        name
+        for name, value in (
+            ("ACR_FLOAT_VAULT_ADDRESS", s.float_vault_address),
+            ("ACR_FLOAT_GUEST_REGISTRAR_PRIVATE_KEY", s.float_guest_registrar_private_key),
+            ("ACR_FLOAT_GUEST_RP_ID", s.float_guest_rp_id),
+        )
+        if not value
+    ]
+    if missing:
+        return None, "not configured: " + ", ".join(missing) + " unset"
+    rpc = getattr(s, "arc_rpc_url", "")
+    if not rpc:
+        return None, "not configured: ACR_ARC_RPC_URL unset, so there is no chain to register on"
+
+    from acr_oracle_client.float_vault import FloatVaultClient
+    from acr_oracle_client.signer import LocalKeySigner
+    from web3 import Web3
+
+    try:
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 25}))
+        vault = FloatVaultClient(
+            w3,
+            s.float_vault_address,
+            signer=LocalKeySigner(s.float_guest_registrar_private_key),
+        )
+    except Exception as exc:  # noqa: BLE001 - a bad key is a sentence, not a trace
+        return None, f"the registrar signer could not be built: {type(exc).__name__}"
+
+    return (
+        GuestGate(
+            vault=vault,
+            rp_id=s.float_guest_rp_id,
+            environment=s.float_guest_environment,
+            min_sybil=s.float_guest_min_sybil,
+        ),
+        "ok",
+    )
+
+
+def ensure_guest_gate(settings: Any = None) -> GuestGate | None:
+    """Build once, then reuse. `guest_status()` carries the reason for a None."""
+    global _guest_gate, _guest_why
+    if _guest_gate is None:
+        _guest_gate, _guest_why = build_guest_gate(settings)
+    return _guest_gate
+
+
+def get_guest_gate() -> GuestGate | None:
+    return _guest_gate
+
+
+def guest_status() -> str:
+    return "ok" if _guest_gate is not None else _guest_why
+
+
+def set_guest_gate(gate: GuestGate | None) -> None:
+    global _guest_gate, _guest_why
+    _guest_gate = gate
+    _guest_why = "ok" if gate is not None else "set to none by hand"

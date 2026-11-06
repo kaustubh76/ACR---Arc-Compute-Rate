@@ -319,3 +319,167 @@ def test_the_reads_are_absent_from_the_paid_set():
     from index_api.app import GATED_ENDPOINTS
 
     assert not [p for p in GATED_ENDPOINTS if p.startswith("/float")]
+
+
+# --- the guest join pair ----------------------------------------------------
+#
+# `floatguest.py` was complete and tested for a day before anything could
+# reach it over HTTP: the module existed, `app.py` never imported it, and it
+# defined no router. These cover the two routes that closed that gap, and the
+# shape they must keep for a join page to be able to branch on a refusal.
+
+
+@dataclass
+class StubGuestGate:
+    """Enough of `GuestGate` to exercise the routes, and nothing more."""
+
+    bound: list = field(default_factory=list)
+    claimed: list = field(default_factory=list)
+    raise_on_bind: object = None
+    raise_on_claim: object = None
+    result: dict = field(
+        default_factory=lambda: {
+            "ok": True,
+            "agent": "0x" + "ab" * 20,
+            "agent_id": "0x" + "cd" * 32,
+            "daily_cap_usdc": 2.0,
+            "tx": "0x" + "ef" * 32,
+            #: Masked at the source, never the nullifier.
+            "human": "••••f3a",
+            "sandbox_observed": False,
+        }
+    )
+
+    def bind(self, nonce, agent):
+        if self.raise_on_bind:
+            raise self.raise_on_bind
+        self.bound.append((nonce, agent))
+
+    def claim(self, payload):
+        if self.raise_on_claim:
+            raise self.raise_on_claim
+        self.claimed.append(payload)
+        return self.result
+
+
+@pytest.fixture
+def guest():
+    from index_api import floatguest
+
+    g = StubGuestGate()
+    floatguest.set_guest_gate(g)
+    yield g
+    floatguest.set_guest_gate(None)
+
+
+def _client():
+    from index_api.app import app
+
+    return TestClient(app)
+
+
+def test_a_join_binds_a_nonce_to_one_wallet(guest):
+    r = _client().post(
+        "/float/guest/bind", json={"nonce": "n-1", "agent": "0x" + "ab" * 20}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == {"status": "ok"}
+    assert guest.bound == [("n-1", "0x" + "ab" * 20)]
+
+
+def test_a_guest_budget_is_issued_and_the_result_is_nested(guest):
+    r = _client().post("/float/guest/claim", json={"nonce": "n-1", "proof": {"x": 1}})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    #: The envelope's own word stays separate from the claim's, for the same
+    #: reason the checkpoint read keeps them apart: one word, one meaning.
+    assert body["status"] == "ok"
+    assert body["claim"]["ok"] is True
+    assert body["claim"]["daily_cap_usdc"] == 2.0
+
+
+def test_the_proof_reaches_the_gate_untouched_with_the_nonce_added(guest):
+    _client().post(
+        "/float/guest/claim",
+        json={"nonce": "n-9", "proof": {"responses": [{"issuer_schema_id": 11}], "keep": "me"}},
+    )
+    #: Forwarded whole. World's docs say the result needs no remapping, and a
+    #: field renamed here would be a contract we do not own, re-derived.
+    assert guest.claimed == [
+        {"responses": [{"issuer_schema_id": 11}], "keep": "me", "nonce": "n-9"}
+    ]
+
+
+def test_a_named_refusal_survives_as_a_reason_a_page_can_branch_on(guest):
+    from index_api.floatguest import GuestError
+
+    guest.raise_on_claim = GuestError(409, "one_guest_budget_per_human", "one budget per human")
+    r = _client().post("/float/guest/claim", json={"nonce": "n-1", "proof": {}})
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    #: BOTH, deliberately: a page branches on `reason` and shows `detail`.
+    assert detail["reason"] == "one_guest_budget_per_human"
+    assert detail["detail"] == "one budget per human"
+
+
+def test_every_named_guest_refusal_can_reach_the_route(guest):
+    """The tuple is the contract a join page is written against."""
+    from index_api.floatguest import REASONS, GuestError
+
+    seen = set()
+    for reason in REASONS:
+        guest.raise_on_claim = GuestError(400, reason, f"detail for {reason}")
+        r = _client().post("/float/guest/claim", json={"nonce": "n", "proof": {}})
+        seen.add(r.json()["detail"]["reason"])
+    assert seen == set(REASONS)
+
+
+def test_a_host_with_no_guest_gate_says_pending_not_broken():
+    from index_api import floatguest
+
+    floatguest.set_guest_gate(None)
+    for path, body in (
+        ("/float/guest/bind", {"nonce": "n", "agent": "0x" + "ab" * 20}),
+        ("/float/guest/claim", {"nonce": "n", "proof": {}}),
+    ):
+        r = _client().post(path, json=body)
+        assert r.status_code == 200, r.text
+        #: "pending", never a 500: this host simply does not run the join page.
+        assert r.json()["status"] == "pending"
+        assert r.json()["reason"]
+
+
+def test_the_claim_response_carries_no_nullifier(guest):
+    r = _client().post("/float/guest/claim", json={"nonce": "n-1", "proof": {}})
+    blob = json.dumps(r.json())
+    assert "nullifier" not in blob
+    #: What a reader gets is the mask and the hash the chain stores.
+    assert r.json()["claim"]["human"].startswith("•")
+
+
+def test_the_guest_gate_stands_down_with_a_named_reason_when_unconfigured():
+    from index_api import floatguest
+
+    class Bare:
+        float_vault_address = ""
+        float_guest_registrar_private_key = ""
+        float_guest_rp_id = ""
+        arc_rpc_url = ""
+
+    gate, why = floatguest.build_guest_gate(Bare())
+    assert gate is None
+    #: It names every missing key at once, so an operator fixes one .env rather
+    #: than discovering the next absence on the next run.
+    for key in (
+        "ACR_FLOAT_VAULT_ADDRESS",
+        "ACR_FLOAT_GUEST_REGISTRAR_PRIVATE_KEY",
+        "ACR_FLOAT_GUEST_RP_ID",
+    ):
+        assert key in why
+
+
+def test_the_join_pair_is_absent_from_the_paid_set():
+    from index_api.app import GATED_ENDPOINTS
+
+    assert "/float/guest/bind" not in GATED_ENDPOINTS
+    assert "/float/guest/claim" not in GATED_ENDPOINTS

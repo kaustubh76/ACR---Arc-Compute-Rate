@@ -45,6 +45,24 @@ NOT_IN_THE_REGISTER: dict[str, str] = {
         "surfaces this one"
     ),
     "/ops/actions": "same, and with dry_run=False it spends real money",
+    # The guest join pair. Off /developers for the same reason /ops/verify is:
+    # audience, not access. That page is a developer's index of what a MACHINE
+    # can buy, and these two are steps a PERSON walks in a browser -- a nonce
+    # bound to their wallet, then a World ID proof spent for a small budget.
+    # Nothing a machine can call usefully: /bind hands back rows that are
+    # unspendable without a widget our signing key signed, and /claim needs a
+    # proof only World can mint. The join page itself is where a reader finds
+    # them.
+    "/float/guest/bind": (
+        "a browser step on the public join page, not something a machine buys: it "
+        "ties a join request to one wallet, and the nonce it binds is unspendable "
+        "unless our signing key signed it into the widget's rp_context"
+    ),
+    "/float/guest/claim": (
+        "the other half of that browser step: it spends a join request for one "
+        "guest budget against a World ID proof, and uniqueness is enforced on "
+        "chain rather than here"
+    ),
     "/compute/{label}": (
         "a fleet seller's metered endpoint, reached by a buyer agent through "
         "/marketplace/catalog and never typed by a reader; it IS in GATED_ENDPOINTS, "

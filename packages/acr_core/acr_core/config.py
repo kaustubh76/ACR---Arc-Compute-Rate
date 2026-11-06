@@ -351,6 +351,20 @@ class ACRSettings(BaseSettings):
     #: Writes the fixed guest template and nothing else. The most exposed key
     #: here, because it is the one wired to a public join page.
     float_guest_registrar_private_key: str = ""
+    #: The Developer Portal's relying-party id, which the verify URL is built
+    #: from. Empty → the join page stands down rather than rendering a widget
+    #: that can only fail, which is the mistake the terminal's own comment has
+    #: warned about since the first World integration.
+    float_guest_rp_id: str = ""
+    #: Which World environment our app lives in. OBSERVED on the way back as
+    #: well as sent: a payload claiming a different one is refused before the
+    #: network call, because a staging proof must not buy anything real.
+    float_guest_environment: str = "production"
+    #: Floor on Selfie Check's `sybil_score`. None means no floor, stated
+    #: rather than smuggled in as a zero that would pass everything. Set
+    #: conservatively -- we have no abuse data to calibrate it against, and the
+    #: submission says so rather than implying the number is a finding.
+    float_guest_min_sybil: int | None = None
     #: How long a parked payment waits. Shorter than World's 20-minute device
     #: code on purpose: the vault's TTL is the binding one, and a human who has
     #: wandered off should not leave an approvable payment lying open.
