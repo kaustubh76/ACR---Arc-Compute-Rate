@@ -1,7 +1,10 @@
 # World ID integration debrief — ACR Float
 
-Feedback for the World ID **Agent Pass** and **Best Use of IDKit** bounties at
-ETHGlobal Mumbai, November 2026. It continues
+Feedback for the World ID bounties at ETHGlobal Mumbai, November 2026. We
+entered **Agent Pass** and its live run completed; we built for **Best Use of
+IDKit** and withdrew it, because the Selfie Check it rests on is no longer
+offered (§3). Both halves of that are reported here, since the half that did not
+ship produced the more useful feedback. It continues
 [`hackathon/ethonline-2026/FEEDBACK_WORLD.md`](../hackathon/ethonline-2026/FEEDBACK_WORLD.md),
 written at ETHOnline when ACR used World ID to gate a *read*. This round the
 same identity releases *money*, so the friction is different and sharper.
@@ -20,9 +23,17 @@ Separately, a venue visitor completes a **Selfie Check** and their agent gets a
 
 | measurement | value | what can fill it |
 |---|---|---|
-| Discovery read and validated against the configured issuer | **pending the live run** | `make world-probe` |
-| Client registration → first device-flow token | **pending the live run** | `make world-probe` |
-| First Selfie Check → verified nullifier | **pending the live run** | a real proof in World App against a registered `rp_id` |
+| Discovery read and validated against the configured issuer | **1.6 s** (median of 5; 1.2–7.8 s) | `make world-probe` |
+| A device authorization → a validated token, twice | **84.0 s** and **49.4 s** | `make world-probe` |
+| First Selfie Check → verified nullifier | **not measurable: the check was withdrawn** | nothing; see §3 |
+
+**Measured live on 2026-11-06 against `sandbox.auth.world.org`**, with a
+registered client and a real person holding a phone. Both figures are
+end-to-end and **the human dominates the second one**: the protocol floors the
+poll interval at five seconds, so of those 84.0 s and 49.4 s our own share is
+the sub-second validation at the end. Reporting a single blended number would
+have hidden that, which is why the two runs are both here rather than averaged.
+The spread between them is a person reaching for a phone, twice.
 
 `make world-probe` fills the **first two** rows: it prints the achieved `acr`,
 `amr`, `auth_time` and the elapsed seconds. It cannot fill the third, and the
@@ -120,6 +131,19 @@ anymore"*, which would remove the problem entirely — but that sentence appears
 nowhere in the documentation, so we could not plan around it and had to treat it
 as a bonus rather than a path.
 
+**`acr` and `amr` can disagree about freshness, and only `amr` tells you.** The
+live token came back with `acr` = orb and `amr` = `["pop","user","mfa"]` — the
+passkey shape, which the docs themselves note *"does not assert a fresh World
+proof"*. So a token can carry orb-level assurance while the authentication that
+produced it was a passkey unlock rather than a fresh orb scan. For a read that
+is fine. For releasing money it is the whole question, and a relying party that
+gates on `acr` alone cannot see the difference. We require `face` in `amr` and
+forbid `mfa` on the policy path for exactly this reason, and this was the first
+live token to exercise it: the same token that legitimately cleared a payment
+would be refused for a rule change. **The guidance we wanted and did not find
+is a single sentence saying `acr` answers "how strong" and `amr` answers "how
+fresh", because the device profile puts them a page apart.**
+
 **IDKit's three representations of one nullifier.** v4 returns 0x-prefixed hex,
 v2 returns `nullifier_hash`, and the integration guide recommends storing a
 decimal `NUMERIC(78, 0)`. One value, three shapes, across two generations that a
@@ -137,13 +161,24 @@ same human is counted as two people.
   that the `values` **array** is the enforceable form — the singular `value`
   spelling is a different member of the OIDC claims syntax and asking with it
   requests nothing.
-- **Where a server should read a trustworthy `sybil_score`.** For Selfie Check
-  (`issuer_schema_id: 11`) the score is required in the verify *request* and the
+- **We built on Selfie Check, and it is no longer offered.** Confirmed with the
+  World team on 2026-11-06, after the credential choice had been designed,
+  implemented, tested and written up around it. The documentation we worked from
+  still describes it — `issuer_schema_id: 11`, the `sybil_score`, the
+  `integrity_bundle` — so there was nothing in the docs to warn us off. **The
+  ask is a deprecation marker in the reference itself, not only in a
+  conversation**: one line saying a schema is withdrawn would have redirected a
+  day of work, and a developer reading the integration guide today would make
+  the same choice we did.
+- **And while it existed, where to read a trustworthy `sybil_score` was never
+  stated.** The score is required in the verify *request* and the
   `integrity_bundle` is documented as covering it, but the score does not appear
-  in the documented verify *response* schema. So the value a backend gates on is
+  in the documented verify *response* schema — so the value a backend gates on is
   one the client supplied and the server forwarded. We believe the integrity
-  bundle is what makes that sound; the docs do not say so, and for a field whose
-  whole purpose is anti-farming that sentence is worth writing down.
+  bundle is what made that sound. The docs never said so, and for a field whose
+  whole purpose is anti-farming that sentence was worth writing down. We record
+  it even though the feature is gone, because the same gap will exist in
+  whatever replaces it.
 - **No `amr` reference beside the device profile.** The three documented shapes
   (`["pop"]`, `["pop","face","user"]`, `["pop","user","mfa"]`) and the note that
   only the passkey factor asserts MFA and *"does not assert a fresh World

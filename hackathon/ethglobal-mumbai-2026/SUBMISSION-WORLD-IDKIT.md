@@ -1,9 +1,43 @@
-# ETHGlobal Mumbai — submission copy (Best Use of IDKit)
+# WITHDRAWN — Best Use of IDKit (not submitted)
+
+> **This entry is withdrawn. We are not submitting it.**
+>
+> **Why.** The whole thing is built on World ID **Selfie Check**, and on
+> 2026-11-06 the World team confirmed that check is **no longer offered** — after
+> the module had been designed, implemented, tested and written up around it. The
+> documentation we worked from still describes it (`issuer_schema_id: 11`, the
+> `sybil_score`, the `integrity_bundle`), so nothing in the reference warned us
+> off. That is now the sharpest item in
+> [`docs/WORLD_DEBRIEF.md`](../../docs/WORLD_DEBRIEF.md) §3.
+>
+> **Why not pivot to Orb instead.** It was available for nothing: the sybil floor
+> fires only for schema 11 (`floatguest.py:345-352`), so an Orb proof already
+> flows through the guest path untouched. We did not, because it inverts the
+> argument this entry is *for* — "Selfie Check needs no Orb, which is the point;
+> an assurance the average visitor cannot obtain protects nothing, because nobody
+> passes it". An Orb-gated public door is a different product, decided in the last
+> hours before a freeze, and presenting it as this one would be dishonest.
+>
+> **This is the rule the document set for itself, applied to itself:** *"a track
+> whose module is half-built is not entered, because a half-entry burns judge
+> goodwill the other entries need"*, and *"we would rather withdraw it than show
+> a widget that cannot complete."*
+>
+> **The code stays and still works.** The guest server, its 31 tests, the join
+> page and `lib/rpContext.test.ts` are all in the repo and green. Withdrawing an
+> entry is not deleting a feature. Everything below is left exactly as written,
+> as an honest record of what was built and why — the reasoning was sound for a
+> credential that existed when we chose it.
+>
+> **The entry we are submitting** is
+> [`SUBMISSION-WORLD-AGENT-PASS.md`](./SUBMISSION-WORLD-AGENT-PASS.md), whose
+> live run completed.
+
+---
+
+# The entry as it was written, before the credential was withdrawn
 
 Bounty: **World — Best Use of IDKit.**
-
-World is **one** partner-prize slot and covers both World tracks; the Agent Pass
-entry is [`SUBMISSION-WORLD-AGENT-PASS.md`](./SUBMISSION-WORLD-AGENT-PASS.md).
 
 ---
 

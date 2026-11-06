@@ -38,14 +38,13 @@ Terminal set-up that makes the recording legible:
 - **Human narration.** No text-to-speech, no AI voice.
 - **Do not speed it up.** The run is fast enough already; sped-up footage reads
   as hiding something.
-- **Length is UNVERIFIED and must be checked on the submission form before you
-  cut.** The event page would not load for us; the prizes page shows per-track
-  limits ranging from "under 3 mins" to "5 minutes or less", and Arc's own block
-  says only "Video demonstration + presentation". Plan for ~2:45 of World
-  material. That fits "under 3 mins" with about fifteen seconds of margin and
-  nothing to spare, so **if the form says less, drop the nonce beat at 0:44
-  first** — it is the newest and the most technical, and the parked checkpoint
-  still carries the argument without it.
+- **Length is no longer a risk.** It used to be: the plan was ~2:45 across two
+  cuts, against per-track limits we could not read (the event page would not
+  load; the prizes page showed anything from "under 3 mins" to "5 minutes or
+  less"), leaving about fifteen seconds of margin and nothing to spare. The
+  IDKit entry is withdrawn, so **Cut 1 is the whole video at 1:58** and clears
+  even the tightest limit we saw. Nothing needs dropping. Still worth a glance
+  at the form, but it is no longer load-bearing.
 
 ---
 
@@ -75,34 +74,28 @@ found that the executor can resolve an open checkpoint, including writing
 EXPIRED over a signature a human already gave. It is disclosed in the
 submission; if a judge asks, say so plainly and say it is unrepaired.
 
-## Cut 2 · IDKit (target 2:05 – 2:45)
+## Cut 2 · IDKit — NOT RECORDED
 
-Needs the Developer Portal credential. If it has not landed, **do not record
-this cut** — our rule is that a half-built module is not entered, and an
-unfinished widget on camera costs more than an absent entry.
+Withdrawn, and the shot list is deleted rather than left to tempt anyone at 2am.
+The entry rested on Selfie Check, which the World team confirmed on 2026-11-06
+is no longer offered. This cut's own instruction was already *"if the credential
+has not landed, do not record this cut — a half-built module is not entered, and
+an unfinished widget on camera costs more than an absent entry."* The credential
+will never land, so the instruction resolves to: do not record it.
 
-| time | screen | say, roughly |
-|---|---|---|
-| 2:05 | the join page | "A visitor proves they are a person once. Not an Orb — Selfie Check, which anyone with the app can complete." |
-| 2:17 | the budget arrives | "The vault issues a guest agent with a 2 USDC daily cap, flagged a guest so it is revocable on its own." |
-| 2:29 | **the same human again** | "Same person, second agent. Refused — and refused by the chain itself, not by our database. The agent id is a hash of the nullifier, so the chain can answer 'has this human already been funded' in one call." |
+The guest code, its 31 tests and the join page remain in the repo and green. If
+a judge asks what the second track was, point at
+`SUBMISSION-WORLD-IDKIT.md`, which is kept intact and marked withdrawn.
 
-**The credential sentence, verbatim** — it is a required deliverable and it is
-quoted in the submission, so say it as written rather than paraphrasing:
-
-> Small revocable budget → least identity that stops farming: Selfie Check +
-> sybil floor; Orb is the config flag for real money; passport rejected — more
-> identity than the risk needs.
-
-Then the number, because it is what makes that defensible:
-
-> Controlling one verified human costs an attacker at least ten dollars, by our
-> own audited floor. A guest budget is two dollars a day. A rented identity does
-> not pay for itself inside five days.
-
-Say **"at least"**. The figure is a lower bound flagged `unsourced` in our own
-anchor file, and claiming it as measured would be the one dishonest sentence in
-the whole submission.
+**An optional beat for Cut 1 instead, if it fits inside 1:58 — and it is real
+rather than reasoned.** The live token came back with `amr` =
+`["pop","user","mfa"]`, the passkey shape that World's own docs say *"does not
+assert a fresh World proof"*. So `acr` said orb while the authentication was a
+passkey unlock. The spend cleared, correctly: orb assurance is what that path
+asks for. The same token would be **refused for a policy change**, because that
+path requires `face` in `amr` and forbids `mfa`. One sentence on camera: *"this
+token can move money and cannot change the rules."* Cut it first if time is
+tight — the paid and denied beats carry the argument without it.
 
 ---
 

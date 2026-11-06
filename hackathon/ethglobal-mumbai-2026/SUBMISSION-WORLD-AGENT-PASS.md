@@ -3,9 +3,12 @@
 Bounty: **World — World ID Agent Pass, Continuity Track.**
 
 Stated explicitly, as the Arc entry does, because a submission that names its
-bounty is easier to judge. World is **one** partner-prize slot and covers both
-World tracks; the IDKit entry is
-[`SUBMISSION-WORLD-IDKIT.md`](./SUBMISSION-WORLD-IDKIT.md).
+bounty is easier to judge. **This is our only World entry.** We built a second
+one for Best Use of IDKit and withdrew it: it rested on Selfie Check, which the
+World team confirmed on 2026-11-06 is no longer offered. It is kept, marked
+withdrawn and unpruned, at
+[`SUBMISSION-WORLD-IDKIT.md`](./SUBMISSION-WORLD-IDKIT.md), and the withdrawal
+is the sharpest finding in the debrief.
 
 ---
 
@@ -214,11 +217,15 @@ Every claim is re-derivable by a command in the repo.
 
 ## Status of the live run, stated plainly
 
-The engine is complete and adversarially tested. The live leg is configured
-against World's **sandbox** issuer, `sandbox.auth.world.org`, and that is a
-decision rather than a shortfall: the production portal does not open to a
-non-Orb developer account, and sandbox is the path World's own documentation
-prescribes for one.
+**The live leg ran.** On 2026-11-06 a registered client on World's **sandbox**
+issuer, `sandbox.auth.world.org`, issued two real ID tokens to a real person
+holding a phone, and both cleared the nine-rung ladder.
+
+One scoping note we would rather state than let a reader infer: sandbox is where
+our client lives, and **we did not establish whether the production portal would
+have opened to us.** We read that it does not open to a non-Orb developer
+account, planned around that, and never tested it. The same client is refused by
+production with HTTP 401, which proves only that it is not registered there.
 
 It is irreversible in a way worth stating plainly. The issuer string is hashed
 into `treasurerBinding`, and `setTreasurerBinding` accepts a value exactly once
@@ -247,13 +254,32 @@ than a production one we cannot. Concretely:
   **This is not evidence about World.** A local issuer says yes because it was
   written to. It proves the code between our configuration and a token, which is
   the part that is ours to get right.
-- What a live client adds is the device flow's own leg — a user code on a phone,
-  a real `sub`, a real `auth_time` — and the **two** device-flow timing rows
-  still marked *pending the live run* in the debrief. `make world-probe`
-  produces them in about twenty seconds once the client exists, and it was
-  written before the credentials did so the figure would be a measurement rather
-  than a memory. The debrief's third row is a **Selfie Check** measurement and
-  belongs to the IDKit entry, not to this one: no command here produces it.
+- **And then a real issuer did it.** `make world-probe` and `make world-enroll`
+  each opened a device authorization against sandbox, a person approved in World
+  App, and a genuine RS256 token came back and passed every rung: `acr` orb,
+  `auth_time` after the checkpoint opened, the signature verified against a JWKS
+  fetched from the advertised `jwks_uri`. Discovery answers in **1.6 s** (median
+  of five) and the two end-to-end runs took **84.0 s** and **49.4 s** — figures
+  the human dominates, since the protocol floors the poll interval at five
+  seconds and our own share is the sub-second validation at the end. The
+  debrief's two device-flow rows are now measurements. Its third was a **Selfie
+  Check** row and is now marked unmeasurable, because that check no longer
+  exists — which is what withdrew our second entry.
+- **The live token also found something we had only reasoned about.** It came
+  back with `amr` = `["pop","user","mfa"]` — the passkey shape, which World's
+  own docs note *"does not assert a fresh World proof"*. So `acr` said orb while
+  the authentication was a passkey unlock. Our spend path accepts that, which is
+  correct: orb assurance is what it asks for. Our **policy** path would refuse
+  this exact token, because it requires `face` in `amr` and forbids `mfa`. That
+  separation was built from the documentation months ago and this is the first
+  token to prove it bites — the same credential that legitimately cleared a
+  payment cannot change the rules.
+- **What the chain still does not know.** `treasurerBinding` is computed and
+  verified to round-trip, and remains **unsent**: it is one-shot from zero, so it
+  is the operator's transaction and not ours. Until it lands the chain pins no
+  particular person and the server-side ladder is what enforces identity. The
+  public vault also still needs its three role keys pointed at the press. We
+  would rather ship this sentence than a demo whose provenance is ambiguous.
 - The path up to "needs a real client" **was** verified against the live API
   without one: discovery answers on both issuers, `claims_parameter_supported`
   is true on both, and the device authorization endpoint correctly refuses an
@@ -266,7 +292,7 @@ We would rather say this than show a demo whose provenance is ambiguous.
 ## Links to fill in at submission time
 
 - **GitHub**: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
-- **Debrief (required by both World bounties)**: [`docs/WORLD_DEBRIEF.md`](../../docs/WORLD_DEBRIEF.md)
+- **Debrief (required by the bounty)**: [`docs/WORLD_DEBRIEF.md`](../../docs/WORLD_DEBRIEF.md)
 - **Continuity disclosure**: [`CONTINUITY.md` §4.2](./CONTINUITY.md)
 - **FloatVault on Arc Testnet**: `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` (chain 5042002)
 - **The approvals card**: `/float/approve` on the terminal
