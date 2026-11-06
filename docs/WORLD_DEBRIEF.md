@@ -35,6 +35,25 @@ true on both, and the device authorization endpoint correctly refuses an
 unregistered client with HTTP 401. The whole path up to "needs a real client"
 was verifiable before we had one, which is a good property and worth keeping.
 
+And what we can report about our own half, separately, because conflating the
+two would make the table useless. `make rehearse-float` walks the entire
+journey against a real vault on a local chain and times each leg:
+
+| leg, measured | elapsed |
+|---|---|
+| stand up a vault, wire three roles, seed a policy and fund it | 1.6 s |
+| park a payment, validate a human, release it to the seller | 0.3 s |
+| park and record a denial on chain | 0.3 s |
+| park and let the window close, recorded as expiry | 0.3 s |
+| three refusals that are not the human's fault | under 0.1 s |
+
+Those numbers are the *mechanism*, not the provider: the token in that run is
+one we mint ourselves and validate through the same nine-rung ladder, so what
+they measure is how long our side takes once a human has answered. The three
+rows above still waiting are the ones only World's own issuer can fill, and the
+separation is deliberate — a single blended figure would hide which side of the
+boundary any latency came from.
+
 ## 2 · Friction encountered
 
 **The approval screen cannot say what is being approved.** This is the one that
