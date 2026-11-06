@@ -6,7 +6,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ZERO_ADDRESS, ZERO_BYTES32, gateVerdict, type WorldGateState } from "./worldGate";
+import {
+  GOVERNS,
+  UNGOVERNED,
+  ZERO_ADDRESS,
+  ZERO_BYTES32,
+  gateVerdict,
+  type WorldGateState,
+} from "./worldGate";
 
 const OWNER = "0x64E21e01e7D9Abfd4C32cfaC4F590B24ECf38d16";
 const PRESS_APPROVER = "0x674f6f1347b0A73014B85f6CCe17a7ECCACAE7AF";
@@ -105,6 +112,12 @@ test("the yield path is named as ungoverned, never as something a transaction fi
   const said = v.ungoverned.join(" ");
   assert.ok(said.includes("rebalance"));
   assert.ok(said.includes("setSleeves"));
+  //: THE DRIFT GUARD. The page renders these constants directly when the chain
+  //: cannot be read, so a sentence that exists in only one of the two places
+  //: would show up for some readers and not others.
+  assert.ok(GOVERNS.length > 0 && UNGOVERNED.length > 0);
+  for (const g of GOVERNS) assert.ok(v.governs.includes(g), `governs lost: ${g}`);
+  for (const u of UNGOVERNED) assert.ok(v.ungoverned.includes(u), `ungoverned lost: ${u}`);
   //: No owner transaction changes bytecode, so none of this may leak into the
   //: list the page promises is one transaction each.
   assert.deepEqual(v.outstanding, []);

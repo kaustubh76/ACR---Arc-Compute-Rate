@@ -11,7 +11,7 @@ import { useChain } from "@/lib/useChain";
 import { fetcherFor } from "@/lib/useLive";
 import { useNow } from "@/lib/useNow";
 import { useFloatQueue } from "@/lib/useLive";
-import { gateVerdict, type WorldGateState } from "@/lib/worldGate";
+import { GOVERNS, UNGOVERNED, gateVerdict, type WorldGateState } from "@/lib/worldGate";
 import { shortAcr, unadvertisedForSpend, type WorldDiscovery } from "@/lib/worldIssuer";
 
 /* A MODULE CONSTANT, never an inline arrow: SWR restarts its timer whenever the
@@ -232,42 +232,40 @@ function WorldGatePanel() {
               </ul>
             </>
           ) : null}
-          {/* THE BOUNDARY. Without this the page shows four approval slots and
-              lets a reader infer the human governs the treasury. It does not:
-              the yield path moves on one key and no checkpoint kind exists for
-              it, so the honest surface has to say so next to the slots. */}
-          {verdict ? (
-            <>
-              <Ed
-                as="p"
-                className="muted"
-                x="What a verified human governs on this vault:"
-                p="What a real person has to agree to:"
-              />
-              <ul className="muted">
-                {verdict.governs.map((g) => (
-                  <li key={g} className="mono">
-                    {g}
-                  </li>
-                ))}
-              </ul>
-              <Ed
-                as="p"
-                className="muted"
-                x="And what moves on a single key, with no person in the path:"
-                p="And what one key can do with nobody agreeing:"
-              />
-              <ul className="muted">
-                {verdict.ungoverned.map((g) => (
-                  <li key={g} className="mono">
-                    {g}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
         </>
       )}
+      {/* OUTSIDE THE CHAIN READ ON PURPOSE. These sentences are about the
+          deployed bytecode, not about whether we can reach it, so they must
+          survive a cold start and a throttled read. Behind `verdict` they
+          vanished exactly when the page was least informative, which is how
+          this was found: a clean build served zero occurrences of every one of
+          them. The chain-dependent entries still arrive through `verdict`. */}
+      <Ed
+        as="p"
+        className="muted"
+        x="What a verified human governs on this vault:"
+        p="What a real person has to agree to:"
+      />
+      <ul className="muted">
+        {(verdict?.governs ?? GOVERNS).map((g) => (
+          <li key={g} className="mono">
+            {g}
+          </li>
+        ))}
+      </ul>
+      <Ed
+        as="p"
+        className="muted"
+        x="And what moves on a single key, with no person in the path:"
+        p="And what one key can do with nobody agreeing:"
+      />
+      <ul className="muted">
+        {(verdict?.ungoverned ?? UNGOVERNED).map((g) => (
+          <li key={g} className="mono">
+            {g}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

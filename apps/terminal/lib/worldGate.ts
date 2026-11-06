@@ -68,6 +68,28 @@ export type GateVerdict = {
   ungoverned: string[];
 };
 
+/* THE UNCONDITIONAL HALF OF THE BOUNDARY, EXPORTED SO A PAGE CAN RENDER IT
+ * WITHOUT READING THE CHAIN.
+ *
+ * Found by building this and serving it: the lists were behind `verdict`, which
+ * is null whenever the chain read fails, so on a cold start or a throttled read
+ * the page showed four approval slots and NO boundary -- exactly the misleading
+ * state the boundary exists to prevent. These sentences describe the deployed
+ * bytecode, not this deployment, so nothing about them needs a successful read.
+ * `gateVerdict` still returns them, and appends the two entries that genuinely
+ * do depend on state. */
+export const GOVERNS = [
+  "payments: executeApproved needs a signature from the approver over this checkpoint's own hash",
+  "policy: setPolicy, setAgent and allowSeller route through a checkpoint while requirePolicyCheckpoint is on",
+];
+
+export const UNGOVERNED = [
+  "rebalance moves float between the buffer and the sleeves on the keeper key alone: no signature, no cap, no cooldown",
+  "openCheckpoint takes only the spend and policy kinds, so a sleeve move cannot be parked for a human even in principle",
+  "setSleeves re-points a sleeve on the owner key alone (audit finding M5, accepted rather than repaired)",
+  "the share cap and the minimum interval live in the keeper's own arithmetic off chain, so a direct rebalance bypasses both",
+];
+
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 export function gateVerdict(s: WorldGateState): GateVerdict {
@@ -105,19 +127,8 @@ export function gateVerdict(s: WorldGateState): GateVerdict {
     outstanding.unshift("the treasury is paused, so no spend can be released at all");
   }
 
-  //: UNCONDITIONAL, because they describe the contract rather than this
-  //: deployment. A reader needs to know what the gate reaches before they can
-  //: read anything else on the page as evidence.
-  const governs = [
-    "payments: executeApproved needs a signature from the approver over this checkpoint's own hash",
-    "policy: setPolicy, setAgent and allowSeller route through a checkpoint while requirePolicyCheckpoint is on",
-  ];
-  const ungoverned = [
-    "rebalance moves float between the buffer and the sleeves on the keeper key alone: no signature, no cap, no cooldown",
-    "openCheckpoint takes only the spend and policy kinds, so a sleeve move cannot be parked for a human even in principle",
-    "setSleeves re-points a sleeve on the owner key alone (audit finding M5, accepted rather than repaired)",
-    "the share cap and the minimum interval live in the keeper's own arithmetic off chain, so a direct rebalance bypasses both",
-  ];
+  const governs = [...GOVERNS];
+  const ungoverned = [...UNGOVERNED];
   if (same(s.reserve, ZERO_ADDRESS)) {
     //: Not cosmetic. FloatVault guards `reserve != 0` before depositing, so the
     //: reserve share of every rebalance is computed and then silently stays in
