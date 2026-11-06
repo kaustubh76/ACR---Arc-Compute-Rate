@@ -85,13 +85,22 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
   const reserve = vault.reserve;
   const total = vault.total_usdc ?? buffer + (working?.value_usdc ?? 0) + (reserve?.value_usdc ?? 0);
 
-  /* WHAT A DRAW CAN HONESTLY REACH. The reserve is excluded because it is not
-     live, and an unread sleeve (`undefined`) is excluded too: showing a pull
-     out of a balance the chain did not answer for would be the same invention
-     the panel refuses everywhere else. The chip below already says a sleeve
-     could not be read, and the slider simply stops at the buffer. */
-  const pullable = working ? working.value_usdc : 0;
-  const ceiling = buffer + pullable;
+  /* WHAT A DRAW CAN HONESTLY REACH: whatever is actually there to be pulled.
+     A sleeve counts when it is a sleeve — `null` is read-and-not-live and
+     `undefined` is not-read, and both are falsy here, so showing a pull out of
+     a balance the chain never answered for cannot happen.
+
+     THE RESERVE IS IN THIS SUM, AND TODAY THAT CHANGES NOTHING. It ships as a
+     null sleeve pending a Circle allowlist, so `reserveValue` is 0 and the
+     ceiling is still buffer plus working to the cent. It is written this way
+     because the alternative was a hardcoded exclusion with a comment saying
+     "the reserve is not live" — a sentence that would have become false the
+     day someone funded one, leaving the slider quietly refusing to spend a
+     balance the treasury actually held. The pull order is the contract's:
+     buffer first, then the working sleeve, then the reserve. */
+  const workingValue = working ? working.value_usdc : 0;
+  const reserveValue = reserve ? reserve.value_usdc : 0;
+  const ceiling = buffer + workingValue + reserveValue;
   const [draw, setDraw] = useState(0);
 
   /* The contract's own order, and the whole reason the slider exists: spend the
@@ -99,7 +108,11 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
   const want = Math.min(draw, ceiling);
   const fromBuffer = Math.min(want, buffer);
   const shortfall = Math.max(0, want - buffer);
-  const fromWorking = Math.min(shortfall, pullable);
+  const fromWorking = Math.min(shortfall, workingValue);
+  /* Only what the working sleeve could not cover reaches the reserve, which is
+     the order `_fund` pulls in. Zero today and zero for as long as the reserve
+     is not live. */
+  const fromReserve = Math.min(Math.max(0, shortfall - workingValue), reserveValue);
 
   const minTicket = vault.policy?.min_ticket_usdc ?? 0;
   const drawing = want > 0;
@@ -149,6 +162,8 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
         <Row
           fill="fill-reserve"
           label={<Ed x="reserve sleeve" p="held back" />}
+          taken={fromReserve}
+          takenFill="fill-pull"
           total={total}
           value={reserve.value_usdc}
         />
@@ -197,6 +212,15 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
                 <Ed x="the buffer is spent, so the sleeve gives up" p="the ready money runs out, so savings give up" />{" "}
                 <span className="num gold">{fmtPrice(fromWorking)}</span>{" "}
                 <Ed x="USDC in the same transaction" p="USDC in the same go" />
+                {/* Only reachable once a reserve sleeve is live, which is why
+                    it is a branch rather than a sentence that assumes one. */}
+                {fromReserve > 0 ? (
+                  <>
+                    {" · "}
+                    <Ed x="and the reserve gives up" p="and the held back pot gives up" />{" "}
+                    <span className="num gold">{fmtPrice(fromReserve)}</span>
+                  </>
+                ) : null}
               </>
             )}
             {minTicket > 0 && drawing && want < minTicket ? (

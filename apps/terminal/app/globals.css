@@ -3004,108 +3004,139 @@ a.colophon-act:hover::after {
   border-radius: 0 var(--r-md) var(--r-md) 0;
   background: var(--gold-wash);
 }
-/* --- the twelve rungs, as a sequence a reader can WATCH ------------------
+/* --- the twelve checks, as an instrument rather than a wall ---------------
 
-   MEASURED BEFORE ANY OF THIS WAS WRITTEN, on the deployed page: at rest the
-   ladder resolved in 386ms to twelve `passed` boxes of identical height, colour
-   and shape, 681px of them. A 3x overcharge produced a genuinely interesting
-   answer — nine cleared, rung ten stopped it, two never reached — and drew it
-   as one 39px box among twelve whose only difference was a border colour. The
-   user's word for the result was "buggy", and that is the right word: twelve
-   identical boxes look like a list that failed to populate.
+   MEASURED TWICE AND REPORTED AS UNPROFESSIONAL BOTH TIMES. The first version
+   drew twelve full-width cards: 660px of ladder in a 1072px section, which a
+   reader scrolls a screen and a half of to learn one fact. Adding marks,
+   motion and a hierarchy to those cards fixed everything except the form, and
+   the form was the complaint. Twelve stacked cards is a debug dump.
 
-   Three fixes, and none of them is decoration. The states get MARKS so they do
-   not rest on colour (SC 1.4.1: the glyphs differ in shape, which is the
-   non-colour visual means; the `.sr-only` word beside each is for assistive
-   tech, a different requirement). The quiet states get LESS WEIGHT so the rung
-   that answered is the one the eye lands on. And the walk gets `queued`, so a
-   rung the light has not reached yet stops claiming it was never reached.
+   The information is small: twelve ordered checks, how far the vault got,
+   which one answered and what it said. That is a rail and a readout.
 
-   SCOPED TO `.rung-walk` AND NOT `.flow-rungs`, because `components/float/Walk.tsx`
-   uses `.flow-rungs`, `.rung`, `.rung-no` and `.rung-said` for the four steps of
-   one payment. Those rules are shared; these are the ladder's own. */
+   THE RAIL IS A TABLIST, AND THAT IS NOT DECORATION. Twelve per-rung opener
+   buttons had taken the page from 80 tab stops to 100, so crossing one
+   component cost a keyboard user twelve stops. A tablist with a roving
+   tabindex is ONE stop with arrows along it, and `lib/scrub.ts`'s `stepScrub`
+   already had the key handling.
 
-/* The light has not arrived here yet. NOT dashed: dashed is `dim`, which means
-   the run stopped short of this rung, and a rung mid-walk must not claim that
-   about itself one frame before it lights. */
-.flow-node.queued {
-  opacity: 0.45;
+   The rail also replaces the separate progress track it used to sit under.
+   The rail IS the track; having both drew one fact twice. */
+.rung-rail {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--s-2);
+  margin-top: var(--s-4);
 }
-/* The vault has not answered at all. The whole ladder sits here on first paint
-   and it used to sit in `dim`. */
-.flow-node.running {
+/* Twelve cells in a 375px viewport is about 26px each, which clears the 24px
+   target by two pixels and reads as a row of slivers. Six is comfortable and
+   keeps the order legible across two rows. */
+@media (max-width: 640px) {
+  .rung-rail {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+.rung-cell {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  align-content: center;
+  min-width: 0;
+  min-height: 40px;
+  padding: var(--s-2) 0;
+  font: inherit;
+  color: var(--ether-45);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-expo), background var(--dur-1) var(--ease-expo),
+    color var(--dur-1) var(--ease-expo), opacity var(--dur-1) var(--ease-expo);
+}
+.rung-cell-no {
+  font-family: var(--mono);
+  font-size: var(--t-1);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-2);
+}
+.rung-cell-mark {
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  line-height: var(--lh-2);
+}
+.rung-cell.passed {
+  border-color: rgba(79, 179, 169, 0.5);
+  color: var(--finality);
+}
+.rung-cell.blocked {
+  border-color: var(--breach);
+  background: var(--breach-wash);
+  color: var(--breach);
+}
+.rung-cell.lit {
+  border-color: rgba(233, 161, 63, 0.6);
+  background: var(--gold-wash);
+  color: var(--gold);
+}
+/* Unreached: the run stopped before this one. Dashed, as it was in the cards. */
+.rung-cell.dim {
+  border-style: dashed;
   opacity: 0.62;
 }
-.flow-node.running .rung-mark {
+/* The light has not arrived here yet, which is not the same as never reached. */
+.rung-cell.queued {
+  opacity: 0.4;
+}
+/* No answer from the vault at all. */
+.rung-cell.running {
+  opacity: 0.55;
+}
+.rung-cell.running .rung-cell-mark {
   animation: rung-wait 1.4s ease-in-out infinite;
 }
 @keyframes rung-wait {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+/* `currentColor`, so the selected underline is whatever the cell's state made
+   it: teal on a cleared check, coral on the one that stopped it. One rule
+   instead of a variant per state. */
+.rung-cell[aria-selected="true"] {
+  box-shadow: inset 0 -2px 0 0 currentColor;
+}
 
-/* The rung's header, and the control that opens it. A button rather than a
-   click handler on the box: the box can hold a link (the escalation fork), and
-   a button may not contain one. */
-.rung-open {
-  display: grid;
-  grid-template-columns: 16px 20px minmax(0, 1fr);
+/* The readout. One of these rather than twelve, which is the whole saving. */
+.rung-panel {
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+  background: var(--glass);
+}
+.rung-panel.blocked {
+  border-left-color: var(--breach);
+}
+.rung-panel.lit {
+  border-left-color: var(--gold);
+}
+.rung-panel-head {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--s-2) var(--s-3);
   align-items: baseline;
-  width: 100%;
-  min-height: 24px;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
 }
-.rung-mark {
-  font-family: var(--mono);
-  font-size: var(--t-3);
-  line-height: var(--lh-2);
-  text-align: center;
-  color: var(--ether-45);
-}
-.flow-node.passed .rung-mark {
-  color: var(--finality);
-}
-.flow-node.blocked .rung-mark {
-  color: var(--breach);
-}
-.flow-node.lit .rung-mark {
-  color: var(--gold);
-}
-
-/* ONE BOX IS THE ANSWER. The four quiet states lose a step of padding and the
-   two that answered keep theirs, which is the whole of the hierarchy: same
-   twelve rungs, so the "twelve checks in order" reading survives, but the eye
-   lands on the rung that decided rather than sweeping twelve equals. */
-.rung-walk .flow-node.passed,
-.rung-walk .flow-node.dim,
-.rung-walk .flow-node.queued,
-.rung-walk .flow-node.running {
-  padding: var(--s-2) var(--s-4);
-}
-.rung-walk .flow-node.blocked,
-.rung-walk .flow-node.lit {
-  padding: var(--s-4);
-}
-/* `.rung-said` sits in `.rung`'s grid for Walk and is a plain sibling here, so
-   it needs its own indent to stay under the rung's words rather than under the
-   mark. */
-.rung-walk .rung-said {
+/* `.rung-said` sits in `.rung`'s grid for `Walk.tsx`; here it is a block. */
+.rung-panel .rung-said {
   display: block;
   grid-column: auto;
-  margin: var(--s-2) 0 0 calc(16px + 20px + var(--s-3) * 2);
+  margin-top: var(--s-3);
 }
-/* What the check compares, opened. Indented to the same column as the words. */
 .rung-why {
   display: grid;
   gap: var(--s-1);
-  margin: var(--s-2) 0 0 calc(16px + 20px + var(--s-3) * 2);
+  margin-top: var(--s-2);
   font-family: var(--mono);
   font-size: var(--t-2);
   line-height: var(--lh-3);
@@ -3114,31 +3145,6 @@ a.colophon-act:hover::after {
 .rung-why b {
   font-weight: 400;
   color: var(--sand);
-}
-
-/* HOW FAR IT GOT, IN ONE GLANCE. Twelve cells, so the answer is readable
-   without reading 681px of boxes. */
-.rung-track {
-  display: flex;
-  gap: 3px;
-  align-items: center;
-  margin-top: var(--s-3);
-}
-.rung-track i {
-  flex: 1 1 0;
-  height: 4px;
-  border-radius: var(--r-pill);
-  background: rgba(172, 198, 233, 0.12);
-  transition: background var(--dur-1) var(--ease-expo);
-}
-.rung-track i.on {
-  background: var(--finality);
-}
-.rung-track i.stop {
-  background: var(--breach);
-}
-.rung-track i.park {
-  background: var(--gold);
 }
 
 .rung-quote {
@@ -3396,10 +3402,10 @@ a.colophon-act:hover::after {
      static composition is the four boxes and the agent's dashed tether, and
      the dot is the only thing that moves. */
   .money.paying .money-dot,
-  /* The ladder's waiting mark. INFINITE, like the dot above, and it sits on all
-     twelve rungs at once while the first verdict is in flight — twelve things
+  /* The rail's waiting mark. INFINITE, like the dot above, and it sits on all
+     twelve cells at once while the first verdict is in flight — twelve things
      pulsing is exactly what a reduced-motion request is about. */
-  .flow-node.running .rung-mark,
+  .rung-cell.running .rung-cell-mark,
   .skel::after {
     animation: none !important;
   }

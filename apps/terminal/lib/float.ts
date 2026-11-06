@@ -341,6 +341,33 @@ export type FloatTape = {
    yield venue and comes back the instant a bill needs it. This is the number
    that says whether that was worth doing. */
 
+/** The reserve sleeve's fund, read rather than asserted.
+ *
+ *  EVERY FIELD IS NULLABLE FOR THE SAME REASON THE REST OF THIS SURFACE IS: a
+ *  throttled read must not render as a zero supply or a missing contract, and
+ *  "nothing is deployed there" is the one answer this panel exists to be able
+ *  to give honestly. `null` is not-read; a real zero is a real zero. */
+export type FloatReserveFacts = {
+  status: "ok" | "pending";
+  reason?: string;
+  /** The fund's own token, and the teller that mints and redeems it. */
+  token?: string;
+  teller?: string;
+  symbol?: string | null;
+  decimals?: number | null;
+  /** The fund's whole supply, in its own units. */
+  supply?: number | null;
+  /** Bytes of code at each address. A real 0 means nothing is deployed. */
+  token_code_bytes?: number | null;
+  teller_code_bytes?: number | null;
+  /** What this treasury holds of the fund. Zero today, and honest. */
+  held?: number | null;
+  /** Whether the live reads still match what `docs/TAMEION.md` recorded.
+   *  `null` when either half was not read, because a throttled read is not a
+   *  disagreement. */
+  agrees_with_record?: boolean | null;
+};
+
 export type FloatYield = {
   status: "ok" | "pending";
   reason?: string;

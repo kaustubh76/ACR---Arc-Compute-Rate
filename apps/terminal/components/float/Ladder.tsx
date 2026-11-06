@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Ed } from "@/components/Ed";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/floatLadder";
 import { modelOf } from "@/lib/floatRunway";
 import { fmtInt, fmtPrice } from "@/lib/format";
+import { stepScrub } from "@/lib/scrub";
 import type { DryRun } from "@/lib/routeInput";
 import { useDebounced } from "@/lib/useDebounced";
 import { useFloatClassify } from "@/lib/useLive";
@@ -230,11 +232,46 @@ export function Ladder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walkKey]);
 
-  /* One rung open at a time, as the tape opens one row at a time. */
-  const [openRung, setOpenRung] = useState<number | null>(null);
+  /* WHICH CHECK THE READOUT SHOWS. A rung code, 1..12, and always exactly one:
+     a tablist with no selection has nothing to read out. */
+  const [sel, setSel] = useState<number>(1);
+  const railRef = useRef<HTMLDivElement | null>(null);
+
+  /* THE READOUT FOLLOWS THE VERDICT. A new answer selects the rung that
+     answered, so the one thing a reader wants is already open and the panel is
+     never a click away from the point. Adjusted during render for the same
+     reason the walk is: an effect runs after paint, so the panel would show the
+     previous answer's rung for a frame. When everything cleared there is no
+     deciding rung, and check one is an honest place to rest rather than an
+     invented selection. */
+  const [selFor, setSelFor] = useState(walkKey);
+  if (selFor !== walkKey) {
+    setSelFor(walkKey);
+    setSel(stoppedAt(code) ?? 1);
+  }
 
   const cleared = clearedCount(code);
   const stopRung = stoppedAt(code);
+  const selRung = LADDER[Math.min(Math.max(sel, 1), LADDER.length) - 1];
+  const selPaint = walkedState(selRung, code, walk);
+
+  /* ARROWS ALONG THE RAIL, borrowed rather than written. `stepScrub` is the
+     chart crosshair's key handling: pure, tested, Left/Right/Home/End over a
+     0-based index, and `undefined` for a key it does not handle so everything
+     else passes through. It returns null for Escape, which would mean "no
+     selection"; a tablist always has one, so that is ignored here rather than
+     clearing.
+
+     FOCUS HAS TO FOLLOW THE SELECTION. With a roving tabindex the cell a
+     reader just left becomes unfocusable, so without this the keyboard is
+     stranded on a cell it can no longer tab out of predictably. */
+  const onRailKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const next = stepScrub(sel - 1, e.key, LADDER.length);
+    if (next === undefined || next === null) return;
+    e.preventDefault();
+    setSel(next + 1);
+    railRef.current?.querySelector<HTMLButtonElement>(`[data-cell="${next + 1}"]`)?.focus();
+  };
 
   const unitPrice = fair > 0 && units > 0 ? fair / units : 0;
   const threshold = standing?.per_request_usdc ?? 0;
@@ -441,10 +478,7 @@ export function Ladder({
         <span className="num">{left === null ? "…" : fmtPrice(left)}</span>
       </div>
 
-      {/* HOW FAR IT GOT, IN ONE LINE. The twelve boxes below are 681px of
-          ladder, and a reader should not have to read all of them to learn
-          whether the vault would pay. The track fills WITH the walk rather
-          than ahead of it, so the summary and the sequence agree. */}
+      {/* HOW FAR IT GOT, IN ONE LINE, above the rail that shows it. */}
       <p className="label mono">
         {code === null ? (
           <Ed x="asking the vault" p="asking the vault" />
@@ -459,100 +493,117 @@ export function Ladder({
           </>
         )}
       </p>
-      <div aria-hidden className="rung-track">
+
+      {/* THE RAIL. Twelve cells where there were twelve cards, and a tablist
+          rather than twelve buttons: one tab stop, arrows along it. The walk
+          lights them left to right, which on a rail reads as a scan. */}
+      <div
+        aria-label="the twelve checks, in order"
+        className="rung-rail"
+        onKeyDown={onRailKey}
+        ref={railRef}
+        role="tablist"
+      >
         {LADDER.map((rung) => {
-          const reached = rung.code <= walk && code !== null;
-          const cls = !reached
-            ? undefined
-            : rung.code === stopRung
-              ? escalates(code)
-                ? "park"
-                : "stop"
-              : rung.code <= cleared
-                ? "on"
-                : undefined;
-          return <i className={cls} key={rung.code} />;
+          const state = walkedState(rung, code, walk);
+          const on = sel === rung.code;
+          return (
+            <button
+              aria-controls="rung-panel"
+              aria-selected={on}
+              className={`rung-cell ${state}`}
+              data-cell={rung.code}
+              data-node={rung.name}
+              id={`rung-tab-${rung.code}`}
+              key={rung.code}
+              onClick={() => setSel(rung.code)}
+              role="tab"
+              tabIndex={on ? 0 : -1}
+              type="button"
+            >
+              <span className="rung-cell-no">{rung.code}</span>
+              {/* The mark differs in SHAPE, which is what SC 1.4.1 asks of a
+                  state that would otherwise be a colour. The name and the
+                  state in words follow it for assistive tech, which is a
+                  different requirement with its own answer. */}
+              <span aria-hidden className="rung-cell-mark">
+                {rungSymbol(state)}
+              </span>
+              <span className="sr-only">
+                <RungName name={rung.name} />
+                {", "}
+                <PaintWord paint={state} />
+              </span>
+            </button>
+          );
         })}
       </div>
 
-      <div aria-label="the twelve checks, in order" className="flow flow-rungs rung-walk" role="list">
-        {LADDER.map((rung) => {
-          const state = walkedState(rung, code, walk);
-          const decided = state === "blocked" || state === "lit";
-          const open = openRung === rung.code;
-          return (
-            <div className="flow-station" data-node={rung.name} key={rung.code} role="listitem">
-              <div className={`flow-node ${state}`}>
-                {/* A BUTTON, NOT A CLICKABLE BOX: the box can hold the
-                    escalation fork, which contains a link, and a button may
-                    not contain one. `.rung-open` clears 24px on its own. */}
-                <button
-                  aria-expanded={open}
-                  className="rung-open"
-                  onClick={() => setOpenRung(open ? null : rung.code)}
-                  type="button"
-                >
-                  {/* THE MARK IS THE NON-COLOUR CARRIER. Rung state was a
-                      border colour and nothing else, which is SC 1.4.1 to the
-                      letter. The glyphs differ in SHAPE, so they work without
-                      colour; the `.sr-only` word beside them is for assistive
-                      tech, which is a different requirement and needs its own
-                      answer. */}
-                  <span aria-hidden className="rung-mark">
-                    {rungSymbol(state)}
-                  </span>
-                  <span className="rung-no">{rung.code}</span>
-                  <span className="label">
-                    <RungName name={rung.name} />
-                    <span className="sr-only">
-                      {", "}
-                      <PaintWord paint={state} />
-                    </span>
-                  </span>
-                </button>
-                {decided ? <span className="rung-said">{answer?.chain_reason || ""}</span> : null}
-                {open ? (
-                  <div className="rung-why">
-                    <RungWhy
-                      ceiling={ceiling}
-                      enrolled={Boolean(standing?.exists)}
-                      left={left}
-                      maxAgeS={maxAgeS}
-                      name={rung.name}
-                      paused={Boolean(vault.paused)}
-                      priced={fair > 0}
-                      quote={quote}
-                      threshold={standing ? standing.per_request_usdc : null}
-                      toStranger={toStranger}
-                      units={units}
-                    />
-                  </div>
-                ) : null}
-                {decided && state === "lit" && escalates(code) ? (
-                  <div className="rung-fork">
-                    <Ed
-                      as="p"
-                      className="standfirst"
-                      style={{ fontSize: "var(--t-4)", marginTop: 0 }}
-                      x="This is not a refusal. The payment is parked on chain and waits for a verified person to release it, once, for this request only."
-                      p="This is not a no. It waits for a real person to say yes, once, for this one payment."
-                    />
-                    <p className="label">
-                      <a className="section-link" href="/float/approve">
-                        <Ed x="See what that person is shown" p="See what that person sees" />
-                      </a>
-                    </p>
-                    <p className="label mono">
-                      <Ed x="a person's band tops out at" p="a person may allow up to" />{" "}
-                      <span className="num">{humanCeiling === null ? "…" : fmtPrice(humanCeiling)}</span>
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-              <span className="flow-arrow" aria-hidden />
-            </div>
-          );
-        })}
+      {/* THE READOUT. One of these instead of twelve cards, and it opens on
+          the rung that ANSWERED, so the verdict is on screen without a click. */}
+      <div
+        aria-labelledby={`rung-tab-${sel}`}
+        className={`rung-panel ${selPaint}`}
+        id="rung-panel"
+        role="tabpanel"
+      >
+        <div className="rung-panel-head">
+          <span className="rung-no mono">
+            <Ed x="check" p="check" /> {sel}
+          </span>
+          <b className="label">
+            <RungName name={selRung.name} />
+          </b>
+          <span className="label muted">
+            <PaintWord paint={selPaint} />
+          </span>
+          {sel === stopRung ? (
+            <span className={escalates(code) ? "chip chip-gold" : "chip chip-breach"}>
+              <Ed x="this is where it stopped" p="this is where it stopped" />
+            </span>
+          ) : null}
+        </div>
+
+        <div className="rung-why">
+          <RungWhy
+            ceiling={ceiling}
+            enrolled={Boolean(standing?.exists)}
+            left={left}
+            maxAgeS={maxAgeS}
+            name={selRung.name}
+            paused={Boolean(vault.paused)}
+            priced={fair > 0}
+            quote={quote}
+            threshold={standing ? standing.per_request_usdc : null}
+            toStranger={toStranger}
+            units={units}
+          />
+        </div>
+
+        {sel === stopRung && answer?.chain_reason ? (
+          <span className="rung-said">{answer.chain_reason}</span>
+        ) : null}
+
+        {sel === stopRung && escalates(code) ? (
+          <div className="rung-fork">
+            <Ed
+              as="p"
+              className="standfirst"
+              style={{ fontSize: "var(--t-4)", marginTop: 0 }}
+              x="This is not a refusal. The payment is parked on chain and waits for a verified person to release it, once, for this request only."
+              p="This is not a no. It waits for a real person to say yes, once, for this one payment."
+            />
+            <p className="label">
+              <a className="section-link" href="/float/approve">
+                <Ed x="See what that person is shown" p="See what that person sees" />
+              </a>
+            </p>
+            <p className="label mono">
+              <Ed x="a person's band tops out at" p="a person may allow up to" />{" "}
+              <span className="num">{humanCeiling === null ? "…" : fmtPrice(humanCeiling)}</span>
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div aria-live="polite" className="flow-log" role="status">

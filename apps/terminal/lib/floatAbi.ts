@@ -203,6 +203,14 @@ export const VENUE_ABI = [
 
 export const ERC20_ABI = [
   { type: "function", name: "balanceOf", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  /* The three the reserve panel needs to stop asserting its fund and start
+     reading it. `symbol` and `decimals` are what `docs/TAMEION.md` recorded, so
+     reading them turns a sentence in a markdown file into something a judge can
+     check on the page; `totalSupply` is the one number that shows the fund is
+     in use rather than merely deployed. */
+  { type: "function", name: "symbol", inputs: [], outputs: [{ type: "string" }], stateMutability: "view" },
+  { type: "function", name: "decimals", inputs: [], outputs: [{ type: "uint8" }], stateMutability: "view" },
+  { type: "function", name: "totalSupply", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
   /* The transfer that paid the seller. Matched on `to` and never on position
      or size: a transaction can carry several USDC transfers and the largest is
      not reliably the payment. */

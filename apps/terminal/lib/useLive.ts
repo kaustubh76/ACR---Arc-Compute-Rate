@@ -14,7 +14,15 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
-import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict, FloatWalk, FloatYield } from "./float";
+import type {
+  FloatQueue,
+  FloatReserveFacts,
+  FloatTape,
+  FloatVaultState,
+  FloatVerdict,
+  FloatWalk,
+  FloatYield,
+} from "./float";
 import type { DryRun } from "./routeInput";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
@@ -753,6 +761,21 @@ export function useFloatYield() {
  *  finished transaction's logs cannot change, and this read only happens
  *  because a reader opened a row. A null hash suspends it entirely, so a
  *  closed row costs nothing. */
+/** The reserve sleeve's fund. Slow-moving, so a slow poll: the supply of a
+ *  Treasury bill fund does not need fifteen seconds, and this surface shares
+ *  one rate limit with every other read on the page. */
+export const floatReservePollMs = 120_000;
+
+export function useFloatReserve() {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<FloatReserveFacts>>(
+    apiKey("/api/float/reserve", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatReservePollMs, ...RETRY },
+  );
+  return { fund: data, error: error as FetchError | undefined };
+}
+
 export function useFloatWalk(tx: string | null) {
   const chain = useChain();
   const { data, error, isLoading } = useSWR<Envelope<FloatWalk>>(

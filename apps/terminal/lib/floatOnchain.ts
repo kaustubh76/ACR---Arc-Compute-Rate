@@ -46,6 +46,7 @@ import type { ChainKey } from "./chainChoice";
 import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
 import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
+import { agreesWithRecord, codeBytes, reserveFund } from "./floatReserve";
 import { fairMatches, pickPay, pickPull, pickReceipt, verdictOf, type WalkLog } from "./floatWalk";
 import type {
   FloatAgentStanding,
@@ -58,6 +59,7 @@ import type {
   FloatVerdict,
   FloatWalk,
   FloatWalkStep,
+  FloatReserveFacts,
   FloatYield,
 } from "./float";
 
@@ -750,6 +752,70 @@ type YieldMemo = { at: number; key: string; data: FloatYield };
 let yieldMemo: YieldMemo | null = null;
 const YIELD_MEMO_MS = 120_000;
 const YIELD_PARTIAL_MEMO_MS = 10_000;
+
+/** The reserve sleeve's fund, read off its own chain.
+ *
+ *  SIX CHEAP READS AND NOT ONE WRITE. The fund's symbol, decimals and supply,
+ *  the code at both addresses, and what this treasury holds — which is zero,
+ *  and saying so from a read rather than from prose is the whole point. Enough
+ *  to show the fund is real and in use without claiming anything about our
+ *  eligibility to touch it, which is a Circle Support queue and not on chain.
+ *
+ *  ITS OWN ROUTE RATHER THAN PART OF `readYield`, because that one walks
+ *  thousands of blocks of sleeve events and these six would queue behind it for
+ *  no reason. */
+export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFacts> {
+  const cfg = floatConfig(chain);
+  if (typeof cfg === "string") return { status: "pending", reason: cfg };
+  const fund = reserveFund(chain);
+  if (!ADDR.test(fund.token)) {
+    return { status: "pending", reason: "no fund address is recorded for this chain" };
+  }
+
+  const c = client(cfg.rpc);
+  let busy = false;
+  const note = async <T,>(r: Promise<Read<T>>): Promise<Read<T>> => {
+    const v = await r;
+    if (!v.ok && v.busy) busy = true;
+    return v;
+  };
+  const token = fund.token as Address;
+  const hasTeller = ADDR.test(fund.teller);
+
+  const [sym, dec, supply, held, tokenCode, tellerCode] = await Promise.all([
+    note(one<string>(() => c.readContract({ address: token, abi: ERC20_ABI, functionName: "symbol" }))),
+    note(one<number>(() => c.readContract({ address: token, abi: ERC20_ABI, functionName: "decimals" }))),
+    note(one<bigint>(() => c.readContract({ address: token, abi: ERC20_ABI, functionName: "totalSupply" }))),
+    note(one<bigint>(() => c.readContract({ address: token, abi: ERC20_ABI, functionName: "balanceOf", args: [cfg.vault] }))),
+    note(one<string | undefined>(() => c.getBytecode({ address: token }))),
+    hasTeller
+      ? note(one<string | undefined>(() => c.getBytecode({ address: fund.teller as Address })))
+      : Promise.resolve({ ok: false as const, busy: false }),
+  ]);
+
+  /* THE SUPPLY IS SCALED BY THE DECIMALS THE TOKEN ITSELF REPORTED, not by a
+     constant 6. The record says 6 and the read almost always agrees, but a
+     surface that hardcodes the scale would print a supply a million times wrong
+     on the one day the token disagrees with the record — which is precisely the
+     day `agrees_with_record` exists to flag. */
+  const scale = dec.ok ? 10 ** dec.value : 1e6;
+  const symbol = sym.ok ? sym.value : null;
+  const decimals = dec.ok ? dec.value : null;
+
+  return {
+    status: "ok",
+    token: fund.token,
+    ...(hasTeller ? { teller: fund.teller } : {}),
+    symbol,
+    decimals,
+    supply: supply.ok ? Number(supply.value) / scale : null,
+    held: held.ok ? Number(held.value) / scale : null,
+    token_code_bytes: tokenCode.ok ? codeBytes(tokenCode.value) : null,
+    teller_code_bytes: hasTeller && tellerCode.ok ? codeBytes(tellerCode.value) : null,
+    agrees_with_record: agreesWithRecord(symbol, decimals),
+    ...(busy ? { reason: "the chain is rate limiting this host; it retries by itself" } : {}),
+  };
+}
 
 export async function readYield(chain: ChainKey): Promise<FloatYield> {
   const cfg = floatConfig(chain);

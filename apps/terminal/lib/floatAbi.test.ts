@@ -120,9 +120,18 @@ test("every function we call exists on the contract we call it on", () => {
   for (const e of SLEEVE_ABI.filter((x) => x.type === "function")) {
     assert.ok(declares(sleeves, e.name), `Sleeves does not declare ${e.name}`);
   }
+  /* THE ONE ABI WITH NO CONTRACT IN THIS REPO TO DRIVE IT OUT OF, so the list
+     is pinned by hand instead. The pin is not a formality: it is what stops
+     this ABI quietly growing a function nobody decided to call, which is the
+     only failure mode a standard-interface ABI has. Four now, each earning its
+     place — `balanceOf` for the payment leg of a walk and for what the treasury
+     holds of the reserve fund, and `symbol`, `decimals` and `totalSupply` so
+     the reserve panel reads the fund that `docs/TAMEION.md` describes rather
+     than asserting it. Adding a fifth should mean updating this line on
+     purpose. */
   assert.deepEqual(
     ERC20_ABI.filter((e) => e.type === "function").map((e) => e.name),
-    ["balanceOf"],
+    ["balanceOf", "symbol", "decimals", "totalSupply"],
   );
   /* The payment leg of a walk. Standard ERC-20, so there is no contract in
      this repo to drive it out of; what matters is that `to` stays indexed, as

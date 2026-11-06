@@ -7,7 +7,7 @@ import { CHAINS } from "@/lib/chainChoice";
 import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 import { useChain } from "@/lib/useChain";
-import { useFloatYield } from "@/lib/useLive";
+import { useFloatReserve, useFloatYield } from "@/lib/useLive";
 
 /* What the idle float earned, and the sleeve that is not live.
 
@@ -33,10 +33,13 @@ import { useFloatYield } from "@/lib/useLive";
 
 /** The tokenized Treasury-bill fund the reserve sleeve was designed for.
  *
- *  Read first-hand over this chain's public RPC on 2026-10-04 and recorded in
- *  `docs/TAMEION.md`: 183 bytes of proxy code, `symbol()` "USYC",
- *  `decimals()` 6. Named here rather than described so a reader can check the
- *  claim instead of taking it. */
+ *  NOW ONLY THE FALLBACK LABEL, shown while the read is in flight. The address
+ *  the panel renders comes off `/api/float/reserve`, which reads the fund's own
+ *  symbol, decimals, supply and code size rather than asserting them, and
+ *  compares the answers against what `docs/TAMEION.md` recorded on 2026-10-04:
+ *  183 bytes of proxy code, `symbol()` "USYC", `decimals()` 6. The per-chain
+ *  addresses live in `lib/floatReserve.ts`; this constant is kept so a reader
+ *  still sees an address during the first paint rather than an ellipsis. */
 const USYC = "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C";
 
 function Row({
@@ -114,6 +117,17 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
      a missing one. */
   const shut = gates ? Object.values(gates).some((g) => g === false) : false;
   const unreadGate = gates ? Object.values(gates).some((g) => g === null) : false;
+
+  /* THE FUND, READ. The prose below has always said "we read it rather than
+     taking the page's word", and until now that described something done once
+     by hand in October and written into a markdown file. It is literally true
+     from this hook onwards. */
+  const { fund } = useFloatReserve();
+  const f = fund?.data ?? null;
+  /* A real 0 means "nothing is deployed there", which is the one answer this
+     panel exists to be able to give; `null` and `undefined` both mean "not
+     read". They must not share a rendering. */
+  const num = (v: number | null | undefined) => (v === null || v === undefined ? "…" : fmtInt(v));
 
   const pf = d?.performance_fee_pct;
   const mf = d?.management_fee_pct_year;
@@ -324,8 +338,62 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             p="The second pot was meant to hold Treasury bills. The fund is real and on this chain. What stops us is a waiting list, not the code."
           />
           <p className="label mono">
-            <Ed x="the fund" p="the fund" /> <span className="num">{shortAddr(USYC)}</span>
+            <Ed x="the fund" p="the fund" />{" "}
+            {f?.token ? (
+              <a className="tx-link" href={addrUrl(f.token, explorer)} rel="noreferrer" target="_blank" title={f.token}>
+                {shortAddr(f.token)} <span className="ext">↗</span>
+              </a>
+            ) : (
+              <span className="num">{shortAddr(USYC)}</span>
+            )}
             {" · "}
+            <span className="num">{f?.symbol ?? "…"}</span>
+            {" · "}
+            <span className="num">{num(f?.decimals)}</span> <Ed x="decimals" p="decimals" />
+            {" · "}
+            <Ed x="whole fund" p="the whole fund" />{" "}
+            <span className="num">
+              {f?.supply === null || f?.supply === undefined ? "…" : fmtPrice(f.supply)}
+            </span>
+          </p>
+          <p className="label mono">
+            <Ed x="the teller that mints and redeems it" p="the desk that buys and sells it" />{" "}
+            {f?.teller ? (
+              <a className="tx-link" href={addrUrl(f.teller, explorer)} rel="noreferrer" target="_blank" title={f.teller}>
+                {shortAddr(f.teller)} <span className="ext">↗</span>
+              </a>
+            ) : (
+              <span className="num">…</span>
+            )}
+            {" · "}
+            {/* BYTES OF CODE AT EACH, which is how "deployed" stops being a
+                word a reader has to take. A real 0 would say nothing is there. */}
+            <Ed x="code on chain" p="code on chain" />{" "}
+            <span className="num">{num(f?.token_code_bytes)}</span>
+            {" / "}
+            <span className="num">{num(f?.teller_code_bytes)}</span> <Ed x="bytes" p="bytes" />
+          </p>
+          <p className="label">
+            {/* The record is `docs/TAMEION.md`, read first-hand on 2026-10-04.
+                Comparing against it rather than merely displaying means a
+                redeploy behind the proxy that changed the decimals would SAY
+                so, instead of quietly rendering a different number under the
+                same prose. `null` is not-read and claims nothing either way. */}
+            {f?.agrees_with_record === true ? (
+              <span className="chip chip-teal">
+                <Ed x="the live reads match what we recorded" p="it still matches what we wrote down" />
+              </span>
+            ) : f?.agrees_with_record === false ? (
+              <span className="chip chip-breach">
+                <Ed x="the fund no longer matches our record" p="the fund does not match what we wrote down" />
+              </span>
+            ) : null}{" "}
+            <span className="chip chip-sim">
+              <Ed x="this treasury holds" p="this treasury holds" />{" "}
+              <span className="num">
+                {f?.held === null || f?.held === undefined ? "…" : fmtPrice(f.held)}
+              </span>
+            </span>{" "}
             <span className="chip chip-sim">
               <Ed x="not wired to this treasury" p="not connected yet" />
             </span>
