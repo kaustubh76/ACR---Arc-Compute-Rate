@@ -37,13 +37,13 @@ unapproved seller.
 ## Run it
 
 ```bash
-cd contracts && forge build && forge test     # 294 tests
+cd contracts && forge build && forge test     # 300 tests
 anvil                                          # in another shell
 cd float && npm install
 npm test                                       # 23 unit tests
 npm run local                                  # deploy the whole system
 npm run keeper -- --once                       # put real prices on chain
-npm run verify                                 # 11 checks against the live chain
+npm run verify                                 # 12 checks against the live chain
 npm run agents -- --once --park 0.5            # watch the hero loop
 ```
 
@@ -73,7 +73,7 @@ check it.
 | `float/src/prices.ts` | per-provider medians and a measured confidence interval |
 | `float/src/bin/keeper.ts` | print → forecast → rebalance, every ten minutes |
 | `float/src/bin/policy.ts` | English → JSON → chain, validated all-or-nothing |
-| `float/src/bin/verify.ts` | the eleven checks above |
+| `float/src/bin/verify.ts` | the twelve checks above |
 
 ## The price is measured, not asserted
 

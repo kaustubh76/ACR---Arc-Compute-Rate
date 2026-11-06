@@ -38,7 +38,9 @@ ROOT = Path(__file__).resolve().parent.parent
 #: thing a user opens, and every number it states — suite sizes, the glossary,
 #: the receipts archive, the CI shape, the deployed addresses — is re-measured
 #: here so it cannot drift. Hackathon-era documents (now under hackathon/) were
-#: once audited too; they are frozen and no longer checked.
+#: once audited too; the older ones are frozen and no longer checked. The Mumbai
+#: set is the exception — it is live submission copy, and its counts are held to
+#: reality by FLOAT_DOC_CLAIMS below.
 README = ROOT / "README.md"
 FAST = os.environ.get("CLAIMS_FAST", "") not in ("", "0", "false")
 
@@ -236,6 +238,93 @@ def measured_matchstick() -> int | None:
     return int(m.group(1)) if m else None
 
 
+@cache
+def measured_forge_float() -> int | None:
+    """Just the Float suites. A subtotal the submission states separately, and
+    which no total can vouch for: `74` and `75` sat in two documents while the
+    three files held 80."""
+    out = run(["forge", "test", "--match-path", "test/Float*"], cwd=ROOT / "contracts")
+    m = re.search(r"(\d+) tests? passed", out)
+    return int(m.group(1)) if m else None
+
+
+@cache
+def measured_float_unit() -> int | None:
+    out = run(["npm", "test"], cwd=ROOT / "float")
+    m = re.search(r"^# pass (\d+)$", out, re.M) or re.search(r"^\D? ?pass (\d+)$", out, re.M)
+    return int(m.group(1)) if m else None
+
+
+def measured_float_checks() -> int | None:
+    """How many acceptance checks `verify.ts` actually contains.
+
+    Counted from the SOURCE, not from a run, which is the whole point: the
+    acceptance harness needs a live chain and funded keys, so a check that
+    measured it could only ever run on the operator's laptop. Distinct `T`-ids
+    are a static fact about the file, so this one is cheap, needs no chain, and
+    stays on under CLAIMS_FAST — and it is the claim that actually drifted, when
+    adding T0 left four documents saying eleven.
+    """
+    src = ROOT / "float" / "src" / "bin" / "verify.ts"
+    if not src.exists():
+        return None
+    ids = set(re.findall(r'check\(\s*"(T\d+)"', src.read_text()))
+    return len(ids) or None
+
+
+#: Count claims in the Float and submission documents: (file, label, pattern,
+#: measure, costly).
+#:
+#: These were exempt for years because `hackathon/` held frozen, post-hoc
+#: write-ups. The Mumbai set is not that — it is live submission copy whose own
+#: stated premise is "every claim below is re-derivable by a command", which
+#: makes an unchecked number in it worse than an unchecked number anywhere else.
+#: Nine had drifted, and two pairs disagreed with each OTHER about one quantity
+#: (294 vs 295 contract tests, 74 vs 75 Float tests) — the signature of a number
+#: hand-copied into nine places with nothing reading any of them.
+FLOAT_DOC_CLAIMS: tuple[tuple[str, str, str, object, bool], ...] = (
+    ("hackathon/ethglobal-mumbai-2026/SUBMISSION.md", "contract tests",
+     r"\| (\d+) contract tests", measured_forge, True),
+    ("hackathon/ethglobal-mumbai-2026/SUBMISSION.md", "float unit tests",
+     r"contract tests, (\d+) unit tests", measured_float_unit, True),
+    ("hackathon/ethglobal-mumbai-2026/SUBMISSION.md", "acceptance checks",
+     r"\| (\w+) acceptance checks on a live chain", measured_float_checks, False),
+    ("hackathon/ethglobal-mumbai-2026/CONTINUITY.md", "float tests",
+     r"\*\*(\d+) tests\*\*", measured_forge_float, True),
+    ("hackathon/ethglobal-mumbai-2026/CONTINUITY.md", "contract tests",
+     r"forge test\s+# (\d+) tests", measured_forge, True),
+    ("hackathon/ethglobal-mumbai-2026/RUNBOOK.md", "acceptance checks",
+     r'"(\w+) checks, re-derivable', measured_float_checks, False),
+    ("float/README.md", "contract tests",
+     r"forge test\s+# (\d+) tests", measured_forge, True),
+    ("float/README.md", "float unit tests",
+     r"# (\d+) unit tests", measured_float_unit, True),
+    ("float/README.md", "acceptance checks",
+     r"# (\d+) checks against the live chain", measured_float_checks, False),
+    ("float/README.md", "acceptance checks (prose)",
+     r"the (\w+) checks above", measured_float_checks, False),
+    ("float/studio/README.md", "float tests",
+     r"the sleeves, or their\s+(\d+) tests", measured_forge_float, True),
+)
+
+#: Prose states small counts as words. A check that only read digits would have
+#: passed over "Eleven acceptance checks" without comment, which is the failure
+#: mode this whole file exists to prevent.
+_WORDS = {
+    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+    "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+    "eighteen": 18, "nineteen": 19, "twenty": 20,
+}
+
+
+def stated_number(raw: str) -> int | None:
+    """An integer from a doc's own wording, digits or word, or None."""
+    raw = raw.strip().replace(",", "")
+    if raw.isdigit():
+        return int(raw)
+    return _WORDS.get(raw.lower())
+
+
 def measured_ci_jobs() -> int:
     """Jobs in ci.yml — top-level keys under `jobs:`, counted from the file so a
     new job shows up here without anyone remembering to say so."""
@@ -332,6 +421,35 @@ def main() -> None:
                 check(False, f"{label}: could not measure (toolchain missing?)")
                 continue
             check(actual == stated, f"{label}: diagram says {stated}, measured {actual}")
+
+    print("\nFloat and the Mumbai submission (live copy, not frozen write-ups)")
+    for rel, label, pattern, measure, costly in FLOAT_DOC_CLAIMS:
+        path = ROOT / rel
+        # Last two components, because `float/README.md` and
+        # `float/studio/README.md` both state counts and a bare basename would
+        # report two different files under one indistinguishable name.
+        name = f"{'/'.join(Path(rel).parts[-2:])} {label}"
+        if not path.exists():
+            check(False, f"{name}: {rel} is gone — has the submission moved?")
+            continue
+        m = re.search(pattern, path.read_text())
+        if m is None:
+            # A pattern that matches nothing is a check that always passes, so
+            # this is a failure and not a skip.
+            check(False, f"{name}: no claim found — has it been reworded?")
+            continue
+        stated = stated_number(m.group(1))
+        if stated is None:
+            check(False, f'{name}: cannot read "{m.group(1)}" as a number')
+            continue
+        if FAST and costly:
+            print(f"  · {name}: claims {stated} (not measured)")
+            continue
+        actual = measure()
+        if actual is None:
+            check(False, f"{name}: could not measure (toolchain missing?)")
+            continue
+        check(actual == stated, f"{name}: doc says {stated}, measured {actual}")
 
     print("\nthe receipts archive (the number a reader is most likely to spot-check)")
     # This once rotted to 11 in three places while the archive held 31, because

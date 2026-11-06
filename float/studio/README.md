@@ -137,13 +137,51 @@ venue's floor, and a venue can lose value on its own. The invariant we can
 actually defend is narrower — *no path pays USDC to a registered agent, and no
 agent exceeds its daily cap* — and that is what the tests pin.
 
+### What the audit's own fix broke, caught by a second reviewer
+
+Not an Arc Studio finding, and recorded here rather than in the table above for
+that reason: this came from a peer session reviewing the commit that fixed
+flag (a). It is the more interesting half of the story, because the fix for one
+misleading refusal introduced another.
+
+Storing and comparing `agentId` meant adding a guard to `executeApproved`, and it
+went in **above** the existence check that `_consumeApproval` already carried:
+
+```
+FloatVault.sol:912   require(checkpoints[id].agentId == r.agentId, "agent mismatch");
+FloatVault.sol:935   require(c.reqHash != bytes32(0), "no such checkpoint");
+```
+
+An id nobody opened has `agentId == bytes32(0)`, which never equals a real
+request's — so the comparison fires first and `"no such checkpoint"` became
+unreachable from `executeApproved`. Nothing moves either way; the cost is that
+someone debugging a fabricated id goes hunting an agentId derivation bug. The
+sting is that `_consumeApproval`'s own comment warns about precisely this
+failure, two lines above the check it was protecting.
+
+The fix is a two-line hoist, and it is **deliberately not applied**:
+
+```solidity
+require(checkpoints[id].reqHash != bytes32(0), "no such checkpoint");
+require(checkpoints[id].agentId == r.agentId, "agent mismatch");
+```
+
+`FloatVault.sol` last changed 22 minutes before the Arc testnet deploy, so the
+deployed bytecode matches this source exactly and the contracts verify on
+Blockscout as they stand. Editing the source alone breaks that match for a
+revert string; redeploying burns a one-shot `wire()` and discards live receipt
+history. So it is stated here instead, and it is the first thing to land after
+the deadline. The reviewer's test pins the current, wrong message on purpose,
+with a comment recording why — so reordering the guards turns that test red and
+announces itself rather than passing quietly.
+
 ## 4 · What Arc Studio did not do
 
 Stated plainly, because a vague claim collapses under one question and a narrow
 one does not:
 
 - It did not write `FloatVault.sol`, `FloatPrintStore.sol`, the sleeves, or their
-  75 tests.
+  80 tests.
 - It did not write the keeper, the agents, the MCP server, the policy validator,
   or the acceptance harness.
 - It did not author the dashboard. It **hosts** it — `index.html` was written in

@@ -80,12 +80,12 @@ Every claim below is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 295 contract tests, 23 unit tests | `forge test`, `npm test` |
+| 300 contract tests, 23 unit tests | `forge test`, `npm test` |
 | The agent's wallet holds nothing, before and after | `test_the_agents_own_wallet_holds_nothing_before_and_after` |
 | A 3× quote is refused on chain with the fair counter-price | `npm run verify` T3 |
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |
 | The fair band is denominated correctly | `test_the_fair_band_is_denominated_in_usdc_not_wad` |
-| Eleven acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
+| Twelve acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
 
 ## The number that makes the case
 
@@ -123,7 +123,68 @@ ETHGlobal cautioning against entirely-AI work is named there rather than avoided
 - **GitHub**: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
 - **Architecture diagram**: `docs/assets/acr_float.preview.svg`
 - **Video (2–4 min, 720p+, human narration)**: _pending_
-- **Deployed contracts on Arc Testnet**: _pending_
+- **Deployed contracts on Arc Testnet**: chain `5042002` — see the table below
+
+### Deployed on Arc Testnet
+
+Chain id `5042002`, explorer `https://explorer.testnet.arc.io`. Every number below
+was read off the chain, not out of a log file.
+
+| | address |
+|---|---|
+| FloatVault (the treasury) | [`0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc`](https://explorer.testnet.arc.io/address/0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc) |
+| FloatPrintStore (the price feed) | [`0x02558098ba49e30868f6db15036c5dac326d7e3a`](https://explorer.testnet.arc.io/address/0x02558098ba49e30868f6db15036c5dac326d7e3a) |
+| Erc4626Sleeve (the yield position) | [`0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14`](https://explorer.testnet.arc.io/address/0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14) |
+| FloatTestSeller | [`0xf4e89e34ed6e1626a3410e1d49796779179915c1`](https://explorer.testnet.arc.io/address/0xf4e89e34ed6e1626a3410e1d49796779179915c1) |
+| Morpho Vault V2 — **not ours**, Circle's Earn Kit discovers it | [`0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88`](https://explorer.testnet.arc.io/address/0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88) |
+| `scout`, the agent — **holds 0 USDC, before and after** | [`0x0420A5279cbD3257252Ba9CC524a2E09dd304E88`](https://explorer.testnet.arc.io/address/0x0420A5279cbD3257252Ba9CC524a2E09dd304E88) |
+
+**The one transaction to open.** [`0x364723c6…72f9d`](https://explorer.testnet.arc.io/tx/0x364723c61d77084e180d99aeef088fe266f222b126bc9e7b2ac38de2f6072f9d),
+block 70931234. Read its logs in order — this is the whole product in one
+transaction, and the ordering is the claim:
+
+| log | what |
+|---|---|
+| 25–29 | the Morpho vault unwinds the position |
+| **30** | `Pulled(530250, 530250)` on our sleeve — requested and delivered, the exact shortfall and not a round number |
+| **32** | USDC `Transfer` of `1055250` from the vault to the seller |
+| 33 | `Receipt #2` — `jitFunded = true`, 4,000 units, quote $1.055250 against fair $1.050000, premium 50 bp |
+
+The sleeve was pulled at log 30 and the seller was paid at log 32, inside one
+transaction. Note the two figures differ: the seller received the full quote of
+$1.055250, of which $0.530250 was pulled from the yield position and the rest came
+from the buffer the vault already held. The vault pulled the **shortfall**, not the
+payment — which is the difference between just-in-time funding and simply holding
+money somewhere else. That $0.530250 was earning yield in the previous block. Arc's RPC serves
+no `debug_traceTransaction`, so log order is the proof — which means anyone with
+an ordinary node can check it, not just someone with an archive node.
+
+**The refusal.** [`0xb746116a…9ffb2cd`](https://explorer.testnet.arc.io/tx/0xb746116ae09502f588a6763fb4ce91a99195eea7c05e5b5da83f947849ffb2cd),
+block 70931213: `Denied`, code 10, reason **"quote exceeds ACR fair band"**, quote
+`3150000` against fair `1050000`. A 3× quote refused on chain, in English, with the
+fair counter-price attached.
+
+**Live role state**, as the vault reports it:
+
+```
+owner / humanApprover / guestRegistrar / studioDeployer   0x64E21e01…f38d16
+keeper                                                    0x3111B1a0…0f3597
+executor                                                  0x7FAAC6F8…5183A0
+wired()                        true    (one-shot, spent at deploy)
+requirePolicyCheckpoint()      false
+treasurerBinding()             0x00…00 (one-shot, deliberately UNSET)
+receiptCount()                 2
+guestDailyCap()                2000000 (2 USDC)
+```
+
+Two things that table is honest about. `humanApprover` is the deployer rather than
+a separate human key, because `wire()` took all five roles at once and the World
+half's approver key arrived afterwards; it is `onlyOwner`-rotatable and rotating it
+is one transaction. And `requirePolicyCheckpoint` is `false`, so **the human-approval
+and guest-enrolment paths are not exercised on this chain** — they are covered by 80
+contract tests and a ten-leg local-chain walk, and the World submissions say which
+chain they show. `treasurerBinding` is zero on purpose: it is one-shot from zero, and
+a placeholder would permanently kill the human path.
 
 ### A known gap, disclosed rather than hidden
 
