@@ -146,6 +146,49 @@ reverts, which looks like a broken vault rather than a wrong method name.
 transactions) but it makes the approver the owner key, and the vault refuses an
 approver that is also an executor — so the executor must stay distinct.
 
+## The self-custody identity, and why none of it is configuration
+
+Stored 2026-11-06 in gitignored files: `data/world-selfcustody-key.txt` (mode
+600) and `data/world-identity-commitments.json`. Recorded here because the
+temptation to paste one of them into `.env` is real and the cost is high.
+
+| value | what it is | where it goes |
+|---|---|---|
+| self-custody private key | **X25519**, verified by deriving the given public key from it | nowhere |
+| self-custody public key | the same 32 bytes, inside hand-made PEM markers that would not parse | nowhere |
+| orb identity commitment | a BN254 field element, and a **public** value by design | nowhere |
+| face identity commitment | likewise, and distinct from the orb one | nowhere |
+
+**X25519 is a key-agreement key. It cannot sign.** Not an OIDC token, not an
+IDKit `rp_context`, not an EIP-712 approval, not a transaction. It is the key
+that encrypts an identity backup, so the blast radius of exposing it is someone
+who also holds that encrypted blob — not funds.
+
+**An identity commitment is the public Merkle leaf, not a credential.** A World
+ID proof needs the identity SECRET (the commitment's preimage) plus an inclusion
+path from World's sequencer plus the circuit. The commitment is the output of
+that secret, so holding it proves nothing and unlocks nothing.
+
+**THE ONE SLOT WHERE USING IT IS WORSE THAN LEAVING IT EMPTY.** Measured, not
+predicted: `signRequest` **accepts** those 32 bytes, because almost any 32 bytes
+is a valid secp256k1 scalar, and returns a syntactically perfect 132-character
+signature. So `ACR_IDKIT_SIGNING_KEY=<that key>` would pass the route's config
+check, return `status: "ok"`, render the widget, and open a real sheet on a real
+phone — and World would reject it, because the public half is registered to no
+`rp_id`. That is precisely the "renders perfectly and fails only at World"
+failure `apps/terminal/lib/rpContext.test.ts` exists to prevent, arriving
+through a different door. A page that says "not configured" is strictly better
+than one that fails in a stranger's hand.
+
+**What it does tell us, and it is worth knowing.** Two distinct commitments means
+the account carries **both orb and face** credentials. So when a client finally
+exists, the human half can satisfy the stronger `orb-face` class the policy gate
+demands — which was an open question, not a given.
+
+What is still needed is unchanged and comes only from the Developer Portal: a
+`client_id`/`client_secret` for Agent Pass, and an `rp_id` plus its registered
+secp256k1 signing key for IDKit.
+
 ## Proving the Agent Pass probe before a credential exists
 
 `make world-probe` is the first command you will run when the sandbox client
