@@ -655,7 +655,9 @@ export const floatVaultPollMs = 15_000;
 export function useFloatVault() {
   const chain = useChain();
   const { data, error, mutate } = useSWR<Envelope<FloatVaultState>>(
-    apiKey("/api/float/vault", chain),
+    /* `?prints=1` now that `readPrints` batches: the runway panel is the first
+       thing the dashboard spec ranks and it renders nothing without them. */
+    apiKey("/api/float/vault?prints=1", chain),
     fetcherFor(chain),
     { refreshInterval: floatVaultPollMs, ...RETRY },
   );

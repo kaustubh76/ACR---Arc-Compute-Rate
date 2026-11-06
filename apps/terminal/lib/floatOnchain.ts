@@ -364,7 +364,15 @@ export async function readVaultState(chain: ChainKey, withPrints = false): Promi
  *
  *  Names come off the chain rather than from a model list here: `nameIndex`
  *  requires a name that hashes to its own id, so the store's own answer is the
- *  preimage and there is no model literal to drift. */
+ *  preimage and there is no model literal to drift.
+ *
+ *  THREE ROUNDS, NOT TEN TRIPS. This was a sequential `for` loop — one
+ *  `indexCount` and then three awaited reads per index, so a three-model store
+ *  cost ten round trips against a rate limit shared with every other session on
+ *  this machine. It predates the batching work and never got it. The ids have
+ *  to come back before anything can be asked about them, so the shape is: count,
+ *  then every `indexAt` at once, then every `indexName` and `latest` at once.
+ *  `batch: true` collapses each round into one request. */
 async function readPrints(
   c: ReturnType<typeof createPublicClient>,
   store: Address,
@@ -374,21 +382,35 @@ async function readPrints(
   const base = { address: store, abi: STORE_ABI } as const;
   const count = await note(one<bigint>(() => c.readContract({ ...base, functionName: "indexCount" })));
   if (!count.ok) return [];
-  const n = Number(count.value);
-  const nowS = Math.floor(Date.now() / 1000);
-  const out: FloatPrint[] = [];
   /* Capped. A store with a surprising number of indices should make this page
      slow to read, not slow to answer. */
-  for (let i = 0; i < Math.min(n, 8); i += 1) {
-    const id = await note(one<Hex>(() => c.readContract({ ...base, functionName: "indexAt", args: [BigInt(i)] })));
-    if (!id.ok) continue;
-    const name = await note(one<string>(() => c.readContract({ ...base, functionName: "indexName", args: [id.value] })));
-    const p = await note(
-      one<readonly [bigint, bigint, bigint, number]>(() =>
-        c.readContract({ ...base, functionName: "latest", args: [id.value] }),
+  const n = Math.min(Number(count.value), 8);
+  if (n <= 0) return [];
+
+  const ids = await Promise.all(
+    Array.from({ length: n }, (_, i) =>
+      note(one<Hex>(() => c.readContract({ ...base, functionName: "indexAt", args: [BigInt(i)] }))),
+    ),
+  );
+  const present = ids.filter((r): r is { ok: true; value: Hex } => r.ok);
+
+  const details = await Promise.all(
+    present.flatMap((id) => [
+      note(one<string>(() => c.readContract({ ...base, functionName: "indexName", args: [id.value] }))),
+      note(
+        one<readonly [bigint, bigint, bigint, number]>(() =>
+          c.readContract({ ...base, functionName: "latest", args: [id.value] }),
+        ),
       ),
-    );
-    if (!p.ok) continue;
+    ]),
+  );
+
+  const nowS = Math.floor(Date.now() / 1000);
+  const out: FloatPrint[] = [];
+  present.forEach((id, i) => {
+    const name = details[i * 2] as Read<string>;
+    const p = details[i * 2 + 1] as Read<readonly [bigint, bigint, bigint, number]>;
+    if (!p.ok) return;
     const printId = Number(p.value[1]);
     const postedAt = Number(p.value[2]);
     /* `printId == 0` is NO PRINT, not print number zero: ids start at 1. A
@@ -399,12 +421,13 @@ async function readPrints(
       index: id.value,
       name: name.ok ? name.value : "",
       price_usd_per_1k: printId === 0 ? 0 : Number(formatUnits(p.value[0], 18)),
+      price_wad: printId === 0 ? "0" : p.value[0].toString(),
       ci_bps: Number(p.value[3]),
       print_id: printId,
       age_s: Number.isFinite(age) ? age : 0,
       stale: printId === 0 || (maxAgeS > 0 && age > maxAgeS),
     });
-  }
+  });
   return out;
 }
 

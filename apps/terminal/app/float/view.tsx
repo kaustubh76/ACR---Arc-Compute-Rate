@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Ed } from "@/components/Ed";
 import { Ladder } from "@/components/float/Ladder";
 import { MoneyPath } from "@/components/float/MoneyPath";
+import { Runway } from "@/components/float/Runway";
 import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
 import { fmtPrice } from "@/lib/format";
@@ -151,6 +152,10 @@ export function FloatView() {
             </div>
             <MoneyPath paying={code === 0} vault={data} />
           </section>
+
+          {/* Runway before the ladder: a reader meets the money, learns what
+              it buys, and only then drives the policy that spends it. */}
+          <Runway vault={data} />
 
           <Ladder onVerdict={onVerdict} vault={data} />
 

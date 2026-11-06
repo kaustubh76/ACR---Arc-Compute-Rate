@@ -215,6 +215,13 @@ export type FloatPrint = {
   /** The preimage the store names itself, so no model literal lives here. */
   name: string;
   price_usd_per_1k: number;
+  /** The SAME price as the chain stores it, 18 decimals, as a decimal string.
+   *
+   *  Runway divides this, not `price_usd_per_1k`. Both implementations that
+   *  already compute runway — `float/app/index.html` and the `float_runway`
+   *  MCP tool — divide the integer, and a float carrying the same quantity
+   *  drifts against them. A string because JSON has no bigint. */
+  price_wad: string;
   ci_bps: number;
   print_id: number;
   age_s: number;
