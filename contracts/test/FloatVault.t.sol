@@ -402,6 +402,83 @@ contract FloatVaultTest is Test {
         assertEq(code, vault.D_ROTATED(), "re-quote, which is a different fix to a stale print");
     }
 
+    /// A REFUSED REQUEST STAYS REFUSED — asserted on the state, not inferred.
+    ///
+    /// NOT A NEW GAP, and the first draft of this comment claimed it was. The
+    /// burn is already covered:
+    /// `test_a_refused_request_cannot_be_retried_on_the_same_nonce` above does
+    /// it through the BAND rung. What this adds is narrower and still worth
+    /// having: it reaches the burn through the STALE rung instead, it asserts
+    /// `usedNonce` directly rather than inferring the burn from a later
+    /// `D_REPLAY`, and it removes the original cause to show the refusal
+    /// outlives it. If someone makes the burn conditional on which rung fired,
+    /// the band test stays green and this one does not.
+    ///
+    /// The mechanism itself: `requestSpend` burns the nonce on a real refusal,
+    /// so a request the chain said no to cannot become payable later because a
+    /// cap rolled or a price moved. The agent comes back re-priced. Note the
+    /// stale test above only calls `classify`, which is a view and burns
+    /// nothing.
+    function test_a_stale_refusal_burns_the_nonce_so_it_cannot_be_replayed() public {
+        FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
+        vm.warp(block.timestamp + 1801); // one second past maxPrintAge
+
+        vm.prank(executor);
+        (bool ok,) = vault.requestSpend(r);
+        assertFalse(ok, "refused for staleness");
+        assertTrue(vault.usedNonce("n1"), "and the nonce is burned by the refusal");
+
+        // Now take the reason away: post a fresh print. The request is STILL
+        // dead, and for a DIFFERENT reason, which is the whole point. Replay is
+        // rung 5 and staleness rung 8, so replay answers first.
+        _repost();
+        (, uint8 code,,) = vault.classify(r);
+        assertEq(code, vault.D_REPLAY(), "staleness is gone and it is still refused");
+
+        // CONTROL: the same fresh print with a new nonce is payable. Without
+        // this, the assertion above would pass just as well if the re-post had
+        // silently failed and the request were still merely stale.
+        (, uint8 withFreshNonce,,) = vault.classify(_req(SCOUT, FAIR, "n2"));
+        assertEq(withFreshNonce, 0, "same print, new nonce: allowed");
+    }
+
+    /// THE EXEMPTION, asserted as an invariant rather than through its effect.
+    ///
+    /// `D_PER_REQUEST` deliberately does NOT burn the nonce, because that
+    /// refusal's entire point is that this exact request — this seller, these
+    /// units, this quote, this printId — comes back through `executeApproved`
+    /// once a human approves it. Burning it there "made every escalation revert
+    /// 'replayed request', which names the wrong problem and reads like a
+    /// signature bug".
+    ///
+    /// ALSO NOT A NEW GAP.
+    /// `FloatCheckpoint.t.sol::test_an_escalation_survives_request_spend_and_can_still_be_executed`
+    /// already covers this end to end, and was written for that exact bug. This
+    /// one isolates the invariant instead of the consequence, which buys one
+    /// thing: if the exemption is removed, the checkpoint test fails somewhere
+    /// downstream with a confusing "replayed request" revert — the wrong-problem
+    /// error message that caused the original trouble — while this fails on the
+    /// line that names the cause.
+    ///
+    /// The threshold has to sit BELOW fair for this rung to be reachable at
+    /// all: the band is checked first, so a quote large enough to exceed a
+    /// $20 threshold would be refused as over-band long before it got here.
+    function test_a_per_request_refusal_leaves_the_nonce_alive_for_the_escalation() public {
+        _setAgent(SCOUT, 50e6, 10e6, false); // threshold under fair, so the rung is reachable
+        FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
+
+        (, uint8 code,,) = vault.classify(r);
+        assertEq(code, vault.D_PER_REQUEST(), "the rung under test, not the band above it");
+
+        vm.prank(executor);
+        (bool ok,) = vault.requestSpend(r);
+        assertFalse(ok, "refused: a person has to decide this one");
+        assertFalse(
+            vault.usedNonce("n1"),
+            "and the nonce SURVIVES - burning it here is what broke every escalation"
+        );
+    }
+
     function test_an_index_with_no_print_is_refused() public {
         FloatVault.SpendReq memory r = _req(SCOUT, FAIR, "n1");
         r.index = keccak256("never-printed");

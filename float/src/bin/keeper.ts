@@ -27,6 +27,7 @@ import * as A from "../artifacts.ts";
 import { load } from "../deployments.ts";
 import { SEED_MODELS } from "../seed.ts";
 import { fetchPrint, indexIdFor, wadToUsd } from "../prices.ts";
+import { marginBps, marginReason, type PrintAge } from "../margin.ts";
 
 const NET = netFromEnv();
 const ONCE = process.argv.includes("--once");
@@ -182,9 +183,18 @@ async function rebalance() {
     return;
   }
 
-  // The margin is the provider disagreement, averaged over the printed indices.
-  let ciSum = 0n;
-  let n = 0n;
+  // The margin is the provider disagreement, averaged over the printed indices
+  // — but only over the ones the vault would still accept a payment against.
+  //
+  // `maxPrintAge` is policy[2], and it was already in the tuple read above and
+  // being thrown away, while `postedAt` was read below and dropped on the floor.
+  // So the keeper had both halves of a freshness check in hand and performed
+  // none, and a model whose fetch failed hours ago still contributed its last
+  // known confidence to the buffer the treasury holds today. The arithmetic now
+  // lives in `float/src/margin.ts`, where it can be tested — same reason
+  // `float/src/funding.ts` exists.
+  const maxPrintAge = BigInt(policy[2]);
+  const prints: PrintAge[] = [];
   const count = (await pub.readContract({
     address: d.printStore,
     abi: STORE.abi,
@@ -197,16 +207,21 @@ async function rebalance() {
       functionName: "indexAt",
       args: [i],
     })) as `0x${string}`;
-    const [, , , ci] = (await pub.readContract({
+    const [, , postedAt, ci] = (await pub.readContract({
       address: d.printStore,
       abi: STORE.abi,
       functionName: "latest",
       args: [index],
     })) as [bigint, bigint, bigint, number];
-    ciSum += BigInt(ci);
-    n += 1n;
+    prints.push({ ciBps: ci, postedAt });
   }
-  const ciBps = n > 0n ? ciSum / n : 0n;
+  // CHAIN time, not wall-clock: `postedAt` is chain time and `classify`
+  // compares it against `block.timestamp`, so measuring the age against
+  // `Date.now()` would disagree with the vault about the same print.
+  const nowS = (await pub.getBlock()).timestamp;
+  const margin = marginBps(prints, nowS, maxPrintAge);
+  console.log(`  ${marginReason(margin, maxPrintAge)}`);
+  const ciBps = margin.measured ? margin.bps : 0n;
 
   const wanted = (perHour * bufferHours * (10_000n + ciBps)) / 10_000n;
 

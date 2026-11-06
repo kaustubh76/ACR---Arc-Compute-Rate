@@ -284,6 +284,49 @@ contract FloatVenueFailureTest is Test {
         assertEq(sleeve.valueUsdc(), 10e6, "shares were minted and the value reads back");
     }
 
+    /// A STALE PRINT DOES NOT STOP A REBALANCE — pinned, not endorsed.
+    ///
+    /// `classify` refuses a PAYMENT whose print is older than
+    /// `policy.maxPrintAge` (rung 8, "stale ACR print"). `rebalance` reads no
+    /// price at all — not `prices`, not `postedAt`, not `maxPrintAge` — so the
+    /// treasury keeps moving float between its buffer and its sleeves on prints
+    /// the very same contract would refuse to pay against.
+    ///
+    /// That is defensible on its own terms: a rebalance moves the treasury's
+    /// own money between its own accounts and prices nothing, so a stale index
+    /// cannot mis-price it. What a stale index CAN do is size the buffer from
+    /// provider disagreement that no longer holds — and that is the keeper's
+    /// business, not the vault's. `float/src/margin.ts` now excludes stale
+    /// indices from the margin for exactly that reason. This test is the
+    /// contract-side half of that statement: the freshness notion lives in the
+    /// keeper BECAUSE the vault has none here.
+    ///
+    /// Before this, the whole file contained ZERO `vm.warp` calls, so every
+    /// rebalance test ran against a print posted in the same block and this
+    /// asymmetry was invisible.
+    function test_a_stale_print_does_not_stop_a_rebalance() public {
+        RecordingSleeve working = new RecordingSleeve(usdc, address(vault));
+        vault.wire(executor, keeper, approver, registrar, studio, working, ISleeve(address(0)));
+        _policy();
+        _agent();
+
+        usdc.mint(address(vault), 100e6);
+
+        // Age the print far past the policy's 1800s.
+        vm.warp(block.timestamp + 7 days);
+        (, uint8 code,,) = vault.classify(_req(FAIR, "n1"));
+        assertEq(code, vault.D_STALE(), "a PAYMENT on this print would be refused");
+
+        // And yet the treasury rebalances on it. Excess 50, workingShareBps
+        // 3000 -> 15 to working; the 35 bound for a reserve has nowhere to go.
+        vm.prank(keeper);
+        vault.rebalance(50e6);
+
+        assertEq(usdc.balanceOf(address(vault)), 85e6, "the buffer moved anyway");
+        assertEq(usdc.balanceOf(address(working)), 15e6, "and the sleeve was funded");
+        assertEq(working.depositCalls(), 1, "on a print the vault would not pay against");
+    }
+
     // --- 4 · a venue that pulls less than it was approved for ----------------
 
     /// THE ONE CASE `Erc4626Sleeve`'s ALLOWANCE RESET WAS WRITTEN FOR.

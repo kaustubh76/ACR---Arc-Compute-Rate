@@ -37,10 +37,10 @@ unapproved seller.
 ## Run it
 
 ```bash
-cd contracts && forge build && forge test     # 332 tests
+cd contracts && forge build && forge test     # 335 tests
 anvil                                          # in another shell
 cd float && npm install
-npm test                                       # 32 unit tests
+npm test                                       # 41 unit tests
 npm run local                                  # deploy the whole system
 npm run keeper -- --once                       # put real prices on chain
 npm run verify                                 # 15 checks against the live chain
@@ -163,6 +163,19 @@ paid. The feature would look implemented and be absent.
   inventing one.
 - **`FloatTestSeller` is ours and says so in its own name**, because a demo that
   pays a seller the team controls should admit it on chain.
+- **The keeper's print-freshness check is committed but is not the keeper that is
+  running.** `rebalance()` used to read the whole on-chain policy tuple, use only
+  `bufferHours`, and average every index's confidence interval into the buffer
+  margin without ever looking at `postedAt` — so a model whose price fetch had
+  failed hours ago still sized the treasury's buffer. `maxPrintAge` was in the
+  same tuple, already fetched and discarded. That arithmetic now lives in
+  `float/src/margin.ts`, excludes stale indices, reports how many it dropped, and
+  is covered by nine unit tests with a negative control. **The long-running
+  keeper process was deliberately not restarted to pick it up**, because
+  restarting the thing producing the tape hours before a submission buys less
+  than it risks. It lands the next time the keeper is started. Nothing is at
+  stake either way: the margin only makes the buffer larger or smaller, and
+  `rebalance` refuses any move under `minTicketUsdc` regardless.
 
 ## Continuity
 
