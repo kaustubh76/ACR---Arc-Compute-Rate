@@ -486,5 +486,21 @@ We would rather say this than show a demo whose provenance is ambiguous.
 - **Debrief (required by the bounty)**: [`docs/WORLD_DEBRIEF.md`](../../docs/WORLD_DEBRIEF.md)
 - **Continuity disclosure**: [`CONTINUITY.md` §4.2](./CONTINUITY.md)
 - **FloatVault on Arc Testnet**: `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` (chain 5042002)
-- **The approvals card**: `/float/approve` on the terminal
+- **The approvals card, live and unauthenticated**:
+  https://arc-compute-rate.vercel.app/float/approve
+  Open it without a wallet, an account, or our cooperation. The page asks
+  World's own issuer on each load and shows the answer with the round trip it
+  took (62 ms from the edge when this was written). The two reads behind it are
+  public JSON, so the page can be checked rather than believed:
+  - https://arc-compute-rate.vercel.app/api/world/discovery — what World
+    advertises, fetched live: `orb` and `orb-face`, `claims_parameter_supported`
+    true, and the document's own `issuer` compared against the host we asked.
+    This proves we talk to World and what World serves. It does **not** prove
+    that anybody approved anything; that claim lives on chain, below.
+  - https://arc-compute-rate.vercel.app/api/float/gate — the vault's gate slots
+    read from chain 5042002. Whatever it says is true at the moment you load it:
+    while the three roles still equal the deploying address it says so and names
+    what is outstanding, and it changes by itself when the owner's transactions
+    land. Nothing on that page is configured or hardcoded, which is why it can
+    report its own gate as not yet armed.
 - **Video**: _pending_ — the deny clip is mandatory and is leg 6 above
