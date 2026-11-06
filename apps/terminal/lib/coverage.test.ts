@@ -136,7 +136,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // a floor under actual is a floor that cannot fail, and these four landed
   // together so there is no excuse for carrying slack in any of them.
   "app/float/view.tsx": 26, // four honest states, the hero, the money path's caption and the three doors
-  "components/float/Ladder.tsx": 40, // twelve rung names in both registers, the controls, the presets, the fork and the model it prices
+  "components/float/Ladder.tsx": 71, // measured: twelve rung names, twelve state words, twelve "what it checks" branches, the controls, the presets, the fork and the model it prices
   "components/float/VaultMeter.tsx": 18, // measured: three sleeve labels, the total, both banners, the draw slider with its three outcomes, and the venue share
   "components/float/MoneyPath.tsx": 13, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
   "components/float/Runway.tsx": 18, // three empty states, the slider, the stale and cheapest chips, the buffer gloss, and the per-row pick

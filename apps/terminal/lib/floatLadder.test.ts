@@ -11,8 +11,12 @@ import {
   bandCeiling,
   escalates,
   headroom,
+  clearedCount,
   parseDenialCode,
   rungState,
+  rungSymbol,
+  stoppedAt,
+  walkedState,
 } from "./floatLadder";
 
 /* The ladder, pinned to the contract that owns it.
@@ -147,4 +151,67 @@ test("a cap already spent has no headroom, and never negative headroom", () => {
   assert.equal(headroom(25, 40), 0);
   assert.equal(headroom(Number.NaN, 1), null);
   assert.equal(headroom(25, -1), null);
+});
+
+test("the light travels all twelve, so the tail past the stop settles to not-reached", () => {
+  const code = 10 as const;
+  /* Mid-walk: the light is at rung 6, so rungs 1..5 have painted the chain's
+     answer and 7..12 have not been reached by the LIGHT yet. `queued` and not
+     `dim`, because a dashed box claims the ladder never got there and at this
+     instant that is simply not known to the reader. */
+  assert.equal(walkedState(LADDER[0], code, 6), "passed");
+  assert.equal(walkedState(LADDER[5], code, 6), "passed");
+  assert.equal(walkedState(LADDER[6], code, 6), "queued");
+  assert.equal(walkedState(LADDER[11], code, 6), "queued");
+
+  /* Settled: the walk reached the end, so the rung that answered is blocked and
+     the two behind it are unreached. If the walk had stopped at the answer,
+     rungs 11 and 12 would sit in `queued` for ever. */
+  const settled = LADDER.map((r) => walkedState(r, code, LADDER.length));
+  assert.deepEqual(settled.slice(0, 9), Array(9).fill("passed"));
+  assert.equal(settled[9], "blocked");
+  assert.deepEqual(settled.slice(10), ["dim", "dim"]);
+});
+
+test("no answer yet is RUNNING, not unreached: three facts that used to paint alike", () => {
+  /* The first paint of the page. Every rung is waiting on one read, which is a
+     different fact from "the ladder never reached this rung" and was drawn the
+     same way: twelve dashed boxes that read as a rendering fault. */
+  for (const r of LADDER) {
+    assert.equal(walkedState(r, null, 0), "running");
+    assert.equal(walkedState(r, null, LADDER.length), "running", "a walk cannot outrun a missing answer");
+  }
+  /* And `dim` still means unreached, for a rung behind a real stop. */
+  assert.equal(walkedState(LADDER[11], 3, LADDER.length), "dim");
+});
+
+test("the escalation rung paints lit, mid-walk and settled", () => {
+  assert.equal(walkedState(LADDER[ESCALATION_CODE - 1], ESCALATION_CODE, LADDER.length), "lit");
+  assert.equal(walkedState(LADDER[ESCALATION_CODE - 1], ESCALATION_CODE, ESCALATION_CODE - 1), "queued");
+});
+
+test("stoppedAt names the deciding rung, and nothing when there is not one", () => {
+  assert.equal(stoppedAt(10), 10);
+  assert.equal(stoppedAt(ESCALATION_CODE), ESCALATION_CODE);
+  /* Both of these have no deciding rung, and a number here would invent one. */
+  assert.equal(stoppedAt(0), null);
+  assert.equal(stoppedAt(null), null);
+});
+
+test("clearedCount is how far the vault GOT, which is one less than the rung that stopped it", () => {
+  assert.equal(clearedCount(0), LADDER.length, "cleared every one");
+  assert.equal(clearedCount(1), 0, "the first rung answered, so none cleared");
+  assert.equal(clearedCount(10), 9);
+  assert.equal(clearedCount(LADDER.length), LADDER.length - 1);
+  assert.equal(clearedCount(null), 0, "nothing asked yet is not progress");
+});
+
+test("every paint has its own mark, so state never rests on colour alone", () => {
+  const marks = (["passed", "blocked", "lit", "dim", "queued", "running"] as const).map(rungSymbol);
+  /* The three that a reader must tell apart at a glance have to differ. The two
+     waiting states share the neutral dot on purpose: neither is a verdict. */
+  assert.notEqual(marks[0], marks[1], "cleared and stopped must differ");
+  assert.notEqual(marks[0], marks[2], "cleared and escalated must differ");
+  assert.notEqual(marks[1], marks[2], "stopped and escalated must differ");
+  for (const m of marks) assert.ok(m.length > 0, "every paint carries a mark");
 });

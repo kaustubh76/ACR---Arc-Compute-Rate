@@ -98,6 +98,69 @@ export function rungState(rung: LadderRung, code: DenialCode | null): "passed" |
  *  `null` when there is no fair price to band against, which renders as an
  *  ellipsis rather than as zero — the same choice `premiumPct` makes.
  */
+/** The six ways a rung can paint.
+ *
+ *  FOUR OF THESE ARE THE CHAIN'S ANSWER AND TWO ARE THE WALK'S. `passed`,
+ *  `blocked`, `lit` and `dim` come from `rungState` and describe what the vault
+ *  said. `running` and `queued` describe only how far this surface has got
+ *  through drawing it, and they exist because the ladder used to draw three
+ *  different facts identically:
+ *
+ *    - "the vault has not answered yet"
+ *    - "the ladder never reached this rung"
+ *    - "the light has not arrived here yet"
+ *
+ *  All three were `dim`, a dashed box, so the first paint of the page was twelve
+ *  dashed boxes that looked like a rendering fault. They are different facts and
+ *  they now paint differently. */
+export type RungPaint = "passed" | "blocked" | "lit" | "dim" | "queued" | "running";
+
+/** What a rung paints when the light has reached `walk`.
+ *
+ *  THE LIGHT ALWAYS TRAVELS ALL TWELVE, even when rung three answered. The tail
+ *  past the deciding rung has to settle to `dim` — "not reached" — and if the
+ *  walk stopped at the answer those rungs would sit in `queued` for ever,
+ *  claiming the light was still coming. So the walk runs to the end and the
+ *  rungs behind the stop fade in as unreached, which is also what the sequence
+ *  actually looks like: it runs, it hits the rung, the rest never happened. */
+export function walkedState(rung: LadderRung, code: DenialCode | null, walk: number): RungPaint {
+  if (code === null) return "running";
+  if (rung.code > walk) return "queued";
+  return rungState(rung, code);
+}
+
+/** The rung that answered, or null when nothing stopped it (or nothing asked).
+ *
+ *  Null for BOTH "cleared all twelve" and "no answer yet", because neither has
+ *  a deciding rung — the surface tells those two apart by the code itself, and
+ *  a number here would have to invent one. */
+export function stoppedAt(code: DenialCode | null): number | null {
+  return code === null || code === 0 ? null : code;
+}
+
+/** How many rungs the vault got through: twelve when it cleared, otherwise the
+ *  rungs BEFORE the one that stopped it. Used for the track and the headline, so
+ *  a reader can see how far it got without counting boxes. */
+export function clearedCount(code: DenialCode | null): number {
+  if (code === null) return 0;
+  return code === 0 ? LADDER.length : code - 1;
+}
+
+/** A mark for each paint.
+ *
+ *  SYMBOLS LIVE HERE AND WORDS DO NOT, which is the same split the file header
+ *  states for reason strings: a glyph is a deterministic mapping a test can pin,
+ *  while reader copy hoisted out of the component would escape the plain-copy
+ *  limit and the banned-term list. The component pairs each of these with an
+ *  `<Ed>` naming the state in words, because a mark on its own is colour by
+ *  another route and fails SC 1.4.1 just the same. */
+export function rungSymbol(paint: RungPaint): string {
+  if (paint === "passed") return "\u2713";
+  if (paint === "blocked") return "\u2715";
+  if (paint === "lit") return "\u21AF";
+  return "\u00B7";
+}
+
 export function bandCeiling(fairUsdc: number, bandBps: number): number | null {
   if (!Number.isFinite(fairUsdc) || fairUsdc <= 0) return null;
   if (!Number.isFinite(bandBps) || bandBps < 0) return null;

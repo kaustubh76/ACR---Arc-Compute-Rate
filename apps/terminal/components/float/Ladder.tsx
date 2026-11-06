@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Ed } from "@/components/Ed";
 import type { FloatVaultState } from "@/lib/float";
-import { LADDER, bandCeiling, escalates, headroom, parseDenialCode, rungState } from "@/lib/floatLadder";
+import type { RungPaint } from "@/lib/floatLadder";
+import {
+  LADDER,
+  bandCeiling,
+  clearedCount,
+  escalates,
+  headroom,
+  parseDenialCode,
+  rungSymbol,
+  stoppedAt,
+  walkedState,
+} from "@/lib/floatLadder";
 import { modelOf } from "@/lib/floatRunway";
-import { fmtPrice } from "@/lib/format";
+import { fmtInt, fmtPrice } from "@/lib/format";
 import type { DryRun } from "@/lib/routeInput";
 import { useDebounced } from "@/lib/useDebounced";
 import { useFloatClassify } from "@/lib/useLive";
@@ -47,6 +58,10 @@ const STRANGER_AGENT = "nobody";
 const QUOTE_MAX = 60;
 const UNITS_FAIR = 4_000;
 const DEBOUNCE_MS = 260;
+/** How long each rung holds before the next lights. Twelve of these is 840ms,
+ *  which is long enough to read as a sequence and short enough that a reader
+ *  dragging a slider is never waiting on the animation for the answer. */
+const WALK_MS = 70;
 
 type Preset = { key: string; quote: number; units: number };
 
@@ -119,6 +134,7 @@ export function Ladder({
   const ceiling = bandCeiling(fair, bandBps);
   const humanCeiling = bandCeiling(fair, humanBandBps);
   const left = standing ? headroom(standing.daily_cap_usdc, standing.spent_usdc) : null;
+  const maxAgeS = vault.policy?.max_print_age_s ?? null;
 
   useEffect(() => {
     onVerdict?.(code);
@@ -143,6 +159,83 @@ export function Ladder({
      are sized so that fair sits just above the threshold, and the quote lands a
      hair over it. Measured against the live vault: units 19,100, quote 5.02,
      threshold 5.00, fair 5.01375 — rung eleven, "over per-request threshold". */
+  /* THE TWELVE CHECKS, WALKED RATHER THAN SNAPPED.
+
+     The ladder used to paint its whole answer in one frame, so twelve ordered
+     checks never looked like they ran: the page went from twelve dashed boxes
+     to twelve teal ones with nothing in between. Lighting them in the
+     contract's own order, 70ms apart, is under a second for all twelve and it
+     is the only thing on this surface that shows the MECHANISM rather than the
+     result. Honest, too: the order is `_check`'s and the rung it stops on is
+     the chain's, not a guess this component made.
+
+     RE-WALKS ON A NEW ANSWER, keyed on the classified quote as well as the
+     code, because dragging to a different quote that happens to trip the same
+     rung is still a new answer and has to read as one. `keepPreviousData`
+     means the object is stable until a verdict actually lands, so this is not
+     once per render.
+
+     THE INTERVAL IS CLEARED ON UNMOUNT AND BEFORE EACH RESTART, as
+     `components/loop/LoopFlow.tsx` and `components/float/MoneyPath.tsx` both
+     do. Reduced motion jumps to the settled state: the information is in the
+     twelve marks, and only the travelling was ever motion. */
+  /* `useState<number>` explicitly: `LADDER` is `as const`, so `LADDER.length`
+     is the literal type 12 and an inferred state could only ever hold 12. */
+  const [walk, setWalk] = useState<number>(LADDER.length);
+  const walkTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(
+    () => () => {
+      if (walkTimer.current) clearInterval(walkTimer.current);
+    },
+    [],
+  );
+  const walkKey = `${code}|${answer?.quote_usdc ?? ""}|${answer?.fair_usdc ?? ""}`;
+  const [walkFor, setWalkFor] = useState(walkKey);
+  /* THE REWIND HAS TO HAPPEN DURING RENDER, NOT IN AN EFFECT.
+     Measured with a MutationObserver: resetting the walk in an effect painted
+     the finished answer for one frame and THEN rewound to replay it, so a new
+     verdict flashed its own result before animating towards it. An effect runs
+     after paint, which is exactly one frame too late.
+     This is React's documented way to adjust state when the inputs change: the
+     set during render re-renders immediately without painting the stale value,
+     so the first frame a reader sees is already the start of the walk. */
+  if (walkFor !== walkKey) {
+    setWalkFor(walkKey);
+    setWalk(0);
+  }
+  useEffect(() => {
+    if (walkTimer.current) clearInterval(walkTimer.current);
+    /* With no answer every rung paints `running` whatever `walk` says, so
+       there is nothing to drive. */
+    if (code === null) return;
+    /* Read here rather than during render: `matchMedia` has no server answer,
+       and a render-phase read would differ between the server pass and the
+       first client pass. Reduced motion lands on the settled state, which is
+       where the walk was going anyway. */
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setWalk(LADDER.length);
+      return;
+    }
+    let i = 0;
+    walkTimer.current = setInterval(() => {
+      i += 1;
+      setWalk(i);
+      if (i >= LADDER.length && walkTimer.current) clearInterval(walkTimer.current);
+    }, WALK_MS);
+    return () => {
+      if (walkTimer.current) clearInterval(walkTimer.current);
+    };
+    /* `walkKey` carries the code and the quote the answer was about; `code` is
+       read inside and is part of that key. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walkKey]);
+
+  /* One rung open at a time, as the tape opens one row at a time. */
+  const [openRung, setOpenRung] = useState<number | null>(null);
+
+  const cleared = clearedCount(code);
+  const stopRung = stoppedAt(code);
+
   const unitPrice = fair > 0 && units > 0 ? fair / units : 0;
   const threshold = standing?.per_request_usdc ?? 0;
 
@@ -348,22 +441,94 @@ export function Ladder({
         <span className="num">{left === null ? "…" : fmtPrice(left)}</span>
       </div>
 
-      <div aria-label="the twelve checks, in order" className="flow flow-rungs" role="list">
+      {/* HOW FAR IT GOT, IN ONE LINE. The twelve boxes below are 681px of
+          ladder, and a reader should not have to read all of them to learn
+          whether the vault would pay. The track fills WITH the walk rather
+          than ahead of it, so the summary and the sequence agree. */}
+      <p className="label mono">
+        {code === null ? (
+          <Ed x="asking the vault" p="asking the vault" />
+        ) : code === 0 ? (
+          <Ed x="cleared all twelve checks" p="it passed all twelve checks" />
+        ) : (
+          <>
+            <Ed x="stopped at check" p="stopped at check" /> <span className="num">{code}</span>{" "}
+            <Ed x="of twelve" p="of twelve" />
+            {" · "}
+            <span className="num">{Math.min(cleared, walk)}</span> <Ed x="cleared first" p="passed first" />
+          </>
+        )}
+      </p>
+      <div aria-hidden className="rung-track">
         {LADDER.map((rung) => {
-          const state = rungState(rung, code);
+          const reached = rung.code <= walk && code !== null;
+          const cls = !reached
+            ? undefined
+            : rung.code === stopRung
+              ? escalates(code)
+                ? "park"
+                : "stop"
+              : rung.code <= cleared
+                ? "on"
+                : undefined;
+          return <i className={cls} key={rung.code} />;
+        })}
+      </div>
+
+      <div aria-label="the twelve checks, in order" className="flow flow-rungs rung-walk" role="list">
+        {LADDER.map((rung) => {
+          const state = walkedState(rung, code, walk);
+          const decided = state === "blocked" || state === "lit";
+          const open = openRung === rung.code;
           return (
             <div className="flow-station" data-node={rung.name} key={rung.code} role="listitem">
               <div className={`flow-node ${state}`}>
-                <div className="rung">
+                {/* A BUTTON, NOT A CLICKABLE BOX: the box can hold the
+                    escalation fork, which contains a link, and a button may
+                    not contain one. `.rung-open` clears 24px on its own. */}
+                <button
+                  aria-expanded={open}
+                  className="rung-open"
+                  onClick={() => setOpenRung(open ? null : rung.code)}
+                  type="button"
+                >
+                  {/* THE MARK IS THE NON-COLOUR CARRIER. Rung state was a
+                      border colour and nothing else, which is SC 1.4.1 to the
+                      letter. The glyphs differ in SHAPE, so they work without
+                      colour; the `.sr-only` word beside them is for assistive
+                      tech, which is a different requirement and needs its own
+                      answer. */}
+                  <span aria-hidden className="rung-mark">
+                    {rungSymbol(state)}
+                  </span>
                   <span className="rung-no">{rung.code}</span>
                   <span className="label">
                     <RungName name={rung.name} />
+                    <span className="sr-only">
+                      {", "}
+                      <PaintWord paint={state} />
+                    </span>
                   </span>
-                  {state === "blocked" || state === "lit" ? (
-                    <span className="rung-said">{answer?.chain_reason || ""}</span>
-                  ) : null}
-                </div>
-                {state === "lit" && escalates(code) ? (
+                </button>
+                {decided ? <span className="rung-said">{answer?.chain_reason || ""}</span> : null}
+                {open ? (
+                  <div className="rung-why">
+                    <RungWhy
+                      ceiling={ceiling}
+                      enrolled={Boolean(standing?.exists)}
+                      left={left}
+                      maxAgeS={maxAgeS}
+                      name={rung.name}
+                      paused={Boolean(vault.paused)}
+                      priced={fair > 0}
+                      quote={quote}
+                      threshold={standing ? standing.per_request_usdc : null}
+                      toStranger={toStranger}
+                      units={units}
+                    />
+                  </div>
+                ) : null}
+                {decided && state === "lit" && escalates(code) ? (
                   <div className="rung-fork">
                     <Ed
                       as="p"
@@ -411,6 +576,138 @@ export function Ladder({
         p="That line comes from the vault itself, not from this page. A person can allow more than usual, but never an unpriced amount."
       />
     </section>
+  );
+}
+
+/** The rung's state, in words, for a reader who gets the page as text.
+ *
+ *  THE MARK AND THIS ARE NOT THE SAME JOB. `rungSymbol` gives a glyph that
+ *  differs in shape, which is what SC 1.4.1 asks for: information not carried
+ *  by colour alone. This is read aloud instead of the glyph, because "check ten,
+ *  inside the fair band, tick" is not a sentence and "stopped here" is. */
+function PaintWord({ paint }: { paint: RungPaint }) {
+  if (paint === "passed") return <Ed x="cleared" p="passed" />;
+  if (paint === "blocked") return <Ed x="stopped here" p="it stopped here" />;
+  if (paint === "lit") return <Ed x="parked for a person" p="waiting for a person" />;
+  if (paint === "running") return <Ed x="still asking" p="still asking" />;
+  if (paint === "queued") return <Ed x="not run yet" p="not run yet" />;
+  return <Ed x="never reached" p="never reached" />;
+}
+
+/** What one check actually compares, with the live numbers this surface already
+ *  holds.
+ *
+ *  NO NEW READS AND NO INVENTED ONES. Every figure below is already derived for
+ *  the quote row above the ladder, so opening a rung costs nothing. Three of the
+ *  twelve have no comparison on this page — a freeze is a flag only the vault
+ *  holds, a replay is a nonce, a rotation is which print the quote was signed
+ *  against — and those say what the check IS and show no number, rather than
+ *  borrowing a plausible one from a neighbour.
+ *
+ *  A switch of literal `<Ed>` branches, for the reason `RungName` states: the
+ *  coverage gates match literal props, and a lookup table would render the same
+ *  while escaping the plain-copy limit. */
+function RungWhy({
+  name,
+  quote,
+  units,
+  ceiling,
+  threshold,
+  left,
+  enrolled,
+  paused,
+  priced,
+  maxAgeS,
+  toStranger,
+}: {
+  name: string;
+  quote: number;
+  units: number;
+  ceiling: number | null;
+  threshold: number | null;
+  left: number | null;
+  enrolled: boolean;
+  paused: boolean;
+  priced: boolean;
+  maxAgeS: number | null;
+  toStranger: boolean;
+}) {
+  if (name === "D_PAUSED") {
+    return paused ? (
+      <Ed as="p" x="the treasury's own switch is off, so nothing spends" p="the treasury is switched off, so nothing can be spent" />
+    ) : (
+      <Ed as="p" x="the treasury's own switch is on" p="the treasury is switched on" />
+    );
+  }
+  if (name === "D_UNKNOWN_AGENT") {
+    return enrolled ? (
+      <Ed as="p" x="this agent has a budget on this vault" p="this robot has a budget here" />
+    ) : (
+      <Ed as="p" x="this agent was never enrolled, so it has no budget to spend" p="this robot was never signed up, so it has nothing to spend" />
+    );
+  }
+  if (name === "D_FROZEN") {
+    return <Ed as="p" x="whether this agent has been frozen since it was enrolled, which only the vault knows" p="whether this robot has been stopped since it signed up" />;
+  }
+  if (name === "D_SELLER") {
+    return toStranger ? (
+      <Ed as="p" x="this seller is not on the vault's list, so the payment cannot be made at all" p="this shop is not on the list, so the payment cannot happen" />
+    ) : (
+      <Ed as="p" x="this seller is on the vault's list" p="this shop is on the list" />
+    );
+  }
+  if (name === "D_REPLAY") {
+    return <Ed as="p" x="whether this exact request has already been spent, by its nonce" p="whether this same bill has already been paid once" />;
+  }
+  if (name === "D_UNITS") {
+    return (
+      <p>
+        <Ed x="the units being priced" p="how much is being bought" /> <b>{fmtInt(units)}</b>
+      </p>
+    );
+  }
+  if (name === "D_NO_PRINT") {
+    return priced ? (
+      <Ed as="p" x="this model has a price on chain to check against" p="we know the going rate for this model" />
+    ) : (
+      <Ed as="p" x="no price on chain for this model, so there is nothing to check against" p="we do not know the going rate, so there is nothing to compare" />
+    );
+  }
+  if (name === "D_STALE") {
+    return (
+      <p>
+        <Ed x="a price older than this is refused" p="a rate older than this is refused" />{" "}
+        <b>{maxAgeS === null ? "\u2026" : `${fmtInt(maxAgeS)}s`}</b>
+      </p>
+    );
+  }
+  if (name === "D_ROTATED") {
+    return <Ed as="p" x="whether the quote was signed against the price the vault is now reading" p="whether the bill was worked out from the rate we just looked up" />;
+  }
+  if (name === "D_BAND") {
+    return (
+      <p>
+        <Ed x="this quote" p="this bill" /> <b>{fmtPrice(quote)}</b>{" "}
+        <Ed x="against the band's top" p="against the most it may pay" />{" "}
+        <b>{ceiling === null ? "\u2026" : fmtPrice(ceiling)}</b>
+      </p>
+    );
+  }
+  if (name === "D_PER_REQUEST") {
+    return (
+      <p>
+        <Ed x="this quote" p="this bill" /> <b>{fmtPrice(quote)}</b>{" "}
+        <Ed x="against what it may do alone" p="against what it may do on its own" />{" "}
+        <b>{threshold === null ? "\u2026" : fmtPrice(threshold)}</b>
+      </p>
+    );
+  }
+  return (
+    <p>
+      <Ed x="this quote" p="this bill" /> <b>{fmtPrice(quote)}</b>{" "}
+      <Ed x="against what is left of today" p="against what is left today" />{" "}
+      <b>{left === null ? "\u2026" : fmtPrice(left)}</b>
+    </p>
   );
 }
 
