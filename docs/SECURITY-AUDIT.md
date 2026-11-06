@@ -152,7 +152,31 @@ left the README when hackathon material was archived. Re-stated in `docs/SECURIT
 
 - No credential in the tree or any revision; `.env` never committed.
 - No upgradeability, `delegatecall` or `selfdestruct`. Two-step ownership on every contract.
-  Hand-rolled `nonReentrant` used correctly with checks-effects-interactions. USDC is Arc's.
+  USDC is Arc's.
+- **The hand-rolled `nonReentrant` is now exercised rather than reviewed, and the previous
+  wording here — "used correctly with checks-effects-interactions" — was too generous.** Until
+  2026-11-06 the claim rested on reading: `grep -n "reentrant"` matched two lines of source
+  (`FloatVault.sol:294`, `ACRFutures.sol:143`) and no test, and the one adjacent test asserted
+  `onlyExecutor` instead, because `requestSpend` is `onlyExecutor nonReentrant` in that order
+  and a hostile sleeve never reached the lock. Deleting each modifier and re-running now names
+  the defence that actually refuses a re-entry:
+  - `FloatVault.requestSpend` → `Denied(12, "daily cap exceeded")`, because `a.spent` is bumped
+    before the sleeve call (`:805` before `:808`). The seller is still paid once. Lock is depth.
+  - `ACRFutures.withdrawCollateral` → `"insufficient"`, because the balance is written before
+    the transfer (`:240` before `:241`). Lock is depth.
+  - `ACRFutures.postCollateral` → **nothing refuses it; the re-entrant deposit completes.** It
+    transfers before it credits (`:223` before `:224`), so there is no checks-effects-interactions
+    backstop and the lock is the only defence. The operation stays self-consistent — three
+    transfers, three credits, measured 1:1, and `_join` is idempotent (`:460`) — so this is not
+    a theft, but the old blanket phrasing did not describe this function.
+
+  Witnesses: `test_the_reentrancy_lock_itself_refuses_an_executor_privileged_reentry`
+  (`contracts/test/FloatVault.t.sol`) and `test_the_lock_refuses_a_reentrant_withdrawal` /
+  `..._deposit` (`contracts/test/ACRFuturesReentrancy.t.sol`). Each asserts the revert
+  **string**, not merely that the re-entry failed — a bare "it failed" is what let the earlier
+  test credit the wrong mechanism. No attacker-controlled callee exists in either contract
+  today (token and oracle are immutable and set at construction; on Arc the token is the native
+  system contract), so these locks are depth rather than active mitigation.
 - Operator console (`/ops/actions`): token-gated with `hmac.compare_digest`, **disabled by
   default**, dry-run by default, spend-capped (2 / 5 USDC), audited, bad-key lockout.
 - x402 replay defence is Circle's EIP-3009 nonce; webhook signatures are verified; the container

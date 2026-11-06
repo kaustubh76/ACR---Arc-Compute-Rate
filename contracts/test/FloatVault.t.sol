@@ -264,6 +264,63 @@ contract FloatVaultTest is Test {
         assertEq(usdc.balanceOf(seller), FAIR, "paid once");
     }
 
+    /// AND THIS ONE REACHES THE LOCK, which the test above never does.
+    ///
+    /// `requestSpend` is `external onlyExecutor nonReentrant` (in that order),
+    /// so a re-entrant call from a sleeve that is NOT the executor is refused
+    /// by `onlyExecutor` and `nonReentrant` is never consulted. The test above
+    /// says as much in its own comment, but the consequence is sharper than the
+    /// comment admits: DELETING `nonReentrant` FROM `requestSpend` DOES NOT
+    /// TURN THAT TEST RED. `docs/SECURITY-AUDIT.md` lists the hand-rolled lock
+    /// under "Verified clean", and until this test the claim rested on reading
+    /// the code — `grep -n "reentrant"` matched two lines of source and no test
+    /// at all.
+    ///
+    /// So the hostile sleeve is made an executor as well, which is the only way
+    /// the re-entrant call gets past the outer check and meets the lock. THAT
+    /// IS NOT A THREAT MODEL. It requires the owner to have wired a hostile
+    /// contract as an executor, and `setExecutor` is `onlyOwner`. The point is
+    /// not that this can happen; it is that the lock the audit claims works can
+    /// now be observed working, and observed failing when it is removed.
+    ///
+    /// THE ASSERTION IS ON THE REVERT REASON, not on the re-entry failing. A
+    /// bare `assertFalse(succeeded)` passes whether the answer came from
+    /// `onlyExecutor` or from `nonReentrant`, which is exactly how the older
+    /// test came to assert the wrong mechanism. `ReentrantSleeve` now keeps the
+    /// returndata it used to drop so the two are distinguishable.
+    ///
+    /// The cap is set so ONE payment fits and two do not, and the re-entry
+    /// carries a FRESH NONCE. Both are deliberate: with the lock removed, the
+    /// re-entrant call must get far enough to be judged on the cap, or the
+    /// negative control proves nothing about which defence holds.
+    function test_the_reentrancy_lock_itself_refuses_an_executor_privileged_reentry() public {
+        ReentrantSleeve bad = new ReentrantSleeve(usdc, address(vault));
+        vault.setSleeves(bad, ISleeve(address(0)));
+        // The line that makes the inner defence reachable at all.
+        vault.setExecutor(address(bad), true);
+        // One payment fits, two do not: cap $20 against a $12 quote.
+        _setAgent(SCOUT, 20e6, 20e6, false);
+
+        // Strand most of the float in the sleeve so the payment has to pull,
+        // because `_fund` returns early when the buffer already covers the
+        // quote and then the sleeve is never called.
+        vm.prank(address(vault));
+        usdc.transfer(address(bad), 95e6);
+
+        bad.arm(abi.encodeCall(FloatVault.requestSpend, (_req(SCOUT, FAIR, "reenter"))));
+        (bool ok,) = _spend(_req(SCOUT, FAIR, "n1"));
+
+        assertTrue(ok, "the honest spend still lands");
+        assertTrue(bad.tried(), "the sleeve did try to re-enter");
+        assertFalse(bad.succeeded(), "and the re-entrant call was refused");
+        assertEq(
+            bad.lastErrorMessage(),
+            "reentrant",
+            "the LOCK refused it - any other string means a different defence answered first"
+        );
+        assertEq(usdc.balanceOf(seller), FAIR, "paid once, not twice");
+    }
+
     // --- the caps ------------------------------------------------------------
 
     function test_a_payment_that_would_cross_the_cap_pays_zero_not_the_headroom() public {

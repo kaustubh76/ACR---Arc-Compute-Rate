@@ -167,6 +167,17 @@ contract ReentrantSleeve is ISleeve {
     bytes public payload;
     bool public tried;
     bool public succeeded;
+    /// WHY the re-entry failed, not just that it did.
+    ///
+    /// This used to be discarded — `(succeeded,) = treasury.call(payload)` —
+    /// and that single dropped return value is why the reentrancy test next
+    /// door proved something other than its name for as long as it existed. A
+    /// bare `assertFalse(succeeded)` is satisfied identically by "not executor"
+    /// and by "reentrant", so it could not see which defence answered, and the
+    /// re-entrant call was in fact being refused by the executor check before
+    /// `nonReentrant` was ever consulted. Keeping the returndata is what makes
+    /// the difference assertable.
+    bytes public lastError;
 
     constructor(MockUSDC usdc_, address treasury_) {
         usdcToken = usdc_;
@@ -184,9 +195,29 @@ contract ReentrantSleeve is ISleeve {
     function withdrawExact(uint256 usdcAmount) external {
         if (payload.length > 0 && !tried) {
             tried = true;
-            (succeeded,) = treasury.call(payload);
+            (succeeded, lastError) = treasury.call(payload);
         }
         require(usdcToken.transfer(treasury, usdcAmount), "transfer failed");
+    }
+
+    /// @notice The revert string the re-entry came back with, or "" if it did
+    ///         not revert with one.
+    /// @dev    A `require(cond, "msg")` revert is `Error(string)`: the selector
+    ///         `0x08c379a0` followed by an abi-encoded string. Anything else —
+    ///         a custom error, a bare revert, an out-of-gas — has no string to
+    ///         report, and returning "" for those is deliberate: a test that
+    ///         asserts a specific message must FAIL when the revert is some
+    ///         other kind, not quietly match on a decode that happened to
+    ///         succeed.
+    function lastErrorMessage() external view returns (string memory) {
+        bytes memory e = lastError;
+        if (e.length < 4) return "";
+        if (e[0] != 0x08 || e[1] != 0xc3 || e[2] != 0x79 || e[3] != 0xa0) return "";
+        bytes memory body = new bytes(e.length - 4);
+        for (uint256 i = 0; i < body.length; i++) {
+            body[i] = e[i + 4];
+        }
+        return abi.decode(body, (string));
     }
 
     function valueUsdc() external view returns (uint256) {
