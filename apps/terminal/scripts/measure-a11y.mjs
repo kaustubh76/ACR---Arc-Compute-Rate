@@ -68,6 +68,29 @@ const CHROME =
   process.env.CHROME_PATH ||
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
+/* THREE TRAPS FOR WHOEVER WRITES THE NEXT PROBE, here rather than in anyone's
+ * notes. Four of us hit the first one four times in a single session against a
+ * note that already existed somewhere else, which is the argument for this
+ * comment being in this file:
+ *
+ *   1. `innerText` APPLIES `text-transform`. A `.label` renders uppercase, so a
+ *      case-sensitive search for the string in the source finds nothing and the
+ *      empty result reads like a finding. Match case-insensitively, or read
+ *      `textContent`. The same shape ruined a `git grep` for "NOT ON THIS
+ *      CHAIN": the only hit in the repo was a comment, because the wall text is
+ *      uppercased by CSS.
+ *
+ *   2. `/json` CAN HAND YOU THE BROWSER TARGET. Taking the first entry with a
+ *      `webSocketDebuggerUrl` attaches to it intermittently, and there
+ *      `innerText` silently returns empty while `Emulation.setDeviceMetricsOverride`
+ *      errors. Filter `t.type === "page"`.
+ *
+ *   3. A PAGE AUDITED IN ONE STATE IS NOT AN AUDITED PAGE. This file's own
+ *      dim-rung contrast failure hid because every rung happened to have passed
+ *      when it ran; a 62px overflow needed the longest model name selected while
+ *      a read was in flight; and a width pass read clean three times while the
+ *      ladder was still loading. Drive the surface into the state you are
+ *      auditing, and make the probe refuse to report until it is painted. */
 const ROUTES = [
   "/",
   "/check?unit=%24%2F1k%20tokens&billed_usdc=0.02&quantity=10",
