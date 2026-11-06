@@ -151,3 +151,125 @@ export type GuestClaim = {
 export function isAgentAddress(s: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(s.trim());
 }
+
+/* --- the vault's own state, as this server reads it off the chain ---------
+
+   Types only, same rule as the guest block above: every string a reader sees is
+   a literal `<Ed x= p=>` in the view.
+
+   ONE SHAPE FOR "CONFIGURED" AND "STOOD DOWN", matching `GuestContext` rather
+   than inventing a second idiom. A float vault exists on one chain, so a host
+   asked about any other chain has to say that rather than answer with zeros —
+   and zero buffer, zero sleeves and zero receipts is a perfectly readable
+   screen that happens to describe a treasury that does not exist. `status` is
+   the envelope's axis, never a checkpoint's. */
+
+/** One yield sleeve. `null` where a sleeve is not active: the reserve ships as
+ *  a null sleeve pending an allowlist, and `ACR_Float.md` is emphatic that this
+ *  is shown as a banner and never as a mock. */
+export type FloatSleeve = {
+  address: string;
+  value_usdc: number;
+};
+
+/** What the vault knows about one agent. `exists` is the whole answer to
+ *  "is this agent enrolled" — every other field is meaningless without it. */
+export type FloatAgentStanding = {
+  /** The preimage, as `policy.config.json` names it. The chain stores the hash. */
+  name: string;
+  agent_id: string;
+  exists: boolean;
+  daily_cap_usdc: number;
+  spent_usdc: number;
+  remaining_usdc: number;
+  /** At or above this the request escalates; strictly below is the agent's own
+   *  authority. The boundary is inclusive, as `FloatVault._check` has it. */
+  per_request_usdc: number;
+  frozen: boolean;
+  guest: boolean;
+};
+
+/** The policy in force, in the units the contract stores it in.
+ *
+ *  Basis points stay basis points here and become a percentage at the edge: the
+ *  vault's policy is written in bp and a reader reads percent, and carrying
+ *  both in one row is a mistake this terminal has already made once. */
+export type FloatPolicyView = {
+  max_premium_bps: number;
+  /** Always at or above `max_premium_bps`: an approval widens the band, never
+   *  narrows it, and `setPolicy` refuses the other way round. */
+  human_max_premium_bps: number;
+  max_print_age_s: number;
+  working_share_bps: number;
+  buffer_hours: number;
+  min_ticket_usdc: number;
+};
+
+/** One index the print store carries, with its newest print.
+ *
+ *  `print_id` of 0 means NO PRINT, not a print numbered zero: ids start at 1.
+ *  A paused store also reads as all zeroes, so both route through the same
+ *  "no print for index" path rather than rendering as a zero price. */
+export type FloatPrint = {
+  index: string;
+  /** The preimage the store names itself, so no model literal lives here. */
+  name: string;
+  price_usd_per_1k: number;
+  ci_bps: number;
+  print_id: number;
+  age_s: number;
+  stale: boolean;
+};
+
+export type FloatVaultState = {
+  /** "ok" when this chain has a float vault configured, "pending" when it does
+   *  not. NOT the status of anything on the chain. */
+  status: "ok" | "pending";
+  /** Present when "pending": which chain, or which piece of configuration. */
+  reason?: string;
+  vault?: string;
+  /** The seller this deployment allowlists, so a reader can aim a dry run at a
+   *  seller the vault accepts and at one it does not. */
+  seller?: string;
+  paused?: boolean;
+  /** What is left in the vault itself for the next payment. */
+  buffer_usdc?: number;
+  working?: FloatSleeve | null;
+  reserve?: FloatSleeve | null;
+  /** Buffer plus both sleeves: the treasury's own free float. */
+  total_usdc?: number;
+  receipts?: number;
+  /** The fixed template every guest budget is issued against. Read from the
+   *  vault rather than inferred from an enrolled agent: on a chain where nobody
+   *  has joined yet there is no guest to read it off, and the door that offers
+   *  one still has to say what it offers. */
+  guest_daily_cap_usdc?: number;
+  policy?: FloatPolicyView;
+  agents?: FloatAgentStanding[];
+  prints?: FloatPrint[];
+  /** True when the chain asked us to slow down and some field could not be
+   *  read. The fields it covers are ABSENT rather than zero, and a sleeve is
+   *  `undefined` here where an inactive one is `null`: "we could not read this"
+   *  and "this is not live" are opposite facts and only one of them is news
+   *  about the treasury. Measured against the live vault, nine of eleven reads
+   *  came back throttled and rendered as a treasury with nothing in it. */
+  partial?: boolean;
+};
+
+/** The chain's answer to "would this be refused, and why".
+ *
+ *  `code` 0 is allowed and 1..12 names the rung that stopped it. `reason` is the
+ *  vault's own sentence, passed through unreworded, because a branch on it is a
+ *  branch on fact. `fair_usdc` comes back even on the refusals that computed it,
+ *  which is what lets a refusal carry the fair counter-price. */
+export type FloatVerdict = {
+  status: "ok" | "pending";
+  reason?: string;
+  code?: number;
+  chain_reason?: string;
+  fair_usdc?: number;
+  print_id?: number;
+  /** The quote that was classified, echoed so a slow answer cannot be read
+   *  against a slider that has since moved. */
+  quote_usdc?: number;
+};

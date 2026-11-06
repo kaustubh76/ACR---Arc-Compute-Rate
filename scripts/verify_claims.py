@@ -549,6 +549,7 @@ def main() -> None:
     from acr_core import get_settings
 
     s = get_settings()
+    checked = 0
     for label, addr in (
         ("oracle", s.oracle_address),
         ("oracle v2", getattr(s, "oracle_v2_address", "")),
@@ -560,7 +561,34 @@ def main() -> None:
     ):
         if not addr:
             continue
+        checked += 1
         check(addr.lower() in readme.lower(), f"{label} {addr[:12]}… appears in the README")
+
+    # AND from a COMMITTED source, because the loop above reads `.env` — which a
+    # CLONE DOES NOT HAVE. For anyone but the operator every address was empty,
+    # `continue` skipped all seven, and this section printed its header and
+    # nothing at all while the audit still reported "every documented number
+    # still holds". Found on 2026-11-06 by running this script inside a fresh
+    # clone of the public repo, which is the only way it could have shown up.
+    #
+    # `graph/networks.json` is tracked, needs no secrets, and carries BOTH
+    # chains rather than whichever one `.env` happens to point at — so this is
+    # also twice the coverage, not merely a clone-safe version of it.
+    nets = ROOT / "graph" / "networks.json"
+    if nets.exists():
+        for net, entries in sorted(json.loads(nets.read_text()).items()):
+            for name, cfg in sorted((entries or {}).items()):
+                addr = (cfg or {}).get("address", "")
+                if not addr:
+                    continue
+                checked += 1
+                check(
+                    addr.lower() in readme.lower(),
+                    f"{net} {name} {addr[:12]}… appears in the README",
+                )
+
+    # A section that proved NOTHING must say so, rather than read as a pass.
+    check(checked > 0, f"the README's addresses were actually checked ({checked} of them)")
 
     print("\nevidence integrity")
     # An on-chain identifier that differs from another by one character is a

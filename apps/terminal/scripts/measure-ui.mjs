@@ -74,6 +74,13 @@ const ROUTES = [
   { path: "/attack", ready: "bp|USDC" },
   { path: "/companion", ready: "." },
   { path: "/index/ACR-INF", ready: "ACR-INF" },
+  /* The float index. `ready` is a PRICE and not prose, for the reason this file
+     has already learned twice: plain mode hides expert copy from innerText, so a
+     sentence is not a readiness signal. It also needs the treasury's own env
+     (ACR_FLOAT_RPC_URL and ACR_FLOAT_VAULT_ADDRESS) to be set on the host being
+     measured; without them the page correctly renders "not on this chain" and
+     will report as unrendered, which is the truth rather than a fault. */
+  { path: "/float", ready: "[0-9]+\\.[0-9]{2}" },
 ];
 
 const WIDTHS = [375, 640, 900, 1240, 1440];

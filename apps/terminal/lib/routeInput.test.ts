@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { historyParam, payerParam, priceParam } from "./routeInput";
+import { dryRunParams, historyParam, payerParam, priceParam } from "./routeInput";
 
 const TERMINAL = join(dirname(fileURLToPath(import.meta.url)), "..");
 const route = (p: string) => readFileSync(join(TERMINAL, p), "utf8");
@@ -57,4 +57,66 @@ test("a funding price is a finite, non-negative number, else zero", () => {
     assert.equal(priceParam(raw), 0, `${raw} was accepted`);
   }
   assert.match(route("app/api/wallet/balances/route.ts"), /priceParam\(req\.nextUrl\.searchParams\.get\("price"\)\)/);
+});
+
+test("a dry run takes what the chain can classify, and names what it cannot", () => {
+  const ok = dryRunParams(
+    new URLSearchParams({ agent: "scout", seller: "0x" + "ab".repeat(20), units: "4000", quote: "4.8" }),
+  );
+  assert.ok(ok.ok);
+  assert.deepEqual(ok.req, { agent: "scout", seller: "0x" + "ab".repeat(20), units: 4000, quoteUsdc: 4.8 });
+
+  const withIndex = dryRunParams(
+    new URLSearchParams({
+      agent: "waster",
+      seller: "0x" + "cd".repeat(20),
+      units: "1",
+      quote: "0",
+      index: "0x" + "ef".repeat(32),
+    }),
+  );
+  assert.ok(withIndex.ok);
+  assert.equal(withIndex.req.index, "0x" + "ef".repeat(32));
+});
+
+test("a dry run never bounces what the ladder has a rung for", () => {
+  /* The rungs a reader is meant to be able to trip. If any of these came back
+     as a parameter error, the endpoint would be hiding the refusal it exists to
+     demonstrate. */
+  const seller = "0x" + "ab".repeat(20);
+  const absurdUnits = dryRunParams(new URLSearchParams({ agent: "scout", seller, units: "1e12", quote: "1" }));
+  assert.ok(absurdUnits.ok, "absurd units is rung 6, not a parameter error");
+
+  const overBand = dryRunParams(new URLSearchParams({ agent: "scout", seller, units: "4000", quote: "9999" }));
+  assert.ok(overBand.ok, "a quote outside the band is rung 10, not a parameter error");
+
+  const unknownAgent = dryRunParams(new URLSearchParams({ agent: "nobody", seller, units: "4000", quote: "1" }));
+  assert.ok(unknownAgent.ok, "an unknown agent is rung 2, not a parameter error");
+
+  const unlistedSeller = dryRunParams(
+    new URLSearchParams({ agent: "scout", seller: "0x" + "00".repeat(19) + "01", units: "4000", quote: "1" }),
+  );
+  assert.ok(unlistedSeller.ok, "a seller not on the allowlist is rung 4, not a parameter error");
+});
+
+test("a dry run refuses only what it cannot encode", () => {
+  const seller = "0x" + "ab".repeat(20);
+  const bad: Record<string, string>[] = [
+    { agent: "", seller, units: "1", quote: "1" },
+    { agent: "a".repeat(65), seller, units: "1", quote: "1" },
+    { agent: "sco ut", seller, units: "1", quote: "1" },
+    { agent: "scout", seller: "0xnope", units: "1", quote: "1" },
+    { agent: "scout", seller: seller.slice(0, -1), units: "1", quote: "1" },
+    { agent: "scout", seller, units: "-1", quote: "1" },
+    { agent: "scout", seller, units: "abc", quote: "1" },
+    { agent: "scout", seller, units: "1", quote: "-1" },
+    { agent: "scout", seller, units: "1", quote: "abc" },
+    { agent: "scout", seller, units: "1", quote: "1e300" },
+    { agent: "scout", seller, units: "1", quote: "1", index: "0xbeef" },
+  ];
+  for (const p of bad) {
+    const r = dryRunParams(new URLSearchParams(p));
+    assert.equal(r.ok, false, `should have refused ${JSON.stringify(p)}`);
+    if (!r.ok) assert.ok(r.error.length > 0, "a refusal must say what was wrong");
+  }
 });

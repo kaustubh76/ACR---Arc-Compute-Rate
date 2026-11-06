@@ -14,7 +14,8 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
-import type { FloatQueue } from "./float";
+import type { FloatQueue, FloatVaultState, FloatVerdict } from "./float";
+import type { DryRun } from "./routeInput";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
@@ -637,4 +638,72 @@ export function useFloatQueue() {
     { refreshInterval: floatQueuePollMs, ...RETRY },
   );
   return { queue: data, error: error as Error | undefined, refresh: mutate };
+}
+
+/** The treasury's own state, read off its chain by our server.
+ *
+ *  Fifteen seconds, against a 30s memo in `lib/floatOnchain.ts`: half these
+ *  polls cost no RPC round at all, and the half that do keep a spent buffer from
+ *  sitting on screen for a minute. Never zero, for the reason the approval queue
+ *  gives above: SWR reads 0 as "never poll again".
+ *
+ *  `error` is exposed because a treasury that is not on this chain and a chain
+ *  that did not answer are different facts, and the state's own `reason` can
+ *  only carry the first. */
+export const floatVaultPollMs = 15_000;
+
+export function useFloatVault() {
+  const chain = useChain();
+  const { data, error, mutate } = useSWR<Envelope<FloatVaultState>>(
+    apiKey("/api/float/vault", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatVaultPollMs, ...RETRY },
+  );
+  return { vault: data, error: error as FetchError | undefined, refresh: mutate };
+}
+
+/** While a dry run has no answer yet, ask again; once it has one, stop.
+ *
+ *  ZERO MEANS NEVER POLL AGAIN, AND HERE THAT IS THE CORRECT ANSWER rather than
+ *  the bug it was in the attack lab. This read is driven by its own KEY: the
+ *  agent, seller, units and quote are all in the URL, so SWR re-asks the instant
+ *  a control moves and a timer would only re-ask a question whose answer cannot
+ *  have changed.
+ *
+ *  THE NON-ZERO HALF IS THE ONE THAT MATTERS. A throttled dry run is not an
+ *  HTTP error — the route answers 200 with `status: "pending"` and a sentence —
+ *  so SWR sees a successful fetch and its retry policy never engages. Measured
+ *  in a headless browser against the live vault: the ladder sat with all twelve
+ *  rungs dimmed and "no answer from the vault yet" indefinitely, because the one
+ *  read it ever made was rate limited and nothing was going to ask again. Four
+ *  seconds until there is an answer, then nothing. */
+export const floatClassifyPollMs = (latest?: Envelope<FloatVerdict>) =>
+  latest?.data?.status === "ok" ? 0 : 4_000;
+
+/** The vault's answer to one dry run.
+ *
+ *  `keepPreviousData` comes in with RETRY and is load-bearing: the ladder keeps
+ *  showing the last verdict while the next one is in flight, so a drag reads as
+ *  a ladder settling rather than as a ladder blinking empty. The surface says
+ *  which state it is in with its own chip.
+ *
+ *  A null `req` suspends the read, which is how a page with no configured
+ *  treasury asks nothing at all. */
+export function useFloatClassify(req: DryRun | null) {
+  const chain = useChain();
+  const key = req
+    ? apiKey(
+        `/api/float/classify?agent=${encodeURIComponent(req.agent)}&seller=${req.seller}&units=${req.units}&quote=${req.quoteUsdc}${req.index ? `&index=${req.index}` : ""}`,
+        chain,
+      )
+    : null;
+  const { data, error, isLoading, isValidating } = useSWR<Envelope<FloatVerdict>>(key, fetcherFor(chain), {
+    refreshInterval: floatClassifyPollMs,
+    ...RETRY,
+  });
+  return {
+    verdict: data,
+    error: error as FetchError | undefined,
+    reading: isLoading || isValidating,
+  };
 }

@@ -2888,6 +2888,181 @@ a.colophon-act:hover::after {
   border-radius: var(--r-md);
   padding: var(--s-3) var(--s-4);
 }
+
+/* --- ACR Float: the refusal ladder, the money path, the sleeves -----------
+
+   THE LADDER REUSES `.flow-node` AND ADDS NO STATE OF ITS OWN. The four states
+   a climbing request needs are already here: `.passed` teal for the rungs it
+   cleared, `.blocked` breach for the one that bit, `.lit` gold for the rung
+   that parked it, `.dim` dashed for the rungs never reached. What the ladder
+   needs is the one thing `.flow` cannot do, which is run DOWN: twelve rungs
+   across a 375px screen is not a layout, and `grid-auto-flow: column` is the
+   whole of why.
+
+   NOTHING HERE SETS `display` ON A SINGLE CLASS THAT AN `<Ed>` COULD WEAR.
+   `components/Ed.tsx` forwards `className` to BOTH branches, and a descendant
+   rule like `.flow-node .flow-cap { display: block }` outranks `.ed-p
+   { display: none }` on specificity whatever the order — so a layout class on
+   an `<Ed>` unhides the plain copy inside the expert edition. Every class below
+   is worn by a wrapper, never by an edition branch. */
+.flow-rungs {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  gap: var(--s-2);
+}
+.flow-rungs .flow-station {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 14px;
+}
+.flow-rungs .flow-node {
+  padding: var(--s-3) var(--s-4);
+}
+.flow-rungs .flow-arrow {
+  width: 1px;
+  height: 14px;
+  margin: 0 auto;
+}
+.flow-rungs .flow-arrow::after {
+  right: -3px;
+  top: auto;
+  bottom: -1px;
+  border-left-color: transparent;
+  border-top-color: var(--hairline-strong);
+}
+.rung {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--s-2) var(--s-3);
+  align-items: baseline;
+}
+.rung-no {
+  font-family: var(--mono);
+  font-size: var(--t-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--ether-45);
+}
+.rung-said {
+  grid-column: 2;
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  letter-spacing: var(--tr-4);
+  overflow-wrap: anywhere;
+}
+.flow-node.blocked .rung-said {
+  color: var(--breach);
+}
+.flow-node.lit .rung-said {
+  color: var(--sand);
+}
+/* The fork. Rung eleven is the one refusal that is not a refusal, so it leaves
+   the ladder sideways instead of stopping it, and it is drawn in gold rather
+   than breach because a parked payment is alive and waiting on a person. */
+.rung-fork {
+  margin: var(--s-2) 0 var(--s-3) var(--s-6);
+  padding: var(--s-3) var(--s-4);
+  border-left: 1px solid rgba(233, 161, 63, 0.45);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  background: var(--gold-wash);
+}
+.rung-quote {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  align-items: baseline;
+  margin-top: var(--s-4);
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  font-variant-numeric: tabular-nums;
+}
+/* --- the money path ------------------------------------------------------
+
+   A straight rail rather than a curve, and `translateX` rather than an
+   `offset-path`. A path the dot follows would mean the same geometry written
+   twice, once in the SVG and once in the stylesheet, and the two drift. The
+   agent hangs ABOVE the rail on a dashed tether: it sends the instruction and
+   never holds the money, which is the one sentence this whole product is. */
+.money {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: var(--s-5) 0 var(--s-3);
+  overflow: visible;
+}
+/* Two compositions, one shown. `viewBox` is not a CSS property, so a diagram
+   whose text is sized in user units cannot be re-laid-out by a media query —
+   only chosen between. Measured at 375px: the wide box renders its 9 unit
+   labels at about 5 CSS pixels, which is present, correct and unreadable. */
+.money-narrow {
+  display: none;
+}
+@media (max-width: 640px) {
+  .money-wide {
+    display: none;
+  }
+  .money-narrow {
+    display: block;
+  }
+}
+.money .rail {
+  stroke: var(--hairline-strong);
+  stroke-width: 1;
+}
+.money .tether {
+  stroke: var(--hairline);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.money .node-box {
+  fill: var(--glass);
+  stroke: var(--hairline);
+}
+.money .node-box.on {
+  stroke: var(--finality);
+}
+.money .node-box.held {
+  stroke: rgba(233, 161, 63, 0.55);
+}
+.money .node-label {
+  fill: var(--ether-70);
+  font-family: var(--eyebrow);
+  font-size: 9px;
+  letter-spacing: var(--tr-5);
+  text-transform: uppercase;
+}
+.money .node-figure {
+  fill: var(--sand);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.money .node-figure.nil {
+  fill: var(--finality);
+}
+.money-dot {
+  fill: var(--sand);
+}
+.money.paying .money-dot {
+  animation: float-travel 2.4s var(--ease-expo) infinite;
+}
+.money.jit .jit-leg {
+  stroke: var(--gold);
+  stroke-dasharray: none;
+}
+@keyframes float-travel {
+  0% { transform: translateX(0); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateX(var(--travel)); opacity: 0; }
+}
+/* --- the sleeves --------------------------------------------------------- */
+.meter .fill-buffer {
+  background: var(--sand);
+}
+.meter .fill-working {
+  background: var(--finality);
+}
+.meter .fill-reserve {
+  background: var(--plum);
+}
 .tier-cols {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3017,8 +3192,18 @@ a.colophon-act:hover::after {
   .chip .dot.breathe,
   .arc-horizon.breathe .sun,
   .arc-horizon.breathe .ring,
+  /* The float money path's travelling dot. INFINITE, like the two above, so a
+     reader cannot wait it out — and it sits beside the ladder a reader is
+     meant to be reading. Stilled at the start of the rail: the diagram's
+     static composition is the three boxes and the agent's dashed tether, and
+     the dot is the only thing that moves. */
+  .money.paying .money-dot,
   .skel::after {
     animation: none !important;
+  }
+  .money.paying .money-dot {
+    transform: none !important;
+    opacity: 1 !important;
   }
   /* dawn band stills to exactly the static composition */
   .arc-horizon .sun,

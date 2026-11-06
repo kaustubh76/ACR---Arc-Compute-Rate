@@ -45,6 +45,12 @@ const NAV: Array<[href: string, label: string, plain: string]> = [
   // Traction after Spend: a reader sees one business's money, then how many
   // businesses there are. In the nav because these are the numbers a reviewer
   // came to check, and they should not have to be told the URL.
+  // Float after Spend, because the reading order holds: Spend is one business's
+  // book of decisions, and Float is the treasury that funds one without ever
+  // handing the agent the money. It is in the nav rather than operator-only
+  // because a judge arriving at the site should not have to be told the URL,
+  // which is the same argument /spend and /traction already make above.
+  ["/float", "Float", "Spend Safely"],
   ["/traction", "Traction", "Who Uses It"],
   ["/developers", "Developers", "For Coders"],
 ];

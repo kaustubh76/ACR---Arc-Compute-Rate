@@ -132,6 +132,13 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/chain/PaymentToast.tsx": 1,
   "components/chain/FillToast.tsx": 1,
   "app/float/approve/view.tsx": 22, // the three honest states, the code, the countdown, and every label on the card
+  // The float index. Measured, not estimated: the gate's own note above is that
+  // a floor under actual is a floor that cannot fail, and these four landed
+  // together so there is no excuse for carrying slack in any of them.
+  "app/float/view.tsx": 25, // four honest states, the hero, the money path's caption and the three doors
+  "components/float/Ladder.tsx": 38, // twelve rung names in both registers, the controls, the presets and the fork
+  "components/float/VaultMeter.tsx": 8, // three sleeve labels, the total, and the banner for a sleeve that is not live
+  "components/float/MoneyPath.tsx": 3, // the diagram's nouns are register-neutral by necessity; the caption carries it
   "app/float/join/view.tsx": 27, // measured: the eight named refusals each get their own sentence, plus the form and the issued card
   "components/chain/TxLink.tsx": 2,
   "components/chain/Badges.tsx": 2,
@@ -166,6 +173,8 @@ const EXEMPT: Record<string, string> = {
   "app/float/approve/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/float/approve/loading.tsx": "skeleton",
   "app/float/join/page.tsx": "metadata only — the client component owns the whole sequence, like /float/approve",
+  "app/float/page.tsx": "metadata only — the client hooks own every number, like /float/approve",
+  "app/float/loading.tsx": "skeleton",
   "app/float/join/loading.tsx": "skeleton",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",
