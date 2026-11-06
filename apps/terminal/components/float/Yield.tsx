@@ -443,6 +443,31 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               ) : null}
             </p>
           )}
+          {/* THE CLAIM, READ RATHER THAN ASSERTED. The sentence below has
+              always been the strongest thing this panel says — a mock yield
+              venue would have printed a number — and it was the only claim
+              here still made by the page instead of by the chain. `reserve()`
+              returns the zero address and now says so in its own characters.
+              Absent when the read did not come back: a throttled read must not
+              render as a confident zero address. */}
+          {d?.status === "ok" && vault.reserve_slot ? (
+            <p className="label mono">
+              <Ed x="the vault's reserve slot holds" p="the vault's second slot holds" />{" "}
+              <span className="num">{vault.reserve_slot}</span>{" "}
+              {/* A zero address is the only value that means "no venue". Any
+                  other would be a venue this panel has not described, so it
+                  says which it got rather than assuming. */}
+              {/^0x0+$/.test(vault.reserve_slot) ? (
+                <span className="chip chip-teal chip-wrap">
+                  <Ed x="no venue, which is the honest answer" p="nothing, which is the honest answer" />
+                </span>
+              ) : (
+                <span className="chip chip-gold chip-wrap">
+                  <Ed x="a venue is wired that this panel has not described" p="something is wired here that this page has not explained" />
+                </span>
+              )}
+            </p>
+          ) : null}
           <Ed
             as="p"
             className="muted"

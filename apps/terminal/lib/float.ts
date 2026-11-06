@@ -249,6 +249,15 @@ export type FloatVaultState = {
   buffer_usdc?: number;
   working?: FloatSleeve | null;
   reserve?: FloatSleeve | null;
+  /** THE ADDRESS THE VAULT ACTUALLY HOLDS IN ITS RESERVE SLOT.
+   *
+   *  The reserve ships as the zero address, and "the vault holds a zero address
+   *  rather than a stand-in" is the strongest honesty claim on this surface — a
+   *  mock yield venue would have printed a number. It was the one claim still
+   *  asserted in prose rather than read, so this carries what `reserve()`
+   *  returned and the panel prints it. Absent when the read did not come back:
+   *  a throttled read must not render as a confident zero address. */
+  reserve_slot?: string;
   /** Buffer plus both sleeves: the treasury's own free float. */
   total_usdc?: number;
   receipts?: number;

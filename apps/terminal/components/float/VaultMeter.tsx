@@ -158,16 +158,26 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
           value={working.value_usdc}
         />
       ) : null}
-      {reserve ? (
+      {/* THE THIRD TIER IS DRAWN EVEN WHEN IT IS NOT LIVE, which is the point.
+          The contract pulls buffer, then working, then reserve, and the draw
+          slider computes all three — but this row used to render only when the
+          sleeve existed, so a reader saw two tiers and a chip saying a third
+          was off somewhere. An empty track with a zero is not an invented
+          number: it is exactly what is in that slot, and it lets the pull
+          order be seen rather than described.
+
+          `undefined` is the one case that stays hidden. That is not-read, and
+          drawing an empty tier for it would claim the chain answered. */}
+      {reserve === undefined ? null : (
         <Row
           fill="fill-reserve"
           label={<Ed x="reserve sleeve" p="held back" />}
           taken={fromReserve}
           takenFill="fill-pull"
           total={total}
-          value={reserve.value_usdc}
+          value={reserve ? reserve.value_usdc : 0}
         />
-      ) : null}
+      )}
 
       {ceiling > 0 ? (
         <>

@@ -81,6 +81,11 @@ function floatChain(): ChainKey {
  *  the same so the page and that measurement are asking one question. */
 const DEPOSIT_PROBE_UNITS = 1_000_000n;
 
+/** How long to wait before asking the Teller a second time. Long enough for a
+ *  per-address rate limiter to let go, short enough that a reader does not
+ *  notice; only ever paid when the first answer was illegible. */
+const DEPOSIT_RETRY_MS = 450;
+
 /** The burn address, as the eligibility control. Nobody can claim this one is
  *  allowlisted, which is exactly why it is the right second reading. */
 const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD" as Address;
@@ -375,6 +380,10 @@ export async function readVaultState(chain: ChainKey, withPrints = false): Promi
     ...(buffer.ok ? { buffer_usdc: usdc6(buffer.value) } : {}),
     ...(working === undefined ? {} : { working }),
     ...(reserve === undefined ? {} : { reserve }),
+    /* What `reserve()` answered, whatever it was. `asSleeve` above collapses
+       this to a sleeve, `null` or `undefined`, which loses the address — and
+       the zero address IS the claim the reserve panel rests on. */
+    ...(reserveAddr.ok ? { reserve_slot: reserveAddr.value } : {}),
     ...(total.ok ? { total_usdc: usdc6(total.value) } : {}),
     ...(receipts.ok ? { receipts: Number(receipts.value) } : {}),
     ...(guestCap.ok ? { guest_daily_cap_usdc: usdc6(guestCap.value) } : {}),
@@ -814,8 +823,7 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
      might be about our balance, our allowance, or anything else incidental —
      which would make this exactly the false green it replaces. Both or
      neither. */
-  const tryDeposit = async (from: Address): Promise<string | null | undefined> => {
-    if (!hasTeller) return undefined;
+  const attemptDeposit = async (from: Address): Promise<string | null | undefined> => {
     try {
       await c.simulateContract({
         account: from,
@@ -831,9 +839,29 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
       return null;
     } catch (e) {
       const sel = revertSelector(e);
-      if (sel === null) busy = true;
-      return refusalName(sel) ?? undefined;
+      return sel === null ? undefined : (refusalName(sel) ?? undefined);
     }
+  };
+
+  /* ONE RETRY, BECAUSE THIS IS THE PANEL'S BEST EVIDENCE AND IT WAS LOSING A
+     RACE. Measured: these two staticcalls answer reliably when asked alone and
+     came back unreadable during a page load, where the vault, the tape, the dry
+     run and the yield walk are all competing for the same per-address rate
+     limit. The reserve poll is two minutes, so a first read that lost the race
+     left the refusal and its control off the page for that long — the strongest
+     thing the panel can say, absent, for the reader most likely to look once.
+
+     A short wait and one more attempt, and only when the first answer was
+     ILLEGIBLE rather than a refusal: a revert is an answer and asking again
+     would just cost another call. */
+  const tryDeposit = async (from: Address): Promise<string | null | undefined> => {
+    if (!hasTeller) return undefined;
+    const first = await attemptDeposit(from);
+    if (first !== undefined) return first;
+    await new Promise((r) => setTimeout(r, DEPOSIT_RETRY_MS));
+    const again = await attemptDeposit(from);
+    if (again === undefined) busy = true;
+    return again;
   };
   const [mine, control] = await Promise.all([tryDeposit(cfg.vault), tryDeposit(DEAD_ADDRESS)]);
 
