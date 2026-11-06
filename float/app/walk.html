@@ -64,6 +64,12 @@
   .spin::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
   @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+  .picks { display: grid; gap: 6px; margin-top: 10px; max-height: 280px; overflow-y: auto; }
+  .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; width: 100%; text-align: left; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+  .pick:hover { border-color: var(--dim); }
+  .pick[aria-pressed="true"] { border-color: var(--accent); }
+  .pick:disabled { opacity: .6; cursor: default; }
+  .pick.more { justify-content: center; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -73,6 +79,7 @@
   <a class="back" href="index.html">← back to the dashboard (index.html)</a>
   <div id="err"></div>
   <div id="status" class="panel"><span class="spin" id="statusText">starting</span></div>
+  <div id="picker"></div>
   <div id="steps"></div>
   <div id="conclusion"></div>
   <div id="logs"></div>
@@ -152,35 +159,6 @@ async function retry(fn) {
     }
   }
   throw last;
-}
-
-/** Newest Receipt with jitFunded, paging backwards in windows of CFG.window. */
-async function findJitTx() {
-  const head = await client.getBlockNumber();
-  let lowest = head;
-  let seen = 0;
-  for (let w = 0; w < CFG.windows; w++) {
-    const to = head - BigInt(w) * CFG.window;
-    if (to < 0n) break;
-    const from = to >= CFG.window - 1n ? to - (CFG.window - 1n) : 0n;
-    setStatus(`searching blocks ${from}–${to} for a just-in-time payment (window ${w + 1} of ${CFG.windows})`);
-    let logs;
-    try {
-      logs = await retry(() => client.getLogs({ address: CFG.vault, event: RECEIPT_EVENT, fromBlock: from, toBlock: to }));
-    } catch (e) {
-      throw new Error(`The RPC refused blocks ${from}–${to}: ${e.shortMessage ?? e.message}. The search stopped there, so the result below would not be complete.`);
-    }
-    lowest = from;
-    seen += logs.length;
-    const jit = logs.filter((l) => l.args.jitFunded)
-      .sort((a, b) => Number(b.blockNumber - a.blockNumber) || b.logIndex - a.logIndex);
-    if (jit.length) return { hash: jit[0].transactionHash, head };
-    if (from === 0n) break;
-  }
-  const msg = seen === 0
-    ? `No Receipt events from the vault in blocks ${lowest}–${head} (${CFG.windows} windows of ${CFG.window} blocks).`
-    : `${seen} Receipt events in blocks ${lowest}–${head}, none funded just-in-time.`;
-  throw new Error(`${msg} The search gave up there, so older payments, if any, were not looked at. Open this page with ?tx=0x… to walk a specific transaction.`);
 }
 
 const decode = (log) => {
@@ -355,6 +333,146 @@ async function walk(hash, head) {
   window.__walk = { hash, pull: pull?.idx, pay: pay?.idx, receipt: rcpt.idx, inOrder: !!inOrder };
 }
 
+// ---- the picker
+// The scan reads EVERY Receipt in each window it pages through. It used to keep
+// only the newest just-in-time one and throw the rest away, which left a reader
+// with one fixed payment and, when there was none, an instruction to type a
+// query string into an address bar that Arc Studio's preview panel does not
+// have. The Receipts are kept here instead, and a click walks one of them.
+const PICK_MAX = 40;
+const scan = { head: null, receipts: [], next: 0, target: 0, lowest: null, exhausted: false, err: null };
+let chosen = null, busy = false;
+const keyOf = (l) => `${l.transactionHash}:${l.logIndex}`;
+
+/** Page backwards another CFG.windows windows (each <= CFG.window blocks), stopping at the first just-in-time payment. */
+async function scanMore(first) {
+  if (scan.head === null) scan.head = await retry(() => client.getBlockNumber());
+  scan.target += CFG.windows;
+  scan.err = null;
+  while (scan.next < scan.target) {
+    const w = scan.next;
+    const to = scan.head - BigInt(w) * CFG.window;
+    if (to < 0n) { scan.exhausted = true; break; }
+    const from = to >= CFG.window - 1n ? to - (CFG.window - 1n) : 0n;
+    setStatus(`searching blocks ${from}–${to} for payments (window ${w + 1} of ${scan.target})`);
+    let logs;
+    try {
+      logs = await retry(() => client.getLogs({ address: CFG.vault, event: RECEIPT_EVENT, fromBlock: from, toBlock: to }));
+    } catch (e) {
+      scan.err = `The RPC refused blocks ${from}–${to}: ${e.shortMessage ?? e.message}. The search stopped there, so the list below would not be complete.`;
+      break;
+    }
+    scan.lowest = from;
+    scan.next++;
+    scan.receipts.push(...logs);
+    if (from === 0n) { scan.exhausted = true; break; }
+    if (logs.some((l) => l.args.jitFunded)) break;
+  }
+  scan.receipts.sort((a, b) => Number(b.blockNumber - a.blockNumber) || b.logIndex - a.logIndex);
+  if (first && scan.err && scan.receipts.length === 0) throw new Error(scan.err);
+}
+
+/** The newest just-in-time payment, else the newest payment, else nothing. */
+const defaultPick = () => scan.receipts.find((l) => l.args.jitFunded) ?? scan.receipts[0] ?? null;
+
+async function hoursCovered() {
+  try {
+    const [a, b] = await Promise.all([
+      retry(() => client.getBlock({ blockNumber: scan.head })),
+      retry(() => client.getBlock({ blockNumber: scan.lowest })),
+    ]);
+    return (Number(a.timestamp) - Number(b.timestamp)) / 3600;
+  } catch { return null; }
+}
+
+const pickRow = (l) => {
+  const a = l.args;
+  return `<button type="button" class="pick" data-key="${esc(keyOf(l))}" aria-pressed="${keyOf(l) === chosen}">`
+    + `<span>#${a.id}</span><span>${usd(a.quote)}</span>`
+    + (a.jitFunded ? `<span class="pill ok">JIT</span>` : `<span class="pill nolog">from buffer</span>`)
+    + `<span class="k">${esc(short(l.transactionHash))}</span><span class="k">block ${l.blockNumber}</span></button>`;
+};
+
+async function renderPicker() {
+  const n = scan.receipts.length;
+  const jitN = scan.receipts.filter((l) => l.args.jitFunded).length;
+  const covered = scan.lowest === null ? 0n : scan.head - scan.lowest + 1n;
+  const hours = scan.lowest === null ? null : await hoursCovered();
+  const span = scan.lowest === null ? "no window was read" : `blocks ${scan.lowest}–${scan.head} (${covered.toLocaleString("en-US")} blocks, ${hours === null ? "hours not measured" : `about ${hours.toFixed(1)} hours`})`;
+  let html = `<div class="panel"><div class="head"><h2>Payments found</h2><span class="pill">${n}</span></div>`;
+  html += `<div class="note" style="margin-top:6px">Looked at ${span}: ${n} payment${n === 1 ? "" : "s"}, ${jitN} funded just-in-time.${scan.exhausted ? " That reaches the start of the chain." : ""}</div>`;
+  if (n > 0 && jitN === 0) {
+    html += `<div class="note warn">None of these payments were funded just-in-time, so the sleeve-pull step will be empty for them. A payment paid wholly out of the buffer is a real payment, not an error.</div>`;
+  }
+  if (n === 0) {
+    html += `<div class="note warn">No Receipt events from the vault in ${span}. There is nothing to walk yet.</div>`;
+  } else {
+    html += `<div class="picks" role="group" aria-label="payments found, newest first">${scan.receipts.slice(0, PICK_MAX).map(pickRow).join("")}</div>`;
+    if (n > PICK_MAX) html += `<div class="note">Showing the newest ${PICK_MAX} of ${n}.</div>`;
+  }
+  if (scan.err) html += `<div class="err">${esc(scan.err)}</div>`;
+  if (jitN === 0 && !scan.exhausted) {
+    html += `<button type="button" class="pick more" id="pickMore">Look further back (${CFG.windows} more windows of ${CFG.window} blocks)</button>`;
+  }
+  $("picker").innerHTML = html + `</div>`;
+}
+
+const markChosen = () => {
+  for (const b of $("picker").querySelectorAll("button.pick[data-key]")) b.setAttribute("aria-pressed", String(b.dataset.key === chosen));
+};
+const setBusy = (on) => {
+  busy = on;
+  for (const b of $("picker").querySelectorAll("button.pick")) b.disabled = on;
+};
+
+/** Walk the transaction behind one Receipt we already hold. Nothing is rescanned. */
+async function choose(l) {
+  if (busy || keyOf(l) === chosen) return;
+  chosen = keyOf(l);
+  markChosen();
+  setBusy(true);
+  $("err").innerHTML = "";
+  for (const id of ["steps", "conclusion", "logs"]) $(id).innerHTML = "";
+  $("status").style.display = "";
+  try {
+    await walk(l.transactionHash, scan.head);
+  } catch (e) {
+    chosen = null;
+    markChosen();
+    fail(String(e.shortMessage ?? e.message ?? e));
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function startPicker() {
+  await scanMore(true);
+  await renderPicker();
+  $("picker").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button.pick");
+    if (!btn || busy) return;
+    if (btn.id === "pickMore") {
+      setBusy(true);
+      $("err").innerHTML = "";
+      $("status").style.display = "";
+      const hadJit = scan.receipts.some((l) => l.args.jitFunded);
+      try { await scanMore(false); } catch (e) { scan.err = String(e.shortMessage ?? e.message ?? e); }
+      await renderPicker();
+      setBusy(false);
+      const next = defaultPick();
+      const found = next && next.args.jitFunded && !hadJit;
+      if (found || (next && chosen === null)) await choose(next);
+      else $("status").style.display = "none";
+      return;
+    }
+    const l = scan.receipts.find((x) => keyOf(x) === btn.dataset.key);
+    if (l) await choose(l);
+  });
+  const first = defaultPick();
+  if (first) await choose(first);
+  else $("status").style.display = "none";
+}
+
 async function main() {
   const param = new URLSearchParams(location.search).get("tx");
   let hash, head;
@@ -362,7 +480,8 @@ async function main() {
     if (!/^0x[0-9a-fA-F]{64}$/.test(param)) throw new Error(`?tx= must be a 0x-prefixed 32-byte transaction hash, got "${param.slice(0, 80)}".`);
     hash = param;
   } else {
-    ({ hash, head } = await findJitTx());
+    await startPicker();
+    return;
   }
   await walk(hash, head);
 }

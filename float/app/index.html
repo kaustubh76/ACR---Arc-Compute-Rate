@@ -50,6 +50,7 @@
   .pill.jit { color: var(--accent); border-color: #1d4535; }
   .pill.human { color: var(--warn); border-color: #4a3a1c; }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+  select#span { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 11px; max-width: 100%; }
 </style>
 </head>
 <body>
@@ -57,6 +58,11 @@
   <h1>ACR Float</h1>
   <div class="sub" id="head">connecting…</div>
   <div id="err"></div>
+  <div class="note" style="margin:0 0 12px">
+    <label for="span">How far back the tape reads:</label>
+    <select id="span"></select>
+    <div id="spanNote" style="margin-top:4px"></div>
+  </div>
   <div class="grid">
     <div class="panel">
       <h2>Runway, in compute</h2>
@@ -312,6 +318,34 @@ async function loop() {
   setTimeout(loop, 12_000);
 }
 loop();
+
+// ---- how far back the tape reads
+// ?span= was the only way to set this and the preview panel has no address bar
+// to type it into. The tape reads 12 requests of `span` blocks each (logsOf
+// above), so the reach is span x 12. Arc rejects a request above 10,000 blocks,
+// which is why 9,000 is the largest option offered. The options are in blocks,
+// not hours: this page has not measured block time.
+{
+  const PAGES = 12n; // mirrors the 12 in logsOf
+  const sel = el("span");
+  const spans = [...new Set([1000n, 3000n, 6000n, 9000n, CFG.span])].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  sel.innerHTML = spans.map((s) =>
+    `<option value="${s}"${s === CFG.span ? " selected" : ""}>${(s * PAGES).toLocaleString("en-US")} blocks back (${s.toLocaleString("en-US")} per request)</option>`).join("");
+  el("spanNote").textContent = `${PAGES} requests of this many blocks each. Arc rejects a request above 10,000 blocks, so 9,000 is the largest option.`;
+  sel.addEventListener("change", async () => {
+    CFG.span = BigInt(sel.value);
+    sel.disabled = true;
+    el("tapeNote").textContent = `re-reading ${(CFG.span * PAGES).toLocaleString("en-US")} blocks of history…`;
+    try {
+      await tick();
+      el("err").innerHTML = "";
+    } catch (e) {
+      el("err").innerHTML = `<div class="err">${String(e.shortMessage ?? e.message ?? e)}</div>`;
+    } finally {
+      sel.disabled = false;
+    }
+  });
+}
 </script>
 </body>
 </html>

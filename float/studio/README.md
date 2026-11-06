@@ -329,8 +329,8 @@ one does not:
 
   | file | in the Studio workspace | in this repo | written by |
   |---|---|---|---|
-  | `index.html` | `655c5335…8d5a64f6` · 15,620 | **identical** | Claude Code |
-  | `walk.html` | `7202bc60…862ac17f` · 22,023 | `13623e0c…5fdf0daf` · 22,190 | **Arc Studio** (§3c) |
+  | `index.html` | `7cc551eb…8615f640` · 17,420 | **identical** | Claude Code, then **Arc Studio** (§3f) |
+  | `walk.html` | `ae8583da…1be2183d` · 27,787+ | `6efc9b0d…794f6bdd` · 27,787 | **Arc Studio** (§3c, §3f) |
   | `venue.html` | `48d9b548…e69273c3` · 59,600 | **identical** | **Arc Studio**, `morpho` skill (§3d, §3e) |
 
   The whole of the difference is the bare-403 retry: Arc answers a hard burst
@@ -338,10 +338,60 @@ one does not:
   matched. `make studio-pull` reports it as *"1 file(s) skipped to protect local
   edits"*, which is the protection working.
 
-  **`venue.html` agrees again as of 2026-11-06**, because the 403 fix went back
-  out to the workspace with `-f 'float/app/venue.html:venue.html'` before Studio
-  added §3e, so what it edited was the corrected file and what came back
-  contains both. `walk.html` is the one that still diverges, by that one line.
+  **`venue.html` and `index.html` agree as of 2026-11-06**, because each went
+  back out to the workspace with `-f '<local>:<name>'` before its turn, so what
+  Studio edited was the corrected file and what came back contains both halves.
+
+  **`walk.html` now diverges for a different reason than it used to.** The 403
+  fix is no longer the difference — that went out with the file. What differs is
+  that this repo's copy has **28 lines of dead code removed**: Studio's §3f turn
+  left the old `findJitTx()` orphaned rather than deleting it, and that function
+  ends in a `throw` whose advice is *"Open this page with `?tx=0x…`"* — the very
+  dead end §3f exists to remove, sitting unreachable in the file. Nothing calls
+  it (`grep -cE '[^a-zA-Z]findJitTx\('` returns 1, its own declaration), so it
+  changed no behaviour, but a throwing function carrying instructions a reader
+  cannot follow is worth deleting rather than leaving for the next person to
+  puzzle over.
+
+## 3f · Making the pages drivable, with the `morpho` skill
+
+All three pages had **zero event handlers between them** and took their only
+configuration from a query string. Inside Arc Studio that is unreachable — the
+preview panel has no address bar — so a reader got one fixed view.
+
+Worse, `walk.html` had a dead end. It scans backwards for the newest
+just-in-time payment in 6 windows of 9,000 blocks, about **7.7 hours** of Arc,
+and on finding none it threw an error whose only remedy was a URL you could not
+type there.
+
+Studio was told the page already fetches **every** `Receipt` in that range and
+discards all but one, so the control was a matter of not throwing away what it
+already had. It added:
+
+- a **payment picker** in `walk.html` — one row per receipt, newest first,
+  carrying the id, the quote, whether it was funded just-in-time, the tx and the
+  block. Clicking a row walks that payment. `?tx=` still works and the picker is
+  shown beside it, so a reader can switch away from the transaction the URL named.
+- a **`<select id="span">`** in `index.html`, four look-backs from 12,000 to
+  108,000 blocks, each labelled with its per-request size — all at or under
+  9,000, because Arc rejects `eth_getLogs` above a 10,000-block range.
+
+**Verified by driving it over CDP**, which is the only way to know a control
+works rather than exists:
+
+| | |
+|---|---|
+| the picker | 2 rows, e.g. `#38 $1.05525 JIT 0xc956…3f45 block 71033422` |
+| clicking the unselected row | walked **exactly** the tx that row names: expected `0xcd8a…4c04`, header became `0xcd8a…4c04`, and `aria-pressed` followed |
+| `?tx=0x364723c6…` | walked that transaction and still offered the picker |
+| the span selector | changing it re-rendered; every option ≤ 9,000 per request |
+
+Worth recording honestly: **two of my own first attempts at that click test
+reported a failure that was not there.** Both measured the page before it had
+settled — the scan takes about 45 seconds under Arc's throttling — and one took
+its "before" reading while the header was still unrendered, so it compared a
+real tx against `?`. The page was right both times. A test that races the thing
+it measures reports the tester's impatience as the product's defect.
 
 ## 3e · Asking the venue a question, with the `morpho` skill
 
