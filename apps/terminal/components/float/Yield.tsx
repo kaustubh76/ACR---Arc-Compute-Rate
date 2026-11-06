@@ -380,11 +380,11 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
                 so, instead of quietly rendering a different number under the
                 same prose. `null` is not-read and claims nothing either way. */}
             {f?.agrees_with_record === true ? (
-              <span className="chip chip-teal">
+              <span className="chip chip-teal chip-wrap">
                 <Ed x="the live reads match what we recorded" p="it still matches what we wrote down" />
               </span>
             ) : f?.agrees_with_record === false ? (
-              <span className="chip chip-breach">
+              <span className="chip chip-breach chip-wrap">
                 <Ed x="the fund no longer matches our record" p="the fund does not match what we wrote down" />
               </span>
             ) : null}{" "}
@@ -415,25 +415,25 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
           {f?.deposit_refused === null || f?.deposit_refused === undefined ? null : (
             <p className="label">
               {f.deposit_refused ? (
-                <span className="chip chip-breach">
+                <span className="chip chip-breach chip-wrap">
                   <Ed x="the fund refuses this treasury" p="the fund says no to us" />{" "}
                   <span className="mono">{f.deposit_refusal}</span>
                 </span>
               ) : (
-                <span className="chip chip-teal">
+                <span className="chip chip-teal chip-wrap">
                   <Ed x="the fund would accept a deposit from this treasury" p="the fund would take our money" />
                 </span>
               )}{" "}
               {f.deposit_refused && f.control_refusal ? (
                 f.control_refusal === f.deposit_refusal ? (
-                  <span className="chip chip-sim">
+                  <span className="chip chip-sim chip-wrap">
                     <Ed
                       x="an unrelated address is refused the same way, so this is reading permission"
                       p="a stranger gets the same answer, so this really is about permission"
                     />
                   </span>
                 ) : (
-                  <span className="chip chip-sim">
+                  <span className="chip chip-sim chip-wrap">
                     <Ed
                       x="an unrelated address is refused differently, so this says less than it looks"
                       p="a stranger gets a different answer, so we cannot be sure why"
