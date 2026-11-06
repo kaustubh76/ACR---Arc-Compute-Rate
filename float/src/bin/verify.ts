@@ -69,7 +69,14 @@ for (const sig of ["uncaughtException", "unhandledRejection"] as const) {
       `\n${results.length - failed.length}/${results.length} checks passed before this run ABORTED on ${NET}.`,
     );
     if (failed.length > 0) console.log(`FAILED: ${failed.map((f) => f.id).join(", ")}`);
-    console.log(`ABORTED: ${(err as Error)?.message ?? String(err)}`);
+    // Truncated to six lines on purpose: viem attaches the whole ABI to a
+    // revert, and the one line that matters is the first. This used to live in
+    // a second `uncaughtException` handler further down the file — but Node
+    // runs every registered listener in order and this one registers first and
+    // exits, so that one could never fire. Two handlers for one event is one
+    // handler and a dead one.
+    const msg = ((err as Error)?.message ?? String(err)).split("\n").slice(0, 6).join("\n");
+    console.log(`ABORTED: ${msg}`);
     process.exit(1);
   });
 }
@@ -137,14 +144,6 @@ const VENUE_ABI = [
 ] as const;
 
 console.log(`[verify] ${NET} — vault ${d.vault}\n`);
-
-process.on("uncaughtException", (e) => {
-  // viem attaches the full ABI to a revert, which buries the one line that
-  // matters under four hundred lines of JSON.
-  const m = (e as Error).message ?? String(e);
-  console.error(`\nverify ABORTED: ${m.split("\n").slice(0, 6).join("\n")}`);
-  process.exit(1);
-});
 
 // --- T0 · the yield venue still lets us in ----------------------------------
 {
