@@ -50,6 +50,8 @@ import type {
   FloatPolicyView,
   FloatPrint,
   FloatSleeve,
+  FloatTape,
+  FloatTapeRow,
   FloatVaultState,
   FloatVerdict,
 } from "./float";
@@ -477,5 +479,136 @@ export async function classifyQuote(
     fair_usdc: usdc6(out.value[2]),
     print_id: Number(out.value[3]),
     quote_usdc: req.quoteUsdc,
+  };
+}
+
+
+/* --- the tape -------------------------------------------------------------
+
+   ONE WINDOW, NOT THE WHOLE HISTORY. Arc refuses a log query wider than about
+   ten thousand blocks, and every reader in this repo pages at nine thousand.
+   At the measured block time that is roughly seventy-six minutes, so this is
+   the recent slice and `FloatTape` carries the window it covers so the surface
+   can say which. An empty tape over a known window is a fact; an empty tape
+   over an unstated one is a treasury that looks idle. */
+
+const LOG_WINDOW = 9_000n;
+/** Enough to fill a screen without asking the node for a page nobody reads. */
+const MAX_ROWS = 40;
+
+/** A receipt states its own premium; a refusal does not, but carries both
+ *  numbers that make it.
+ *
+ *  `Denied` has no `premiumBps` field, and the first version of this printed an
+ *  ellipsis there — on the one row where the number matters most. The contract's
+ *  own comment says why it carries `fair` on a refusal at all: "here is what
+ *  this should have cost is the whole value of refusing an overcharge rather
+ *  than merely blocking it." So it is computed from the integers, in basis
+ *  points, the way the chain would. */
+const bps = (fair: bigint, raw: bigint): number | null => (fair > 0n ? Number(raw) : null);
+
+const bpsOver = (quote: bigint, fair: bigint): number | null =>
+  fair > 0n ? Number(((quote - fair) * 10_000n) / fair) : null;
+
+export async function readTape(chain: ChainKey): Promise<FloatTape> {
+  const cfg = floatConfig(chain);
+  if (typeof cfg === "string") return { status: "pending", reason: cfg, rows: [] };
+
+  const c = client(cfg.rpc);
+  let busy = false;
+  const note = async <T,>(r: Promise<Read<T>>): Promise<Read<T>> => {
+    const v = await r;
+    if (!v.ok && v.busy) busy = true;
+    return v;
+  };
+
+  const head = await note(one<bigint>(() => c.getBlockNumber()));
+  if (!head.ok) {
+    return {
+      status: "pending",
+      reason: head.busy
+        ? "the float vault's chain is rate limiting this host; it retries by itself"
+        : "the float vault's chain did not answer this host",
+      rows: [],
+    };
+  }
+  const toBlock = head.value;
+  const fromBlock = toBlock > LOG_WINDOW ? toBlock - LOG_WINDOW : 0n;
+
+  const receiptEvent = VAULT_ABI.find((e) => e.type === "event" && e.name === "Receipt");
+  const deniedEvent = VAULT_ABI.find((e) => e.type === "event" && e.name === "Denied");
+
+  /* Both queries in one tick, so `batch: true` sends them as a single request.
+     Two sequential calls here would be two trips against a shared limit. */
+  const [paid, refused] = await Promise.all([
+    note(
+      one(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (c as any).getLogs({ address: cfg.vault, event: receiptEvent, fromBlock, toBlock }),
+      ),
+    ),
+    note(
+      one(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (c as any).getLogs({ address: cfg.vault, event: deniedEvent, fromBlock, toBlock }),
+      ),
+    ),
+  ]);
+
+  const rows: FloatTapeRow[] = [];
+
+  if (paid.ok) {
+    for (const l of paid.value as Array<{ args: Record<string, unknown>; blockNumber: bigint; transactionHash: string }>) {
+      const a = l.args;
+      const fair = (a.fair as bigint) ?? 0n;
+      rows.push({
+        kind: "paid",
+        block: Number(l.blockNumber),
+        tx: l.transactionHash,
+        agent_id: String(a.agentId ?? ""),
+        index: String(a.index ?? ""),
+        quote_usdc: usdc6((a.quote as bigint) ?? 0n),
+        fair_usdc: usdc6(fair),
+        premium_bps: bps(fair, (a.premiumBps as bigint) ?? 0n),
+        id: Number((a.id as bigint) ?? 0n),
+        units: Number((a.units as bigint) ?? 0n),
+        jit_funded: Boolean(a.jitFunded),
+        guest: Boolean(a.guest),
+        human_approved: Boolean(a.humanApproved),
+      });
+    }
+  }
+
+  if (refused.ok) {
+    for (const l of refused.value as Array<{ args: Record<string, unknown>; blockNumber: bigint; transactionHash: string }>) {
+      const a = l.args;
+      const fair = (a.fair as bigint) ?? 0n;
+      rows.push({
+        kind: "refused",
+        block: Number(l.blockNumber),
+        tx: l.transactionHash,
+        agent_id: String(a.agentId ?? ""),
+        index: String(a.index ?? ""),
+        quote_usdc: usdc6((a.quote as bigint) ?? 0n),
+        fair_usdc: usdc6(fair),
+        premium_bps: bpsOver((a.quote as bigint) ?? 0n, fair),
+        code: Number((a.code as number | bigint) ?? 0),
+        reason: String(a.reason ?? ""),
+      });
+    }
+  }
+
+  /* Newest first, and a payment sorts above a refusal in the same block: the
+     refusal is the thing that did not happen, so the thing that did reads
+     first. */
+  rows.sort((x, y) => y.block - x.block || (x.kind === y.kind ? 0 : x.kind === "paid" ? -1 : 1));
+
+  return {
+    status: "ok",
+    rows: rows.slice(0, MAX_ROWS),
+    from_block: Number(fromBlock),
+    to_block: Number(toBlock),
+    window_blocks: Number(LOG_WINDOW),
+    ...(busy || !paid.ok || !refused.ok ? { partial: true } : {}),
   };
 }

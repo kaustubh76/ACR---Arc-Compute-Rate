@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Ed } from "@/components/Ed";
 import { Ladder } from "@/components/float/Ladder";
 import { MoneyPath } from "@/components/float/MoneyPath";
+import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
 import { fmtPrice } from "@/lib/format";
 import { useFloatVault } from "@/lib/useLive";
@@ -154,6 +155,8 @@ export function FloatView() {
           <Ladder onVerdict={onVerdict} vault={data} />
 
           <VaultMeter vault={data} />
+
+          <Tape />
 
           <section className="section">
             <div className="section-head">

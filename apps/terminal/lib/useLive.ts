@@ -14,7 +14,7 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
-import type { FloatQueue, FloatVaultState, FloatVerdict } from "./float";
+import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict } from "./float";
 import type { DryRun } from "./routeInput";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
@@ -706,4 +706,22 @@ export function useFloatClassify(req: DryRun | null) {
     error: error as FetchError | undefined,
     reading: isLoading || isValidating,
   };
+}
+
+/** The tape: payments and refusals, newest first.
+ *
+ *  Twelve seconds, matching the standalone dashboard's own cadence. The agents
+ *  loop pays about once a minute and the keeper prices every ten, so a window
+ *  this size keeps a new row arriving while a reader is still looking at the
+ *  last one, which is the only reason a tape is worth watching. */
+export const floatTapePollMs = 12_000;
+
+export function useFloatTape() {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<FloatTape>>(
+    apiKey("/api/float/receipts", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatTapePollMs, ...RETRY },
+  );
+  return { tape: data, error: error as FetchError | undefined };
 }

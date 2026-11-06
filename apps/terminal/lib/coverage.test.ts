@@ -139,6 +139,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/float/Ladder.tsx": 38, // twelve rung names in both registers, the controls, the presets and the fork
   "components/float/VaultMeter.tsx": 8, // three sleeve labels, the total, and the banner for a sleeve that is not live
   "components/float/MoneyPath.tsx": 3, // the diagram's nouns are register-neutral by necessity; the caption carries it
+  "components/float/Tape.tsx": 19, // both outcomes, three badges, the empty state and the window it covers // the diagram's nouns are register-neutral by necessity; the caption carries it
   "app/float/join/view.tsx": 27, // measured: the eight named refusals each get their own sentence, plus the form and the issued card
   "components/chain/TxLink.tsx": 2,
   "components/chain/Badges.tsx": 2,

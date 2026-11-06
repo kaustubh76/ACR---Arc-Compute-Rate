@@ -273,3 +273,48 @@ export type FloatVerdict = {
    *  against a slider that has since moved. */
   quote_usdc?: number;
 };
+
+/* --- the tape: every payment and every refusal the chain kept -------------
+
+   TWO EVENTS, ONE LIST. `Receipt` and `Denied` are the whole public record of
+   what this treasury did, and they belong beside each other: a page showing
+   only payments would describe a treasury that has never refused anything,
+   which is the opposite of the claim. */
+
+export type FloatTapeRow = {
+  kind: "paid" | "refused";
+  block: number;
+  tx: string;
+  agent_id: string;
+  index: string;
+  quote_usdc: number;
+  /** What the chain recomputed the price as. Carried on refusals too, which is
+   *  what lets one say "here is what this should have cost". */
+  fair_usdc: number;
+  /** SIGNED. A quote below fair is legal, so this goes negative and must not be
+   *  read as an enormous overcharge. `null` when there was no fair price. */
+  premium_bps: number | null;
+  /** paid only */
+  id?: number;
+  units?: number;
+  /** The shortfall came out of the yield venue in this same transaction. */
+  jit_funded?: boolean;
+  guest?: boolean;
+  human_approved?: boolean;
+  /** refused only: the rung, and the chain's own sentence. */
+  code?: number;
+  reason?: string;
+};
+
+export type FloatTape = {
+  status: "ok" | "pending";
+  reason?: string;
+  rows: FloatTapeRow[];
+  /** THE WINDOW, NOT THE HISTORY. Arc caps a log query at roughly ten thousand
+   *  blocks, so this is the most recent slice and the surface has to say so
+   *  rather than let a reader take an empty tape for an idle treasury. */
+  from_block?: number;
+  to_block?: number;
+  window_blocks?: number;
+  partial?: boolean;
+};

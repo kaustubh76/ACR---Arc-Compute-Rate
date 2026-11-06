@@ -109,7 +109,9 @@ test("every function we call exists on the contract we call it on", () => {
     new RegExp(`public\\s+(?:constant\\s+)?${name}\\b`).test(src) ||
     new RegExp(`\\b${name}\\s*;`).test(src);
 
-  for (const e of VAULT_ABI) {
+  /* Functions only. The ABI now also carries the two tape events, and an
+     event is not declared with the `function` keyword. */
+  for (const e of VAULT_ABI.filter((x) => x.type === "function")) {
     assert.ok(declares(vault, e.name), `FloatVault does not declare ${e.name}`);
   }
   for (const e of STORE_ABI) {
@@ -122,4 +124,44 @@ test("every function we call exists on the contract we call it on", () => {
     ERC20_ABI.map((e) => e.name),
     ["balanceOf"],
   );
+});
+
+test("the two tape events are the structs the contract emits, field for field", () => {
+  const src = readFileSync(VAULT_SOL, "utf8");
+
+  /** The field names of an `event X(...)` declaration, in order. */
+  const eventFields = (name: string): string[] => {
+    const m = src.match(new RegExp("event\\s+" + name + "\\s*\\(([^)]*)\\)"));
+    assert.ok(m, `no event ${name} in the contract`);
+    return m[1]
+      .split(",")
+      .map((f) => {
+        const words = f.trim().split(/\s+/).filter((w) => w !== "indexed");
+        return words[words.length - 1] ?? "";
+      })
+      .filter((f) => f.length > 0);
+  };
+
+  const ours = (name: string) => {
+    const e = VAULT_ABI.find((x) => x.name === name && x.type === "event") as
+      | { inputs: Array<{ name: string }> }
+      | undefined;
+    assert.ok(e, `our ABI carries no ${name} event`);
+    return e.inputs.map((i) => i.name);
+  };
+
+  assert.deepEqual(ours("Receipt"), eventFields("Receipt"));
+  assert.deepEqual(ours("Denied"), eventFields("Denied"));
+});
+
+test("premiumBps is read as signed, because a quote below fair is legal", () => {
+  const src = readFileSync(VAULT_SOL, "utf8");
+  /* An unsigned read of a negative premium renders a bargain as an enormous
+     overcharge, and the contract's own type is the only thing that says which
+     this is. */
+  assert.match(src, /int256\s+premiumBps/);
+  const e = VAULT_ABI.find((x) => x.name === "Receipt" && x.type === "event") as unknown as {
+    inputs: Array<{ name: string; type: string }>;
+  };
+  assert.equal(e.inputs.find((i) => i.name === "premiumBps")?.type, "int256");
 });

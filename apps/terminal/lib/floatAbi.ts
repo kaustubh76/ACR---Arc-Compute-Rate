@@ -82,6 +82,45 @@ export const VAULT_ABI = [
     ],
     stateMutability: "view",
   },
+  /* The two events a tape renders. Both carry `index` AND the recomputed
+     `fair`, so a refusal can name what was being bought and show the price it
+     should have been — which is the whole value of refusing an overcharge
+     rather than merely blocking it.
+
+     `premiumBps` is `int256`, SIGNED. A quote below fair is legal and happens,
+     so a reader that treats this as unsigned turns a bargain into an enormous
+     overcharge. */
+  {
+    type: "event",
+    name: "Receipt",
+    inputs: [
+      { name: "id", type: "uint256", indexed: true },
+      { name: "agentId", type: "bytes32", indexed: true },
+      { name: "seller", type: "address", indexed: true },
+      { name: "index", type: "bytes32", indexed: false },
+      { name: "printId", type: "uint64", indexed: false },
+      { name: "units", type: "uint256", indexed: false },
+      { name: "quote", type: "uint256", indexed: false },
+      { name: "fair", type: "uint256", indexed: false },
+      { name: "premiumBps", type: "int256", indexed: false },
+      { name: "jitFunded", type: "bool", indexed: false },
+      { name: "guest", type: "bool", indexed: false },
+      { name: "humanApproved", type: "bool", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Denied",
+    inputs: [
+      { name: "agentId", type: "bytes32", indexed: true },
+      { name: "code", type: "uint8", indexed: true },
+      { name: "index", type: "bytes32", indexed: false },
+      { name: "reason", type: "string", indexed: false },
+      { name: "quote", type: "uint256", indexed: false },
+      { name: "fair", type: "uint256", indexed: false },
+      { name: "nonce", type: "bytes32", indexed: false },
+    ],
+  },
 ] as const;
 
 export const STORE_ABI = [
