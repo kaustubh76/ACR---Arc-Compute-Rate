@@ -120,7 +120,9 @@ Skip it rather than rush it — the pages are the evidence, the workspace is
 provenance.
 
 **Do not claim Studio built Float.** It compiled the policy from English,
-audited the vault, deployed the contracts and wrote those two pages. The
+audited the vault and wrote those two pages. It did NOT deploy the contracts
+(`arc-studio deployments` answers "No deployed contracts found"); that was
+`forge script` from our own deployer. The
 contracts, the keeper, the agents and the harness were written in Claude Code.
 `float/studio/README.md` draws that line and a judge may well read it.
 

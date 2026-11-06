@@ -6,9 +6,10 @@ performed on Float, so the claim can be checked rather than taken.
 The honest sentence, which is narrower than "built with Arc Studio" and survives
 being questioned:
 
-> Arc Studio compiled the treasury policy from English, audited the vault,
-> deployed the contracts, and wrote the transaction walkthrough. The rest of
-> Float was written in Claude Code.
+> Arc Studio compiled the treasury policy from English, audited the vault, and
+> wrote two of the three pages — the transaction walkthrough and the venue risk
+> page. The contracts were written and deployed in Claude Code, and so was
+> everything else.
 
 ## 1 · Compiling the policy from English
 
@@ -273,6 +274,18 @@ one does not:
   80 tests.
 - It did not write the keeper, the agents, the MCP server, the policy validator,
   or the acceptance harness.
+- **It did not deploy the contracts, and an earlier draft of this file said it
+  did.** The Arc Testnet deploy was `forge script DeployFloat.s.sol --broadcast`
+  from our own deployer; `float/deployments/arc-testnet.json` names that address
+  and the commit is `74ab486`. Studio's own CLI agrees — `arc-studio deployments
+  --app b5aa43e1-…` answers **"No deployed contracts found."**
+
+  It was offered the job and refused it on purpose: a Studio deploy signs with
+  its shared platform wallet, that wallet would have become `owner`, and
+  `wire()` is `onlyOwner` and one-shot. The treasury would have belonged to the
+  sandbox. The overclaim is corrected here rather than quietly deleted, because
+  a file arguing that narrow claims survive questioning should show what
+  happened when one of its own did not.
 - It did not author the dashboard — `index.html`, the panels, the tape. It wrote
   `walk.html` beside it (§3c), which is a different page and a narrower claim.
   It **holds** the dashboard — `index.html` was written in Claude Code and the
