@@ -4,14 +4,15 @@ import { useCallback, useState } from "react";
 
 import { Ed } from "@/components/Ed";
 import { Ladder } from "@/components/float/Ladder";
-import { MoneyPath } from "@/components/float/MoneyPath";
+import { OnePayment3D } from "@/components/float/OnePayment3D";
 import { Runway } from "@/components/float/Runway";
 import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
+import { WhoTouches } from "@/components/float/WhoTouches";
 import { Yield } from "@/components/float/Yield";
 import { fmtPrice } from "@/lib/format";
 import { setChain } from "@/lib/useChain";
-import { useFloatTape, useFloatVault } from "@/lib/useLive";
+import { useFloatVault } from "@/lib/useLive";
 
 /* ACR Float, the front door.
 
@@ -30,11 +31,10 @@ import { useFloatTape, useFloatVault } from "@/lib/useLive";
 
 export function FloatView() {
   const { vault, error } = useFloatVault();
-  /* The diagram's just-in-time leg now lights on what the newest real payment
-     did rather than on a proxy. Read here rather than in the diagram so the
-     tape is fetched once for both. */
-  const { tape } = useFloatTape();
-  const newestPaid = tape?.data?.rows?.find((r) => r.kind === "paid");
+  /* THE TAPE READ MOVED INTO `useOnePayment`, which composes the vault, the
+     tape and the walk and adds no SWR key of its own: all three are already
+     fetched on this page and SWR dedupes on the shared key, so the scene costs
+     no extra request and the tape is still fetched once for every panel. */
   const [code, setCode] = useState<number | null>(null);
   /* WHICH MODEL THE LADDER PRICES AGAINST, picked in the runway and spent in
      the ladder, so it lives in the one place that renders both. Null means
@@ -173,13 +173,13 @@ export function FloatView() {
                 )}
               </span>
             </div>
-            <MoneyPath
-              fairUsdc={newestPaid?.fair_usdc}
-              jitFunded={newestPaid?.jit_funded}
-              paying={code === 0}
-              quoteUsdc={newestPaid?.quote_usdc}
-              vault={data}
-            />
+            <OnePayment3D paying={code === 0} vault={data} />
+            {/* The heading has promised both halves since this page shipped,
+                and only the payment was ever drawn. The parties sit under the
+                same heading rather than in a section of their own, because
+                "who touches the money" is not a separate subject from the
+                payment that moves it. */}
+            <WhoTouches vault={data} />
           </section>
 
           {/* Runway before the ladder: a reader meets the money, learns what

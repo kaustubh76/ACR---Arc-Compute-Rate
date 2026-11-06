@@ -10,6 +10,7 @@
 
 import useSWR from "swr";
 import { apiKey, sameChain, type ChainKey } from "./chainChoice";
+import { firstPaid, onePayment, type OnePayment } from "./floatOne";
 import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
@@ -24,6 +25,7 @@ import type {
   FloatYield,
 } from "./float";
 import type { DryRun } from "./routeInput";
+import type { WorldGateState } from "./worldGate";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
 import type { TapeData } from "./tape";
@@ -784,4 +786,50 @@ export function useFloatWalk(tx: string | null) {
     { ...RETRY },
   );
   return { walk: data, error: error as FetchError | undefined, reading: isLoading };
+}
+
+/** Who the chain says may touch the money.
+ *
+ *  THE ROUTE ALREADY EXISTED and `app/float/approve/view.tsx` already read it
+ *  with a raw `useSWR`. Lifted here so a second surface does not re-derive the
+ *  key, and so the key goes through `apiKey()` like every other one.
+ *
+ *  A minute, as a module constant for the reason stated at the top of this
+ *  file: these four slots change only when an owner transaction lands, and the
+ *  route memoizes for the same minute anyway. */
+export const floatGatePollMs = 60_000;
+
+export type FloatGateAnswer = { status: "ok" | "pending"; reason?: string; gate?: WorldGateState };
+
+export function useFloatGate() {
+  const chain = useChain();
+  const { data, error } = useSWR<Envelope<FloatGateAnswer>>(
+    apiKey("/api/float/gate", chain),
+    fetcherFor(chain),
+    { refreshInterval: floatGatePollMs, ...RETRY },
+  );
+  return { gate: data, error: error as FetchError | undefined };
+}
+
+/** One payment, as a scene.
+ *
+ *  COMPOSES THE READS THE PAGE ALREADY MAKES AND ADDS NO KEY OF ITS OWN. The
+ *  vault, the tape and the walk are each fetched elsewhere on this page, and
+ *  SWR dedupes on the shared key, so mounting this costs no extra request. It
+ *  inherits `useFloatWalk`'s deliberate absence of a `refreshInterval` too: a
+ *  finished transaction's logs cannot change.
+ *
+ *  The newest PAID row, because a refusal moved nothing and so has no order to
+ *  walk. All the judgement lives in `lib/floatOne.ts`, under test. */
+export function useOnePayment(): OnePayment {
+  const { vault } = useFloatVault();
+  const { tape } = useFloatTape();
+  const newest = firstPaid(tape?.data?.rows);
+  const { walk, reading } = useFloatWalk(newest?.tx ?? null);
+  return onePayment({
+    vault: vault?.data,
+    tape: tape?.data,
+    walk: walk?.data,
+    reading,
+  });
 }

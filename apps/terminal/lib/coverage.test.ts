@@ -138,7 +138,16 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/float/view.tsx": 26, // four honest states, the hero, the money path's caption and the three doors
   "components/float/Ladder.tsx": 73, // measured: twelve rung names, twelve state words, twelve "what it checks" branches, the rail, the readout, the controls, the presets and the fork
   "components/float/VaultMeter.tsx": 19, // measured: three sleeve labels, the total, both banners, the draw slider across all three tiers, and the venue share
-  "components/float/MoneyPath.tsx": 13, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
+  "components/float/MoneyPath.tsx": 13,
+  // The WebGL twin of the money path, and the words that frame it. The scene
+  // itself is exempt below; everything a reader READS about it lives here, in
+  // both registers: the four order verdicts, the two fair-price branches, the
+  // two empty states, the reading line and the caption.
+  "components/float/OnePayment3D.tsx": 19,
+  // Eleven parties, each with a permission sentence in both registers, plus
+  // five column heads, the tri-state chips and the unbound-treasurer note.
+  // Measured, not estimated.
+  "components/float/WhoTouches.tsx": 37, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
   "components/float/Runway.tsx": 18, // three empty states, the slider, the stale and cheapest chips, the buffer gloss, and the per-row pick
   "components/float/Yield.tsx": 49, // measured: the floor note, the withheld-gain state, the four venue gates, the fees, the fund read rather than asserted, and the eligibility probe with its control
   "components/float/Walk.tsx": 18, // four step titles in both registers, the four verdicts, and the no-log note
@@ -179,6 +188,14 @@ const EXEMPT: Record<string, string> = {
   "app/float/join/page.tsx": "metadata only — the client component owns the whole sequence, like /float/approve",
   "app/float/page.tsx": "metadata only — the client hooks own every number, like /float/approve",
   "app/float/loading.tsx": "skeleton",
+  // A WebGL scene carries no copy a reader can be served in two registers:
+  // its own labels are five plain nouns, register-neutral for the reason
+  // MoneyPath gives (useEdition resolves to expert on the server, so a dual
+  // register inside the picture flashes on hydration). The sentence that
+  // explains it dual-renders in OnePayment3D's caption, and the flat SVG is
+  // its accessible twin. Exempt as components/ArcHorizon.tsx is exempt.
+  "components/float/OnePaymentScene.tsx":
+    "WebGL scene, no copy: the flat SVG twin and OnePayment3D's caption carry the register",
   "app/float/join/loading.tsx": "skeleton",
   "app/spend/page.tsx": "metadata only — the client hook owns the queue, like /ops",
   "app/traction/page.tsx": "metadata only — the client hook owns the count, like /ops",

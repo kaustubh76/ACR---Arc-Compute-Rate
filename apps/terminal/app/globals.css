@@ -3236,6 +3236,149 @@ a.colophon-act:hover::after {
   88% { opacity: 1; }
   100% { transform: translateX(var(--travel)); opacity: 0; }
 }
+/* --- one payment, plotted ------------------------------------------------
+
+   The WebGL twin of the money path. The flat SVG above is the fallback AND the
+   accessible twin, so nothing here has to carry a value on its own: every
+   figure in the scene is a drei <Html> node, which means real DOM text wearing
+   these tokens rather than glyphs rasterised into a canvas.
+
+   NO CSS ANIMATION LIVES HERE ON PURPOSE. The puck is moved by the render loop
+   in `OnePaymentScene.tsx`, and the component does not mount the canvas at all
+   under `prefers-reduced-motion`, which is a stronger answer than disabling a
+   keyframe: the loop never starts. The rule below is belt and braces for a
+   reader whose preference changes while the page is open. */
+.scene {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  margin: var(--s-5) 0 var(--s-3);
+  border: 1px solid var(--glass-brd);
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur-glass));
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+}
+.scene:active {
+  cursor: grabbing;
+}
+.scene canvas {
+  display: block;
+  outline: none;
+}
+.scene-idle {
+  cursor: default;
+}
+@media (max-width: 640px) {
+  .scene {
+    height: 300px;
+  }
+}
+/* A marker's label. Pointer events off so the whole box stays draggable: a tag
+   that swallowed the drag would make the one control this scene has unreliable
+   wherever a reader happened to grab it. */
+.scene-tag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--glass-brd);
+  border-radius: var(--r-sm);
+  background: rgba(11, 34, 62, 0.82);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.scene-tag-name {
+  font-family: var(--eyebrow);
+  font-size: var(--t-1);
+  letter-spacing: var(--tr-5);
+  text-transform: uppercase;
+  color: var(--ether-70);
+}
+.scene-tag-fig {
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  color: var(--sand);
+}
+/* The agent's nothing, in the colour the flat diagram already gives it. */
+.scene-tag-nil {
+  font-family: var(--mono);
+  font-size: var(--t-3);
+  color: var(--finality);
+}
+.scene-tag-log {
+  font-family: var(--mono);
+  font-size: var(--t-1);
+  color: var(--ether-45);
+}
+/* The log-index scale, pinned to the frame rather than placed in the scene.
+   An axis that rotates with the camera stops being an axis, and the reader is
+   invited to drag this one. `bottom` is set inline from the same normalised
+   height the markers use, so the gaps on screen are the gaps in the
+   transaction, and the numbers printed ARE the evidence. */
+.scene-axis {
+  position: absolute;
+  left: var(--s-4);
+  top: var(--s-5);
+  bottom: var(--s-5);
+  width: var(--s-6);
+  border-left: 1px solid var(--hairline-strong);
+  pointer-events: none;
+  z-index: 1;
+}
+.scene-axis-tick {
+  position: absolute;
+  left: var(--s-2);
+  transform: translateY(50%);
+  font-family: var(--mono);
+  font-size: var(--t-1);
+  color: var(--ether-45);
+  white-space: nowrap;
+  user-select: none;
+}
+/* The tick's own rule, so a number is attached to a position rather than
+   floating near one. */
+.scene-axis-tick::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--s-2) * -1);
+  top: 50%;
+  width: var(--s-2);
+  border-top: 1px solid var(--hairline-strong);
+}
+/* --- the model's sentence ------------------------------------------------
+
+   Gated behind a disclosure and badged inside it. Every figure on this page is
+   read off the chain; this paragraph is not, and it is the only prose on any
+   ACR surface that `lib/coverage.test.ts` cannot lint, because that gate reads
+   static p="…" props and this arrives at runtime. So it costs a click, it says
+   who wrote it, and with no key configured it does not render. */
+.narrate {
+  margin: var(--s-4) 0 0;
+  max-width: var(--measure);
+}
+.narrate-head {
+  font-family: var(--eyebrow);
+  font-size: var(--t-2);
+  letter-spacing: var(--tr-5);
+  text-transform: uppercase;
+  color: var(--sky);
+  cursor: pointer;
+}
+.narrate-body {
+  margin: var(--s-3) 0 var(--s-2);
+  font-size: var(--t-5);
+  line-height: var(--lh-4);
+  color: var(--ether);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene {
+    cursor: default;
+  }
+}
 /* --- the sleeves --------------------------------------------------------- */
 .meter .fill-buffer {
   background: var(--sand);

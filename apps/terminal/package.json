@@ -15,18 +15,22 @@
     "npm": ">=10"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
     "@aomi-labs/widget": "3.1.4",
     "@circle-fin/adapter-viem-v2": "^1.18.0",
     "@circle-fin/bridge-kit": "^1.15.1",
     "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@circle-fin/x402-batching": "^3.2.0",
     "@modelcontextprotocol/sdk": "1.30.0",
+    "@react-three/drei": "10.7.9",
+    "@react-three/fiber": "9.8.2",
     "@worldcoin/idkit": "4.6.0",
     "acr-mcp": "0.3.3",
     "next": "^16.3.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "swr": "^2.4.2",
+    "three": "0.187.0",
     "viem": "^2.0.0"
   },
   "devDependencies": {
