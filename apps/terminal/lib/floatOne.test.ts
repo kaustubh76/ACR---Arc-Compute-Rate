@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { COLUMN, firstPaid, heights, onePayment, script } from "./floatOne";
+import { agentPoint, benchmarkPoint, COLUMN, firstPaid, heights, onePayment, pointOf, SCENE, script } from "./floatOne";
 import type { FloatTape, FloatTapeRow, FloatVaultState, FloatWalk } from "./float";
 
 /* The canonical payment's own log positions, from the transaction the
@@ -216,4 +216,88 @@ test("the agent is never in a column that holds money", () => {
   assert.notEqual(COLUMN.ask, "treasury");
   assert.equal(COLUMN.pull, "sleeve");
   assert.equal(COLUMN.pay, "seller");
+});
+
+/* --- the scene's geometry, as claims a suite can fail -------------------- */
+
+test("the agent is never on the money plane, at any angle", () => {
+  /* THE WHOLE DIAGRAM, per MoneyPath.tsx:11-16. In the flat version the agent
+     hangs above the rail and a reader takes the gap on trust. In three
+     dimensions it is off the plane from every direction the camera can reach,
+     which is the only reason the camera is allowed to move. */
+  const [, , az] = agentPoint();
+  assert.equal(az, SCENE.z.offPlane);
+  assert.notEqual(az, SCENE.z.money);
+  assert.ok(SCENE.agentY > SCENE.ceil, "and above the axis, not on it");
+});
+
+test("the benchmark is off the money plane too, and over the treasury", () => {
+  /* It checks a price and never touches a balance, so it belongs on the same
+     plane as the agent. Over the treasury because the treasury is what does
+     the checking (MoneyPath.tsx:41). */
+  const [bx, by, bz] = benchmarkPoint();
+  assert.equal(bz, SCENE.z.offPlane);
+  assert.equal(bx, SCENE.x.treasury);
+  assert.ok(by > SCENE.ceil, "off the axis: it has no log");
+});
+
+test("a beat with no log has no point in the scene", () => {
+  const r = onePayment({ vault: null, tape: tape([paidRow()]), walk: walkOk() });
+  if (r.status !== "live") throw new Error("expected live");
+  for (const b of r.beats) {
+    const p = pointOf(b);
+    if (b.height === null) assert.equal(p, null, `${b.key} has no log, so no point`);
+    else assert.ok(p, `${b.key} has a log, so it has a point`);
+  }
+});
+
+test("every beat that IS placed sits on the money plane, inside the axis", () => {
+  const r = onePayment({ vault: null, tape: tape([paidRow()]), walk: walkOk() });
+  if (r.status !== "live") throw new Error("expected live");
+  for (const b of r.beats) {
+    const p = pointOf(b);
+    if (!p) continue;
+    assert.equal(p[2], SCENE.z.money, `${b.key} moves money, so it is on the money plane`);
+    assert.ok(p[1] >= SCENE.floor && p[1] <= SCENE.ceil, `${b.key} is inside the axis`);
+  }
+});
+
+test("the three custody columns are distinct, or the scene says nothing", () => {
+  const { treasury, sleeve, seller } = SCENE.x;
+  assert.equal(new Set([treasury, sleeve, seller]).size, 3);
+});
+
+test("an in-order payment puts the pull BELOW the pay in world space", () => {
+  /* The unit under test is the geometry, not the arithmetic: this is the
+     claim a reader checks by dragging the camera. */
+  const r = onePayment({ vault: null, tape: tape([paidRow()]), walk: walkOk() });
+  if (r.status !== "live") throw new Error("expected live");
+  const pull = pointOf(r.beats.find((b) => b.key === "pull")!)!;
+  const pay = pointOf(r.beats.find((b) => b.key === "pay")!)!;
+  assert.ok(pull[1] < pay[1], "the shortfall left the venue lower down than the seller was paid");
+  assert.ok(pull[0] !== pay[0], "and from a different custody column");
+});
+
+test("a contradicted order is HIGHER in world space, so the picture is wrong on purpose", () => {
+  const r = onePayment({
+    vault: null,
+    tape: tape([paidRow()]),
+    walk: walkOk({
+      verdict: "out_of_order",
+      steps: [
+        { n: 1, state: "ok" },
+        { n: 2, state: "ok", log_index: 40, value_usdc: 0.5 },
+        { n: 3, state: "ok", log_index: 32, value_usdc: 1.05525 },
+        { n: 4, state: "ok", log_index: 41, value_usdc: 1.05525 },
+      ],
+    }),
+  });
+  if (r.status !== "live") throw new Error("expected live");
+  const pull = pointOf(r.beats.find((b) => b.key === "pull")!)!;
+  const pay = pointOf(r.beats.find((b) => b.key === "pay")!)!;
+  assert.ok(pull[1] > pay[1], "plotted as the chain reported it, not as we would like it");
+});
+
+test("the scripted beats get no points at all, because they carry no logs", () => {
+  for (const b of script()) assert.equal(pointOf(b), null);
 });

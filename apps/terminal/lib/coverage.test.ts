@@ -138,16 +138,18 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "app/float/view.tsx": 26, // four honest states, the hero, the money path's caption and the three doors
   "components/float/Ladder.tsx": 73, // measured: twelve rung names, twelve state words, twelve "what it checks" branches, the rail, the readout, the controls, the presets and the fork
   "components/float/VaultMeter.tsx": 19, // measured: three sleeve labels, the total, both banners, the draw slider across all three tiers, and the venue share
-  "components/float/MoneyPath.tsx": 13,
+  "components/float/MoneyPath.tsx": 13, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
   // The WebGL twin of the money path, and the words that frame it. The scene
   // itself is exempt below; everything a reader READS about it lives here, in
   // both registers: the four order verdicts, the two fair-price branches, the
-  // two empty states, the reading line and the caption.
-  "components/float/OnePayment3D.tsx": 19,
+  // two empty states, the reading line, the caption, and now the guest budget
+  // plus what was bought and who was paid. 19 -> 24, measured: a floor left
+  // under actual is a floor that cannot fail, which this file says twice.
+  "components/float/OnePayment3D.tsx": 24,
   // Eleven parties, each with a permission sentence in both registers, plus
   // five column heads, the tri-state chips and the unbound-treasurer note.
   // Measured, not estimated.
-  "components/float/WhoTouches.tsx": 37, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
+  "components/float/WhoTouches.tsx": 37,
   "components/float/Runway.tsx": 18, // three empty states, the slider, the stale and cheapest chips, the buffer gloss, and the per-row pick
   "components/float/Yield.tsx": 49, // measured: the floor note, the withheld-gain state, the four venue gates, the fees, the fund read rather than asserted, and the eligibility probe with its control
   "components/float/Walk.tsx": 18, // four step titles in both registers, the four verdicts, and the no-log note

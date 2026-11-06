@@ -3314,6 +3314,28 @@ a.colophon-act:hover::after {
   font-size: var(--t-1);
   color: var(--ether-45);
 }
+/* The benchmark's own verdict when it went the wrong way. Its THIRD state,
+   "unchecked", wears `.scene-tag-log` on purpose: a print that could not be
+   found afterwards is an absence, and colouring it like a failure would be the
+   same collapse the venue gates exist to avoid. */
+.scene-tag-bad {
+  font-family: var(--mono);
+  font-size: var(--t-1);
+  color: var(--breach);
+}
+/* THE PORTAL ROOT FOR EVERY LABEL IN THE SCENE, and it exists before the
+   Canvas does. Left to create its own root, drei mounts the first <Html> in the
+   tree with an empty wrapper: the axis lost a tick to that, and then the agent
+   lost "0.00 USDC / holds nothing", which is the one label this product is
+   about. Owning the container also means the stacking and the pointer
+   behaviour are set here rather than inherited. */
+.scene-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* The log-index scale, pinned to the frame rather than placed in the scene.
    An axis that rotates with the camera stops being an axis, and the reader is
    invited to drag this one. `bottom` is set inline from the same normalised

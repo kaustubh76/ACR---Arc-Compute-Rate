@@ -90,6 +90,9 @@ export type OnePayment =
       human: boolean;
       guest: boolean;
       indexName: string | null;
+      /** How many units were bought. A model name without a quantity cannot be
+       *  checked against a per-unit benchmark by a reader. */
+      units: number | null;
       sellerAddr: string | null;
       block: number | null;
     };
@@ -205,7 +208,60 @@ export function onePayment(input: {
     human: Boolean(walk.human_approved),
     guest: Boolean(walk.guest),
     indexName: walk.index_name ?? null,
+    units: walk.units ?? null,
     sellerAddr: walk.seller ?? null,
     block: walk.block ?? null,
   };
+}
+
+/* --- the scene's geometry ------------------------------------------------
+
+   THESE ARE SPATIAL CLAIMS, SO THEY LIVE WHERE A TEST CAN REACH THEM. They
+   were in `components/float/OnePaymentScene.tsx`, which no test under
+   `lib/*.test.ts` can see, and "the agent is never on the money plane" is
+   exactly the kind of sentence that should fail a suite rather than a review.
+
+   TWO PLANES, AND THE SECOND ONE IS THE POINT. `z.money` carries everything
+   that holds or moves USDC. `z.offPlane` carries the two things that do not:
+   the agent, which sends an instruction down a dashed tether and holds
+   nothing, and the benchmark, which checks a price and never touches a
+   balance. In the flat diagram the agent hangs above the rail and a reader
+   takes the gap on trust; here it is off the plane from every angle the
+   camera can reach, which is the whole reason the camera is allowed to move.
+
+   Y IS THE LOG INDEX, so only a beat with a log gets a height. `floor` and
+   `ceil` bound the normalised 0..1 that `heights()` produces. `agentY` and
+   `benchmarkY` sit above `ceil` on purpose: they are off the axis, not at the
+   top of it, because a position on an axis of log indices would be a number
+   nobody measured. */
+export const SCENE = {
+  x: { agent: 0, treasury: -2.3, sleeve: 0, seller: 2.3 },
+  z: { money: 0, offPlane: -1.7 },
+  floor: 0.3,
+  ceil: 2.3,
+  /** Above the rail, centred, and off the money plane. */
+  agentY: 3.3,
+  /** Above the treasury, because the treasury is what does the checking. */
+  benchmarkY: 2.95,
+} as const;
+
+/** Where a beat sits in the scene, or `null` when it has no business there.
+ *
+ *  `null` for any beat without a log: the ask and the fair check are real
+ *  events and they are drawn, but they are drawn OFF the axis, by their own
+ *  components, at their own fixed heights. */
+export function pointOf(b: Beat): [number, number, number] | null {
+  if (b.height === null) return null;
+  const col = COLUMN[b.key];
+  return [SCENE.x[col], SCENE.floor + b.height * (SCENE.ceil - SCENE.floor), SCENE.z.money];
+}
+
+/** The agent's fixed point. Off the money plane, above the rail, no log. */
+export function agentPoint(): [number, number, number] {
+  return [SCENE.x.agent, SCENE.agentY, SCENE.z.offPlane];
+}
+
+/** The benchmark's fixed point. Off the money plane, over the treasury. */
+export function benchmarkPoint(): [number, number, number] {
+  return [SCENE.x.treasury, SCENE.benchmarkY, SCENE.z.offPlane];
 }

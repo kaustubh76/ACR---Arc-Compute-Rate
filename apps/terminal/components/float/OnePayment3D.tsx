@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Ed } from "@/components/Ed";
+import { AddressChip } from "@/components/chain/AddressChip";
 import { MoneyPath } from "@/components/float/MoneyPath";
 import { TxLink } from "@/components/chain/TxLink";
 import type { FloatVaultState } from "@/lib/float";
-import { fmtPrice } from "@/lib/format";
+import { fmtInt, fmtPrice } from "@/lib/format";
 import { CHAINS } from "@/lib/chainChoice";
 import { useChain } from "@/lib/useChain";
 import { useOnePayment } from "@/lib/useLive";
@@ -41,29 +42,47 @@ const Scene = dynamic(() => import("@/components/float/OnePaymentScene"), {
   loading: () => <div className="scene scene-idle" />,
 });
 
-/** Can this reader be shown a moving WebGL scene at all?
+/** Does this browser have WebGL at all? Asked once, and the probe cleans up.
  *
- *  `null` until the browser answers, and `null` renders the flat diagram. Both
- *  halves matter: a machine with no WebGL context would get an empty box, and a
- *  reader who asked for less motion has asked for this scene not to loop. */
-function useCanRender(): boolean | null {
+ *  A PROBE THAT KEEPS ITS CONTEXT IS A LEAK WITH TEETH. `getContext("webgl")`
+ *  on a throwaway canvas creates a real GL context, browsers cap how many may
+ *  be live at once (around sixteen in Chrome), and when the cap is reached the
+ *  OLDEST is dropped. So a probe that re-ran on every `prefers-reduced-motion`
+ *  change could eventually take out the context belonging to the scene it was
+ *  asked about. Released through `WEBGL_lose_context`, and memoised at module
+ *  scope so the answer is computed once per page rather than once per mount. */
+let webgl: boolean | null = null;
+
+function hasWebgl(): boolean {
+  if (webgl !== null) return webgl;
+  try {
+    const c = document.createElement("canvas");
+    const gl = (c.getContext("webgl2") ?? c.getContext("webgl")) as WebGLRenderingContext | null;
+    webgl = Boolean(gl);
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    webgl = false;
+  }
+  return webgl;
+}
+
+/** Can this reader be shown a moving WebGL scene?
+ *
+ *  `null` until the browser answers, and `null` renders the flat diagram. Three
+ *  ways to answer no: no WebGL, a reader who asked for less motion, and a GPU
+ *  context that was lost after we started. The third one matters because a lost
+ *  context leaves an empty box forever, and this section has a correct SVG
+ *  sitting right there. */
+function useCanRender(lost: boolean): boolean | null {
   const [ok, setOk] = useState<boolean | null>(null);
   useEffect(() => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const probe = () => {
-      if (still.matches) return setOk(false);
-      try {
-        const c = document.createElement("canvas");
-        setOk(Boolean(c.getContext("webgl2") ?? c.getContext("webgl")));
-      } catch {
-        setOk(false);
-      }
-    };
-    probe();
-    still.addEventListener("change", probe);
-    return () => still.removeEventListener("change", probe);
+    const decide = () => setOk(!still.matches && hasWebgl());
+    decide();
+    still.addEventListener("change", decide);
+    return () => still.removeEventListener("change", decide);
   }, []);
-  return ok;
+  return lost ? false : ok;
 }
 
 /** The chain's own verdict on the order, as a chip a reader can act on. */
@@ -158,7 +177,12 @@ function Narration({ tx }: { tx: string }) {
 
 export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying: boolean }) {
   const one = useOnePayment();
-  const can = useCanRender();
+  /* A LOST CONTEXT DEGRADES RATHER THAN GOING BLANK. R3F does not recover a
+     context the GPU took away, so the section hands itself back to the flat
+     SVG, which is accurate and needs no GPU at all. */
+  const [lost, setLost] = useState(false);
+  const lostContext = useCallback(() => setLost(true), []);
+  const can = useCanRender(lost);
   /* THE EXPLORER OF THE CHAIN BEING SERVED. `TxLink` defaults to mainnet's
      while this vault lives on one chain, which is how every testnet receipt
      on the tape once deep-linked into an explorer that had never seen it.
@@ -224,8 +248,12 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
       {can ? (
         <Scene
           beats={one.beats}
+          fairMatches={one.fairMatches}
+          fairUsdc={one.fairUsdc}
           jit={one.jit}
-          label="one payment, plotted against its own log order: the agent instructs and holds nothing, the shortfall leaves the yield venue, then the seller is paid"
+          label="one payment, plotted against its own log order: the agent instructs and holds nothing, the benchmark checks the price, the shortfall leaves the yield venue, then the seller is paid"
+          onContextLost={lostContext}
+          quoteUsdc={one.quoteUsdc}
           verdict={one.verdict}
         />
       ) : (
@@ -237,6 +265,14 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
         {one.human ? (
           <span className="chip chip-gold chip-wrap">
             <Ed x="a human released this one" p="a person approved this one" />
+          </span>
+        ) : null}
+        {/* A GUEST BUDGET IS A DIFFERENT TRUST STORY, not a footnote: it is the
+            fixed template the registrar may write and nothing else, issued
+            against a verified human rather than configured per agent. */}
+        {one.guest ? (
+          <span className="chip chip-sky chip-wrap">
+            <Ed x="spent from a guest budget, on the fixed template" p="spent from a visitor budget, on the standard limit" />
           </span>
         ) : null}
         {one.fairMatches === false ? (
@@ -260,6 +296,33 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
           <>
             {" · "}
             <span className="num">{one.premiumBps}</span> <Ed x="bp" p="bp" />
+          </>
+        )}
+      </div>
+
+      {/* WHAT WAS BOUGHT AND WHO WAS PAID. A price is not checkable against a
+          benchmark without the thing it is the price OF, and this panel is about
+          who touches the money, so the address that actually received it belongs
+          on it. The seller here is the one THIS payment paid, which is not
+          necessarily the seller the vault allowlists in the table below. */}
+      <div className="flow-log">
+        <Ed x="for" p="for" /> <span className="mono">{one.indexName ?? "…"}</span>
+        {one.units === null ? null : (
+          <>
+            {" · "}
+            <span className="num">{fmtInt(one.units)}</span> <Ed x="units" p="units" />
+          </>
+        )}
+        {one.sellerAddr ? (
+          <>
+            {" · "}
+            <Ed x="paid to" p="paid to" /> <AddressChip address={one.sellerAddr} explorer={explorer} />
+          </>
+        ) : null}
+        {one.block === null ? null : (
+          <>
+            {" · "}
+            <Ed x="in block" p="in block" /> <span className="num">{fmtInt(one.block)}</span>
           </>
         )}
       </div>

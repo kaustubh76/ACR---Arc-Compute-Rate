@@ -3,11 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { envelope, refusalHeaders, requestChain } from "@/lib/envelope";
 import { readWalk } from "@/lib/floatOnchain";
+import { printable } from "@/lib/narrate";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const TX = /^0x[0-9a-fA-F]{64}$/;
+
+/* ONE SENTENCE PER TRANSACTION, FOR AS LONG AS THIS PROCESS LIVES. A finished
+   transaction's logs cannot change, so neither can the facts handed to the
+   model, so neither can the answer: a reader who opens the disclosure, closes
+   it and opens it again was being billed for Opus twice to be told the same
+   thing. Keyed by chain AND hash, because the same hash on two chains is two
+   different payments. Bounded, because a map that only grows is a leak with a
+   politer name; the oldest entry goes first, which is the least recently
+   ADDED rather than the least recently read, and that is good enough for a
+   surface where the interesting payment is always the newest one.
+
+   `app/api/float/gate/route.ts:32` memoizes for the same reason, on a timer.
+   This one needs no timer, which is the whole point. */
+const MODEL = "claude-opus-5-5";
+const SAID = new Map<string, string>();
+const SAID_MAX = 64;
 
 /* One payment, said in a sentence a non-expert can read.
  *
@@ -43,9 +60,6 @@ Rules, all of them absolute:
 - No em dashes. Use a full stop and a second sentence instead.
 - Plain declarative English. No marketing, no adjectives like "seamless" or "powerful", no praise for the system.
 - Describe only what the facts below say happened. If a fact is absent, do not mention it.`;
-
-/** A sentence with a figure in it is not the sentence that was asked for. */
-const hasFigure = (s: string) => /\d/.test(s);
 
 export async function POST(req: NextRequest) {
   const chain = requestChain(req);
@@ -107,12 +121,21 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join("\n");
 
+  const memoKey = `${chain}:${tx.toLowerCase()}`;
+  const remembered = SAID.get(memoKey);
+  if (remembered !== undefined) {
+    return NextResponse.json(
+      envelope({ status: "ok", explanation: remembered, model: MODEL, written_by: "model" }, { live: true, chain }),
+      { headers: refusalHeaders() },
+    );
+  }
+
   try {
     const client = new Anthropic({ apiKey: key });
     const res = await client.messages.create({
       max_tokens: 1024,
       messages: [{ role: "user", content: `Facts about this one payment:\n\n${facts}` }],
-      model: "claude-opus-5-5",
+      model: MODEL,
       output_config: { effort: "low" },
       system: SYSTEM,
     });
@@ -120,22 +143,30 @@ export async function POST(req: NextRequest) {
     const said = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
-      .join(" ")
-      .trim();
+      .join(" ");
 
-    /* The two things that make this printable: it said something, and it said
-       it without a number. Either failure drops the answer rather than
-       softening it, because the alternative is an unsourced figure on a page
-       whose whole claim is that it has none. */
-    if (res.stop_reason === "refusal" || said.length === 0 || hasFigure(said)) {
+    /* The rules the plain edition holds its own copy to, applied to prose that
+       has no source for `lib/coverage.test.ts` to read. Any failure drops the
+       whole answer rather than editing it: see `lib/narrate.ts`. */
+    const verdict = printable(said);
+    if (res.stop_reason === "refusal" || !verdict.ok) {
       return NextResponse.json(
-        envelope({ status: "pending", reason: "the narrator did not answer in a usable form" }, { live: false, chain }),
+        envelope(
+          { status: "pending", reason: verdict.ok ? "the narrator declined" : verdict.why },
+          { live: false, chain },
+        ),
         { headers: refusalHeaders() },
       );
     }
 
+    if (SAID.size >= SAID_MAX) {
+      const oldest = SAID.keys().next().value;
+      if (oldest !== undefined) SAID.delete(oldest);
+    }
+    SAID.set(memoKey, verdict.text);
+
     return NextResponse.json(
-      envelope({ status: "ok", explanation: said, model: res.model, written_by: "model" }, { live: true, chain }),
+      envelope({ status: "ok", explanation: verdict.text, model: res.model, written_by: "model" }, { live: true, chain }),
       { headers: refusalHeaders() },
     );
   } catch (err) {
