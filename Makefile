@@ -193,7 +193,9 @@ float-tape: float-abi
 float-sauce:
 	cd float/sauce && npm install --ignore-scripts --no-audit --no-fund
 	@echo
-	@echo "installed. FLOAT_NET=arc-testnet make float-verify now runs T13 against it."
+	cd float/sauce && node preflight.mjs
+	@echo
+	@echo "FLOAT_NET=arc-testnet make float-verify runs T13 and T14 against this venue."
 
 # --- the Arc Studio round trip -------------------------------------------
 #

@@ -13,6 +13,7 @@ stop being the vault we think it is. `jit_preflight.sauce.ts` asks it.
 
 ```bash
 make float-sauce          # installs the CLI here, then runs both cases
+npm run preflight         # re-runs both cases once it is installed
 ```
 
 ## What it checks, and why each line is there
@@ -37,6 +38,40 @@ need $50    → The cook reverts: the program threw
 
 Both at a real block, nothing signed, nothing sent.
 
+## It runs on a Pot that exists
+
+Every Sauce program cooks on a **Pot** — a small contract the Kitchen deploys
+for an owner. Until 2026-11-06 ours was never deployed, so each `simulate`
+conjured one by state override and said so:
+
+```
+1. Kitchen.deployPot(0x64E21e01…): Pot 0x0EfAcA84… is not deployed on
+   arc-testnet yet, so the simulation deploys it first … The Pot it deploys is
+   put in place by state override.
+2. the cook, from the owner 0x64E21e01…
+```
+
+It is deployed now, through Sauce's own Kitchen (`0x19845b22…506b`, verified on
+Blockscout as `KitchenProxy`):
+
+| | |
+|---|---|
+| Pot | `0x0EfAcA8478ADe9B312de3EbB7AF4338f02f05FE5`, owner `0x64E21e01…`, 2,852 bytes |
+| deploy tx | `0xabb5df023e20f260b565b0c0cbb916d82e25e265c439a6ab6a43361632baf3be` |
+| block / gas | 71010738, 667,003 gas — about **1.3 cents** of USDC at Arc's 20 Gwei floor |
+
+The witness is that the output above **changed**: the same `simulate` now prints
+one step, `the cook, from the owner …`, with no deploy and no state override.
+That is the difference between a program that could run on Arc and one that has
+a home there.
+
+**Blockscout lagged the chain while this was being written** —
+`/api/v2/addresses/<pot>` answered `is_contract: false` with no creation
+transaction while `eth_getCode` already returned 2,852 bytes. It caught up a few
+minutes later and now reports the contract and the transaction. The chain is the
+authority and the explorer is a cache of it, which is worth remembering before
+concluding from an explorer page that something was never deployed.
+
 ## Two honest limits
 
 **Arc serves no `eth_simulateV1`.** Probed directly: `eth_simulateV1`,
@@ -51,6 +86,27 @@ form, works. Sauce handles this and says so in its own output:
 So this returns a verdict and a gas figure, and no events. That is a property of
 Arc, not of Sauce — it is the same missing-tracing fact that makes `walk.html`
 prove the just-in-time order by log index instead of by a call trace.
+
+**And it disarms Sauce's own safety net, which is worth knowing before you rely
+on it.** A Sauce wallet can carry a `<name>.policy.json` capping what it sends
+per transaction and per day. Sauce measures what a transaction moves **by
+simulating it**, so on Arc it cannot, and it refuses rather than guess:
+
+```
+refused by the policy of wallet float-deployer: native is limited, and the
+endpoint did not run eth_simulateV1, so what the cook moves from the Pot is
+not known
+```
+
+Both forms refuse — `tokens.USDC` and `native` alike. Failing closed is the
+right choice and we are not going to talk Sauce out of it, but the consequence
+is concrete: **on Arc, a Sauce wallet's spend limits cannot be enforced, so what
+bounds the risk is the balance you leave in the hot wallet, not the policy
+file.** A `chains` restriction needs no simulation and still holds.
+
+That is why the cook here is run as `simulate` and the Pot deploy is the only
+thing signed: the deploy's cost is known in advance, and a read-only cook that
+cannot be policed is not worth sending to prove a point.
 
 **It asks the venue, not the policy.** The vault's own `requestSpend` is
 `onlyExecutor`, and in Sauce *"every call a program makes comes from the Pot: the

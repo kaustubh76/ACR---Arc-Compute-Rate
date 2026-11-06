@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Eco Sauce programs for Float. Kept out of float/package.json on purpose: this is a 22 MB proprietary dependency and CI's npm ci must not pull it.",
   "scripts": {
-    "preflight": "sauce simulate jit_preflight.sauce.ts --chain arc-testnet"
+    "preflight": "node preflight.mjs"
   },
   "devDependencies": {
     "@eco-incorp/sauce": "1.0.0"
