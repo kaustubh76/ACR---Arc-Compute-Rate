@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram studio-pull studio-pull-apply test-float rehearse-float
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll world-golive verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram studio-pull studio-pull-apply test-float rehearse-float
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -23,6 +23,7 @@ help:
 	@echo "  make demo-full       every demo in order: run_demo, demo-agent, then the claim audit"
 	@echo "  make prove-human     the World path, live: challenge -> signed proof -> one TCA per PERSON"
 	@echo "  make world-probe     World ID Agent Pass, live: does this issuer approve a spend?"
+	@echo "  make world-golive    point the deployed vault at the press keys (dry run by default)"
 	@echo ""
 	@echo "  FLOAT — the agent treasury: the price of compute decides what gets paid:"
 	@echo "  make float-local     stand the whole system up on a local anvil"
@@ -639,6 +640,16 @@ prove-human:
 # Neither prints the device code or the token.
 world-probe:
 	uv run python scripts/world_id.py probe $(ARGS)
+
+# Point the deployed vault at the press's keys, and bind it to the enrolled
+# human. DRY RUN by default: it reads the chain and prints what WOULD change.
+#   make world-golive                      # read only
+#   make world-golive ARGS=--send          # the three rotations
+#   make world-golive ARGS="--send --bind-one-shot"   # + the one-shot binding
+# The binding is withheld behind that second flag on purpose: setTreasurerBinding
+# takes a value ONCE from zero and a wrong one is a vault you redeploy.
+world-golive:
+	uv run python scripts/world_golive.py $(ARGS)
 
 world-enroll:
 	uv run python scripts/world_id.py enroll $(ARGS)
