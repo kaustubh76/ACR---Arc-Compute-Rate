@@ -67,6 +67,17 @@
   .spin::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
   @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+  /* `.row .k { flex-shrink: 0 }` above is right for a short label and fatal for
+     a long one: "2 · position = convertToAssets(balanceOf(sleeve))" measures
+     413px and cannot shrink, so at 375 it took the whole page sideways —
+     scrollWidth 494 against a 375 viewport, in sections 3, 5 and 6. Let the row
+     wrap and let the label break, on phones only. This rule sits AFTER the one
+     it corrects because a media query adds no specificity: both are (0,2,0) and
+     source order is what decides. */
+  @media (max-width: 420px) {
+    .row { flex-wrap: wrap; }
+    .row .k { flex-shrink: 1; min-width: 0; overflow-wrap: anywhere; }
+  }
   .pf label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 10px 0 4px; }
   .pf input[type="text"] { width: 100%; min-width: 0; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; }
   .pf input[type="text"]:focus { outline: 1px solid var(--accent); border-color: var(--accent); }

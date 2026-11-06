@@ -331,7 +331,7 @@ one does not:
   |---|---|---|---|
   | `index.html` | `c53181db…265b4a1a` · 31,328 | **identical** | Claude Code, then **Arc Studio** (§3f, §3g) |
   | `walk.html` | `ae8583da…1be2183d` · 27,787+ | `6efc9b0d…794f6bdd` · 27,787 | **Arc Studio** (§3c, §3f) |
-  | `venue.html` | `48d9b548…e69273c3` · 59,600 | **identical** | **Arc Studio**, `morpho` skill (§3d, §3e) |
+  | `venue.html` | `48d9b548…e69273c3` · 59,600 | `6fa06fa2…4919745a` · 60,261 | **Arc Studio**, `morpho` skill (§3d, §3e) |
 
   The whole of the difference is the bare-403 retry: Arc answers a hard burst
   with an unbodied `403`, which neither page's original rate-limit predicate
@@ -491,6 +491,30 @@ than silently re-querying Arc on every keystroke.
 See `hackathon/ethglobal-mumbai-2026/CONTINUITY.md` for the full attribution,
 including which parts of this repository were authored with AI assistance, as
 ETHGlobal's rules require.
+
+**`venue.html` diverges again, by eleven lines of CSS.** A peer working the
+terminal warned that a chip carrying prose had taken their page sideways on a
+phone, and that both of their first two overflow measurements had read zero
+because they measured at rest rather than in the worst state. Checking this page
+on that advice found the same class of fault, and it was real:
+
+| | |
+|---|---|
+| at 375px, worst state | `scrollWidth` **494** against a 375 viewport — **10** overflowing elements |
+| the cause | `.row .k { flex-shrink: 0 }`, right for a short label and fatal for `2 · position = convertToAssets(balanceOf(sleeve))`, which measures **413px** and cannot shrink |
+| where | sections 3, 5 and **6** — so partly the new section's, not purely inherited |
+| after | `scrollWidth` **375**, **zero** overflowing, and 1280 unchanged |
+
+The fix lets the row wrap and the label break, on phones only, and it is placed
+*after* the rule it corrects because **a media query adds no specificity** —
+both selectors are (0,2,0) and source order is what decides.
+
+Worth recording that the first measurement said zero overflow and was worthless:
+the driver had launched at 1280 and nothing had set a viewport. A width you did
+not set is not a width you tested. `walk.html` and `index.html` came back clean
+once that was fixed — index's tape table is 808px but sits in a container with
+`overflow-x: auto`, so it scrolls in its own box and the document stays at 375,
+which is the correct pattern rather than a fault.
 
 ## 3g · Two comparisons, with the `pyth` and `circle-agent-wallet` skills
 
