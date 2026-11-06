@@ -116,6 +116,26 @@ one that fails **last** — a payment parked, a human sent to their phone, nine
 validation rungs cleared, a signature made, and then `executeApproved` reverting
 `bad approval`. On camera that reads as the chain rejecting a verified person.
 
+**Use the script, not the pasted commands below.**
+
+```bash
+uv run python scripts/world_golive.py                      # DRY RUN, reads only
+uv run python scripts/world_golive.py --send               # the three rotations
+uv run python scripts/world_golive.py --send --bind-one-shot   # + the binding
+```
+
+It derives the press's addresses from `.env` rather than trusting a copied
+string, **reads every role back** after writing it (a `cast send` that mined is
+not a role that changed), is **idempotent** so a second run resumes rather than
+repeats, and keeps the irreversible step behind a **second explicit flag**. It
+refuses outright if the chain already holds a different non-zero binding, since
+at that point the vault is stranded and a revert would explain less. It ends by
+printing `vault_status()` and `guest_preflight()`, which is the only real
+witness: roles and a binding are inputs, those two sentences are the outcome.
+
+The raw calls are kept below as a fallback and as documentation of what the
+script does.
+
 **The fix, from the owner key `0x64E21e01…8d16`.** All three setters are
 `onlyOwner` and none is one-shot, so this is a rotation rather than a redeploy.
 The guards pass in either order, because the press's executor and approver are
