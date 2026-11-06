@@ -161,6 +161,15 @@ float-sweep: float-abi
 # seller swept back each time, so ten dollars behaves like a loop instead of a
 # budget.
 #
+# `--park 0.5` is the point of it, not a flourish. The keeper holds a buffer of
+# $3 (its forecast, clamped to 30%% of what is under management) and a payment is
+# ~$1.06, so the buffer covers it and every receipt would read "from buffer" —
+# a true but unremarkable fact, and a whole night of tape that never shows the
+# one behaviour the product is FOR. Parking the float below one payment first
+# means the vault has to pull the shortfall out of the yield sleeve in the same
+# transaction, so each tick writes a jitFunded receipt a judge can open. The
+# keeper pulls the buffer back up between ticks, so the two do not fight.
+#
 # The interval is set by the CAP, not by taste. scout's limit is 25 USDC per day
 # and a payment is ~$1.06, so the day holds about 19 of them; a faster tick does
 # not buy more tape, it just reaches the cap sooner and then repeats one refusal
@@ -171,7 +180,7 @@ float-tape: float-abi
 	@cd float && while true; do \
 	  date -u +"--- %Y-%m-%dT%H:%M:%SZ ---"; \
 	  FLOAT_NET=$(FLOAT_NET) npm run --silent sweep || true; \
-	  FLOAT_NET=$(FLOAT_NET) npm run --silent agents -- --once || true; \
+	  FLOAT_NET=$(FLOAT_NET) npm run --silent agents -- --once --park 0.5 || true; \
 	  sleep $(FLOAT_TAPE_INTERVAL); \
 	done
 
