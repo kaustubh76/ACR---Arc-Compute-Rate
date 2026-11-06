@@ -77,6 +77,15 @@ export async function POST(req: Request) {
      from three different places in the Developer Portal and an operator who
      is told which one is missing fixes it in one visit. */
   if (!RP_ID_RE.test(rpId)) return stoodDown("ACR_FLOAT_GUEST_RP_ID is unset or malformed", chain);
+  /* The portal issues two ids that read alike, so a swap is the likely mistake
+     and it is worth naming here instead of letting World answer
+     `invalid_rp_id_format` at verify time, one layer away from the cause.
+     Deliberately NOT a required `rp_` prefix: the package only shows
+     `rp_xxxxx` as a placeholder, never as a rule, and rejecting a valid
+     credential the night before a deadline costs more than this catches. */
+  if (rpId.startsWith("app_")) {
+    return stoodDown("ACR_FLOAT_GUEST_RP_ID holds the app id; the rp id is a separate value", chain);
+  }
   if (!APP_ID_RE.test(appId)) return stoodDown("ACR_IDKIT_APP_ID is unset or is not an app_ id", chain);
   if (!ACTION_RE.test(action)) return stoodDown("ACR_FLOAT_GUEST_ACTION is malformed", chain);
   if (!KEY_RE.test(key)) return stoodDown("ACR_IDKIT_SIGNING_KEY is unset or is not a 32-byte key", chain);
