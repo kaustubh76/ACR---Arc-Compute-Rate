@@ -603,7 +603,46 @@ const scoutBefore = await bal(SCOUT_EOA);
 
 // --- T10 / T12 · guests get the template and only the template --------------
 {
-  const reg = walletFor(NET, "deployer"); // the registrar in the local wiring
+  // ASK THE CHAIN WHO THE REGISTRAR IS, rather than assuming it is us.
+  //
+  // This used to be `walletFor(NET, "deployer")` with the comment "the
+  // registrar in the local wiring" — true at deploy, and not a fact this suite
+  // owns. The roles were since SEPARATED on purpose, which is the hardening
+  // the vault argues for elsewhere: one compromised hot key should not be able
+  // to park a spend, approve it and register guests. The runbook's role table
+  // records the move, deployer -> press registrar
+  // (`0xde52035E…6C10`, `PRESS_REGISTRAR`), alongside the approver's. So
+  // `registerGuest` reverting "not registrar" was the system being correct and
+  // this suite being out of date.
+  //
+  // THE REVERT WAS NOT THE EXPENSIVE PART. An unhandled throw here ABORTS the
+  // whole run, so one rotated role took T13, T14, T15 and T10 with it — four
+  // checks that had nothing to do with guests, reported as "ABORTED" with a
+  // revert string and no verdict. A red step that hides every step after it
+  // costs far more than the step itself.
+  //
+  // So: read the registrar, and if it is not a key we hold, FAIL this one
+  // check by name and let the rest of the suite run. Not a skip — an
+  // unanswered question is not a satisfied one.
+  const onChainRegistrar = ((await pub.readContract({
+    address: d.vault, abi: V.abi, functionName: "guestRegistrar",
+  })) as Address).toLowerCase();
+  const ours = (["deployer", "executor", "keeper"] as const)
+    .map((r) => ({ role: r, addr: (addressFor(r) as string).toLowerCase() }))
+    .find((c) => c.addr === onChainRegistrar);
+
+  if (!ours) {
+    check("T12", "a guest gets the fixed template and cannot choose its own numbers",
+      false,
+      `cannot run from here: the chain's guestRegistrar is ${onChainRegistrar} — the press `
+      + `registrar — and this machine holds none of the keys for it. That is DELIBERATE key `
+      + `separation, recorded in the runbook's role table, not a fault: the deployer no longer `
+      + `registers guests. The guest template is unchanged on chain; what is missing is a `
+      + `signer. Run this check from the press, or grant the local deployer the role to test it.`);
+    check("T10", "a guest spending over its template is refused",
+      false, "not reached: T12 could not register a guest to test the template against");
+  } else {
+  const reg = walletFor(NET, ours.role);
   const h = await reg.writeContract({
     address: d.vault, abi: V.abi, functionName: "registerGuest", args: [GUEST],
     account: reg.account!, chain: reg.chain, ...feeFor(NET),
@@ -623,6 +662,7 @@ const scoutBefore = await bal(SCOUT_EOA);
   check("T10", "a guest spending over its template is refused",
     reason === "over per-request threshold" || reason === "daily cap exceeded",
     `"${reason}" on a ${usd(bigFair)} request against a ${usd(cap)} template`);
+  }
 }
 
 // --- T13 · the Eco Sauce pre-flight, asked of the venue we do not control ---
@@ -776,12 +816,45 @@ const scoutBefore = await bal(SCOUT_EOA);
   const TELLER = "0x9fdF14c5B14173D74C08Af27AebFf39240dC105A" as Address;
   // `NotPermissioned()`, from the Teller's own verified ABI.
   const NOT_PERMISSIONED = "0x7f63bd0f";
+  /**
+   * Circle's ENTITLEMENTS REGISTRY — the accessor this repo spent two days
+   * saying did not exist.
+   *
+   * `docs/TAMEION.md` recorded "we could not read our own eligibility: the
+   * Teller's allowlist accessor is not under any of the three usual names",
+   * and that was an honest conclusion from a real search. It was also wrong:
+   * the accessor was never ON the Teller. It is a separate Solmate
+   * `RolesAuthority` behind its own EIP-1967 proxy, address handed over on
+   * 2026-11-07:
+   *
+   *   proxy  0xcc205224862c7641930c87679e98999d23c26113
+   *   impl   0x937b059c0a6ed491207fbf00db2796c36e86b136   (verified)
+   *
+   * So the refusal below can now be EXPLAINED rather than only observed.
+   */
+  const ENTITLEMENTS = "0xcc205224862c7641930c87679e98999d23c26113" as Address;
+  const DEPOSIT_SELECTOR = "0x6e553f65"; // deposit(uint256,address)
+  const GET_USER_ROLES = parseAbiItem("function getUserRoles(address user) view returns (bytes32)");
+  const ROLES_WITH_CAP = parseAbiItem(
+    "function getRolesWithCapability(address target, bytes4 functionSig) view returns (bytes32)",
+  );
+  const CAP_PUBLIC = parseAbiItem(
+    "function isCapabilityPublic(address target, bytes4 functionSig) view returns (bool)",
+  );
+  /** Which role numbers a Solmate bitmask has set, for a sentence a human can act on. */
+  const bits = (mask: bigint) => {
+    const out: number[] = [];
+    for (let i = 0; i < 256; i++) if ((mask >> BigInt(i)) & 1n) out.push(i);
+    return out;
+  };
   if (NET !== "arc-testnet") {
     check("T15", "the USYC reserve's allowlist standing is known, not assumed",
       true, `skipped: the Teller is on arc-testnet, not ${NET}`);
   } else {
     let saw = "";
     let ok = true;
+    /** What the behavioural probe concluded, so the registry read can be cross-checked against it. */
+    let permitted = false;
     try {
       await pub.call({
         to: TELLER,
@@ -798,6 +871,7 @@ const scoutBefore = await bal(SCOUT_EOA);
       });
       // If this ever stops reverting, the ticket has cleared and the reserve
       // can be funded. Until a human reads this line, nothing claims it has.
+      permitted = true;
       saw = "ALLOWLISTED: the Teller accepted a simulated deposit. The USYC "
         + "reserve can now be funded, and the docs should stop saying it cannot.";
     } catch (e) {
@@ -822,6 +896,60 @@ const scoutBefore = await bal(SCOUT_EOA);
         saw = `the probe did not get a legible answer: ${m.split("\n")[0]?.slice(0, 90)}`;
       }
     }
+    // THE AFFIRMATIVE HALF: not just that it refuses, but WHY.
+    //
+    // A revert tells you the door is shut. The registry tells you which key it
+    // wants, which is the difference between "please allowlist us" and a
+    // support ticket an engineer can action without interpretation. Measured
+    // 2026-11-07: we hold `0x0` and `deposit` wants `0x201` = roles 0 and 9.
+    //
+    // THE DAY THE TICKET CLEARS, THIS FLIPS ON ITS OWN. `getUserRoles` starts
+    // intersecting the required mask and this line says so, with nobody
+    // editing a claim — the same property the reserve assertion below has.
+    try {
+      const held = BigInt((await pub.readContract({
+        address: ENTITLEMENTS, abi: [GET_USER_ROLES], functionName: "getUserRoles",
+        args: [addressFor("deployer") as Address],
+      })) as Hex);
+      const needed = BigInt((await pub.readContract({
+        address: ENTITLEMENTS, abi: [ROLES_WITH_CAP], functionName: "getRolesWithCapability",
+        args: [TELLER, DEPOSIT_SELECTOR],
+      })) as Hex);
+      const isPublic = (await pub.readContract({
+        address: ENTITLEMENTS, abi: [CAP_PUBLIC], functionName: "isCapabilityPublic",
+        args: [TELLER, DEPOSIT_SELECTOR],
+      })) as boolean;
+
+      const overlap = (held & needed) !== 0n;
+      const entitled = overlap || isPublic;
+      saw += ` Circle's entitlements registry explains it: we hold role(s) `
+        + `[${bits(held).join(",") || "none"}] and deposit requires `
+        + `[${bits(needed).join(",") || "none"}]${isPublic ? ", capability PUBLIC" : ", capability gated"}`
+        + ` — ${entitled ? "which we now satisfy" : "no overlap, so the Teller is right to refuse"}.`;
+
+      // THE TWO HALVES MUST AGREE. If the registry says we are entitled and
+      // the Teller still reverts (or the reverse), then something other than
+      // roles is gating this — a paused fund, a closed dealing window, a
+      // minimum — and reporting either half alone would be a confident wrong
+      // answer. That is worth a red check rather than a footnote.
+      if (entitled !== permitted) {
+        ok = false;
+        saw += ` DISAGREEMENT: the registry says entitled=${entitled} while the Teller`
+          + ` says permitted=${permitted}, so roles are not the only gate here and the`
+          + ` ticket may not be the whole story.`;
+      }
+    } catch (e) {
+      const why = ((e as Error).message ?? "").split("\n")[0]?.slice(0, 70);
+      if (unreachable(e)) {
+        ok = false;
+        saw += ` (could not reach the entitlements registry to explain it: ${why})`;
+      } else {
+        // Not fatal: the behavioural probe above already answered the question
+        // this was only going to explain.
+        saw += ` (the entitlements registry did not answer: ${why})`;
+      }
+    }
+
     // AND THE SIMULATION MUST NOT HAVE BECOME PRODUCTION.
     //
     // A stand-in Teller is deployed on this chain so the reserve leg can be

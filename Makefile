@@ -1,4 +1,4 @@
-.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll world-golive verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-bench float-usyc-sim float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram studio-pull studio-pull-apply test-float rehearse-float
+.PHONY: deploy-mainnet-dry deploy-mainnet verify-mainnet prove-human world-probe world-enroll world-golive verify-loop help setup test test-py golden golden-check anchors-fetch anchors-report anchors-check evalset evalset-check rate rate-bless test-contracts test-agent test-terminal pipeline demo demo-agent demo-full eval eval-gate openapi-doc openapi-doc-check ci snapshot api terminal agent agent-live interop build-contracts anvil onchain deploy-testnet-dry deploy-testnet deploy-mirror-dry deploy-mirror deploy-humanid-dry deploy-humanid deploy-oracle-v2-dry deploy-oracle-v2 backfill-oracle-v2 verify-testnet post-once attest-once seed-sellers mirror-receipts resolve-humans recompute futures-roll futures-settle futures-withdraw futures-collateralize aomi-live verify-live verify-live-testnet verify-claims x402-capture wallet-settle-probe desk-preflight desk-e2e desk-evidence tape-audit lint glossary-check diagram diagram-preview clean graph-abis graph-install graph-codegen graph-build graph-test graph-deploy circle-check circle-login buyer-key circle-wallet circle-fund circle-deposit circle-balance gateway-deposit gateway-balance skills-install verify-operator sandbox-decisions sandbox-decisions-check archive-decisions archive-decisions-check ledger operator-run float-local float-abi float-bench float-navsync float-usyc-sim float-sauce float-sweep float-tape float-keeper float-agents float-policy float-verify float-diagram studio-pull studio-pull-apply test-float rehearse-float
 
 help:
 	@echo "ACR — The Arc Compute Rate"
@@ -204,6 +204,16 @@ float-tape: float-abi
 # signs nothing.
 float-bench:
 	cd float && FLOAT_NET=$(FLOAT_NET) npm run --silent bench
+
+# Price the USYC stand-in at Circle's REAL NAV, read from their oracle at
+# 0x52b56c76...3D4581 (a verified Chainlink-shaped feed behind an EIP-1967
+# proxy). After this, the ABI is Circle's and the price is Circle's, and what
+# stays simulated is the PERMISSION - the real Teller reverts NotPermissioned()
+# because we hold no entitlement roles. Writes only to OUR stand-in; it never
+# calls anything of Circle's. No redeploy, so the Blockscout verification of
+# UsycSleeve and SimUsyc is untouched.
+float-navsync:
+	cd float && FLOAT_NET=$(FLOAT_NET) npm run --silent navsync
 
 float-usyc-sim:
 	@test -n "$(FLOAT_KEYSTORE)" || { echo "FLOAT_KEYSTORE not set - path to a v3 keystore for the deployer"; exit 1; }

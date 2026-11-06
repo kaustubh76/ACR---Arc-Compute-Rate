@@ -103,6 +103,8 @@ check it.
 | `float/src/bin/keeper.ts` | print → forecast → rebalance, every ten minutes |
 | `float/src/bin/policy.ts` | English → JSON → chain, validated all-or-nothing |
 | `float/src/bin/verify.ts` | the fifteen checks above |
+| `float/src/margin.ts` | the buffer margin, over prints the vault would still pay against |
+| `float/src/bin/navsync.ts` | prices the USYC stand-in at Circle's real NAV, read from their oracle |
 
 ## The price is measured, not asserted
 

@@ -94,6 +94,28 @@ A placeholder there permanently kills the human-approval path, and the only
 remedy is a redeploy. It is set last, with the value the World session's
 enrollment prints, after a dry run proves the digest round-trips.
 
+**THE USYC TICKET ASKS FOR A ROLE NUMBER, NOT FOR "ACCESS".** Circle's allowlist
+is a Solmate `RolesAuthority` at `0xcc205224862c7641930c87679e98999d23c26113`,
+and it is readable, so the ask can be exact. Measured 2026-11-07:
+
+```sh
+# what we hold (0x0 - no roles), and what deposit wants (0x201 = roles 0 and 9)
+cast call 0xcc205224862c7641930c87679e98999d23c26113 \
+  'getUserRoles(address)(bytes32)' <SLEEVE> --rpc-url https://rpc.testnet.arc.io
+cast call 0xcc205224862c7641930c87679e98999d23c26113 \
+  'getRolesWithCapability(address,bytes4)(bytes32)' \
+  0x9fdF14c5B14173D74C08Af27AebFf39240dC105A 0x6e553f65 --rpc-url https://rpc.testnet.arc.io
+```
+
+So the ticket reads: **grant role 0 or role 9 on the Teller
+`0x9fdF14c5B14173D74C08Af27AebFf39240dC105A` to `<SLEEVE>`** — the sleeve
+address, NOT the treasury, which never holds USYC under this design. Re-run the
+first command afterwards to confirm the grant landed, rather than waiting for a
+deposit to stop reverting; `make float-verify`'s T15 reads both sides on every
+run and flips on its own. If T15 goes red saying the registry and the Teller
+DISAGREE, roles are not the only gate — look for a closed dealing window, a
+paused fund, or the $100,000 minimum before re-opening the ticket.
+
 **DRAIN A SLEEVE BEFORE RE-POINTING IT.** `setSleeves` has no guard beyond
 `onlyOwner` — no balance check, no drain, no pause requirement. `totalValueUsdc`
 sums only the sleeves that are wired *right now*, so re-pointing `working` away

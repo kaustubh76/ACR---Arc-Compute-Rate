@@ -389,6 +389,66 @@ Nothing is broken today: the arithmetic is correct for 6-decimal USYC (see the
 boundary below), and the waste is at most four micro-USDC per pull. This is a
 simplification available to the next deploy, not a defect in this one.
 
+**Correction, 2026-11-07: the eligibility accessor exists, and it was never on
+the Teller.** This document said *"we could not read our own eligibility: the
+Teller's allowlist accessor is not under any of the three usual names, so the
+real ABI is needed and guessing at it would be worse than saying so."* That was
+an honest conclusion from a real search of the Teller, and it was wrong for a
+reason the search could not have found: the allowlist is a **separate contract**.
+Circle runs a Solmate `RolesAuthority`, and the address was simply not something
+we had:
+
+| | proxy | implementation |
+|---|---|---|
+| Entitlements | `0xcc205224862c7641930c87679e98999d23c26113` | `0x937b059c0a6ed491207fbf00db2796c36e86b136` (verified) |
+| Oracle | `0x52b56c7642E71dc54714d879127d97cd0B3D4581` | `0x61ec0f00c29e4ec8fde4f39508b001d9f0fbac17` (verified) |
+
+All four Arc testnet addresses — USYC, Teller, Entitlements, Oracle — are
+EIP-1967 proxies holding identical 183-byte code. **Three reads now answer in
+full what a reverting `deposit` could only hint at:**
+
+```
+getUserRoles(0x64E21e01…8d16)                 0x0     <- we hold NO roles
+getRolesWithCapability(teller, 0x6e553f65)    0x201   <- deposit wants role 0 or 9
+isCapabilityPublic(teller, 0x6e553f65)        false   <- gated, not public
+```
+
+`0x201` is `2^9 + 2^0`. So "we are not allowlisted" stops being an inference
+from a revert and becomes a **positive measurement**: a gated capability, and a
+holder of no roles. The acceptance suite reads all three on every run and will
+flip on its own the day the grant lands — and it goes **red** if the registry and
+the Teller ever disagree, because roles would then not be the only gate and
+reporting either half alone would be a confident wrong answer.
+
+The practical consequence is the support ticket. It does not need to ask to be
+"allowlisted"; it can ask for **role 0 or role 9 on
+`0x9fdF14c5B14173D74C08Af27AebFf39240dC105A`**, granted to the sleeve address
+that will hold the position — see the runbook.
+
+**And the Oracle means the stand-in no longer invents its price.**
+`latestRoundData()` returns Circle's live NAV at 18 decimals, which is already
+the scale `SimUsycTeller.nav` wants: **1142831108426541885** at round 191.
+`SimUsyc.sol` carries `1_142_775_997_364_038_969`, read off the Teller on
+2026-11-06 — correct when written and a day stale now, which is what a treasury
+fund accruing looks like. `make float-navsync` reads Circle's answer and pushes
+it to the stand-in, printing the round id and `updatedAt` beside it because a NAV
+without its round is uncheckable.
+
+That reduces the simulated part of this leg to **exactly one thing**: the ABI is
+Circle's, read from their verified implementation; the price is Circle's, read
+from their oracle; **the permission is what is simulated.** It does not make the
+yield real — the fund is still ours and holds no treasury bills, cannot model a
+per-address allowlist, charges no subscription fee, and has no redemption window
+or $100,000 minimum. It stays a stand-in and every surface still says so.
+
+Two retractions in two days in this one file is the file working rather than
+failing. The mainnet addresses below are listed **as supplied and not verified
+by us** — Arc mainnet was not queried: USYC
+`0x8a5D989Bbb96929F689B0200f435f53dA42bF490`, Teller
+`0x51A8CE47dC08ba5CD19c7aa84EA6fD6664f60f9b`, Entitlements
+`0xb69ecb156Dc0028198028c501340d5367845ca72`, Oracle
+`0x4BC8d5aCD3d040d2903dD9C5B7048520c6ff537A`.
+
 **Where the correctness proof stops.** `withdrawExact` is never short *provided*
 `nav >= 1e18` — that is, provided one share is worth at least one micro-USDC.
 In that regime the ceiling division plus one share is sufficient, verified by
