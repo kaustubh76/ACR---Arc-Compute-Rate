@@ -52,6 +52,28 @@ function check(id: string, what: string, ok: boolean, saw: string) {
   console.log(`  ${ok ? "PASS" : "FAIL"}  ${id.padEnd(4)} ${what}\n            ${saw}`);
 }
 
+/**
+ * A crash must still produce a verdict.
+ *
+ * Every check here prints what it OBSERVED rather than a tick, which is the
+ * whole point of this harness — and an uncaught throw discarded all of it,
+ * printing a viem stack trace and no "N/M checks passed" line at all. That is
+ * strictly worse than a failure: a reader cannot tell whether one check broke
+ * or none of them ran. So the last word is always the tally, with the error
+ * named underneath it.
+ */
+for (const sig of ["uncaughtException", "unhandledRejection"] as const) {
+  process.on(sig, (err: unknown) => {
+    const failed = results.filter((r) => !r.ok);
+    console.log(
+      `\n${results.length - failed.length}/${results.length} checks passed before this run ABORTED on ${NET}.`,
+    );
+    if (failed.length > 0) console.log(`FAILED: ${failed.map((f) => f.id).join(", ")}`);
+    console.log(`ABORTED: ${(err as Error)?.message ?? String(err)}`);
+    process.exit(1);
+  });
+}
+
 const usd = (n: bigint) => `$${formatUnits(n, 6)}`;
 const nonce = () => keccak256(toHex(`${Date.now()}:${Math.random()}`));
 
@@ -240,10 +262,20 @@ const scoutBefore = await bal(SCOUT_EOA);
   const before = await bal(d.vault);
   // A target one unit away: inside the bands and far below the minimum ticket,
   // so the keeper must do nothing. Fees must never eat the yield.
-  await asKeeper("rebalance", [before - 1n]);
+  //
+  // The direction has to follow the buffer. `before - 1n` UNDERFLOWS when the
+  // buffer is exactly zero, and viem then refuses to encode -1 as a uint256 —
+  // which aborted this whole suite mid-run instead of failing one check. Not
+  // hypothetical: T5 parks the float down to below one payment, so any run
+  // whose earlier spends were refused arrives here with an empty buffer, and a
+  // print older than 15 minutes is enough to cause that. `rebalance` guards
+  // both directions with the same minimum ticket, so one unit either side
+  // tests the same thing.
+  const target = before > 0n ? before - 1n : before + 1n;
+  await asKeeper("rebalance", [target]);
   const after = await bal(d.vault);
   check("T11", "a rebalance below the minimum ticket moves nothing", after === before,
-    `buffer ${usd(before)} -> ${usd(after)} on a 1-unit target delta`);
+    `buffer ${usd(before)} -> ${usd(after)} on a target of ${usd(target)}, one unit away`);
 }
 
 // --- T5 · just in time, proven by log order ---------------------------------
