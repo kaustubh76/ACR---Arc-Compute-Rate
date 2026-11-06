@@ -106,10 +106,25 @@ async function sleeveValue(): Promise<bigint> {
  * local double is not Morpho Vault V2"**, which is a green tick whose stated
  * reason is false. A gate wants the opposite default to a report.
  */
+/// Did the question fail to get asked, as opposed to getting a `no`?
+///
+/// THROTTLING COUNTS, and leaving it out produced a misleading red. Arc's soft
+/// rate limit comes back as `"Request exceeds defined limit."` and its hard
+/// burst as a bare HTTP 403 with no body. Neither is a transport failure, so
+/// neither matched here — and T0 then fell through to its "a local double has
+/// none of these" branch and reported `venue does not expose Vault V2 gates`.
+/// That reads as *the venue changed shape*, which is a conclusion about Morpho,
+/// when the truth was that this suite had spent its own RPC budget. Observed on
+/// 2026-11-07 after an audit made several hundred `cast` calls in a few minutes.
+///
+/// A throttled read is an unanswered question, and the callers already do the
+/// right thing with one: they FAIL and say they could not ask. Never a skip.
 function unreachable(e: unknown): boolean {
   const err = e as { name?: string; message?: string };
   const s = `${err?.name ?? ""} ${err?.message ?? ""}`;
-  return /HttpRequestError|HTTP request failed|fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|TimeoutError|timed out/i.test(s);
+  return /HttpRequestError|HTTP request failed|fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|TimeoutError|timed out/i.test(s)
+    // Arc's own throttles, soft then hard.
+    || /Request exceeds defined limit|rate ?limit|too many requests|\b429\b|\b403\b/i.test(s);
 }
 async function latest(model: string) {
   const index = keccak256(toHex(indexIdFor(model)));
