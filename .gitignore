@@ -35,6 +35,12 @@ data/
 *.parquet
 scripts/_out/
 .env
+# A BACKUP OF .env IS STILL .env. `.env` on its own is an exact match, so
+# `.env.bak-20261106T115437Z` — 48 assignments including three private keys and
+# the Circle entity secret — sat untracked but VISIBLE to git in a public repo,
+# one `git add -A` away from being published. Four sessions share this tree.
+.env.*
+!.env.example
 .DS_Store
 
 # Competitive/ideation material that must never reach a PUBLIC repo.
