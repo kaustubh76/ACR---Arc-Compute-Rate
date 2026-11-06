@@ -238,6 +238,24 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           }
         } catch { /* not ours */ }
       }
+      // THE THIRD BRANCH. A Receipt means paid and a Denied means refused, but a
+      // transaction can land carrying neither, and this used to return
+      // `{tx: "0x…"}` with no `status` field at all. It fails safe in the sense
+      // that nothing is reported as paid — and fails badly in the way that
+      // matters here, because the caller is an AGENT: a missing field reads as
+      // the absence of a problem, so it would carry on as though the compute
+      // were bought. An unknown outcome has to say its own name.
+      if (out["status"] === undefined) {
+        const reverted = rc.status !== "success";
+        out = {
+          status: reverted ? "failed" : "unknown",
+          reason: reverted
+            ? "the transaction reverted, so nothing was paid"
+            : "the transaction succeeded but the vault emitted neither a Receipt nor a Denied — "
+              + "do NOT treat this as payment; open the transaction and check before retrying, "
+              + "because a retry of a request the vault already consumed is refused as a replay",
+        };
+      }
       return text({ ...out, tx: explorerTx(NET, hash) });
     }
 
