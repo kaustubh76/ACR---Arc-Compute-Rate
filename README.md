@@ -307,7 +307,7 @@ Measured, not aspirational — run `make verify-live` for the current set. These
 deployment's, which is where the history is; mainnet's own first numbers are in the launch section above.
 At time of writing: hourly on-chain prints for 3 indices with attack-cost-per-bp on every one; **4** seller attestations on-chain; **three** live futures books (ACR-INF, ACR-GPU, ACR-DATA) whose maker is a Circle custody wallet, traded hourly by a keeper; **120** real Gateway x402 settlements from **4 distinct payers** (**37** from the CLI buyer agent, **7** from the autonomous hedger's backing EOA, **75** from a demo human's wallet, **1** from a fourth wallet — the first rows stamped with the tier the agent's card earned); 100% Foundry invariants passing.
 
-Suites, all green and re-measured on every push: **1495 py** · **220 forge** · **431 terminal** · **58 matchstick** · glossary **563/563** — see `scripts/verify_claims.py`.
+Suites, all green and re-measured on every push: **1678 py** · **300 forge** · **431 terminal** · **58 matchstick** · glossary **564/564** — see `scripts/verify_claims.py`.
 
 ---
 
@@ -327,7 +327,7 @@ Suites, all green and re-measured on every push: **1495 py** · **220 forge** ·
 | [`skills/`](skills) | Two Skills published *back*: `acr-hedge` (discover → pay → read → hedge) and `acr-analyst` (Ask the Tape) |
 | [`docs/`](docs) | Documentation — start at [`docs/README.md`](docs/README.md) |
 | [`hackathon/`](hackathon) | The two hackathon submissions this began as — preserved, not maintained |
-| [`.github/workflows/`](.github/workflows) | CI (6 jobs) + the keepalive ping + the dispatch-only buyer |
+| [`.github/workflows/`](.github/workflows) | CI (7 jobs) + the keepalive ping + the dispatch-only buyer |
 
 ---
 
@@ -349,7 +349,7 @@ Which Circle wallet product does which job, and the constraint forcing each choi
 
 ## CI and automation
 
-`ci.yml` runs **6 jobs** on every push and PR — `python` (ruff + pytest + the eval gate + the claims audit), `contracts` (`forge test`), `agent`, `terminal` (node:test + a full Next build), `subgraph` (matchstick) and `mcp`. It uses **zero secrets** and is fully hermetic: it stands up a local anvil, and a dedicated step fails the build if the on-chain suites *skip*, because a test that skips looks exactly like a test that passes — that is how a real regression once stayed green for a day.
+`ci.yml` runs **7 jobs** on every push and PR — `python` (ruff + pytest + the eval gate + the claims audit), `contracts` (`forge test`), `agent`, `terminal` (node:test + a full Next build), `subgraph` (matchstick), `float` (typecheck + node:test over a forge build) and `mcp`. It uses **zero secrets** and is fully hermetic: it stands up a local anvil, and a dedicated step fails the build if the on-chain suites *skip*, because a test that skips looks exactly like a test that passes — that is how a real regression once stayed green for a day.
 
 A `keepalive` cron pings the free-tier seller API every 10 minutes and runs `verify_live.py` against the deployment, so a silently-dead pillar surfaces without anyone looking.
 
