@@ -85,8 +85,10 @@ Every claim below is re-derivable by a command in the repo.
 | A 3× quote is refused on chain with the fair counter-price | `npm run verify` T3 |
 | The exact shortfall leaves the sleeve **before** the seller is paid, in one transaction | `npm run verify` T5 — proven by **log order**, because Arc's RPC has no `debug_traceTransaction` |
 | The fair band is denominated correctly | `test_the_fair_band_is_denominated_in_usdc_not_wad` |
-| Thirteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
+| Fourteen acceptance checks on a live chain | `FLOAT_NET=arc-testnet npm run verify` |
 | An Eco **Sauce** program asks the Morpho venue whether it could deliver a shortfall, before anything is signed | `make float-sauce`, then `npm run verify` T13 — it is run in both directions, and fails unless the uncoverable amount is refused |
+| That Sauce program cooks on a **Pot deployed on Arc**, not a simulated one | tx [`0xabb5df02…baf3be`](https://explorer.testnet.arc.io/tx/0xabb5df023e20f260b565b0c0cbb916d82e25e265c439a6ab6a43361632baf3be), 667,003 gas through Sauce's Kitchen (verified as `KitchenProxy`). The witness is that `simulate` no longer prints a `deployPot` step |
+| The venue is still Morpho **Vault V2** — every `max*` returns zero and shares are 18 decimals against 6-decimal USDC | `npm run verify` T14. Asserted against the live vault with **no proprietary dependency**, so unlike T13 it also runs from a clone and in CI |
 | Our yield venue has **no timelock on any of its four gate setters**, and its owner and curator are one key | `venue.html`, written by Arc Studio's `morpho` skill; re-derive with `cast call <venue> "timelock(bytes4)(uint256)" <selector>` |
 
 ## The number that makes the case
@@ -142,6 +144,7 @@ was read off the chain, not out of a log file.
 | Erc4626Sleeve (the yield position) | [`0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14`](https://explorer.testnet.arc.io/address/0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14) |
 | FloatTestSeller | [`0xf4e89e34ed6e1626a3410e1d49796779179915c1`](https://explorer.testnet.arc.io/address/0xf4e89e34ed6e1626a3410e1d49796779179915c1) |
 | Morpho Vault V2 — **not ours**, Circle's Earn Kit discovers it | [`0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88`](https://explorer.testnet.arc.io/address/0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88) |
+| Eco Sauce **Pot** — the pre-flight program's on-chain home, owner `0x64E21e01…` | [`0x0EfAcA8478ADe9B312de3EbB7AF4338f02f05FE5`](https://explorer.testnet.arc.io/address/0x0EfAcA8478ADe9B312de3EbB7AF4338f02f05FE5) |
 | `scout`, the agent — **holds 0 USDC, before and after** | [`0x0420A5279cbD3257252Ba9CC524a2E09dd304E88`](https://explorer.testnet.arc.io/address/0x0420A5279cbD3257252Ba9CC524a2E09dd304E88) |
 
 **All four are verified on Blockscout**, so the explorer shows the Solidity

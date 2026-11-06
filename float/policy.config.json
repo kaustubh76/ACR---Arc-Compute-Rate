@@ -8,7 +8,7 @@
   "minTicketUsdc": "1",
   "workingShareBps": 10000,
   "agents": {
-    "scout": { "dailyCapUsdc": "25", "perRequestUsdc": "5", "frozen": false },
-    "waster": { "dailyCapUsdc": "25", "perRequestUsdc": "5", "frozen": false }
+    "scout": { "dailyCapUsdc": "60", "perRequestUsdc": "5", "frozen": false },
+    "waster": { "dailyCapUsdc": "60", "perRequestUsdc": "5", "frozen": false }
   }
 }

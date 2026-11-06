@@ -43,9 +43,20 @@ cd float && npm install
 npm test                                       # 23 unit tests
 npm run local                                  # deploy the whole system
 npm run keeper -- --once                       # put real prices on chain
-npm run verify                                 # 13 checks against the live chain
+npm run verify                                 # 14 checks against the live chain
 npm run agents -- --once --park 0.5            # watch the hero loop
 ```
+
+**On a live chain the suite spends from the same daily cap as the tape.** T2 and
+T5 make real payments (~$2.10 a run), and `make float-tape` pays $1.055 every
+half hour — about $50 a day. At the original $25 cap the payment checks passed
+only in the first half of each 24-hour period and were refused for the cap after
+that, which looks exactly like the vault failing and is not. The cap is $60 in
+`policy.config.json`, which covers the tape plus roughly four runs a day. If T2
+and T5 are refused while everything else passes, read `agentOf(scout).spent`
+against its cap before suspecting anything else — and the cleaner fix, if this
+keeps biting, is to give the acceptance suite its own agent instead of sharing
+the tape's budget.
 
 `npm run verify` prints what it observed, not just a verdict:
 
@@ -73,7 +84,7 @@ check it.
 | `float/src/prices.ts` | per-provider medians and a measured confidence interval |
 | `float/src/bin/keeper.ts` | print → forecast → rebalance, every ten minutes |
 | `float/src/bin/policy.ts` | English → JSON → chain, validated all-or-nothing |
-| `float/src/bin/verify.ts` | the thirteen checks above |
+| `float/src/bin/verify.ts` | the fourteen checks above |
 
 ## The price is measured, not asserted
 

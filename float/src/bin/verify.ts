@@ -94,6 +94,23 @@ async function bal(who: Address): Promise<bigint> {
 async function sleeveValue(): Promise<bigint> {
   return (await pub.readContract({ address: d.sleeve, abi: SL.abi, functionName: "valueUsdc" })) as bigint;
 }
+
+/**
+ * Did that read fail because the node was unreachable, or because the contract
+ * has no such function?
+ *
+ * It matters, and it bit us. T0 and T14 both tolerate a venue that is not
+ * Morpho Vault V2, because on anvil the double genuinely is not one. They must
+ * NOT tolerate an unreachable node: with anvil listening on 8546 while this
+ * file's chain definition points at 8545, T0 printed **PASS — "skipped: the
+ * local double is not Morpho Vault V2"**, which is a green tick whose stated
+ * reason is false. A gate wants the opposite default to a report.
+ */
+function unreachable(e: unknown): boolean {
+  const err = e as { name?: string; message?: string };
+  const s = `${err?.name ?? ""} ${err?.message ?? ""}`;
+  return /HttpRequestError|HTTP request failed|fetch failed|ECONNREFUSED|ECONNRESET|socket hang up|TimeoutError|timed out/i.test(s);
+}
 async function latest(model: string) {
   const index = keccak256(toHex(indexIdFor(model)));
   const [priceWad, printId, postedAt, ciBps] = (await pub.readContract({
@@ -131,19 +148,39 @@ async function asKeeper(fn: string, args: unknown[]) {
 }
 
 /**
- * Morpho Vault V2's four transfer gates, and its own view of what it holds.
+ * Morpho Vault V2, as much of it as the sleeve's correctness depends on.
  *
- * All four are `address(0)` today, which is the only reason a CONTRACT may hold
- * shares here and therefore the only reason the just-in-time pull can be
- * atomic. The vault's curator can change them, or its caps, behind a timelock.
- * If that happens the first we would otherwise know is a payment reverting on
- * stage, so it is worth four `eth_call`s to turn that into a console line.
+ * THE GATES. A contract may hold shares here only if the transfer gates admit
+ * it, and that is the only reason the just-in-time pull can be atomic at all.
+ * All four gate addresses are unset today. But the thing to assert is the
+ * PERMISSION, not the address: `canReceiveShares` and its three siblings
+ * consult the gate and answer the question we actually have. A curator who
+ * installs a gate that still admits this sleeve has changed nothing we depend
+ * on, and a check written against `gate == address(0)` would call that a
+ * failure. See T0.
+ *
+ * THE TRAPS. `max*` return a constant zero — note `stateMutability` is `pure`
+ * on the live vault, which is only possible because the answer never depends
+ * on state — and shares are 18 decimals against 6-decimal USDC. Both are
+ * asserted against the live vault in T14, because a double that models them
+ * only proves we still believe them.
  */
 const VENUE_ABI = [
   { type: "function", name: "receiveSharesGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "sendSharesGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "receiveAssetsGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "sendAssetsGate", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "canReceiveShares", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canSendShares", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canReceiveAssets", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canSendAssets", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "maxWithdraw", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "pure" },
+  { type: "function", name: "maxDeposit", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "pure" },
+  { type: "function", name: "maxMint", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "pure" },
+  { type: "function", name: "maxRedeem", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "pure" },
+  { type: "function", name: "convertToAssets", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "decimals", inputs: [], outputs: [{ type: "uint8" }], stateMutability: "view" },
+  { type: "function", name: "virtualShares", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
   { type: "function", name: "totalAssets", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
 ] as const;
 
@@ -152,31 +189,52 @@ console.log(`[verify] ${NET} — vault ${d.vault}\n`);
 // --- T0 · the yield venue still lets us in ----------------------------------
 {
   const ZERO = "0x0000000000000000000000000000000000000000";
-  const names = ["receiveSharesGate", "sendSharesGate", "receiveAssetsGate", "sendAssetsGate"] as const;
-  const open: string[] = [];
+  const gates = ["receiveSharesGate", "sendSharesGate", "receiveAssetsGate", "sendAssetsGate"] as const;
+  const perms = ["canReceiveShares", "canSendShares", "canReceiveAssets", "canSendAssets"] as const;
   let ok = true;
   let saw = "";
   try {
-    for (const fn of names) {
-      const g = (await pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: fn })) as Address;
-      if (g.toLowerCase() !== ZERO) ok = false;
-      open.push(`${fn.replace("Gate", "")}=${g === ZERO ? "open" : g}`);
-    }
-    const tvl = (await pub.readContract({
-      address: d.venue, abi: VENUE_ABI, functionName: "totalAssets",
-    })) as bigint;
+    // One Promise.all, so the transport's batching folds these into a single
+    // HTTP POST instead of nine. Arc answers a burst with a bare 403.
+    const probe = await Promise.all([
+      ...gates.map((fn) => pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: fn })),
+      ...perms.map((fn) => pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: fn, args: [d.sleeve] })),
+      pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: "totalAssets" }),
+    ]);
+    const gateAddrs = probe.slice(0, 4).map((x) => String(x));
+    const allowed = probe.slice(4, 8).map((x) => Boolean(x));
+    const tvl = probe[8] as bigint;
+
+    // THE VERDICT IS THE PERMISSION, NOT THE GATE ADDRESS. Asserting that each
+    // gate is unset would redden a vault whose curator installed a gate that
+    // still admits us — a change we do not depend on. `can*` asks what we need
+    // to know: may this sleeve hold shares, and may it get the money back out?
+    const shut = perms.filter((_, i) => !allowed[i]).map((p) => p.replace("can", ""));
+    if (shut.length > 0) ok = false;
+
     // The largest single pull we will ever ask for is one payment.
     const biggest = (await bal(d.vault)) + (await sleeveValue());
     if (tvl < biggest) ok = false;
-    saw = `${open.join(" ")}; venue holds ${usd(tvl)} against our ${usd(biggest)}`;
+
+    const installed = gates.filter((_, i) => (gateAddrs[i] ?? ZERO).toLowerCase() !== ZERO).map((g) => g.replace("Gate", ""));
+    saw = (shut.length > 0 ? `REFUSED to ${shut.join("/")}` : "sleeve may receive and send both shares and assets")
+      + `; gates ${installed.length > 0 ? `installed on ${installed.join("/")} and still admit us` : "all unset"}`
+      + `; venue holds ${usd(tvl)} against our ${usd(biggest)}`;
   } catch (e) {
-    // A local double has none of these. That is not a failure, it is a
-    // different venue, and saying so beats a green tick that checked nothing.
-    saw = `venue does not expose Vault V2 gates (${((e as Error).message.split("\n")[0] ?? "").slice(0, 60)})`;
-    ok = NET === "anvil";
-    if (ok) saw = "skipped: the local double is not Morpho Vault V2";
+    const why = ((e as Error).message.split("\n")[0] ?? "").slice(0, 60);
+    if (unreachable(e)) {
+      // Never a skip. An unanswered question is not a satisfied one.
+      ok = false;
+      saw = `could not reach the node to ask: ${why}`;
+    } else {
+      // A local double has none of these. That is not a failure, it is a
+      // different venue, and saying so beats a green tick that checked nothing.
+      saw = `venue does not expose Vault V2 gates (${why})`;
+      ok = NET === "anvil";
+      if (ok) saw = "skipped: the local double is not Morpho Vault V2";
+    }
   }
-  check("T0", "the yield venue is still permissionless and deep enough to pull from", ok, saw);
+  check("T0", "the yield venue still admits this sleeve and is deep enough to pull from", ok, saw);
 }
 
 // --- T1 · every print is fresh and sane -------------------------------------
@@ -205,37 +263,88 @@ const scoutBefore = await bal(SCOUT_EOA);
 
 // --- T2 · a fair spend pays the seller --------------------------------------
 {
-  const sellerBefore = await bal(d.seller);
   const quote = (gpt.fair * 10_050n) / 10_000n;
   const r = await spend(req(SCOUT, gpt.index, quote, gpt.printId));
-  const sellerAfter = await bal(d.seller);
+
+  // Read what THIS transaction did, out of its own receipt.
+  //
+  // This used to assert `sellerAfter - sellerBefore === quote` across a pair of
+  // balance reads. That is a race against the tape, which pays the same seller
+  // every half hour: a tape payment landing between the two reads makes the
+  // delta larger than the quote and reddens a payment that was perfectly
+  // correct. The receipt is not shared with anyone.
+  //
+  // And the check is named "writes a receipt" while nothing here looked for
+  // one, so the Receipt event is now decoded too and its own `quote` has to
+  // agree. A title that claims more than the assertion is a slow leak.
+  let paid = 0n;
+  let receiptId: bigint | null = null;
+  let receiptQuote: bigint | null = null;
+  for (const log of r.logs) {
+    try {
+      const ev = decodeEventLog({ abi: [TRANSFER], data: log.data, topics: log.topics });
+      const a = ev.args as unknown as { to: Address; value: bigint };
+      if (log.address.toLowerCase() === d.usdc.toLowerCase()
+        && a.to.toLowerCase() === d.seller.toLowerCase()) paid += a.value;
+    } catch { /* not a transfer */ }
+    try {
+      const ev = decodeEventLog({ abi: V.abi, data: log.data, topics: log.topics });
+      if (ev.eventName === "Receipt") {
+        const a = ev.args as unknown as { id: bigint; quote: bigint };
+        receiptId = a.id;
+        receiptQuote = a.quote;
+      }
+    } catch { /* not ours */ }
+  }
+
   check("T2", "a fair quote pays the seller and writes a receipt",
-    r.status === "success" && sellerAfter - sellerBefore === quote,
-    `seller ${usd(sellerBefore)} -> ${usd(sellerAfter)} on quote ${usd(quote)}`);
+    r.status === "success" && paid === quote && receiptId !== null && receiptQuote === quote,
+    `this transaction moved ${usd(paid)} to the seller on a ${usd(quote)} quote, ` +
+    `receipt #${receiptId ?? "none"} recording ${receiptQuote === null ? "nothing" : usd(receiptQuote)}`);
 }
 
 // --- T3 · an overcharge is refused, on chain, in English --------------------
 {
-  const sellerBefore = await bal(d.seller);
   const r = req(SCOUT, gpt.index, gpt.fair * 3n, gpt.printId);
   const [reason, code, fair] = await classify(r);
   const rc = await spend(r);
   let denied = "";
+  let paid = 0n;
   for (const log of rc.logs) {
     try {
       const ev = decodeEventLog({ abi: V.abi, data: log.data, topics: log.topics });
       if (ev.eventName === "Denied") denied = (ev.args as unknown as { reason: string }).reason;
     } catch { /* not ours */ }
+    // "Nothing moves" is a claim about THIS TRANSACTION, so ask this
+    // transaction. It used to be measured as the seller's balance before
+    // against after — and that failed intermittently under a live tape, which
+    // pays the same seller every half hour: the balance moved between the two
+    // reads while the transaction under test had moved nothing at all. A
+    // global balance cannot answer a question about one transaction, and the
+    // receipt can.
+    try {
+      const ev = decodeEventLog({ abi: [TRANSFER], data: log.data, topics: log.topics });
+      const a = ev.args as unknown as { to: Address; value: bigint };
+      if (log.address.toLowerCase() === d.usdc.toLowerCase()
+        && a.to.toLowerCase() === d.seller.toLowerCase()) paid += a.value;
+    } catch { /* not a transfer */ }
   }
-  const sellerAfter = await bal(d.seller);
   check("T3", "a 3x quote is denied on chain with the fair counter-price, and nothing moves",
-    reason === "quote exceeds ACR fair band" && denied === reason && sellerAfter === sellerBefore,
-    `code ${code} "${denied}" fair ${usd(fair)} vs quote ${usd(gpt.fair * 3n)}; seller unchanged at ${usd(sellerAfter)}`);
+    reason === "quote exceeds ACR fair band" && denied === reason && paid === 0n,
+    `code ${code} "${denied}" fair ${usd(fair)} vs quote ${usd(gpt.fair * 3n)}; ` +
+    `this transaction moved ${usd(paid)} to the seller`);
 }
 
 // --- T4 · the daily cap refuses rather than paying the headroom -------------
 {
-  const [, , , perReq] = (await pub.readContract({
+  // One read, and KEEP THE CAP IT FINDS. This check tightens the agent's daily
+  // cap so the ladder answers the rung being tested, so it must put back what
+  // was there. The restore used to write a hardcoded $25, which meant the suite
+  // silently overwrote whatever cap the operator had set — and it broke T5 two
+  // checks later: with the cap forced back to $25 against $25.30 already spent,
+  // the just-in-time payment was refused for the CAP instead of being funded
+  // from the sleeve, and the failure read as the product not working.
+  const [, capBefore, spentNow, perReq] = (await pub.readContract({
     address: d.vault, abi: V.abi, functionName: "agentOf", args: [SCOUT],
   })) as readonly [boolean, bigint, bigint, bigint, bigint, boolean, boolean];
   // We need a quote the CAP refuses while the per-request threshold allows it,
@@ -244,20 +353,29 @@ const scoutBefore = await bal(SCOUT_EOA);
   // take the total to. The contract also requires threshold <= cap, which is
   // satisfiable only because something has already been spent — and the revert
   // when it is not is the contract refusing an unreachable threshold, correctly.
-  const spentNow = ((await pub.readContract({
-    address: d.vault, abi: V.abi, functionName: "agentOf", args: [SCOUT],
-  })) as readonly [boolean, bigint, bigint, bigint, bigint, boolean, boolean])[2];
   const quote = (gpt.fair * 10_050n) / 10_000n;
   const tightCap = spentNow + quote - 1n;
   const tightReq = quote + 1n;
   await asOwner("setAgent", [SCOUT, tightCap, tightReq, false, keccak256(toHex("verify.tighten")), 0n, ...NO_SIG]);
-  const r = req(SCOUT, gpt.index, quote, gpt.printId);
-  const [reason, code] = await classify(r);
-  check("T4", "a spend over the daily cap is refused, not clamped to the headroom",
-    reason === "daily cap exceeded",
-    `code ${code} "${reason}" on a ${usd(quote)} request with cap ${usd(tightCap)}, ` +
-    `${usd(spentNow)} already spent, threshold ${usd(tightReq)} (so the cap is what refused it)`);
-  await asOwner("setAgent", [SCOUT, 25_000_000n, perReq, false, keccak256(toHex("verify.restore")), 0n, ...NO_SIG]);
+  // RESTORE IN A `finally`, because this check leaves on-chain state behind if
+  // it does not. That is not hypothetical: a run that aborted here on one of
+  // Arc's failed requests left the cap at `tightCap` — one unit below what one
+  // payment costs — and every later run then refused T2 and T5 for the cap
+  // while the vault was working perfectly. Worse, the tightened cap SURVIVES
+  // as the next run's `capBefore`, so the corruption is preserved rather than
+  // noticed. The old hardcoded $25 restore hid this by always resetting to a
+  // constant; reading the real value made it visible, and `finally` is what
+  // actually fixes it.
+  try {
+    const r = req(SCOUT, gpt.index, quote, gpt.printId);
+    const [reason, code] = await classify(r);
+    check("T4", "a spend over the daily cap is refused, not clamped to the headroom",
+      reason === "daily cap exceeded",
+      `code ${code} "${reason}" on a ${usd(quote)} request with cap ${usd(tightCap)}, ` +
+      `${usd(spentNow)} already spent, threshold ${usd(tightReq)} (so the cap is what refused it)`);
+  } finally {
+    await asOwner("setAgent", [SCOUT, capBefore, perReq, false, keccak256(toHex("verify.restore")), 0n, ...NO_SIG]);
+  }
 }
 
 // --- T11 · rebalance respects the minimum ticket ----------------------------
@@ -336,11 +454,21 @@ const scoutBefore = await bal(SCOUT_EOA);
     } catch { /* not ours */ }
   }
   const shortfall = quote - bufferBefore;
+  // `shortfall` is derived from a buffer read taken BEFORE the spend, so a
+  // keeper rebalance landing in between moves it and this equality fails on a
+  // payment that was correct. The window is a second or two and it has not
+  // been seen, but a red check should name its own likely cause rather than
+  // leave the reader to suspect the product.
+  const raced = requested !== shortfall && requested > 0n && delivered >= requested
+    && pulledIdx >= 0 && payIdx >= 0 && pulledIdx < payIdx;
   check("T5", "the exact shortfall leaves the yield sleeve BEFORE the seller is paid, in one transaction",
     jit && pulledIdx >= 0 && payIdx >= 0 && pulledIdx < payIdx && requested === shortfall && delivered >= requested,
     `jitFunded=${jit}; sleeve pull at log ${pulledIdx} < payment at log ${payIdx}; ` +
     `requested ${usd(requested)} = shortfall ${usd(shortfall)}, delivered ${usd(delivered)}; ` +
-    `sleeve ${usd(sleeveBefore)} -> ${usd(await sleeveValue())}`);
+    `sleeve ${usd(sleeveBefore)} -> ${usd(await sleeveValue())}` +
+    (raced
+      ? ` — the pull and its order are right and only the arithmetic disagrees, which is what a keeper rebalance between the buffer read and the spend looks like; re-run before suspecting the vault`
+      : ""));
   }
 }
 
@@ -454,6 +582,80 @@ const scoutBefore = await bal(SCOUT_EOA);
       `sleeve holds ${usd(held)}: ${usd(canDo)} accepted, ${usd(cannot)} refused ` +
       `with the program's own sentence; simulated via ${path}, nothing signed`);
   }
+}
+
+// --- T14 · the venue is still the Vault V2 the sleeve was written against ---
+//
+// Two properties of Morpho Vault V2 break ordinary ERC-4626 code, and the
+// sleeve is built around both of them. Until now they were guarded in two
+// places that cannot guard them:
+//
+//   * `forge test` asserts them against our own MockVault4626 — which models
+//     them. That proves we still believe them, not that they are still true.
+//   * T13 asserts them against the live vault inside a Sauce program, and T13
+//     SKIPS whenever that 22 MB proprietary CLI is absent: in CI, and in every
+//     clone a judge makes.
+//
+// So the one property whose silent change would quietly empty the sleeve had no
+// gate a stranger could run. This is that gate, and it needs nothing but an RPC.
+{
+  let ok = true;
+  const saw: string[] = [];
+  try {
+    const maxes = ["maxWithdraw", "maxDeposit", "maxMint", "maxRedeem"] as const;
+    // One POST again, for the same reason as T0.
+    const probe = await Promise.all([
+      ...maxes.map((fn) => pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: fn, args: [d.sleeve] })),
+      pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: "decimals" }),
+      pub.readContract({ address: d.usdc, abi: U.abi, functionName: "decimals" }),
+      // One whole USDC, handed over AS IF it were a share balance.
+      pub.readContract({ address: d.venue, abi: VENUE_ABI, functionName: "convertToAssets", args: [1_000_000n] }),
+    ]);
+    const maxOut = probe.slice(0, 4).map((x) => x as bigint);
+    const vDec = Number(probe[4]);
+    const uDec = Number(probe[5]);
+    const asShares = probe[6] as bigint;
+
+    // 1. Every max* lies, by design and stated in the vault's own source. A
+    //    sleeve that sized a withdrawal from maxWithdraw reports an empty
+    //    position forever, which is why `valueUsdc` converts the share balance.
+    if (!maxOut.every((m) => m === 0n)) ok = false;
+    saw.push(`${maxes.join("/")} all return ${maxOut.join("/")}`);
+
+    // 2. Shares are 18 decimals against 6-decimal USDC, so convertToAssets
+    //    must be fed a SHARE balance and never an amount. Demonstrated, not
+    //    described: one whole USDC read as shares comes back as nothing.
+    if (vDec <= uDec) ok = false;
+    if (asShares !== 0n) ok = false;
+    saw.push(`shares ${vDec}dp vs asset ${uDec}dp, so convertToAssets(1 USDC) = ${asShares}`);
+
+    // 3. The scale itself, derived from the two decimals just read rather than
+    //    written down as 1e12 and hoped for. If a constant governs a quantity,
+    //    the check should name the quantity.
+    const expected = 10n ** BigInt(vDec - uDec);
+    try {
+      const vs = (await pub.readContract({
+        address: d.venue, abi: VENUE_ABI, functionName: "virtualShares",
+      })) as bigint;
+      if (vs !== expected) ok = false;
+      saw.push(`virtualShares ${vs} = 10^(${vDec}-${uDec})`);
+    } catch {
+      // The local double does not expose it. The three assertions above DO hold
+      // against the double, so this reports instead of skipping the whole
+      // check — a check that degenerates to a skip off-chain is worth little.
+      saw.push(`virtualShares not exposed here (10^(${vDec}-${uDec}) = ${expected})`);
+    }
+  } catch (e) {
+    const why = ((e as Error).message.split("\n")[0] ?? "").slice(0, 60);
+    ok = unreachable(e) ? false : NET === "anvil";
+    saw.push(ok
+      ? "skipped: the local double is not Morpho Vault V2"
+      : unreachable(e)
+        ? `could not reach the node to ask: ${why}`
+        : `could not read the venue: ${why}`);
+  }
+  check("T14", "the venue is still Vault V2: every max* returns zero and shares are 18 decimals",
+    ok, saw.join("; "));
 }
 
 // --- the verdict ------------------------------------------------------------
