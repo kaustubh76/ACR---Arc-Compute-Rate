@@ -123,6 +123,8 @@ async function submit(agent: { id: Hex; eoa: Address }, model: string, quote: bi
   let jit: boolean | null = null;
   let fairOnChain: bigint | null = null;
   let receiptId: bigint | null = null;
+  let deniedReason: string | null = null;
+  let deniedCode: number | null = null;
   for (const log of r.logs) {
     try {
       const ev = decodeEventLog({ abi: V.abi, data: log.data, topics: log.topics });
@@ -132,11 +134,47 @@ async function submit(agent: { id: Hex; eoa: Address }, model: string, quote: bi
         fairOnChain = a.fair;
         jit = a.jitFunded;
       }
+      // A refusal is an EVENT here, not a revert — that is the vault's whole
+      // design, so the transaction succeeds either way and its events are the
+      // only thing that distinguishes the two outcomes.
+      if (ev.eventName === "Denied") {
+        const a = ev.args as unknown as { reason: string; code: number; fair: bigint };
+        deniedReason = a.reason;
+        deniedCode = Number(a.code);
+        fairOnChain = a.fair;
+      }
     } catch {
       // not ours
     }
   }
-  return { code, reason, hash, ok: r.status === "success" && code === 0, jit, fairOnChain, receiptId };
+
+  // `ok` IS THE RECEIPT, and nothing else.
+  //
+  // It used to be `r.status === "success" && code === 0`, where `code` came from
+  // the `classify` view taken BEFORE the write. Both halves are true of a
+  // refusal: `requestSpend` emits `Denied` rather than reverting, so the status
+  // is success, and the pre-flight verdict describes a chain state that has
+  // since moved on. Any change between the view and the write therefore printed
+  // "PAID receipt #null ... fair $0" over a payment that never happened — which
+  // an overnight tape would have repeated until morning, and which is a worse
+  // failure than a refusal because it reads as the product working.
+  //
+  // The chain already says which it was. A `Receipt` means paid; a `Denied`
+  // means refused and carries the reason in English. `classify` stays as the
+  // fallback for a transaction that reverted outright and emitted neither.
+  const paid = receiptId !== null;
+  return {
+    code: deniedCode ?? code,
+    reason: deniedReason ?? reason,
+    hash,
+    ok: paid,
+    jit,
+    fairOnChain,
+    receiptId,
+    // True when the pre-flight and the chain disagreed: worth seeing, because it
+    // is the signature of a keeper print landing mid-tick.
+    raced: !paid && code === 0,
+  };
 }
 
 async function park(target: bigint) {
@@ -171,7 +209,7 @@ async function tick(i: number) {
       (s.ok
         ? `PAID receipt #${s.receiptId} (vault recomputed fair ${usd(s.fairOnChain ?? 0n)}` +
           `${s.jit ? ", JIT: pulled out of the yield sleeve in the same transaction" : ", from buffer"})`
-        : `REFUSED (${s.reason})`),
+        : `REFUSED (${s.reason})${s.raced ? " [pre-flight said allowed: the chain moved between the two]" : ""}`),
   );
 
   // waster quotes three times the going rate.
