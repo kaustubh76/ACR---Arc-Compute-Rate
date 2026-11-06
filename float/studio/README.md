@@ -169,8 +169,10 @@ require(checkpoints[id].agentId == r.agentId, "agent mismatch");
 ```
 
 `FloatVault.sol` last changed 22 minutes before the Arc testnet deploy, so the
-deployed bytecode matches this source exactly and the contracts verify on
-Blockscout as they stand. Editing the source alone breaks that match for a
+deployed bytecode matches this source exactly — and that is no longer our claim
+to make. **All four contracts are now verified on Blockscout**, which only
+verifies on an exact match, so the explorer attests it independently of
+anything written here. Editing the source alone breaks that match for a
 revert string; redeploying burns a one-shot `wire()` and discards live receipt
 history. So it is stated here instead, and it is the first thing to land after
 the deadline. The reviewer's test pins the current, wrong message on purpose,

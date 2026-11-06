@@ -141,6 +141,13 @@ was read off the chain, not out of a log file.
 | Morpho Vault V2 — **not ours**, Circle's Earn Kit discovers it | [`0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88`](https://explorer.testnet.arc.io/address/0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88) |
 | `scout`, the agent — **holds 0 USDC, before and after** | [`0x0420A5279cbD3257252Ba9CC524a2E09dd304E88`](https://explorer.testnet.arc.io/address/0x0420A5279cbD3257252Ba9CC524a2E09dd304E88) |
 
+**All four are verified on Blockscout**, so the explorer shows the Solidity
+rather than the bytecode, and the source you read on GitHub is provably the
+source that is running. Blockscout verifies only on an exact bytecode match,
+which is also why the one cosmetic revert-ordering fix we know about is listed
+in `float/studio/README.md` as deliberately not applied rather than quietly
+patched: changing the source would break this.
+
 **The one transaction to open.** [`0x364723c6…72f9d`](https://explorer.testnet.arc.io/tx/0x364723c61d77084e180d99aeef088fe266f222b126bc9e7b2ac38de2f6072f9d),
 block 70931234. Read its logs in order — this is the whole product in one
 transaction, and the ordering is the claim:
