@@ -48,10 +48,21 @@ ACR existed before this event: the estimator, the index, `ACROracle`,
 the line is drawn with every number re-derivable from a named command in
 [`CONTINUITY.md`](./CONTINUITY.md):
 
-**8,383 insertions against 8 deletions, and 98.4% of the added lines are in files
-that did not exist at the baseline.** For comparison, our ETHOnline continuity
-disclosure reported 86.1% and 1.4% churn — the measurement is a habit here, not a
-number assembled for this submission.
+**38,245 hand-written insertions against 267 deletions, and 92.2% of them are in
+files that did not exist at the baseline.** The raw range is larger — 78,524
+insertions — and the difference is disclosed rather than claimed: 29,813 lines
+are a vendored `forge-std` under `contracts/lib/`, 10,119 are generated
+(lockfiles, the Excalidraw canvases, `docs/assets/`), and 347 are a refreshed
+anchor basket, which is data. None of that is work and none of it is counted as
+work. For comparison, our ETHOnline continuity disclosure reported 86.1% and
+1.4% churn — the measurement is a habit here, not a number assembled for this
+submission.
+
+These figures were **re-derived at the end of the event, and they had drifted
+badly**: the table said 13 commits and 8,383 insertions, measured early and never
+updated, against 154 commits now. They were the only numbers in this submission
+that nothing gated, and they are the only ones that rotted — which is the
+argument for `scripts/verify_claims.py` in one line.
 
 ## How Arc Studio was used
 

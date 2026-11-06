@@ -42,30 +42,54 @@ list. Verified with `git ls-files --error-unmatch`.
 ## 2 · The commit range
 
 ```bash
-git log --oneline 6e6a827..HEAD          # 13 commits
+git log --oneline 6e6a827..HEAD          # 154 commits
 git diff --shortstat 6e6a827..HEAD
 ```
 
-Thirteen commits, no squashing, each scoped to one change and written during the
-event. Commits that touch baseline files say so in the subject and explain why
+One hundred and fifty-four commits, no squashing, each scoped to one change and
+written during the event. (This said "thirteen" for most of the event: the count
+was measured early and nothing gated it.) Commits that touch baseline files say so in the subject and explain why
 in the body.
 
 ## 3 · Diff statistics
 
+Re-derived at the end of the event. **The previous version of this table was
+measured on day one and never updated** — it said 42 files and 8,383 insertions
+against a true 277 and 78,524. It was the only table in this submission that
+nothing gated, and it is the only one that drifted.
+
 | measure | value | command |
 |---|---|---|
-| files changed | 42 | `git diff --shortstat 6e6a827..HEAD` |
-| insertions | **8,383** | same |
-| deletions | **8** | same |
-| files added | **35** | `git diff --name-status --diff-filter=A 6e6a827..HEAD \| wc -l` |
-| files modified | 7 | `--diff-filter=M` |
-| files deleted | 0 | `--diff-filter=D` |
-| lines in new files | **8,247** | `git diff --numstat --diff-filter=A 6e6a827..HEAD \| awk '{s+=$1} END {print s}'` |
-| **new-file share** | **98.4%** | 8,247 / 8,383 |
-| **baseline churn** | **0.1%** | 8 / 8,383 |
+| commits | **154** | `git rev-list --count 6e6a827..HEAD` |
+| files changed | 277 | `git diff --shortstat 6e6a827..HEAD` |
+| insertions, raw | 78,524 | same |
+| deletions, raw | 277 | same |
+| files added | **220** | `git diff --name-status --diff-filter=A 6e6a827..HEAD \| wc -l` |
+| files modified | 55 | `--diff-filter=M` |
+| files deleted | 2 | `--diff-filter=D` (`apps/terminal/lib/agentGuard.{ts,test.ts}`) |
 
-Three of the thirty-five added files are `anchors/ACR-*/2026-11-05.json` — a
-refreshed market basket, which is **data, not logic**, and is disclosed as such
+**The raw insertion count is not a measure of work, so it is decomposed rather
+than quoted.** `git diff --numstat 6e6a827..HEAD`, bucketed by path:
+
+| bucket | insertions | deletions | files | what it is |
+|---|---|---|---|---|
+| **hand-written** | **38,245** | **267** | 195 | the work |
+| vendored | 29,813 | 0 | 68 | `contracts/lib/forge-std` — a test library, committed not authored |
+| generated | 10,119 | 10 | 9 | lockfiles, the `.excalidraw` canvases, `docs/assets/` — all produced by a command |
+| data | 347 | 0 | 3 | `anchors/ACR-*/2026-11-05.json`, a refreshed market basket |
+
+| measure | value |
+|---|---|
+| **hand-written new-file share** | **92.2%** (35,255 / 38,245) |
+| **hand-written churn** | **0.7%** (267 / 38,245) |
+
+Counting a vendored `forge-std` as "lines added during the event" would inflate
+the figure by three quarters, so it is named and excluded. The claim is 38,245
+lines, 92.2% of them in files that did not exist at the baseline, and 0.7% churn
+against what did.
+
+Three of the two hundred and twenty added files are
+`anchors/ACR-*/2026-11-05.json` — a refreshed market basket, which is **data, not logic**, and is disclosed as such
 here rather than counted as a feature. It was refreshed because the committed
 basket had aged 30.5 days past a 30-day staleness cliff and six pre-existing
 tests went red with no code change on either side of them; the fix is in the
