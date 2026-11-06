@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, invalidate, useFrame } from "@react-three/fiber";
 import { AdaptiveDpr, Html, Line, OrbitControls } from "@react-three/drei";
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -380,12 +380,21 @@ export default function OnePaymentScene({
      section is near the top, so it is off-screen most of the time a reader
      spends here.
 
-     "DEMAND" AND NOT "NEVER", WHICH IS A MEASURED DISTINCTION. Both stop the
-     loop: counting `requestAnimationFrame` over two seconds gave 120 on screen
-     and 0 off it either way. But "never" tears the loop down and scrolling BACK
-     gave 0 as well, so the scene froze for good the first time it left the
-     viewport. "demand" renders only when something asks, which idles at zero
-     just the same and resumes when it becomes visible again. */
+     CHANGING THE PROP BACK IS NOT ENOUGH, which took reading R3F's loop to
+     learn rather than guessing at it. `loop()` cancels itself the moment a
+     frame is not needed (`if (repeat === 0) { running = false; return
+     cancelAnimationFrame(frame) }`), and the ONLY thing that starts it again is
+     `invalidate()`. `setFrameloop` just sets the clock and the store, so a
+     stopped loop stays stopped however the prop changes. Measured first with
+     "never": 120 `requestAnimationFrame` callbacks over two seconds on screen,
+     0 off it, and 0 again after scrolling BACK. The scene froze for good the
+     first time it left the viewport.
+
+     So two halves, and both are needed. "demand" rather than "never", because
+     `invalidate()` returns early on "never" and could never restart anything,
+     which also kills the frame OrbitControls asks for on a drag. And an
+     explicit `invalidate()` when the section comes back, to start the loop that
+     stopped itself. */
   useEffect(() => {
     const el = box.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -395,6 +404,10 @@ export default function OnePaymentScene({
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (seen) invalidate();
+  }, [seen]);
 
   return (
     <div aria-label={label} className="scene" ref={box} role="img">
