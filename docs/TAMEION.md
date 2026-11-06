@@ -367,6 +367,116 @@ verified and declares 60 functions — `deposit(uint256,address)`,
 `redeem(uint256,address,address)`, `previewDeposit`, `previewRedeem`,
 `mintPrice()`, and ten custom errors including `NotPermissioned()`.
 
+**That list was incomplete, and the omission cost us arithmetic we did not
+need.** Re-read on 2026-11-07, the same implementation also declares
+`withdraw(uint256 assets, address receiver, address account)`,
+`previewWithdraw(uint256 assets)`, `mint(uint256 shares, address receiver)` and
+`maxWithdraw(address)`. The paragraph above this one had it right — "the surface
+is ERC-4626-shaped" — and then this inventory dropped `withdraw` and `mint`, and
+`IUsycTeller` in `UsycSleeve.sol` declares only the four it uses.
+
+It matters because **`withdraw` is asset-denominated and `redeem` is
+share-denominated.** `Erc4626Sleeve.withdrawExact` is a one-liner —
+`venue.withdraw(usdcAmount, treasury, address(this))` — precisely because it can
+ask for an amount of USDC. `UsycSleeve` chose `redeem`, so it must convert a
+USDC amount into a share count itself, and that conversion is where the ceiling
+division, the one-share headroom, the ±2-share over-redemption and the
+correctness boundary below all come from. **None of it was forced by the ABI.**
+The next deploy of this sleeve should call `withdraw` and delete the scaling;
+that removes the whole class of rounding question instead of managing it.
+
+Nothing is broken today: the arithmetic is correct for 6-decimal USYC (see the
+boundary below), and the waste is at most four micro-USDC per pull. This is a
+simplification available to the next deploy, not a defect in this one.
+
+**Where the correctness proof stops.** `withdrawExact` is never short *provided*
+`nav >= 1e18` — that is, provided one share is worth at least one micro-USDC.
+In that regime the ceiling division plus one share is sufficient, verified by
+exhaustive sweep over nav, fee and share balance. Below it a single extra share
+cannot close a one-unit gap and shortfalls reappear. USYC is 6-decimal against
+6-decimal USDC and its NAV starts at 1.00 and only accrues, so the premise
+holds — but it was an unstated premise until now, and a share token that could
+trade below par would break it.
+
+**The `maxDeposit` trap, de-pinned.** The contracts record "ours read
+5,723,443". That number is a clock, and it has already moved: re-measured
+2026-11-07 it is **3,161,154**. `maxDeposit` is **per-address**, derived from
+`limit(address)` — our deployer reads a non-zero figure while the simulated
+sleeve, which has `limit() == (0, 0)`, reads zero. So *which address you ask
+about* changes the answer, and the figure drifts with the fund's daily
+subscription limit. The invariant is what matters and it reproduces live: for
+the same address, in the same minute, `maxDeposit` is **non-zero** while
+`deposit` reverts **`NotPermissioned()` (`0x7f63bd0f`)**. Treat `maxDeposit > 0`
+as an eligibility check and you ship a sleeve that fails on first use.
+
+**One risk to carry into the allowlist step.** Our stand-in's `previewRedeem`
+and `previewDeposit` are ungated, so `valueUsdc()` always answers. If the real
+Teller's previews revert for a non-allowlisted caller, then wiring this sleeve
+as the vault's reserve *before* the allowlist lands would make
+`totalValueUsdc()` revert on every call, because `_underManagement` sums sleeve
+values unconditionally — bricking the terminal, the funding pre-check and the
+acceptance suite at once. This is latent only because the reserve is
+`address(0)`. **Allowlist first, wire second**, and read `previewRedeem` from the
+sleeve's address before wiring it.
+
+**The simulation's source is published, so the identity claim is checkable.**
+The deploy script says the sleeve is "the same contract, the same bytecode, that
+would face Circle's Teller". That was unverifiable until 2026-11-07: the three
+simulated contracts were deployed but their source was not published, while the
+production `FloatVault` and `Erc4626Sleeve` both were. Now:
+
+| contract | address | source |
+|---|---|---|
+| `UsycSleeve` — the REAL contract | [`0x6D2A34ed…1972E`](https://explorer.testnet.arc.io/address/0x6D2A34ed26C9e4E58062ecAb9fdD1A80E4b1972E) | verified |
+| `SimUsyc` — stand-in share token | [`0x62C4F9FF…4995`](https://explorer.testnet.arc.io/address/0x62C4F9FF42483BA211736C19632eaB65e1eF4995) | verified |
+| `SimUsycTeller` — stand-in fund | [`0x15934AD8…4023`](https://explorer.testnet.arc.io/address/0x15934AD8Ae0125935B9dBfe0a8B88A9883A04023) | pending, see below |
+
+The teller's submission is unfinished for a reason worth recording rather than
+hiding: Blockscout rate-limited the IP mid-run — `status=0, message="Too many
+requests"`, which `forge verify-contract` surfaces as `Unknown UID` on the
+status poll and then as "Failed to obtain contract ABI" when it cannot even read
+back. Two of the three went through before the limit bit. **The submission
+succeeding and the status poll succeeding are different things**: `UsycSleeve`
+reported `Unknown UID` and is verified. So check the explorer rather than
+trusting the CLI's last line. To finish it, after a few minutes:
+
+```sh
+forge verify-contract 0x15934AD8Ae0125935B9dBfe0a8B88A9883A04023 \
+  src/sim/SimUsyc.sol:SimUsycTeller --chain-id 5042002 \
+  --verifier blockscout --verifier-url https://explorer.testnet.arc.io/api/ \
+  --compiler-version v0.8.24+commit.e11b9ed9 \
+  --constructor-args "$(cast abi-encode 'c(address,address)' \
+     0x3600000000000000000000000000000000000000 \
+     0x62C4F9FF42483BA211736C19632eaB65e1eF4995)"
+```
+
+And the identity holds independently of the explorer, which is the stronger
+statement: `out/UsycSleeve.sol/UsycSleeve.json` against `cast code` on the
+deployed sleeve differs in exactly **384 characters across 35 runs, every one of
+them an immutable address placeholder** — zeros locally against the stand-in
+teller, Arc's USDC, the stand-in share token and the deployer — with an
+**identical metadata tail**. `SimUsyc` is byte-identical with zero differences.
+So the deployed bytecode is this repository's source, provable with two commands
+and no trust in Blockscout.
+
+**Fidelity gaps in the stand-in, for whoever redeploys it.** `SimUsyc` declares
+no `decimals()` (the real USYC answers 6) and emits no `Transfer`/`Approval`, so
+a log-reading verifier sees USYC movements as nothing. `UsycSleeve` never
+approves USYC to the Teller, so if the real Teller pulls shares by
+`transferFrom` the first live redemption reverts. There is no constructor
+sanity check that the Teller's asset is our USDC, of the kind
+`Erc4626Sleeve.sol:49` carries. And `teller.deposit`'s return value is ignored
+while `Parked` logs USDC in rather than shares out, so a Teller that took the
+money and minted nothing would be accepted silently — the one place this sleeve
+does not follow its own "measure, do not assume" rule.
+
+**And the answer to "do the agents hold USYC?"** — *"Never. The agents hold
+nothing at all; their wallets are $0 before and after every payment, which T6
+asserts on chain. The treasury would hold the USYC, and today it holds none:
+Circle's Teller refuses us by name and the vault's reserve is a zero address."*
+Not *"one allowlisted vault"* — we are **not** allowlisted, and that is the
+single fact in this document it would be easiest to get wrong out loud.
+
 So eligibility is readable after all, in one staticcall:
 
 ```
@@ -397,8 +507,9 @@ NAV, which fails at prices that do not divide evenly and was caught by a test
 written to catch exactly that.
 
 **What reaching the yield costs, measured rather than assumed.** `make
-float-bench` estimates the same two calls against each sleeve's real
-counterparty on the live chain, and `contracts/test/SleeveBenchmark.t.sol`
+float-bench` estimates the same two calls against each sleeve's own
+counterparty on the live chain — a real Vault V2 for Morpho, the **stand-in**
+Teller for USYC, so that column is a floor and not a prediction — and `contracts/test/SleeveBenchmark.t.sol`
 repeats them against *equally trivial* doubles so the venue's share can be
 separated from ours:
 

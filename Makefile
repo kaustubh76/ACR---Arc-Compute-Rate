@@ -197,8 +197,11 @@ float-tape: float-abi
 # here reaches `totalValueUsdc()`. Seeding uses `cast` rather than the script
 # because Arc's USDC is precompile-backed and forge cannot simulate a transfer.
 # What the yield costs to reach. Estimates the same two calls against each
-# sleeve's REAL counterparty on the live chain, so the number is re-derived
-# rather than quoted. Read-only: eth_estimateGas signs nothing.
+# sleeve's own counterparty on the live chain, so the number is re-derived
+# rather than quoted. READ THE TWO COLUMNS DIFFERENTLY: Morpho's is a real
+# Vault V2, the USYC column is our code against the STAND-IN above, so it is
+# a floor and not a prediction of Circle's Teller. Read-only: eth_estimateGas
+# signs nothing.
 float-bench:
 	cd float && FLOAT_NET=$(FLOAT_NET) npm run --silent bench
 

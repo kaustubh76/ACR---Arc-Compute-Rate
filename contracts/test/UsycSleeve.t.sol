@@ -83,9 +83,17 @@ contract UsycSleeveTest is Test {
 
     function test_a_deposit_buys_shares_at_the_teller_s_own_price() public {
         _park(100e6);
-        // nav is 1.142776, so 100 USDC buys about 87.5 USYC.
+        // nav is 1.142776, so 100 USDC buys about 87.5 USYC. The exact figure is
+        // 100e6 * 1e18 / 1_142_775_997_364_038_969 = 87,506,213.
+        //
+        // THIS NUMBER WAS WRONG AND THE TOLERANCE HID IT. It read 87_506_222
+        // against a slack of 10 — passing with nine of those ten units spent,
+        // and it would have passed with `previewDeposit` off by up to 10 in
+        // either direction. A tolerance that swallows the error it is meant to
+        // catch is not a check, so the figure is now exact and the slack is one
+        // unit, which is the most a 6-decimal floor can cost.
         uint256 shares = usyc.balanceOf(address(sleeve));
-        assertApproxEqAbs(shares, 87_506_222, 10, "shares priced by the Teller");
+        assertApproxEqAbs(shares, 87_506_213, 1, "shares priced by the Teller");
         assertEq(usdc.balanceOf(address(sleeve)), 0, "no USDC left behind");
     }
 
@@ -107,13 +115,28 @@ contract UsycSleeveTest is Test {
     /// `valueUsdc` is what the treasury can SPEND, so the Teller's exit fee is
     /// already subtracted. Pricing the position at NAV would report money the
     /// fund will certainly keep.
+    ///
+    /// THE ASSERTION USED TO RE-IMPLEMENT THE STAND-IN'S OWN ARITHMETIC —
+    /// `gross - (gross * 50 / 10_000)` is a copy of `SimUsycTeller.previewRedeem`
+    /// written out in the test body, so it compared the double against itself
+    /// and agreed to 0 rather than to its stated tolerance of 2. That measures
+    /// the fixture, not the sleeve. What the SLEEVE is responsible for is
+    /// forwarding the Teller's net number instead of pricing at NAV, so that is
+    /// what is asserted: equality with `previewRedeem` of its own balance, and
+    /// strict inequality against the gross NAV valuation.
     function test_value_is_net_of_the_redemption_fee_not_gross() public {
         _park(100e6);
         uint256 gross = sleeve.valueUsdc();
+
         teller.setRedemptionFeeBps(50); // 0.5% on the way out
         uint256 net = sleeve.valueUsdc();
+        uint256 shares = usyc.balanceOf(address(sleeve));
+
         assertLt(net, gross, "the fee is inside the number");
-        assertApproxEqAbs(net, gross - (gross * 50 / 10_000), 2, "and it is exactly the fee");
+        assertEq(net, teller.previewRedeem(shares), "the sleeve forwards the Teller's own net figure");
+        // And it is NOT the NAV-gross valuation, which is the mistake this
+        // guards: balance x nav would hand the treasury money the fund keeps.
+        assertLt(net, shares * teller.nav() / 1e18, "not priced at NAV");
     }
 
     /// Sized by preview, not by dividing through a NAV: the treasury must end
@@ -142,6 +165,52 @@ contract UsycSleeveTest is Test {
         sleeve.withdrawExact(7_777_777);
 
         assertGe(usdc.balanceOf(treasury) - before, 7_777_777, "not short at an awkward NAV");
+    }
+
+    /// THE ONE REGIME WHERE THE HEADROOM SHARE DOES ANY WORK — and until now
+    /// nothing in the repository tested it.
+    ///
+    /// `withdrawExact` sizes a redemption by ceiling division and then adds one
+    /// share of headroom. The ceiling ALONE is provably sufficient while the
+    /// redemption fee is zero: `previewRedeem` is then a single floor, and
+    /// `ceil(S*A/W)` scaled back through the same NAV cannot land under `A`. A
+    /// SECOND floor — the fee subtraction — breaks that proof, and the extra
+    /// share is what repairs it.
+    ///
+    /// Every other withdrawal in this repo runs at fee ZERO.
+    /// `setRedemptionFeeBps` is called in exactly two places: the value test
+    /// above never withdraws, and `SleeveBenchmark.t.sol` does a FULL exit,
+    /// where `toRedeem == shares` and the `if (toRedeem < shares)` guard skips
+    /// the increment by construction. So DELETING THE HEADROOM LINE BROKE NO
+    /// TEST — the same defect as a reentrancy guard whose test is satisfied by
+    /// a different check, and the reason this one exists.
+    ///
+    /// Fee non-zero AND the withdrawal partial. Either alone makes it vacuous.
+    ///
+    ///   shares             87,506,213   (100 USDC parked at nav 1.142776)
+    ///   previewRedeem(S)   99,500,000   net of 50 bps
+    ///   ask                 3,509,167
+    ///   ceil(S*A/W)         3,086,170 -> previewRedeem 3,509,166  SHORT by 1
+    ///   + 1 share           3,086,171 -> previewRedeem 3,509,168  covers it
+    ///
+    /// Confirmed able to fail: with the headroom line removed, delivery is
+    /// 3,509,166 against a 3,509,167 request and this goes red.
+    function test_a_partial_withdrawal_under_a_fee_is_still_not_short() public {
+        _park(100e6);
+        teller.setRedemptionFeeBps(50); // 0.5% on the way out
+
+        uint256 ask = 3_509_167;
+        uint256 before = usdc.balanceOf(treasury);
+
+        vm.prank(treasury);
+        sleeve.withdrawExact(ask);
+
+        uint256 delivered = usdc.balanceOf(treasury) - before;
+        assertGe(delivered, ask, "short by a unit is a correct payment refused upstairs");
+        // The waste stays bounded: the ceiling adds under one share and the
+        // headroom exactly one, so at most two shares - about 2.3 micro-USDC
+        // at this NAV. Nothing observed this before either.
+        assertLe(delivered, ask + 4, "and it does not redeem wastefully more");
     }
 
     function test_asking_for_more_than_the_position_is_refused_by_name() public {
