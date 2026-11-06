@@ -368,3 +368,43 @@ export type FloatYield = {
   complete?: boolean;
   partial?: boolean;
 };
+
+/* --- one payment, walked -------------------------------------------------
+
+   What a single transaction can be made to prove about itself. Arc serves no
+   call trace, so the order of logs inside one receipt is the whole witness. */
+
+export type FloatWalkStep = {
+  n: 1 | 2 | 3 | 4;
+  /** "ok" proven, "warn" nothing to prove, "bad" contradicted, "none" absent. */
+  state: "ok" | "warn" | "bad" | "none";
+  /** The log's position in the transaction, which IS the proof for 2 and 3. */
+  log_index?: number;
+  value_usdc?: number;
+  /** Step 2 only: a venue may deliver less than asked. */
+  requested_usdc?: number;
+};
+
+export type FloatWalk = {
+  status: "ok" | "pending";
+  reason?: string;
+  tx?: string;
+  block?: number;
+  seller?: string;
+  index_name?: string;
+  units?: number;
+  quote_usdc?: number;
+  fair_usdc?: number;
+  print_id?: number;
+  /** Did the vault's own recomputation match the receipt? `null` when the
+   *  named print could not be found, which is an absence, not a mismatch. */
+  fair_matches?: boolean | null;
+  jit_funded?: boolean;
+  guest?: boolean;
+  human_approved?: boolean;
+  steps?: FloatWalkStep[];
+  /** "in_order" the pull preceded the pay; "out_of_order" it did not;
+   *  "unproven" it claimed just-in-time and a log is missing; "not_jit" it
+   *  never claimed it, so there is no order to show and nothing is wrong. */
+  verdict?: "in_order" | "out_of_order" | "unproven" | "not_jit";
+};

@@ -278,15 +278,30 @@ export function Ladder({
         <span className="label">
           <Ed x="or try one of these" p="or try one of these" />
         </span>
-        <button onClick={() => apply(presets[0])} type="button">
-          <Ed x="quote it fairly" p="charge a fair price" />
-        </button>
-        <button onClick={() => apply(presets[1])} type="button">
-          <Ed x="overcharge by three times" p="charge three times too much" />
-        </button>
-        <button onClick={() => apply(presets[2])} type="button">
-          <Ed x="push it past its own authority" p="ask for more than it may do alone" />
-        </button>
+        {/* `.lab-presets button.on` has existed in the stylesheet all along and
+            nothing set it, so the three presets gave no sign of which one the
+            sliders were sitting on. `aria-pressed` carries the same fact to a
+            reader who cannot see the colour. */}
+        {presets.map((pre, i) => {
+          const on = quote === pre.quote && units === pre.units;
+          return (
+            <button
+              aria-pressed={on}
+              className={on ? "on" : undefined}
+              key={pre.key}
+              onClick={() => apply(pre)}
+              type="button"
+            >
+              {i === 0 ? (
+                <Ed x="quote it fairly" p="charge a fair price" />
+              ) : i === 1 ? (
+                <Ed x="overcharge by three times" p="charge three times too much" />
+              ) : (
+                <Ed x="push it past its own authority" p="ask for more than it may do alone" />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="rung-quote">

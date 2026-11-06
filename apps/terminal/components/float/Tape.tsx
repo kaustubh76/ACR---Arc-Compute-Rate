@@ -1,9 +1,12 @@
 "use client";
 
+import { Fragment, useEffect, useRef, useState } from "react";
+
 import { Ed } from "@/components/Ed";
 import { TxLink } from "@/components/chain/TxLink";
 import type { FloatTapeRow } from "@/lib/float";
 import { fmtInt, fmtPrice } from "@/lib/format";
+import { Walk } from "@/components/float/Walk";
 import { useFloatTape } from "@/lib/useLive";
 
 /* Every payment and every refusal, side by side.
@@ -33,49 +36,95 @@ function premium(row: FloatTapeRow): string {
   return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
 }
 
-function Row({ r }: { r: FloatTapeRow }) {
+function Row({
+  r,
+  open,
+  onToggle,
+  fresh,
+}: {
+  r: FloatTapeRow;
+  open: boolean;
+  onToggle: () => void;
+  fresh: boolean;
+}) {
   const paid = r.kind === "paid";
+  /* ONLY A PAYMENT CAN BE WALKED. A refusal moved no money, so there is no
+     pull, no transfer and no order to show; `walk.html` refuses one by name
+     for the same reason. Making the row look openable would promise a story
+     that does not exist. */
+  const canOpen = paid;
+
   return (
-    <tr>
-      <td className="mono">
-        <span className={`chip ${paid ? "chip-teal" : "chip-breach"}`}>
-          {paid ? <Ed x="paid" p="paid" /> : <Ed x="refused" p="refused" />}
-        </span>
-      </td>
-      <td className="mono num">{paid && r.id ? fmtInt(r.id) : r.code ? fmtInt(r.code) : "…"}</td>
-      <td className="mono num">{fmtPrice(r.quote_usdc)}</td>
-      <td className="mono num">{r.fair_usdc > 0 ? fmtPrice(r.fair_usdc) : "…"}</td>
-      {/* Shown on BOTH outcomes. A refusal's overcharge is the number the
-          contract keeps `fair` on the event for, and printing an ellipsis
-          there wasted the most damning figure on the page. */}
-      <td className={`mono num${(r.premium_bps ?? 0) > 0 ? " vermilion" : ""}`}>{premium(r)}</td>
-      <td className="wrap">
-        {paid ? (
-          <>
-            {r.jit_funded ? (
-              <span className="chip chip-gold">
-                <Ed x="pulled from yield" p="taken from savings" />
-              </span>
-            ) : null}
-            {r.guest ? (
-              <span className="chip chip-sky">
-                <Ed x="guest" p="a visitor" />
-              </span>
-            ) : null}
-            {r.human_approved ? (
-              <span className="chip chip-gold">
-                <Ed x="a person cleared it" p="a person said yes" />
-              </span>
-            ) : null}
-          </>
-        ) : (
-          <span className="mono">{r.reason}</span>
-        )}
-      </td>
-      <td className="mono">
-        <TxLink txRef={r.tx} />
-      </td>
-    </tr>
+    <Fragment>
+      <tr
+        aria-expanded={canOpen ? open : undefined}
+        className={`${canOpen ? "row-link" : ""}${fresh ? " tick-flash" : ""}`}
+        onClick={canOpen ? onToggle : undefined}
+        onKeyDown={
+          canOpen
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onToggle();
+                }
+              }
+            : undefined
+        }
+        role={canOpen ? "button" : undefined}
+        tabIndex={canOpen ? 0 : undefined}
+      >
+        <td className="mono">
+          {/* The caret carries no muted class: `app/developers/view.tsx`
+              records the lesson that the one interactive glyph in a row must
+              not be its lowest-contrast character. `aria-hidden` because
+              `aria-expanded` already says the state. */}
+          {canOpen ? <span aria-hidden>{open ? "▾ " : "▸ "}</span> : null}
+          <span className={`chip ${paid ? "chip-teal" : "chip-breach"}`}>
+            {paid ? <Ed x="paid" p="paid" /> : <Ed x="refused" p="refused" />}
+          </span>
+        </td>
+        <td className="mono num">{paid && r.id ? fmtInt(r.id) : r.code ? fmtInt(r.code) : "…"}</td>
+        <td className="mono num">{fmtPrice(r.quote_usdc)}</td>
+        <td className="mono num">{r.fair_usdc > 0 ? fmtPrice(r.fair_usdc) : "…"}</td>
+        {/* Shown on BOTH outcomes. A refusal's overcharge is the number the
+            contract keeps `fair` on the event for, and printing an ellipsis
+            there wasted the most damning figure on the page. */}
+        <td className={`mono num${(r.premium_bps ?? 0) > 0 ? " vermilion" : ""}`}>{premium(r)}</td>
+        <td className="wrap">
+          {paid ? (
+            <>
+              {r.jit_funded ? (
+                <span className="chip chip-gold">
+                  <Ed x="pulled from yield" p="taken from savings" />
+                </span>
+              ) : null}
+              {r.guest ? (
+                <span className="chip chip-sky">
+                  <Ed x="guest" p="a visitor" />
+                </span>
+              ) : null}
+              {r.human_approved ? (
+                <span className="chip chip-gold">
+                  <Ed x="a person cleared it" p="a person said yes" />
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <span className="mono">{r.reason}</span>
+          )}
+        </td>
+        <td className="mono">
+          <TxLink txRef={r.tx} />
+        </td>
+      </tr>
+      {canOpen && open ? (
+        <tr>
+          <td colSpan={7} style={{ textAlign: "left", padding: 0 }}>
+            <Walk tx={r.tx} />
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
   );
 }
 
@@ -84,6 +133,37 @@ export function Tape() {
   const data = tape?.data ?? null;
   const live = Boolean(tape?.live);
   const rows = data?.rows ?? [];
+
+  /* One row open at a time. Several open at once turns a tape into a wall and
+     each one costs a transaction read; a reader comparing two payments can
+     open them in turn. */
+  const [open, setOpen] = useState<string | null>(null);
+
+  /* WHAT ARRIVED SINCE THE LAST POLL. Nothing on this page watched a polled
+     list for a new row, so a receipt that landed between two twelve-second
+     polls simply appeared, silently, at the top. `.tick-flash` is the gold
+     newswire flash `TickerNumber` already uses for the same meaning, and it is
+     already in the stylesheet's reduced-motion kill list.
+
+     Keyed on the newest row's own transaction rather than on the row count: a
+     tape that drops an old row while gaining a new one keeps the same length. */
+  const newest = rows[0]?.tx ?? null;
+  const seen = useRef<string | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null);
+  useEffect(() => {
+    if (!newest) return;
+    /* The first answer is not an arrival. Flashing it would greet every
+       visitor with news of something that happened before they got here. */
+    if (seen.current === null) {
+      seen.current = newest;
+      return;
+    }
+    if (seen.current === newest) return;
+    seen.current = newest;
+    setFresh(newest);
+    const t = setTimeout(() => setFresh(null), 1_400);
+    return () => clearTimeout(t);
+  }, [newest]);
 
   return (
     <section className="section anchor-target" id="tape">
@@ -146,9 +226,18 @@ export function Tape() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <Row key={`${r.tx}-${r.kind}-${r.id ?? r.code}-${r.block}`} r={r} />
-              ))}
+              {rows.map((r) => {
+                const key = `${r.tx}-${r.kind}-${r.id ?? r.code}-${r.block}`;
+                return (
+                  <Row
+                    fresh={fresh === r.tx}
+                    key={key}
+                    onToggle={() => setOpen(open === key ? null : key)}
+                    open={open === key}
+                    r={r}
+                  />
+                );
+              })}
             </tbody>
           </table>
         </div>

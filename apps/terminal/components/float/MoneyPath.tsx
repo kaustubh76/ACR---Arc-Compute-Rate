@@ -125,13 +125,22 @@ function Diagram({
   );
 }
 
-export function MoneyPath({ vault, paying }: { vault: FloatVaultState; paying: boolean }) {
-  /* "Funded just in time" is a property of a payment, not of a treasury, and
-     this surface has no receipt in hand — so the leg lights on the only honest
-     proxy available here: a working sleeve that holds value at all. The
-     receipts tape is where a specific payment gets to say it was funded that
-     way. */
-  const jit = Boolean(vault.working && vault.working.value_usdc > 0);
+export function MoneyPath({
+  vault,
+  paying,
+  jitFunded,
+}: {
+  vault: FloatVaultState;
+  paying: boolean;
+  /** Whether the newest actual payment pulled from the sleeve. */
+  jitFunded?: boolean;
+}) {
+  /* "Funded just in time" is a property of a payment, not of a treasury. This
+     used to light on the only proxy the diagram had — a working sleeve holding
+     anything at all — and said so in a comment. The tape carries `jit_funded`
+     per receipt now, so the leg lights on what the newest payment actually
+     did, and falls back to the proxy only while the tape has not answered. */
+  const jit = jitFunded ?? Boolean(vault.working && vault.working.value_usdc > 0);
 
   return (
     <>

@@ -14,7 +14,7 @@ import { cardHeaders, readerCardNow, useReaderCard } from "./readerCard";
 import { useChain } from "./useChain";
 
 import type { Refusal } from "./api";
-import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict, FloatYield } from "./float";
+import type { FloatQueue, FloatTape, FloatVaultState, FloatVerdict, FloatWalk, FloatYield } from "./float";
 import type { DryRun } from "./routeInput";
 import type { GateData } from "./gate";
 import type { ClustersData, HumanIdData } from "./humans";
@@ -745,4 +745,20 @@ export function useFloatYield() {
     { refreshInterval: floatYieldPollMs, ...RETRY },
   );
   return { earned: data, error: error as FetchError | undefined };
+}
+
+/** One payment, walked.
+ *
+ *  NO `refreshInterval`, and deliberately so rather than by omission: a
+ *  finished transaction's logs cannot change, and this read only happens
+ *  because a reader opened a row. A null hash suspends it entirely, so a
+ *  closed row costs nothing. */
+export function useFloatWalk(tx: string | null) {
+  const chain = useChain();
+  const { data, error, isLoading } = useSWR<Envelope<FloatWalk>>(
+    tx ? apiKey(`/api/float/walk?tx=${tx}`, chain) : null,
+    fetcherFor(chain),
+    { ...RETRY },
+  );
+  return { walk: data, error: error as FetchError | undefined, reading: isLoading };
 }

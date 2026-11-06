@@ -40,12 +40,13 @@ import "server-only";
  * place a gap still earns its keep: the node has just said we were too fast.
  */
 
-import { createPublicClient, formatUnits, http, keccak256, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, decodeEventLog, formatUnits, http, keccak256, toHex, type Address, type Hex } from "viem";
 
 import type { ChainKey } from "./chainChoice";
 import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
 import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI } from "./floatAbi";
+import { fairMatches, pickPay, pickPull, pickReceipt, verdictOf, type WalkLog } from "./floatWalk";
 import type {
   FloatAgentStanding,
   FloatPolicyView,
@@ -55,6 +56,8 @@ import type {
   FloatTapeRow,
   FloatVaultState,
   FloatVerdict,
+  FloatWalk,
+  FloatWalkStep,
   FloatYield,
 } from "./float";
 
@@ -832,4 +835,141 @@ export async function readYield(chain: ChainKey): Promise<FloatYield> {
   };
   yieldMemo = { at: Date.now(), key: memoKey, data: out };
   return out;
+}
+
+/* --- one payment, walked -------------------------------------------------
+
+   ONE RECEIPT IS THE WHOLE READ. `eth_getTransactionReceipt` returns every log
+   in the transaction, so the vault's `Receipt`, the sleeve's `Pulled` and the
+   USDC `Transfer` to the seller all decode locally from it. Only the print
+   behind step one needs a second call. So a reader opening a row costs about
+   two requests and nothing is polled.
+
+   WHY THE ORDER OF LOGS IS THE PROOF. Arc serves no `debug_traceTransaction`
+   and no `trace_*`, so there is no call trace to appeal to. A just-in-time
+   payment claims an ORDER, and log position inside one receipt is the only
+   witness to it. */
+
+export async function readWalk(chain: ChainKey, tx: string): Promise<FloatWalk> {
+  const cfg = floatConfig(chain);
+  if (typeof cfg === "string") return { status: "pending", reason: cfg };
+
+  const c = client(cfg.rpc);
+  const stuck = "the float vault's chain is rate limiting this host; it retries by itself";
+
+  const rc = await one<{
+    status: string;
+    blockNumber: bigint;
+    logs: Array<{ logIndex: number; address: string; topics: string[]; data: string }>;
+  }>(() => c.getTransactionReceipt({ hash: tx as Hex }));
+  if (!rc.ok) {
+    return { status: "pending", reason: rc.busy ? stuck : "no such transaction on this chain" };
+  }
+  if (rc.value.status !== "success") {
+    return { status: "pending", reason: "that transaction reverted, so it has no payment to walk" };
+  }
+
+  /* Decode against all three ABIs and keep whatever each log turns out to be.
+     A log that matches none of them is simply not part of this story. */
+  const decoded: WalkLog[] = [];
+  for (const l of rc.value.logs) {
+    for (const abi of [VAULT_ABI, SLEEVE_ABI, ERC20_ABI]) {
+      try {
+        const ev = decodeEventLog({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          abi: abi as any,
+          data: l.data as Hex,
+          topics: l.topics as [Hex, ...Hex[]],
+        }) as { eventName: string; args?: Record<string, unknown> };
+        decoded.push({
+          idx: Number(l.logIndex),
+          addr: l.address,
+          name: String(ev.eventName),
+          args: (ev.args ?? {}) as Record<string, unknown>,
+        });
+        break;
+      } catch {
+        /* not this ABI's event; try the next */
+      }
+    }
+  }
+
+  const rcpt = pickReceipt(decoded, cfg.vault);
+  if (!rcpt) return { status: "pending", reason: "that transaction carries no payment from this vault" };
+  const a = rcpt.args;
+  const seller = String(a.seller ?? "");
+  const quote = (a.quote as bigint) ?? 0n;
+  const units = (a.units as bigint) ?? 0n;
+  const fair = (a.fair as bigint) ?? 0n;
+  const printId = Number((a.printId as bigint) ?? 0n);
+  const jit = Boolean(a.jitFunded);
+
+  /* The USDC token and the sleeve come off the chain, not from configuration:
+     a vault that swapped either would otherwise be walked against the old one. */
+  const [token, sleeve] = await Promise.all([
+    one<Address>(() => c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "usdc" })),
+    one<Address>(() => c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "working" })),
+  ]);
+
+  const pay = token.ok ? pickPay(decoded, token.value, seller, quote) : null;
+  const pull = sleeve.ok ? pickPull(decoded, sleeve.value, pay?.idx ?? null) : null;
+  const verdict = verdictOf(pull?.idx ?? null, pay?.idx ?? null, jit);
+
+  /* Step one against the print the receipt itself names. `latest` covers the
+     common case of a payment quoted against the current print; an older one is
+     reported as not found rather than hunted through three hundred entries,
+     because a walk that costs ten reads is a walk nobody opens twice. */
+  const storeAddr = await one<Address>(() =>
+    c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "prices" }),
+  );
+  let priceWad: bigint | null = null;
+  let indexName = "";
+  if (storeAddr.ok) {
+    const [latest, name] = await Promise.all([
+      one<readonly [bigint, bigint, bigint, number]>(() =>
+        c.readContract({ address: storeAddr.value, abi: STORE_ABI, functionName: "latest", args: [a.index as Hex] }),
+      ),
+      one<string>(() =>
+        c.readContract({ address: storeAddr.value, abi: STORE_ABI, functionName: "indexName", args: [a.index as Hex] }),
+      ),
+    ]);
+    if (latest.ok && Number(latest.value[1]) === printId) priceWad = latest.value[0];
+    if (name.ok) indexName = name.value;
+  }
+
+  const steps: FloatWalkStep[] = [
+    { n: 1, state: fairMatches(priceWad, units, fair) === false ? "bad" : priceWad === null ? "none" : "ok" },
+    {
+      n: 2,
+      state: pull ? "ok" : jit ? "bad" : "warn",
+      ...(pull ? { log_index: pull.idx } : {}),
+      ...(pull ? { value_usdc: usdc6((pull.args.usdcDelivered as bigint) ?? 0n) } : {}),
+      ...(pull ? { requested_usdc: usdc6((pull.args.usdcRequested as bigint) ?? 0n) } : {}),
+    },
+    {
+      n: 3,
+      state: pay ? "ok" : "none",
+      ...(pay ? { log_index: pay.idx } : {}),
+      ...(pay ? { value_usdc: usdc6((pay.args.value as bigint) ?? 0n) } : {}),
+    },
+    { n: 4, state: "ok", log_index: rcpt.idx, value_usdc: usdc6(quote) },
+  ];
+
+  return {
+    status: "ok",
+    tx,
+    block: Number(rc.value.blockNumber),
+    seller,
+    index_name: indexName,
+    units: Number(units),
+    quote_usdc: usdc6(quote),
+    fair_usdc: usdc6(fair),
+    print_id: printId,
+    fair_matches: fairMatches(priceWad, units, fair),
+    jit_funded: jit,
+    guest: Boolean(a.guest),
+    human_approved: Boolean(a.humanApproved),
+    steps,
+    verdict,
+  };
 }

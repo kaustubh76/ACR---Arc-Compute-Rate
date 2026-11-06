@@ -172,4 +172,16 @@ export const SLEEVE_ABI = [
 
 export const ERC20_ABI = [
   { type: "function", name: "balanceOf", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  /* The transfer that paid the seller. Matched on `to` and never on position
+     or size: a transaction can carry several USDC transfers and the largest is
+     not reliably the payment. */
+  {
+    type: "event",
+    name: "Transfer",
+    inputs: [
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;

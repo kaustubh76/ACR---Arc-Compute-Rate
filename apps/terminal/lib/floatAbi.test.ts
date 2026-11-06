@@ -121,9 +121,18 @@ test("every function we call exists on the contract we call it on", () => {
     assert.ok(declares(sleeves, e.name), `Sleeves does not declare ${e.name}`);
   }
   assert.deepEqual(
-    ERC20_ABI.map((e) => e.name),
+    ERC20_ABI.filter((e) => e.type === "function").map((e) => e.name),
     ["balanceOf"],
   );
+  /* The payment leg of a walk. Standard ERC-20, so there is no contract in
+     this repo to drive it out of; what matters is that `to` stays indexed, as
+     the seller filter depends on it. */
+  const transfer = ERC20_ABI.find((e) => e.name === "Transfer" && e.type === "event") as unknown as {
+    inputs: Array<{ name: string; indexed: boolean }>;
+  };
+  assert.ok(transfer, "no Transfer event in ERC20_ABI");
+  assert.deepEqual(transfer.inputs.map((i) => i.name), ["from", "to", "value"]);
+  assert.equal(transfer.inputs.find((i) => i.name === "to")?.indexed, true);
 });
 
 test("the two tape events are the structs the contract emits, field for field", () => {

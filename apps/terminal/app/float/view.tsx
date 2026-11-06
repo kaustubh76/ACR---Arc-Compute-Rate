@@ -11,7 +11,7 @@ import { VaultMeter } from "@/components/float/VaultMeter";
 import { Yield } from "@/components/float/Yield";
 import { fmtPrice } from "@/lib/format";
 import { setChain } from "@/lib/useChain";
-import { useFloatVault } from "@/lib/useLive";
+import { useFloatTape, useFloatVault } from "@/lib/useLive";
 
 /* ACR Float, the front door.
 
@@ -30,6 +30,11 @@ import { useFloatVault } from "@/lib/useLive";
 
 export function FloatView() {
   const { vault, error } = useFloatVault();
+  /* The diagram's just-in-time leg now lights on what the newest real payment
+     did rather than on a proxy. Read here rather than in the diagram so the
+     tape is fetched once for both. */
+  const { tape } = useFloatTape();
+  const newestPaid = tape?.data?.rows?.find((r) => r.kind === "paid");
   const [code, setCode] = useState<number | null>(null);
 
   /* A stable identity: `Ladder` reports its verdict from an effect, and an
@@ -164,7 +169,7 @@ export function FloatView() {
                 )}
               </span>
             </div>
-            <MoneyPath paying={code === 0} vault={data} />
+            <MoneyPath jitFunded={newestPaid?.jit_funded} paying={code === 0} vault={data} />
           </section>
 
           {/* Runway before the ladder: a reader meets the money, learns what
