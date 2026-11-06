@@ -38,7 +38,7 @@ const TIMEOUT_MS = 9_000;
 /** Bounded charset and length, so nothing from the environment can turn into a
  *  smuggled header line or an oversized field. Shape only: World decides
  *  whether the values are right. */
-const RP_ID_RE = /^[A-Za-z0-9_-]{4,128}$/;
+const RP_ID_RE = /^rp_[0-9a-fA-F]{1,16}$/;
 const APP_ID_RE = /^app_[A-Za-z0-9_-]{4,128}$/;
 const ACTION_RE = /^[a-z0-9][a-z0-9-]{2,63}$/;
 const KEY_RE = /^(0x)?[0-9a-fA-F]{64}$/;
@@ -76,19 +76,43 @@ export async function POST(req: Request) {
   /* Named one at a time rather than as "not configured", because these come
      from three different places in the Developer Portal and an operator who
      is told which one is missing fixes it in one visit. */
-  if (!RP_ID_RE.test(rpId)) return stoodDown("ACR_FLOAT_GUEST_RP_ID is unset or malformed", chain);
-  /* The portal issues two ids that read alike, so a swap is the likely mistake
-     and it is worth naming here instead of letting World answer
-     `invalid_rp_id_format` at verify time, one layer away from the cause.
-     Deliberately NOT a required `rp_` prefix: the package only shows
-     `rp_xxxxx` as a placeholder, never as a rule, and rejecting a valid
-     credential the night before a deadline costs more than this catches. */
+  /* The RULE, not a guess. `idkit-core@4.6.0`'s own normalizer slices off
+     `rp_`, requires the remainder to be hex, and REJECTS anything above
+     0xffffffffffffffff before padding to 16 digits -- so the body is a uint64,
+     at most 16 hex characters, and the proof request's `oprf_key_id` is
+     derived from it. An earlier version of this file checked only a loose
+     charset, because the README shows `rp_xxxxx` as a placeholder and a
+     placeholder is not a rule. The normalizer is the rule.
+
+     Each swap gets its own sentence: the portal hands out several hex-ish
+     values at once and "malformed" would send the operator back to read all of
+     them. */
   if (rpId.startsWith("app_")) {
     return stoodDown("ACR_FLOAT_GUEST_RP_ID holds the app id; the rp id is a separate value", chain);
   }
+  if (/^rp_[0-9a-fA-F]{17,}$/.test(rpId)) {
+    return stoodDown(
+      "ACR_FLOAT_GUEST_RP_ID body is too long: the rp id is a uint64, 16 hex digits at most",
+      chain,
+    );
+  }
+  if (!RP_ID_RE.test(rpId)) return stoodDown("ACR_FLOAT_GUEST_RP_ID is unset or malformed", chain);
   if (!APP_ID_RE.test(appId)) return stoodDown("ACR_IDKIT_APP_ID is unset or is not an app_ id", chain);
   if (!ACTION_RE.test(action)) return stoodDown("ACR_FLOAT_GUEST_ACTION is malformed", chain);
   if (!KEY_RE.test(key)) return stoodDown("ACR_IDKIT_SIGNING_KEY is unset or is not a 32-byte key", chain);
+  /* A 32-byte PUBLIC key and a 32-byte private key are the same shape, so
+     `KEY_RE` cannot tell them apart and the portal issues both. Pasting the
+     public one here signs cleanly and is refused by World at verify time, which
+     is the worst place to find out. Set ACR_IDKIT_PUBLIC_KEY_ID and that swap
+     becomes a named refusal at config time; leave it unset and nothing here
+     changes. */
+  const publicKeyId = (process.env.ACR_IDKIT_PUBLIC_KEY_ID ?? "").replace(/^0x/, "").toLowerCase();
+  if (publicKeyId && key.replace(/^0x/, "").toLowerCase() === publicKeyId) {
+    return stoodDown(
+      "ACR_IDKIT_SIGNING_KEY holds the public key id; the signing key is its private half",
+      chain,
+    );
+  }
 
   let signed: { sig: string; nonce: string; createdAt: number; expiresAt: number };
   try {
