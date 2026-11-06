@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACR Float · one transaction, four steps</title>
+<!--
+  One payment, read back out of its own event log.
+
+  There is no server and no build step. This file asks the Arc Testnet RPC for
+  one transaction receipt and lists the logs in the order they were emitted.
+  Log order inside a single transaction is the evidence, and it is checkable
+  by anyone with an ordinary node.
+-->
+<style>
+  :root {
+    --bg: #07090c; --panel: #0e1218; --line: #1c2430; --ink: #e8eef5;
+    --dim: #7c8a9b; --accent: #5ad1a0; --warn: #e0a84e; --bad: #e4635a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 var(--mono); padding: 24px 16px 64px;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: .02em; }
+  .sub { color: var(--dim); font-size: 12px; margin-bottom: 8px; }
+  .back { display: inline-block; font-size: 12px; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; margin-top: 12px; }
+  .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 0; font-weight: 500; }
+  .big { font-size: 26px; line-height: 1.15; margin: 8px 0 6px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; min-width: 0; }
+  .row span:last-child { text-align: right; min-width: 0; }
+  .k { color: var(--dim); }
+  .row .k { flex-shrink: 0; }
+  .good { color: var(--accent); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  a { color: var(--accent); }
+  .err { color: var(--bad); padding: 10px 0; }
+  .note { color: var(--dim); font-size: 12px; margin-top: 10px; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .pill.ok { color: var(--accent); border-color: #1d4535; }
+  .pill.nolog { color: var(--warn); border-color: #4a3a1c; }
+  .pill.no { color: var(--bad); border-color: #5a2723; }
+  .step { border-left: 3px solid var(--line); }
+  .step.ok { border-left-color: var(--accent); }
+  .step.warn { border-left-color: var(--warn); }
+  .step.bad { border-left-color: var(--bad); }
+  .head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink); font-size: 12px; flex-shrink: 0; }
+  .head .pill { margin-left: auto; }
+  .verdict { font-size: 15px; }
+  .verdict.bad { border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .verdict.ok { border: 1px solid #1d4535; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .verdict.warn { border: 1px solid #4a3a1c; color: var(--warn); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .tbl { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 4px 8px 4px 0; border-bottom: 1px solid #141a22; white-space: nowrap; }
+  tr.mark td { color: var(--accent); }
+  details summary { cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+  .spin { color: var(--dim); }
+  .spin::after { content: ""; display: inline-block; width: 1em; text-align: left; animation: dots 1.2s steps(4, end) infinite; }
+  @keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+  @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ACR Float · one transaction, four steps</h1>
+  <div class="sub" id="head">connecting…</div>
+  <a class="back" href="index.html">← back to the dashboard (index.html)</a>
+  <div id="err"></div>
+  <div id="status" class="panel"><span class="spin" id="statusText">starting</span></div>
+  <div id="steps"></div>
+  <div id="conclusion"></div>
+  <div id="logs"></div>
+</div>
+
+<script type="module">
+import {
+  createPublicClient, http, formatUnits, parseAbi, parseAbiItem, decodeEventLog,
+} from "https://cdn.jsdelivr.net/npm/viem@2.55.8/+esm";
+
+// Everything below is baked in so the page renders with no query string. Only
+// ?tx=0x… changes behaviour: it picks which transaction is walked.
+const CFG = {
+  rpc: "https://rpc.testnet.arc.io",
+  chainId: 5042002,
+  explorer: "https://explorer.testnet.arc.io",
+  usdc: "0x3600000000000000000000000000000000000000",
+  vault: "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc",
+  store: "0x02558098ba49e30868f6db15036c5dac326d7e3a",
+  sleeve: "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
+  seller: "0xf4e89e34ed6e1626a3410e1d49796779179915c1",
+  venue: "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88",
+  window: 9000n,   // Arc rejects eth_getLogs above a 10,000-block range
+  windows: 6,
+};
+const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+
+const RECEIPT_EVENT = parseAbiItem("event Receipt(uint256 indexed id, bytes32 indexed agentId, address indexed seller, bytes32 index, uint64 printId, uint256 units, uint256 quote, uint256 fair, int256 premiumBps, bool jitFunded, bool guest, bool humanApproved)");
+const EVENTS = parseAbi([
+  "event Receipt(uint256 indexed id, bytes32 indexed agentId, address indexed seller, bytes32 index, uint64 printId, uint256 units, uint256 quote, uint256 fair, int256 premiumBps, bool jitFunded, bool guest, bool humanApproved)",
+  "event Pulled(uint256 usdcRequested, uint256 usdcDelivered)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+]);
+const STORE_ABI = parseAbi([
+  "function historyLength(bytes32 index) view returns (uint256)",
+  "function historyAt(bytes32 index, uint256 i) view returns ((uint256 priceWad, uint64 printId, uint64 postedAt, uint32 ciBps))",
+  "function indexName(bytes32 index) view returns (string)",
+]);
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+const addr = (a, label) => `<a href="${CFG.explorer}/address/${esc(a)}" target="_blank" rel="noopener" title="${esc(a)}">${esc(label ?? short(a))}</a>`;
+const txLink = (h) => `<a href="${CFG.explorer}/tx/${esc(h)}" target="_blank" rel="noopener" title="${esc(h)}">${esc(short(h))}</a>`;
+const usd = (n, dp = 6) => `$${Number(formatUnits(n, 6)).toFixed(dp).replace(/\.?0+$/, "") || "0"}`;
+const setStatus = (t) => { $("statusText").textContent = t; };
+const fail = (msg) => {
+  $("status").style.display = "none";
+  $("err").innerHTML = `<div class="err">${esc(msg)}</div>`;
+};
+
+const client = createPublicClient({ transport: http(CFG.rpc) });
+
+// One retry: a transient RPC hiccup should not be mistaken for "no payment".
+async function retry(fn) {
+  try { return await fn(); } catch { return await fn(); }
+}
+
+/** Newest Receipt with jitFunded, paging backwards in windows of CFG.window. */
+async function findJitTx() {
+  const head = await client.getBlockNumber();
+  let lowest = head;
+  let seen = 0;
+  for (let w = 0; w < CFG.windows; w++) {
+    const to = head - BigInt(w) * CFG.window;
+    if (to < 0n) break;
+    const from = to >= CFG.window - 1n ? to - (CFG.window - 1n) : 0n;
+    setStatus(`searching blocks ${from}–${to} for a just-in-time payment (window ${w + 1} of ${CFG.windows})`);
+    let logs;
+    try {
+      logs = await retry(() => client.getLogs({ address: CFG.vault, event: RECEIPT_EVENT, fromBlock: from, toBlock: to }));
+    } catch (e) {
+      throw new Error(`The RPC refused blocks ${from}–${to}: ${e.shortMessage ?? e.message}. The search stopped there, so the result below would not be complete.`);
+    }
+    lowest = from;
+    seen += logs.length;
+    const jit = logs.filter((l) => l.args.jitFunded)
+      .sort((a, b) => Number(b.blockNumber - a.blockNumber) || b.logIndex - a.logIndex);
+    if (jit.length) return { hash: jit[0].transactionHash, head };
+    if (from === 0n) break;
+  }
+  const msg = seen === 0
+    ? `No Receipt events from the vault in blocks ${lowest}–${head} (${CFG.windows} windows of ${CFG.window} blocks).`
+    : `${seen} Receipt events in blocks ${lowest}–${head}, none funded just-in-time.`;
+  throw new Error(`${msg} The search gave up there, so older payments, if any, were not looked at. Open this page with ?tx=0x… to walk a specific transaction.`);
+}
+
+const decode = (log) => {
+  try { return decodeEventLog({ abi: EVENTS, data: log.data, topics: log.topics, strict: false }); }
+  catch { return null; }
+};
+
+/** Find the print the Receipt names, scanning the newest 300 entries of that index. */
+async function findPrint(index, printId) {
+  const len = await retry(() => client.readContract({ address: CFG.store, abi: STORE_ABI, functionName: "historyLength", args: [index] }));
+  const floor = len > 300n ? len - 300n : 0n;
+  let i = len;
+  while (i > floor) {
+    const lo = i - floor > 20n ? i - 20n : floor;
+    const ks = [];
+    for (let k = i - 1n; k >= lo; k--) ks.push(k);
+    const rows = await Promise.all(ks.map((k) =>
+      client.readContract({ address: CFG.store, abi: STORE_ABI, functionName: "historyAt", args: [index, k] })));
+    const hit = rows.find((r) => r.printId === printId);
+    if (hit) return hit;
+    i = lo;
+  }
+  return null;
+}
+
+const stepCard = (n, title, state, badge, body) => `
+  <div class="panel step ${state}">
+    <div class="head"><span class="num">${n}</span><h2>${esc(title)}</h2>${badge}</div>
+    ${body}
+  </div>`;
+const row = (k, v) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+const logPill = (idx, cls = "ok") => `<span class="pill ${cls}">log ${idx}</span>`;
+
+async function walk(hash, head) {
+  setStatus(`reading transaction ${short(hash)}`);
+  const rc = await retry(() => client.getTransactionReceipt({ hash }));
+  if (rc.status !== "success") throw new Error(`Transaction ${hash} reverted, so it has no payment to walk.`);
+  const block = await client.getBlock({ blockNumber: rc.blockNumber }).catch(() => null);
+
+  const logs = rc.logs.map((l) => ({ idx: l.logIndex, addr: l.address, ev: decode(l) }));
+  const receipts = logs.filter((l) => same(l.addr, CFG.vault) && l.ev?.eventName === "Receipt");
+  const rcpt = receipts.find((l) => l.ev.args.jitFunded) ?? receipts[0];
+  if (!rcpt) throw new Error(`Transaction ${hash} has no Receipt event from the vault ${CFG.vault}.`);
+  const r = rcpt.ev.args;
+
+  // Step 3: a USDC Transfer whose `to` is the seller. Match on `to`, never first or largest.
+  const toSeller = logs.filter((l) => same(l.addr, CFG.usdc) && l.ev?.eventName === "Transfer" && same(l.ev.args.to, r.seller));
+  const usdcTransfers = logs.filter((l) => same(l.addr, CFG.usdc) && l.ev?.eventName === "Transfer").length;
+  const pay = toSeller.find((l) => l.ev.args.value === r.quote) ?? toSeller[0] ?? null;
+
+  // Step 2: the sleeve's Pulled that closest precedes the payment.
+  const pulls = logs.filter((l) => same(l.addr, CFG.sleeve) && l.ev?.eventName === "Pulled");
+  const before = pay ? pulls.filter((l) => l.idx < pay.idx) : pulls;
+  const pull = before.length ? before[before.length - 1] : pulls[0] ?? null;
+
+  // Step 1: the print the Receipt names.
+  let print = null, printName = "", printNote = "";
+  try {
+    setStatus("reading the named print back out of the price feed");
+    [print, printName] = await Promise.all([
+      findPrint(r.index, r.printId),
+      client.readContract({ address: CFG.store, abi: STORE_ABI, functionName: "indexName", args: [r.index] }).catch(() => ""),
+    ]);
+    if (!print) printNote = `Print #${r.printId} was not found in the newest 300 entries of this index, so the print is not shown.`;
+  } catch (e) {
+    printNote = `The price feed could not be read (${e.shortMessage ?? e.message}), so the print is not shown.`;
+  }
+
+  // ---- render
+  const premium = Number(r.premiumBps) / 100;
+  let s1 = row("print id the payment committed to", `<span class="good">#${r.printId}</span>`)
+    + row("fair total, recomputed by the vault", `<span class="big" style="font-size:18px;margin:0">${usd(r.fair)}</span>`)
+    + row("quoted", usd(r.quote))
+    + row("premium (quote vs fair)", `<span class="${Math.abs(premium) > 1 ? "warn" : "good"}">${premium >= 0 ? "+" : ""}${premium.toFixed(2)}% (${r.premiumBps} bps)</span>`)
+    + row("units", `${r.units} × 1k tokens`);
+  let s1note = `<div class="note"><b>This step has no log.</b> Reading the price feed is a staticcall inside the transaction, and staticcalls emit nothing. What proves it is stronger: the Receipt names the exact print it was checked against, so the payment commits to its own price.</div>`;
+  if (print) {
+    const recomputed = (print.priceWad * r.units) / 10n ** 12n;
+    const matches = recomputed === r.fair;
+    s1 += row("index", esc(printName || short(r.index)))
+      + row("print, read back from the store", `$${(Number(print.priceWad) / 1e18).toPrecision(4)} per 1k tokens <span class="pill">±${(print.ciBps / 100).toFixed(1)}%</span>`)
+      + row("priceWad × units ÷ 1e12", `<span class="${matches ? "good" : "warn"}">${usd(recomputed)} ${matches ? "= fair" : "≠ fair"}</span>`);
+    if (!matches) s1note += `<div class="note warn">The print read back from the store does not reproduce the vault's fair total. Both numbers are shown as read.</div>`;
+  } else {
+    s1 += `<div class="note warn">${esc(printNote)}</div>`;
+  }
+  const step1 = stepCard(1, "The price was read", "ok", `<span class="pill nolog">no log</span>`, s1 + s1note);
+
+  let step2;
+  if (pull) {
+    const p = pull.ev.args;
+    const full = p.usdcRequested === p.usdcDelivered;
+    const gap = r.quote - p.usdcRequested;
+    let words;
+    if (p.usdcRequested < r.quote) {
+      words = `The vault asked for ${usd(p.usdcRequested)}, not the full ${usd(r.quote)}. It pulls the <b>shortfall</b>, not the payment, because ${usd(gap)} of the payment was already liquid in its buffer.`;
+    } else if (p.usdcRequested === r.quote) {
+      words = `The pull equals the payment total, so none of this payment was covered by the buffer.`;
+    } else {
+      words = `The pull is larger than the payment total (${usd(p.usdcRequested)} against ${usd(r.quote)}), which this page does not explain.`;
+    }
+    step2 = stepCard(2, "The shortfall left the yield vault", full ? "ok" : "bad", logPill(pull.idx, full ? "ok" : "no"),
+      row("requested from the sleeve", `<span class="big" style="font-size:18px;margin:0">${usd(p.usdcRequested)}</span>`)
+      + row("delivered", usd(p.usdcDelivered))
+      + row("requested = delivered", `<span class="${full ? "good" : "bad"}">${full ? "yes" : "NO, short delivery"}</span>`)
+      + row("payment total", usd(r.quote))
+      + row("already in the buffer", usd(gap > 0n ? gap : 0n))
+      + row("emitted by", `${addr(CFG.sleeve)} <span class="k">sleeve</span>`)
+      + `<div class="note">${words}</div>`
+      + `<div class="note">The sleeve withdraws from ${addr(CFG.venue)} (Morpho Vault V2, not ours).</div>`);
+  } else {
+    step2 = stepCard(2, "The shortfall left the yield vault", r.jitFunded ? "bad" : "warn", `<span class="pill no">no log</span>`,
+      `<div class="${r.jitFunded ? "bad" : "warn"}">${r.jitFunded
+        ? "The Receipt says jitFunded, but this transaction has no Pulled event from the sleeve."
+        : "This payment was not funded just-in-time: the buffer covered it and the sleeve was not touched."}</div>`);
+  }
+
+  const multi = toSeller.length > 1 ? ` ${toSeller.length} transfers go to the seller; the one whose value equals the quote is shown.` : "";
+  const step3 = pay
+    ? stepCard(3, "The seller was paid", "ok", logPill(pay.idx),
+        row("amount", `<span class="big" style="font-size:18px;margin:0">${usd(pay.ev.args.value)}</span>`)
+        + row("from", addr(pay.ev.args.from))
+        + row("to (seller)", addr(pay.ev.args.to))
+        + row("equals the quote", `<span class="${pay.ev.args.value === r.quote ? "good" : "warn"}">${pay.ev.args.value === r.quote ? "yes" : "no, quote was " + usd(r.quote)}</span>`)
+        + `<div class="note">USDC emitted ${usdcTransfers} Transfer events in this transaction, because the venue's withdrawal path emits its own. This one is matched on <b>to = seller</b>, not on position or size.${esc(multi)}</div>`)
+    : stepCard(3, "The seller was paid", "bad", `<span class="pill no">not found</span>`,
+        `<div class="bad">No USDC Transfer to ${esc(r.seller)} in this transaction.</div>`);
+
+  const step4 = stepCard(4, "The receipt was written", "ok", logPill(rcpt.idx),
+    row("receipt id", `<span class="big" style="font-size:18px;margin:0">#${r.id}</span>`)
+    + row("seller", addr(r.seller))
+    + row("just-in-time", `<span class="${r.jitFunded ? "good" : "warn"}">${r.jitFunded ? "yes" : "no"}</span>`)
+    + row("guest · human-approved", `${r.guest ? "yes" : "no"} · ${r.humanApproved ? "yes" : "no"}`)
+    + row("emitted by", `${addr(CFG.vault)} <span class="k">vault</span>`));
+
+  $("steps").innerHTML = step1 + step2 + step3 + step4;
+
+  // ---- the conclusion
+  const inOrder = pull && pay && pull.idx < pay.idx;
+  let verdict;
+  if (!pull || !pay) {
+    verdict = `<div class="verdict ${r.jitFunded ? "bad" : "warn"}">${r.jitFunded
+      ? "CANNOT CONFIRM. This payment claims to be just-in-time, but the log for the pull or the payment is missing."
+      : "This payment was not funded just-in-time, so there is no pull-then-pay order to show."}</div>`;
+  } else if (inOrder) {
+    verdict = `<div class="verdict ok">The sleeve was pulled at <b class="good">log ${pull.idx}</b> and the seller was paid at <b class="good">log ${pay.idx}</b>, in one transaction (${txLink(hash)}). The pull came first.</div>`;
+  } else {
+    verdict = `<div class="verdict bad"><b>OUT OF ORDER.</b> The seller was paid at log ${pay.idx} and the sleeve was pulled at log ${pull.idx}. The pull came AFTER the payment, so this payment was not funded just-in-time.</div>`;
+  }
+  const after = pay && rcpt.idx > pay.idx
+    ? ""
+    : pay ? `<div class="note warn">The Receipt is at log ${rcpt.idx}, before the transfer at log ${pay.idx}. That does not affect the pull-then-pay order above.</div>` : "";
+  $("conclusion").innerHTML = `<div class="panel"><h2>What the order shows</h2><div style="margin-top:10px">${verdict}
+    <div class="note" style="margin-top:0">Arc's RPC serves no <code>debug_traceTransaction</code>, so there is no call trace to appeal to. Log order inside a single transaction is the proof, which means anyone with an ordinary node can check it, not just someone with an archive node.</div>
+    <div class="note">Log indices are positions within the block, as the explorer lists them.</div>${after}</div></div>`;
+
+  // ---- every log, so the claim can be checked by eye
+  const mark = new Set([pull?.idx, pay?.idx, rcpt.idx].filter((x) => x !== undefined));
+  const names = [[CFG.vault, "vault"], [CFG.sleeve, "sleeve"], [CFG.usdc, "USDC"], [CFG.store, "store"], [CFG.venue, "venue"]];
+  const who = (a) => esc(names.find(([n]) => same(n, a))?.[1] ?? short(a));
+  $("logs").innerHTML = `<div class="panel"><details><summary>All ${logs.length} logs in this transaction</summary>
+    <div class="tbl"><table><thead><tr><th>log</th><th>emitter</th><th>event</th></tr></thead><tbody>${
+      logs.map((l) => `<tr class="${mark.has(l.idx) ? "mark" : ""}"><td>${l.idx}</td><td>${who(l.addr)}</td><td>${esc(l.ev?.eventName ?? "(not decoded)")}</td></tr>`).join("")
+    }</tbody></table></div></details></div>`;
+
+  $("head").innerHTML =
+    `chain ${CFG.chainId} · tx ${txLink(hash)} · block ${rc.blockNumber}` +
+    (block ? ` · ${esc(new Date(Number(block.timestamp) * 1000).toISOString().replace(".000Z", "Z"))}` : "") +
+    ` · vault ${addr(CFG.vault)} · seller ${addr(CFG.seller)} · read live from ${esc(new URL(CFG.rpc).host)}`;
+  $("status").style.display = "none";
+
+  window.__walk = { hash, pull: pull?.idx, pay: pay?.idx, receipt: rcpt.idx, inOrder: !!inOrder };
+}
+
+async function main() {
+  const param = new URLSearchParams(location.search).get("tx");
+  let hash, head;
+  if (param) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(param)) throw new Error(`?tx= must be a 0x-prefixed 32-byte transaction hash, got "${param.slice(0, 80)}".`);
+    hash = param;
+  } else {
+    ({ hash, head } = await findJitTx());
+  }
+  await walk(hash, head);
+}
+
+main().catch((e) => fail(String(e.shortMessage ?? e.message ?? e)));
+</script>
+</body>
+</html>

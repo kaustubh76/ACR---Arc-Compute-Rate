@@ -77,6 +77,11 @@
 
   <div class="panel" style="margin-top:12px">
     <h2>The tape — every payment and every refusal</h2>
+    <div class="note" style="margin:0 0 10px">
+      <a href="walk.html">Walk the latest just-in-time payment, step by step &rarr;</a>
+      — the price read, the shortfall leaving the yield vault, the seller paid and
+      the receipt written, in the order the chain recorded them.
+    </div>
     <div class="tape"><table id="tape"><tbody><tr><td class="k">reading…</td></tr></tbody></table></div>
     <div class="note" id="tapeNote"></div>
   </div>
@@ -231,7 +236,7 @@ async function tick() {
   })).sort((a, b) => b.ts - a.ts || Number(b.l.blockNumber - a.l.blockNumber));
 
   el("tape").innerHTML =
-    `<thead><tr><th>when</th><th>what</th><th>model</th><th>quote</th><th>ACR fair</th><th></th><th>tx</th></tr></thead><tbody>` +
+    `<thead><tr><th>when</th><th>what</th><th>model</th><th>quote</th><th>ACR fair</th><th></th><th>tx</th><th></th></tr></thead><tbody>` +
     (rows.length === 0 ? `<tr><td class="k">nothing yet — run the keeper, then the agents</td></tr>` :
       rows.slice(0, 40).map(({ l, ts, kind }) => {
         const a = l.args;
@@ -250,6 +255,7 @@ async function tick() {
           <td class="k">${fair > 0n ? usd(fair, 4) : "—"}${prem !== null ? ` <span class="${prem > 1 ? "warn" : "k"}">${prem >= 0 ? "+" : ""}${prem.toFixed(1)}%</span>` : ""}</td>
           <td>${tags}</td>
           <td><a href="${CFG.explorer}/tx/${l.transactionHash}">${short(l.transactionHash)}</a></td>
+          <td>${paid ? `<a href="walk.html?tx=${l.transactionHash}">four steps</a>` : '<span class="k">—</span>'}</td>
         </tr>`;
       }).join("")) + `</tbody>`;
 

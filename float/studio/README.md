@@ -6,8 +6,9 @@ performed on Float, so the claim can be checked rather than taken.
 The honest sentence, which is narrower than "built with Arc Studio" and survives
 being questioned:
 
-> Arc Studio compiled the treasury policy from English, audited the vault, and
-> deployed the contracts. The rest of Float was written in Claude Code.
+> Arc Studio compiled the treasury policy from English, audited the vault,
+> deployed the contracts, and wrote the transaction walkthrough. The rest of
+> Float was written in Claude Code.
 
 ## 1 · Compiling the policy from English
 
@@ -175,6 +176,51 @@ the deadline. The reviewer's test pins the current, wrong message on purpose,
 with a comment recording why — so reordering the guards turns that test red and
 announces itself rather than passing quietly.
 
+## 3c · Writing the transaction walkthrough
+
+`walk.html` in the Studio app — **Arc Studio wrote this one**, and it is the
+clearest case in this file of Studio doing work rather than hosting it.
+
+The brief was a spec, not a prompt: the chain and addresses, the `Receipt` and
+`Pulled` event signatures, Arc's 10,000-block `eth_getLogs` cap, the four steps
+to render, the style tokens to copy out of `index.html`, and two traps stated in
+advance — that USDC emits several `Transfer` events in this transaction because
+the venue's withdrawal path emits its own, and that step one has no log at all.
+Studio found the newest just-in-time payment itself by paging backwards, decoded
+the transaction, and laid out the four steps.
+
+**It was checked against the chain rather than taken on trust.** Every figure the
+page displays was derived independently with `cast` first, and all of them match:
+
+| the page says | the chain says |
+|---|---|
+| print `#3`, fair `$1.05`, quoted `$1.05525`, `+50 bps` | `Receipt` data: printId 3, units 4000, quote 1055250 |
+| log **28** · `Pulled` requested `$0.55525` = delivered | log 28, sleeve, `Pulled(555250, 555250)` |
+| log **30** · `$1.05525` to the seller | log 30, USDC, from vault → `0xf4e89e34…`, 1055250 |
+| log **31** · `Receipt #7`, just-in-time | log 31, vault, id `0x7` |
+
+Two things it got right that are the reason the spec named them. It matched the
+seller's payment on `to == seller` and says so on the page — "USDC emitted 4
+Transfer events in this transaction, because the venue's withdrawal path emits
+its own. This one is matched on `to = seller`, not on position or size" — and
+four is the correct count. And it refused to invent a log for step one:
+
+> This step has no log. Reading the price feed is a staticcall inside the
+> transaction, and staticcalls emit nothing. What proves it is stronger: the
+> Receipt names the exact print it was checked against, so the payment commits
+> to its own price.
+
+It also surfaced the number that makes the beat land, which the spec asked for in
+words but did not compute: the vault pulled `$0.55525` against a `$1.05525`
+payment, because `$0.50` was already liquid in the buffer. It pulls the
+**shortfall**, not the payment. The parked buffer plus the sleeve pull equals the
+payment to the cent, and none of those three figures is round.
+
+**What we changed afterwards:** nothing in `walk.html`. The dashboard needed two
+links added to reach it — one above the tape and one per paid row carrying that
+row's `?tx=` — because the Studio preview panel has no address bar, so a page
+nothing links to cannot be opened there at all.
+
 ## 4 · What Arc Studio did not do
 
 Stated plainly, because a vague claim collapses under one question and a narrow
@@ -184,8 +230,10 @@ one does not:
   80 tests.
 - It did not write the keeper, the agents, the MCP server, the policy validator,
   or the acceptance harness.
-- It did not author the dashboard. It **hosts** it — `index.html` was written in
-  Claude Code and Studio serves it byte-for-byte. That is checkable rather than
+- It did not author the dashboard — `index.html`, the panels, the tape. It wrote
+  `walk.html` beside it (§3c), which is a different page and a narrower claim.
+  It **holds** the dashboard — `index.html` was written in Claude Code and the
+  copy in the Studio workspace is byte-identical. That is checkable rather than
   asserted:
 
   ```bash
@@ -193,11 +241,25 @@ one does not:
   arc-studio cat --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557 index.html | shasum -a 256
   ```
 
-  Both print `315f2f2d6ff62485280c5850cb0ff3ca37b27ea5533f855ff14a438adb220c87`
-  (14,636 bytes, 304 lines). The file was delivered with `arc-studio run -f
+  Both print `4ff87625a8d4b89c2145e3ef9036765de26b9d25714d141a4bc3e099e57461f5`
+  (15,062 bytes, 310 lines), and `walk.html` is
+  `337906e8eafd11b9b3de98781888d919dfa7ae5c2cf40256ea3ac752c415add2` (20,997
+  bytes). Both files were delivered with `arc-studio run -f
   'float/app/index.html:index.html'`, which places a file in the workspace
   instead of asking the model to retype it — the only way the claim above can
   be true. Studio was told not to reformat or "improve" it, and did not.
+
+  **"Byte-identical" is a claim about the file, not about what the preview
+  renders**, and the distinction is Arc Studio's own correction rather than ours.
+  Asked to confirm the preview served these bytes, it declined and said why: the
+  preview is a Vite dev server, which injects a `/@vite/client` module and a
+  React-refresh block into the head of every HTML page it serves and lifts the
+  inline module script out into a separate proxied module. So a byte comparison
+  against what the preview returns fails at line 4, for both pages, while the
+  script contents are untouched and the page behaves identically. `arc-studio
+  cat` reads the file on disk, which is what the hashes above measure. An earlier
+  draft of this section said Studio "serves it byte-for-byte"; that was wrong
+  about the preview, and it is corrected here rather than quietly reworded.
 - It did not touch the World ID gate, which belongs to a separate workstream and
   was written outside Studio.
 
