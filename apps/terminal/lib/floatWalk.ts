@@ -90,3 +90,63 @@ export function fairMatches(priceWad: bigint | null, units: bigint, fair: bigint
   if (priceWad === null) return null;
   return (priceWad * units) / 10n ** 12n === fair;
 }
+
+/** The venue's own exit, which happens BEFORE our sleeve records anything.
+ *
+ *  MATCHED ON THE EVENT AND THE ADDRESS TOGETHER, and both halves are load
+ *  bearing. The venue emits FOUR logs in a just-in-time payment and only one is
+ *  its ERC-4626 exit: on the canonical receipt they sit at 16, 25, 26 and 29,
+ *  so "the first log from the venue" picks 16 and would draw Morpho acting
+ *  before the price was even read. And the event alone is not enough either,
+ *  because an ERC-4626 `Withdraw` from any other address in the same receipt
+ *  would decode identically now that VENUE_ABI carries the event.
+ *
+ *  The LAST one before the payment, for the reason `pickPull` gives: a
+ *  rebalance and a just-in-time pull can both appear in one transaction, and
+ *  the one that funded this payment is the one immediately before it. */
+export function pickVenueWithdraw(
+  logs: readonly WalkLog[],
+  venue: string | undefined,
+  payIdx: number | null,
+): WalkLog | null {
+  if (!venue) return null;
+  const outs = logs.filter((l) => same(l.addr, venue) && l.name === "Withdraw");
+  const before = payIdx === null ? outs : outs.filter((l) => l.idx < payIdx);
+  return before.length ? before[before.length - 1] : (outs[0] ?? null);
+}
+
+/** The shares the venue burned to release those assets.
+ *
+ *  An ordinary ERC-20 `Transfer` to the zero address, FROM the sleeve, on the
+ *  venue's own token. ERC20_ABI already decodes it, so the only thing that
+ *  tells it apart from the USDC transfers in the same receipt is the address it
+ *  was emitted by. Returned separately from the withdraw because the two are
+ *  different facts and either can be absent. */
+const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+
+export function pickShareBurn(logs: readonly WalkLog[], venue: string | undefined): WalkLog | null {
+  if (!venue) return null;
+  const burns = logs.filter(
+    (l) => same(l.addr, venue) && l.name === "Transfer" && same(String(l.args.to), ZERO_ADDR),
+  );
+  return burns.length ? burns[burns.length - 1] : null;
+}
+
+/** How many logs the venue emitted in this transaction, named or not.
+ *
+ *  COUNTED AND NOT CAPTIONED. Two of the four on the canonical receipt are the
+ *  venue's internal bookkeeping and this repo has no business asserting what
+ *  they are. Saying "four logs, two of which we can name" is honest; inventing
+ *  labels for the other two would not be.
+ *
+ *  TAKES THE RAW LOGS, NOT THE DECODED ONES, and that is the whole point of the
+ *  function. `readWalk` only keeps a log if it decodes against one of the ABIs
+ *  it holds, and the two unidentified venue logs match none of them — so
+ *  counting `WalkLog`s would report two and call it four's worth of evidence.
+ *  The count is of what the chain emitted, which is the receipt. */
+export function countVenueLogs(
+  raw: readonly { address: string }[],
+  venue: string | undefined,
+): number {
+  return venue ? raw.filter((l) => same(l.address, venue)).length : 0;
+}

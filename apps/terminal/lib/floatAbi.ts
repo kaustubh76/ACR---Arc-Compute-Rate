@@ -199,6 +199,35 @@ export const VENUE_ABI = [
   { type: "function", name: "performanceFeeRecipient", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
   { type: "function", name: "managementFee", inputs: [], outputs: [{ type: "uint96" }], stateMutability: "view" },
   { type: "function", name: "managementFeeRecipient", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  /* THE VENUE'S OWN EXIT, AND WHY THIS EVENT IS HERE AT ALL.
+   *
+   * `readWalk` decodes every log in a receipt against VAULT_ABI, SLEEVE_ABI and
+   * ERC20_ABI, and SILENTLY DROPS anything matching none of them. The venue is
+   * the one party on the money path that is not ours, and it emits four logs in
+   * a just-in-time payment, none of which reached the client: the walk showed
+   * our sleeve recording a delivery with nothing in front of it.
+   *
+   * ERC-4626's `Withdraw` is the one that matters. On the canonical payment it
+   * carries `assets = 1055250` with `receiver` set to the TREASURY rather than
+   * to our sleeve, which proves the one-hop claim `Sleeves.sol:87` makes: the
+   * money goes straight to the vault and never rests in the wrapper. It sits at
+   * log 29, one before our own `Pulled` at 30, so the party we do not control
+   * demonstrably moved first.
+   *
+   * The share burn needs nothing added here: it is an ordinary ERC-20
+   * `Transfer` to the zero address and ERC20_ABI already decodes it. The venue
+   * address is what tells it apart from the USDC transfers in the same receipt. */
+  {
+    type: "event",
+    name: "Withdraw",
+    inputs: [
+      { name: "caller", type: "address", indexed: true },
+      { name: "receiver", type: "address", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "assets", type: "uint256", indexed: false },
+      { name: "shares", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;
 
 /* The Teller's deposit, and only its deposit.

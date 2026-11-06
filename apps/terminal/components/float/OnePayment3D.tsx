@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Ed } from "@/components/Ed";
 import { AddressChip } from "@/components/chain/AddressChip";
@@ -11,6 +11,7 @@ import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice } from "@/lib/format";
 import { CHAINS } from "@/lib/chainChoice";
 import { useChain } from "@/lib/useChain";
+import { litAt, runOrder, type BeatKey } from "@/lib/floatOne";
 import { useOnePayment } from "@/lib/useLive";
 
 /* One payment, in three dimensions, over the flat diagram that still carries it.
@@ -36,6 +37,23 @@ import { useOnePayment } from "@/lib/useLive";
  * prose on any ACR surface that a gate cannot check. So it costs a deliberate
  * click, it says who wrote it, and with no key configured it is simply absent.
  * There is no placeholder sentence, because a fallback is not an answer. */
+
+/** How long each station holds before the next lights. `MoneyPath` uses 900ms
+ *  for five stations and `LoopFlow` 650ms for six; six stations with a chain
+ *  read in the middle of them want the slower end. */
+const STEP_MS = 900;
+
+/** What a run is doing, which is not the same question as how far it has got.
+ *
+ *  `asking` is its own state because the chain is being asked a real question
+ *  and the answer can be no. A reader who presses Run and sees the gate light
+ *  immediately has been told the payment was allowed before anyone checked. */
+type Gate =
+  | { at: "idle" }
+  | { at: "asking" }
+  | { at: "allowed" }
+  | { at: "refused"; code: number; reason: string }
+  | { at: "unreadable"; reason: string };
 
 const Scene = dynamic(() => import("@/components/float/OnePaymentScene"), {
   ssr: false,
@@ -187,7 +205,118 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
      while this vault lives on one chain, which is how every testnet receipt
      on the tape once deep-linked into an explorer that had never seen it.
      The same trap, the same fix (components/float/Tape.tsx:122-131). */
-  const explorer = CHAINS[useChain()].profile.explorer;
+  const chain = useChain();
+  const explorer = CHAINS[chain].profile.explorer;
+
+  /* --- the run ------------------------------------------------------------
+   *
+   * PRESSING RUN ASKS THE CHAIN, and the flow goes no further than the answer
+   * allows. The request is built from the newest real payment, so it is a
+   * genuine question about a real payment shape rather than a made-up one:
+   * would this same spend be allowed right now. It can be refused for reasons
+   * that move on their own, which is the point. The print rotates, the band
+   * moves with it, the daily cap rolls, the agent can be frozen.
+   *
+   * `classify` is a `view`. It signs nothing, spends nothing and needs no key,
+   * so this is repeatable at a booth indefinitely and a visitor can drive it.
+   *
+   * ASKED WITH A FETCH AND NOT THE SWR HOOK, deliberately. `useFloatClassify`
+   * exists for the ladder's slider, where a verdict should follow the input and
+   * keep following it. A button is one question asked once, and a poller behind
+   * it would re-answer a run that had already finished. Same shape as the
+   * narration disclosure below. */
+  const [step, setStep] = useState(-1);
+  const [gate, setGate] = useState<Gate>({ at: "idle" });
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* Cleared on unmount AND before each restart, as `MoneyPath`, `LoopFlow` and
+     `Ladder` all do. */
+  useEffect(
+    () => () => {
+      if (timer.current) clearInterval(timer.current);
+    },
+    [],
+  );
+
+  const order: BeatKey[] = useMemo(
+    () => (one.status === "live" ? runOrder(one.beats, one.jit) : []),
+    [one],
+  );
+  const lit = useMemo(() => litAt(order, step), [order, step]);
+  /* Walking, not merely started: the gate is step 1 and the money stations
+     begin at 2, so a run parked at the gate is not moving anything. */
+  const walking = step >= 2 && step < order.length - 1;
+  const busy = gate.at === "asking" || walking;
+
+  /** The same payment, asked of the chain again. `null` when the page cannot
+   *  name every part of it, because a dry run with a guessed field would be
+   *  classifying something nobody asked about. */
+  function request(): { url: string; quote: number } | null {
+    if (one.status !== "live") return null;
+    const name = vault.agents?.find(
+      (a) => a.agent_id?.toLowerCase() === one.agentId?.toLowerCase(),
+    )?.name;
+    if (!name || !one.sellerAddr || one.units === null || one.quoteUsdc === null) return null;
+    const q = new URLSearchParams({
+      agent: name,
+      seller: one.sellerAddr,
+      units: String(one.units),
+      quote: String(one.quoteUsdc),
+      chain,
+    });
+    if (one.indexId) q.set("index", one.indexId);
+    return { url: `/api/float/classify?${q.toString()}`, quote: one.quoteUsdc };
+  }
+
+  function walk(from: number) {
+    let i = from - 1;
+    if (timer.current) clearInterval(timer.current);
+    timer.current = setInterval(() => {
+      i += 1;
+      if (i > order.length - 1) {
+        if (timer.current) clearInterval(timer.current);
+        return;
+      }
+      setStep(i);
+    }, STEP_MS);
+  }
+
+  async function run() {
+    if (busy) return;
+    const req = request();
+    if (!req) {
+      setGate({ at: "unreadable", reason: "this page cannot name every part of that payment" });
+      return;
+    }
+    if (timer.current) clearInterval(timer.current);
+    setGate({ at: "asking" });
+    setStep(0);
+    try {
+      const r = await fetch(req.url);
+      const j = await r.json();
+      const d = j?.data;
+      /* THE ANSWER MUST BE ABOUT THE QUESTION. `FloatVerdict` echoes the quote
+         back for exactly this, and the chain stamp is checked because a raw
+         fetch skips `fetcherFor`'s guard: one deployment serves both chains. */
+      if (j?.chain !== chain || d?.quote_usdc !== req.quote) {
+        setGate({ at: "unreadable", reason: "that answer was about a different question" });
+        return;
+      }
+      if (d?.status !== "ok" || typeof d?.code !== "number") {
+        setGate({ at: "unreadable", reason: d?.reason ?? "the chain did not answer" });
+        return;
+      }
+      setStep(1);
+      if (d.code !== 0) {
+        setGate({ at: "refused", code: d.code, reason: String(d.chain_reason ?? "") });
+        return;
+      }
+      setGate({ at: "allowed" });
+      walk(2);
+    } catch {
+      setGate({ at: "unreadable", reason: "the chain could not be reached" });
+    }
+  }
 
   /* The flat diagram's own props, unchanged, so the fallback is the component
      that already works rather than a reduced copy of this one. */
@@ -251,9 +380,16 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
           fairMatches={one.fairMatches}
           fairUsdc={one.fairUsdc}
           jit={one.jit}
-          label="one payment, plotted against its own log order: the agent instructs and holds nothing, the benchmark checks the price, the shortfall leaves the yield venue, then the seller is paid"
+          label="one payment, plotted against its own log order, on three planes: the agent and the benchmark touch no money, the treasury and the sleeve and the seller are ours, and the Morpho vault in front is not ours and releases the shortfall first"
+          lit={lit}
           onContextLost={lostContext}
           quoteUsdc={one.quoteUsdc}
+          running={walking}
+          treasury={vault.vault ?? null}
+          venueLogs={one.venueLogs}
+          venueReceiver={one.venueReceiver}
+          venueShares={one.venueShares}
+          venueUsdc={one.venueUsdc}
           verdict={one.verdict}
         />
       ) : (
@@ -261,6 +397,28 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
       )}
 
       <div className="flow-controls">
+        <button aria-pressed={busy} className={`chip${busy ? " chip-gold" : ""}`} onClick={run} type="button">
+          {busy ? <i aria-hidden className="dot breathe" /> : null}
+          <Ed x="Run this payment" p="Try this payment" />
+        </button>
+        {gate.at === "asking" ? (
+          <span className="label muted">
+            <Ed x="asking the chain whether it would be allowed now" p="asking the chain if it is allowed now" />
+          </span>
+        ) : gate.at === "refused" ? (
+          /* THE VAULT'S OWN SENTENCE, UNREWORDED, and the rung it stopped at.
+             Nothing downstream lights, because nothing moved. */
+          <span className="chip chip-breach chip-wrap">
+            <Ed x="refused at rung" p="stopped at step" /> <span className="num">{gate.code}</span>
+            {gate.reason ? ` · ${gate.reason}` : ""}
+          </span>
+        ) : gate.at === "unreadable" ? (
+          <span className="chip chip-sim chip-wrap">{gate.reason}</span>
+        ) : gate.at === "allowed" ? (
+          <span className="chip chip-teal chip-wrap">
+            <Ed x="the chain allows it, so the money moves" p="the chain says yes, so the money moves" />
+          </span>
+        ) : null}
         <OrderChip verdict={one.verdict} />
         {one.human ? (
           <span className="chip chip-gold chip-wrap">
@@ -327,13 +485,51 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
         )}
       </div>
 
+      {step < 0 ? null : (
+        <div aria-live="polite" className="flow-log" role="status">
+          {step === 0 ? (
+            <Ed x="the agent asks. Its own wallet holds nothing, now and at the end." p="the robot asks. Its own wallet is empty, now and after." />
+          ) : step === 1 ? (
+            gate.at === "refused" ? (
+              <Ed x="the vault refused it, and moved nothing" p="the vault said no, and moved nothing" />
+            ) : (
+              <Ed x="the vault read the print and recomputed the fair total itself" p="the vault looked up the real rate and worked the total out itself" />
+            )
+          ) : order[step] === "venue" ? (
+            <>
+              <Ed x="Morpho released the shortfall, to the treasury directly" p="the savings provider sent the missing part, straight to the treasury" />
+              {one.venueUsdc === null ? null : (
+                <>
+                  {": "}
+                  <span className="num">{fmtPrice(one.venueUsdc)}</span> USDC
+                </>
+              )}
+            </>
+          ) : order[step] === "pull" ? (
+            <Ed x="our sleeve recorded what the venue delivered" p="our savings wrapper recorded what arrived" />
+          ) : order[step] === "pay" ? (
+            <>
+              <Ed x="the treasury paid the seller" p="the treasury paid the shop" />
+              {one.quoteUsdc === null ? null : (
+                <>
+                  {" "}
+                  <span className="num">{fmtPrice(one.quoteUsdc)}</span> USDC
+                </>
+              )}
+            </>
+          ) : (
+            <Ed x="the receipt is written, and the agent's wallet still holds nothing." p="the receipt is written, and the robot still holds nothing." />
+          )}
+        </div>
+      )}
+
       {can ? (
         <Ed
           as="p"
           className="muted"
           style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-          x="Height is the log's position inside this one transaction, and the gaps are the real gaps. That is the whole proof: Arc serves no call trace, so the order of the logs in one receipt is the only witness that the shortfall left the yield venue before the seller was paid. Drag to check it from another angle. The agent sits behind the money plane on a dashed tether and holds nothing at either end."
-          p="Height is where each step comes in the payment’s own record. That order proves savings moved before the shop was paid. Drag to turn it."
+          x="Press Run and the chain is asked, by its own `classify` view, whether this same payment would be allowed right now. That verdict is live and about this quote; everything after the gate is the newest receipt's own logs, which is where the heights come from. Depth says whose money-touching it is: the agent and the benchmark behind, holding nothing, the treasury and our sleeve and the seller on the middle plane, and the Morpho vault in front because it holds our money and is not ours. Arc serves no call trace, so the order of the logs in one receipt is the only witness that the venue released the shortfall before the seller was paid. Drag to check it from another angle."
+          p="Press Run and the chain says whether this payment is allowed. The steps after it come from a real payment’s record. Drag to turn it."
         />
       ) : null}
 

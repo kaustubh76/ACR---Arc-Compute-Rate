@@ -142,10 +142,11 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // The WebGL twin of the money path, and the words that frame it. The scene
   // itself is exempt below; everything a reader READS about it lives here, in
   // both registers: the four order verdicts, the two fair-price branches, the
-  // two empty states, the reading line, the caption, and now the guest budget
-  // plus what was bought and who was paid. 19 -> 24, measured: a floor left
-  // under actual is a floor that cannot fail, which this file says twice.
-  "components/float/OnePayment3D.tsx": 24,
+  // two empty states, the reading line, the caption, the guest budget, what was
+  // bought and who was paid, and now the Run button with its four gate states
+  // and the six beats it narrates. 19 -> 24 -> 35, measured each time: a floor
+  // left under actual is a floor that cannot fail, which this file says twice.
+  "components/float/OnePayment3D.tsx": 35,
   // Eleven parties, each with a permission sentence in both registers, plus
   // five column heads, the tri-state chips and the unbound-treasurer note.
   // Measured, not estimated.

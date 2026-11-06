@@ -1,7 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { fairMatches, pickPay, pickPull, pickReceipt, same, verdictOf, type WalkLog } from "./floatWalk";
+import {
+  countVenueLogs,
+  fairMatches,
+  pickPay,
+  pickPull,
+  pickReceipt,
+  pickShareBurn,
+  pickVenueWithdraw,
+  same,
+  verdictOf,
+  type WalkLog,
+} from "./floatWalk";
 
 const VAULT = "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc";
 const SLEEVE = "0xdBeCAE19B2A082B51FC4f0dF59cBFfd1cB12ad14";
@@ -90,4 +101,92 @@ test("the fair price is recomputed against the print the receipt names", () => {
   /* A print that could not be found is an absence, not a mismatch: the walk
      says the print is not shown rather than that the price was wrong. */
   assert.equal(fairMatches(null, 4_000n, 1_050_000n), null);
+});
+
+/* --- the venue's own leg, against the REAL receipt ----------------------- */
+
+/* Every venue log from the canonical payment, tx 0x7f3fa68c…, block 71059012.
+   Four of them, and only two decode against any ABI this repo holds. The
+   indices and figures are the chain's, not invented: assets 1055250 at log 29
+   with the receiver set to the VAULT, and 1054134341145566439 shares burned to
+   the zero address at log 26. */
+const VENUE = "0xAabbeF1D3971c710276ed41eC791BbE14CdB8E88";
+const ZERO = "0x0000000000000000000000000000000000000000";
+const SHARES = 1_054_134_341_145_566_439n;
+
+const realDecoded: WalkLog[] = [
+  // log 16 and log 25 are the venue's, decode against nothing, and are absent here
+  log(26, VENUE, "Transfer", { from: SLEEVE, to: ZERO, value: SHARES }),
+  log(29, VENUE, "Withdraw", { caller: SLEEVE, receiver: VAULT, owner: SLEEVE, assets: 1_055_250n, shares: SHARES }),
+  log(30, SLEEVE, "Pulled", { usdcRequested: 1_055_250n, usdcDelivered: 1_055_250n }),
+  log(32, USDC, "Transfer", { to: SELLER, value: 1_055_250n }),
+  log(33, VAULT, "Receipt", { jitFunded: true }),
+];
+
+test("the venue's exit is log 29, and log 16 is not mistaken for it", () => {
+  /* THE TRAP THIS FUNCTION EXISTS FOR. The venue emits at 16, 25, 26 and 29 in
+     one payment. Taking the first log from that address puts Morpho ahead of
+     the price read, which is both wrong and flattering: it would show the venue
+     acting before the vault had decided anything. */
+  const w = pickVenueWithdraw(realDecoded, VENUE, 32);
+  assert.equal(w?.idx, 29);
+  assert.equal(w?.args.assets, 1_055_250n);
+
+  // and with log 16 present as something undecodable-turned-decodable, still 29
+  const withEarly = [log(16, VENUE, "AccrueInterest", {}), ...realDecoded];
+  assert.equal(pickVenueWithdraw(withEarly, VENUE, 32)?.idx, 29);
+});
+
+test("the venue's exit precedes our sleeve's record of it", () => {
+  /* The order that makes the venue worth drawing at all: the party we do not
+     control released the money, and only then did our wrapper record it. */
+  const w = pickVenueWithdraw(realDecoded, VENUE, 32);
+  const pull = pickPull(realDecoded, SLEEVE, 32);
+  assert.ok(w && pull && w.idx < pull.idx, "29 before 30");
+});
+
+test("the receiver is the TREASURY, which is the one-hop claim", () => {
+  const w = pickVenueWithdraw(realDecoded, VENUE, 32);
+  assert.ok(same(String(w?.args.receiver), VAULT), "straight to the vault, never resting in the sleeve");
+  assert.ok(!same(String(w?.args.receiver), SLEEVE));
+});
+
+test("a withdraw from somewhere else is not the venue's", () => {
+  /* VENUE_ABI now carries the event, so any ERC-4626 withdraw in the receipt
+     decodes. The address is what makes the pick mean anything. */
+  const other = "0x1111111111111111111111111111111111111111";
+  const logs = [log(29, other, "Withdraw", { receiver: VAULT, assets: 9n, shares: 9n })];
+  assert.equal(pickVenueWithdraw(logs, VENUE, 32), null);
+  assert.equal(pickVenueWithdraw(logs, undefined, 32), null, "no venue address, no claim");
+});
+
+test("no venue withdraw at all is an absence, not a zero", () => {
+  /* A pull from the USYC reserve emits no Morpho log, and nor does a payment
+     the buffer covered on its own. */
+  const noVenue = realDecoded.filter((l) => l.name !== "Withdraw");
+  assert.equal(pickVenueWithdraw(noVenue, VENUE, 32), null);
+});
+
+test("the share burn is the sleeve's shares going to the zero address", () => {
+  const b = pickShareBurn(realDecoded, VENUE);
+  assert.equal(b?.idx, 26);
+  assert.equal(b?.args.value, SHARES);
+  assert.equal(b?.args.value, realDecoded.find((l) => l.name === "Withdraw")?.args.shares,
+    "the burn and the withdraw agree on the share count");
+});
+
+test("a USDC transfer is never read as a share burn", () => {
+  /* Both are `Transfer`, and only the emitting address tells them apart. */
+  const logs = [log(32, USDC, "Transfer", { to: ZERO, value: 5n })];
+  assert.equal(pickShareBurn(logs, VENUE), null);
+});
+
+test("the venue's logs are counted off the RECEIPT, not off what decoded", () => {
+  /* Two of the four match no ABI this repo holds, so counting decoded logs
+     would report two and present it as the whole of the venue's activity. */
+  const raw = [16, 25, 26, 29].map((i) => ({ address: VENUE, idx: i }))
+    .concat([{ address: USDC, idx: 32 }, { address: VAULT, idx: 33 }]);
+  assert.equal(countVenueLogs(raw, VENUE), 4);
+  assert.equal(countVenueLogs(raw, undefined), 0);
+  assert.equal(countVenueLogs([], VENUE), 0);
 });

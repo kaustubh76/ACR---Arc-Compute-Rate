@@ -3314,6 +3314,25 @@ a.colophon-act:hover::after {
   font-size: var(--t-1);
   color: var(--ether-45);
 }
+/* A station the run has not reached. Drawn, so a reader can see where the
+   payment is going, but dim, so they are not told it got there. */
+.scene-tag-off {
+  opacity: 0.4;
+}
+/* THE PLANE THAT IS NOT OURS. The venue holds our money and we do not control
+   it, so its station is the one thing in the scene that is not teal or sand: it
+   wears the gold the sleeve's just-in-time leg already uses, and says so in
+   words as well, because a colour is not a sentence. */
+.scene-tag-outside {
+  border-color: rgba(233, 161, 63, 0.45);
+}
+.scene-tag-not-ours {
+  font-family: var(--eyebrow);
+  font-size: var(--t-1);
+  letter-spacing: var(--tr-5);
+  text-transform: uppercase;
+  color: var(--gold);
+}
 /* The benchmark's own verdict when it went the wrong way. Its THIRD state,
    "unchecked", wears `.scene-tag-log` on purpose: a print that could not be
    found afterwards is an absence, and colouring it like a failure would be the

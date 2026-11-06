@@ -35,12 +35,14 @@ import type { FloatTape, FloatTapeRow, FloatVaultState, FloatWalk } from "./floa
  *  `ask` and `fair` are logless by nature. The rest are logs, and `logIndex`
  *  is `null` only when the walk could not find one -- which is an absence to
  *  render as an absence, never as a zero. */
-export type BeatKey = "ask" | "fair" | "pull" | "pay" | "receipt";
+export type BeatKey = "ask" | "fair" | "venue" | "pull" | "pay" | "receipt";
 
 export type Beat = {
   key: BeatKey;
-  /** The walk's own step number. `null` for the ask, which the walk does not
-   *  model because there is nothing on chain to model. */
+  /** The walk's own step number, or `null` for a beat `steps[]` does not model:
+   *  the ask, which emits nothing, and the venue, which is carried beside the
+   *  step list rather than inside it so its log index cannot silently move the
+   *  axis of the others. */
   n: 1 | 2 | 3 | 4 | null;
   /** "ok" proven, "warn" nothing to prove, "bad" contradicted, "none" absent. */
   state: "ok" | "warn" | "bad" | "none";
@@ -55,9 +57,16 @@ export type Beat = {
 };
 
 /** Which custody column a beat belongs to. The scene's other axis. */
-export const COLUMN: Record<BeatKey, "agent" | "treasury" | "sleeve" | "seller"> = {
+export type Column = "agent" | "treasury" | "sleeve" | "seller" | "venue";
+
+export const COLUMN: Record<BeatKey, Column> = {
   ask: "agent",
   fair: "treasury",
+  /* THE PARTY THAT IS NOT OURS GETS ITS OWN COLUMN, because conflating it with
+     the sleeve is what hid the hop. Our `Erc4626Sleeve` is a wrapper that holds
+     shares; the venue is where the money actually sits, and it is the only
+     thing on this path that could refuse us our own exit. */
+  venue: "venue",
   pull: "sleeve",
   pay: "seller",
   receipt: "treasury",
@@ -90,6 +99,22 @@ export type OnePayment =
       human: boolean;
       guest: boolean;
       indexName: string | null;
+      /** The agent and index this payment was made under, which is what a dry
+       *  run needs to ask the chain the same question again. `agentId` is the
+       *  keccak the chain stores; the NAME lives on the vault's agent list,
+       *  because `dryRunParams` takes a name and not a hash. */
+      agentId: string | null;
+      indexId: string | null;
+      /** The venue the shortfall came out of, and what it did. All nullable:
+       *  a payment the buffer covered touches no venue at all. */
+      venue: string | null;
+      venueUsdc: number | null;
+      /** Who the venue paid. It is the treasury, which is the one-hop claim. */
+      venueReceiver: string | null;
+      /** A string: 18-decimal share counts exceed MAX_SAFE_INTEGER. */
+      venueShares: string | null;
+      /** How many logs the venue emitted, named or not. */
+      venueLogs: number | null;
       /** How many units were bought. A model name without a quantity cannot be
        *  checked against a per-unit benchmark by a reader. */
       units: number | null;
@@ -109,10 +134,10 @@ export function firstPaid(rows: readonly FloatTapeRow[] | undefined): FloatTapeR
  *  print and cannot be mistaken for a reading. The shape is the contract's,
  *  the numbers are nobody's. */
 export function script(): Beat[] {
-  const keys: BeatKey[] = ["ask", "fair", "pull", "pay", "receipt"];
+  const keys: BeatKey[] = ["ask", "fair", "venue", "pull", "pay", "receipt"];
   return keys.map((key) => ({
     key,
-    n: key === "ask" ? null : ((["fair", "pull", "pay", "receipt"].indexOf(key) + 1) as 1 | 2 | 3 | 4),
+    n: key === "ask" || key === "venue" ? null : ((["fair", "pull", "pay", "receipt"].indexOf(key) + 1) as 1 | 2 | 3 | 4),
     state: "warn" as const,
     logIndex: null,
     height: null,
@@ -141,16 +166,43 @@ function beatsFrom(walk: FloatWalk): Beat[] {
   const keys: Array<{ key: BeatKey; n: 1 | 2 | 3 | 4 | null }> = [
     { key: "ask", n: null },
     { key: "fair", n: 1 },
+    /* THE VENUE SITS BEFORE OUR SLEEVE, because that is the order the receipt
+       records: the party we do not control released the money at log 29 and our
+       wrapper recorded the delivery at 30. It has no `n` because it is carried
+       beside `steps[]`, which is what keeps its log index from silently
+       re-spacing the others. */
+    { key: "venue", n: null },
     { key: "pull", n: 2 },
     { key: "pay", n: 3 },
     { key: "receipt", n: 4 },
   ];
-  const idx = steps.map((s) => s.log_index).filter((i): i is number => typeof i === "number");
+  const venueIdx = typeof walk.venue_log_index === "number" ? walk.venue_log_index : null;
+  /* THE AXIS SPANS EVERY LOGGED BEAT, the venue's included. On the canonical
+     payment that turns 30/32/33 into 29/30/32/33, so the sleeve's own record
+     moves off the floor and the venue takes it. The gaps stay the real gaps. */
+  const idx = [
+    ...steps.map((s) => s.log_index).filter((i): i is number => typeof i === "number"),
+    ...(venueIdx === null ? [] : [venueIdx]),
+  ];
   const h = heights(idx);
 
   return keys.map(({ key, n }) => {
     /* The ask has no step and never will: the agent asking is an MCP call, not
        a log. It is drawn from the tether, not from the axis. */
+    if (key === "venue") {
+      /* Absent is absent: no venue withdraw means the buffer covered this
+         payment, or the shortfall came out of the USYC reserve instead. Neither
+         is a venue that did nothing. */
+      return {
+        key,
+        n,
+        state: venueIdx === null ? "none" : "ok",
+        logIndex: venueIdx,
+        height: venueIdx === null ? null : (h.get(venueIdx) ?? null),
+        valueUsdc: walk.venue_usdc ?? null,
+        requestedUsdc: null,
+      };
+    }
     if (n === null) {
       return { key, n, state: "ok" as const, logIndex: null, height: null, valueUsdc: null, requestedUsdc: null };
     }
@@ -185,7 +237,19 @@ export function onePayment(input: {
 
   if (newest && (reading || !walk)) return { status: "reading" };
 
-  if (!newest || walk?.status !== "ok" || !walk.tx) {
+  /* THE WALK IS THE EVIDENCE; THE TAPE IS ONLY HOW WE FOUND IT.
+   *
+   * MEASURED, and it broke a run in front of me. The tape is a moving window of
+   * roughly nine thousand blocks, it re-polls every twelve seconds, and a poll
+   * that drifts past the newest payment or comes back part-read stops listing
+   * it. Keyed off the tape, that turned a live payment into "no payment in this
+   * window" MID-RUN: the stations went out, the scene unmounted and the flat
+   * diagram took its place, two beats into a walk the reader had started.
+   *
+   * Once the chain has shown us a transaction and we have walked its logs,
+   * a window moving on does not un-show it. So the walk decides, and whatever
+   * the tape still offers is taken as a bonus rather than a requirement. */
+  if (walk?.status !== "ok" || !walk.tx) {
     /* A vault that reports receipts has paid; a tape that did not reach the
        vault's first block simply did not look far enough back. Only a vault
        reporting zero receipts has never paid. `undefined` receipts means the
@@ -202,12 +266,22 @@ export function onePayment(input: {
     verdict: walk.verdict ?? "unproven",
     quoteUsdc: walk.quote_usdc ?? null,
     fairUsdc: walk.fair_usdc ?? null,
-    premiumBps: newest.premium_bps,
+    /* Off the tape row when it is still listed, and `null` when the window has
+       moved on. A missing premium is not a premium of zero. */
+    premiumBps: newest?.premium_bps ?? null,
     fairMatches: walk.fair_matches ?? null,
     jit: Boolean(walk.jit_funded),
     human: Boolean(walk.human_approved),
     guest: Boolean(walk.guest),
     indexName: walk.index_name ?? null,
+    /* The walk's own copies first, because they survive the window moving. */
+    agentId: walk.agent_id ?? newest?.agent_id ?? null,
+    indexId: newest?.index ?? null,
+    venue: walk.venue ?? null,
+    venueUsdc: walk.venue_usdc ?? null,
+    venueReceiver: walk.venue_receiver ?? null,
+    venueShares: walk.venue_shares ?? null,
+    venueLogs: walk.venue_log_count ?? null,
     units: walk.units ?? null,
     sellerAddr: walk.seller ?? null,
     block: walk.block ?? null,
@@ -235,8 +309,17 @@ export function onePayment(input: {
    top of it, because a position on an axis of log indices would be a number
    nobody measured. */
 export const SCENE = {
-  x: { agent: 0, treasury: -2.3, sleeve: 0, seller: 2.3 },
-  z: { money: 0, offPlane: -1.7 },
+  x: { agent: 0, treasury: -2.3, sleeve: 0, seller: 2.3, venue: 0 },
+  /* THREE PLANES, AND Z NOW MEANS "WHOSE MONEY-TOUCHING IS THIS".
+   *
+   *  `offPlane` behind: touches no money at all. The agent sends an instruction
+   *  and the benchmark reads a price; neither can hold a balance.
+   *  `money`: ours, and holds or moves it.
+   *  `outside` in front: touches our money and is NOT ours. Exactly one thing
+   *  is here, the yield venue, and it is the one `WhoTouches` marks "not ours"
+   *  because it could close our exit. Putting it in front rather than behind is
+   *  deliberate: it is nearest the reader, because it is the counterparty. */
+  z: { money: 0, offPlane: -1.7, outside: 1.7 },
   floor: 0.3,
   ceil: 2.3,
   /** Above the rail, centred, and off the money plane. */
@@ -250,10 +333,19 @@ export const SCENE = {
  *  `null` for any beat without a log: the ask and the fair check are real
  *  events and they are drawn, but they are drawn OFF the axis, by their own
  *  components, at their own fixed heights. */
+/** Which plane a column sits on. The money path is ours; the venue is not. */
+export const PLANE: Record<Column, number> = {
+  agent: SCENE.z.offPlane,
+  treasury: SCENE.z.money,
+  sleeve: SCENE.z.money,
+  seller: SCENE.z.money,
+  venue: SCENE.z.outside,
+};
+
 export function pointOf(b: Beat): [number, number, number] | null {
   if (b.height === null) return null;
   const col = COLUMN[b.key];
-  return [SCENE.x[col], SCENE.floor + b.height * (SCENE.ceil - SCENE.floor), SCENE.z.money];
+  return [SCENE.x[col], SCENE.floor + b.height * (SCENE.ceil - SCENE.floor), PLANE[col]];
 }
 
 /** The agent's fixed point. Off the money plane, above the rail, no log. */
@@ -264,4 +356,25 @@ export function agentPoint(): [number, number, number] {
 /** The benchmark's fixed point. Off the money plane, over the treasury. */
 export function benchmarkPoint(): [number, number, number] {
   return [SCENE.x.treasury, SCENE.benchmarkY, SCENE.z.offPlane];
+}
+
+/** The stations a run lights, in order, skipping what did not happen.
+ *
+ *  SKIPPED AND NOT ANIMATED, which is the rule `MoneyPath` already follows: a
+ *  payment the buffer covered never pulled from anywhere, and walking a reader
+ *  past a venue station that did nothing would be telling them a payment took a
+ *  hop it did not take. The venue goes when there is no venue log, which covers
+ *  both a buffer-covered payment and a pull from the USYC reserve; our sleeve's
+ *  own station goes when the payment never claimed to be funded that way. */
+export function runOrder(beats: readonly Beat[], jit: boolean): BeatKey[] {
+  return beats
+    .filter((b) => (b.key === "venue" ? b.logIndex !== null : true))
+    .filter((b) => (b.key === "pull" ? jit : true))
+    .map((b) => b.key);
+}
+
+/** Which beats are lit at a given step of a run. Cumulative: a station that has
+ *  lit stays lit, as `LoopFlow`'s and `MoneyPath`'s do. */
+export function litAt(order: readonly BeatKey[], step: number): Set<BeatKey> {
+  return new Set(order.slice(0, Math.max(0, step + 1)));
 }

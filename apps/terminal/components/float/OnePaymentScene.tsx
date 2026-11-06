@@ -6,8 +6,8 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Mesh } from "three";
 
-import { agentPoint, benchmarkPoint, pointOf, SCENE, type Beat } from "@/lib/floatOne";
-import { fmtPrice } from "@/lib/format";
+import { agentPoint, benchmarkPoint, pointOf, SCENE, type Beat, type BeatKey } from "@/lib/floatOne";
+import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 
 /* One payment, plotted. The WebGL half; the words live in OnePayment3D.tsx.
  *
@@ -42,10 +42,14 @@ import { fmtPrice } from "@/lib/format";
  * the scene would flash on hydration. Plain nouns here, and the sentence that
  * explains them dual-renders in the caption underneath. */
 
-const LABEL: Record<Beat["key"], string> = {
+const LABEL: Record<BeatKey, string> = {
   ask: "agent",
   fair: "benchmark",
-  pull: "yield venue",
+  /* NAMED FOR WHAT IT IS, and not "the yield venue" any more. Our own sleeve
+     used to carry that label while the thing actually holding the money had no
+     station at all; separating them is the point of this plane. */
+  venue: "morpho vault v2",
+  pull: "our sleeve",
   pay: "seller",
   receipt: "receipt",
 };
@@ -127,17 +131,29 @@ function Plate({ x, z, tone }: { x: number; z: number; tone: string }) {
 }
 
 /** A marker at a beat's own measured height, with its figure beside it. */
-function Marker({ beat, tone, portal }: { beat: Beat; tone: string; portal: Portal }) {
+function Marker({
+  beat,
+  tone,
+  portal,
+  on,
+}: {
+  beat: Beat;
+  tone: string;
+  portal: Portal;
+  /** Lit by the run. A station that has not been reached is drawn but dim, so a
+   *  reader can see where the payment is going without being told it got there. */
+  on: boolean;
+}) {
   const p = pointOf(beat);
   if (!p) return null;
   return (
     <group position={p}>
       <mesh>
         <cylinderGeometry args={[0.3, 0.3, 0.1, 40]} />
-        <meshBasicMaterial color={tone} />
+        <meshBasicMaterial color={tone} opacity={on ? 1 : 0.22} transparent />
       </mesh>
       <Html center distanceFactor={9} portal={portal} position={[0, 0.42, 0]}>
-        <div className="scene-tag">
+        <div className={on ? "scene-tag" : "scene-tag scene-tag-off"}>
           <span className="scene-tag-name">{LABEL[beat.key]}</span>
           <span className="scene-tag-fig">
             {beat.valueUsdc === null ? "…" : `${fmtPrice(beat.valueUsdc)} USDC`}
@@ -149,15 +165,86 @@ function Marker({ beat, tone, portal }: { beat: Beat; tone: string; portal: Port
   );
 }
 
+/** The venue, on the plane that is not ours, with what it actually did.
+ *
+ *  THE COUNTERPARTY GETS THE MOST DETAIL ON THE PAGE, because it is the one
+ *  party here nobody at ACR controls. `WhoTouches` says it could close our
+ *  exit; this says what it did when it did not. The receiver is the headline:
+ *  the venue paid the TREASURY, not our sleeve, so the money never rested in
+ *  the wrapper that asked for it.
+ *
+ *  TWO OF ITS FOUR LOGS ARE COUNTED AND NOT CAPTIONED. They are Morpho's own
+ *  bookkeeping and this surface has no business asserting what they are. */
+function VenueMarker({
+  beat,
+  tone,
+  portal,
+  on,
+  usdc,
+  receiver,
+  shares,
+  logs,
+  treasury,
+}: {
+  beat: Beat;
+  tone: string;
+  portal: Portal;
+  on: boolean;
+  usdc: number | null;
+  receiver: string | null;
+  shares: string | null;
+  logs: number | null;
+  treasury: string | null;
+}) {
+  const p = pointOf(beat);
+  if (!p) return null;
+  const toTreasury = Boolean(receiver && treasury && receiver.toLowerCase() === treasury.toLowerCase());
+  return (
+    <group position={p}>
+      <mesh>
+        <boxGeometry args={[0.62, 0.3, 0.62]} />
+        <meshBasicMaterial color={tone} opacity={on ? 0.9 : 0.2} transparent />
+      </mesh>
+      <Html center distanceFactor={9} portal={portal} position={[0, 0.46, 0]}>
+        <div className={on ? "scene-tag scene-tag-outside" : "scene-tag scene-tag-outside scene-tag-off"}>
+          <span className="scene-tag-name">{LABEL.venue}</span>
+          <span className="scene-tag-not-ours">not ours</span>
+          <span className="scene-tag-fig">{usdc === null ? "…" : `${fmtPrice(usdc)} USDC out`}</span>
+          <span className="scene-tag-log">
+            {receiver === null ? "…" : toTreasury ? "straight to the treasury" : `to ${shortAddr(receiver)}`}
+          </span>
+          <span className="scene-tag-log">
+            {shares === null ? "…" : `burns ${fmtPrice(Number(shares) / 1e18)} shares`}
+          </span>
+          <span className="scene-tag-log">
+            {beat.logIndex === null ? "no log" : `log ${beat.logIndex}`}
+            {logs === null || logs <= 2 ? "" : ` · +${fmtInt(logs - 2)} internal`}
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 /** The USDC travelling, along the beats the chain actually logged.
  *
  *  It walks the proven polyline and nothing else: a beat with no log is not on
  *  the route, so the puck cannot imply a hop nobody measured. */
-function Puck({ route, tone }: { route: Array<[number, number, number]>; tone: string }) {
+function Puck({
+  route,
+  tone,
+  running,
+}: {
+  route: Array<[number, number, number]>;
+  tone: string;
+  /** Only moves during a run. Idle, the scene is a still picture and the loop
+   *  is parked on "demand", which is why there is nothing to pause. */
+  running: boolean;
+}) {
   const ref = useRef<Mesh>(null);
   useFrame(({ clock }) => {
     const m = ref.current;
-    if (!m || route.length < 2) return;
+    if (!m || !running || route.length < 2) return;
     const legs = route.length - 1;
     const t = (clock.getElapsedTime() % (legs * 1.5)) / 1.5;
     const i = Math.min(Math.floor(t), legs - 1);
@@ -166,7 +253,7 @@ function Puck({ route, tone }: { route: Array<[number, number, number]>; tone: s
     const [bx, by, bz] = route[i + 1];
     m.position.set(ax + (bx - ax) * f, ay + (by - ay) * f + Math.sin(f * Math.PI) * 0.18, az + (bz - az) * f);
   });
-  if (route.length < 2) return null;
+  if (!running || route.length < 2) return null;
   return (
     <mesh ref={ref} position={route[0]}>
       <sphereGeometry args={[0.13, 20, 20]} />
@@ -248,6 +335,13 @@ function Scene({
   fairUsdc,
   fairMatches,
   portal,
+  lit,
+  running,
+  venueUsdc,
+  venueReceiver,
+  venueShares,
+  venueLogs,
+  treasury,
 }: {
   beats: Beat[];
   verdict: string;
@@ -256,9 +350,32 @@ function Scene({
   fairUsdc: number | null;
   fairMatches: boolean | null;
   portal: Portal;
+  /** Which stations the run has reached. Empty before anyone presses anything. */
+  lit: ReadonlySet<BeatKey>;
+  running: boolean;
+  venueUsdc: number | null;
+  venueReceiver: string | null;
+  venueShares: string | null;
+  venueLogs: number | null;
+  /** To tell "the venue paid the treasury" from "the venue paid someone else",
+   *  which is the whole of the one-hop claim. */
+  treasury: string | null;
 }) {
   const ink = useInk();
+  /* THE PUCK WALKS ONLY WHAT THE RUN HAS REACHED. Its route is the lit beats in
+     order, so it cannot arrive somewhere the chain has not been shown to have
+     taken the money. A refusal leaves it with nowhere to go. */
   const route = useMemo(
+    () =>
+      beats
+        .filter((b) => lit.has(b.key))
+        .map(pointOf)
+        .filter((p): p is [number, number, number] => p !== null),
+    [beats, lit],
+  );
+  /* The whole proven path, drawn faintly whether or not the run has got there,
+     so a reader can see where it is going. */
+  const full = useMemo(
     () => beats.map(pointOf).filter((p): p is [number, number, number] => p !== null),
     [beats],
   );
@@ -267,12 +384,15 @@ function Scene({
   const tone = verdict === "out_of_order" ? ink.breach : verdict === "unproven" ? ink.dim : ink.finality;
   const agentAt = agentPoint();
   const benchAt = benchmarkPoint();
+  const venueBeat = beats.find((b) => b.key === "venue");
 
   return (
     <>
       <Plate tone={ink.sand} x={SCENE.x.treasury} z={SCENE.z.money} />
       <Plate tone={jit ? ink.gold : ink.dim} x={SCENE.x.sleeve} z={SCENE.z.money} />
       <Plate tone={ink.finality} x={SCENE.x.seller} z={SCENE.z.money} />
+      {/* The plane that is not ours gets a plate of its own, in front. */}
+      {venueBeat?.height === null ? null : <Plate tone={ink.dim} x={SCENE.x.venue} z={SCENE.z.outside} />}
 
       <Agent ink={ink} portal={portal} />
       <Benchmark fairMatches={fairMatches} fairUsdc={fairUsdc} ink={ink} portal={portal} quoteUsdc={quoteUsdc} />
@@ -298,11 +418,27 @@ function Scene({
         transparent
       />
 
+      {full.length > 1 ? <Line color={ink.dim} linewidth={1} opacity={0.3} points={full} transparent /> : null}
       {route.length > 1 ? <Line color={tone} linewidth={2} points={route} /> : null}
-      {beats.map((b) => (
-        <Marker beat={b} key={b.key} portal={portal} tone={tone} />
-      ))}
-      <Puck route={route} tone={ink.sand} />
+      {beats.map((b) =>
+        b.key === "venue" ? (
+          <VenueMarker
+            beat={b}
+            key={b.key}
+            logs={venueLogs}
+            on={lit.has(b.key)}
+            portal={portal}
+            receiver={venueReceiver}
+            shares={venueShares}
+            tone={ink.gold}
+            treasury={treasury}
+            usdc={venueUsdc}
+          />
+        ) : (
+          <Marker beat={b} key={b.key} on={lit.has(b.key)} portal={portal} tone={tone} />
+        ),
+      )}
+      <Puck route={route} running={running} tone={ink.sand} />
     </>
   );
 }
@@ -345,6 +481,13 @@ export default function OnePaymentScene({
   fairUsdc,
   fairMatches,
   onContextLost,
+  lit,
+  running,
+  venueUsdc,
+  venueReceiver,
+  venueShares,
+  venueLogs,
+  treasury,
 }: {
   beats: Beat[];
   verdict: string;
@@ -356,6 +499,16 @@ export default function OnePaymentScene({
   fairMatches: boolean | null;
   /** A lost GPU context hands the section back to the flat SVG. */
   onContextLost: () => void;
+  /** Which stations the run has reached, and whether one is under way. The run
+   *  itself is driven in `OnePayment3D`, because what starts it is a chain read
+   *  and a chain read does not belong inside a render loop. */
+  lit: ReadonlySet<BeatKey>;
+  running: boolean;
+  venueUsdc: number | null;
+  venueReceiver: string | null;
+  venueShares: string | null;
+  venueLogs: number | null;
+  treasury: string | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
@@ -405,9 +558,14 @@ export default function OnePaymentScene({
     return () => io.disconnect();
   }, []);
 
+  /* START THE LOOP THAT STOPPED ITSELF. R3F's `loop()` cancels on the first
+     frame nothing needs, and only `invalidate()` restarts it, so both becoming
+     visible and starting a run have to say so explicitly. `lit` is in here too
+     because a refusal changes what is drawn without any frame being requested:
+     the stations have to repaint once even though nothing is moving. */
   useEffect(() => {
     if (seen) invalidate();
-  }, [seen]);
+  }, [seen, running, lit]);
 
   return (
     <div aria-label={label} className="scene" ref={box} role="img">
@@ -417,7 +575,7 @@ export default function OnePaymentScene({
       <Canvas
         camera={{ position: phone ? [6.1, 4.4, 8.2] : [4.6, 3.4, 6.2], fov: 42 }}
         dpr={[1, 2]}
-        frameloop={seen ? "always" : "demand"}
+        frameloop={running && seen ? "always" : "demand"}
         /* Not a tab stop: OrbitControls is pointer-only, and every figure in
            here is already DOM text in the tags and in the table below, so a
            keyboard reader loses nothing by skipping it and gains not landing
@@ -445,8 +603,15 @@ export default function OnePaymentScene({
           fairMatches={fairMatches}
           fairUsdc={fairUsdc}
           jit={jit}
+          lit={lit}
           portal={portal}
           quoteUsdc={quoteUsdc}
+          running={running}
+          treasury={treasury}
+          venueLogs={venueLogs}
+          venueReceiver={venueReceiver}
+          venueShares={venueShares}
+          venueUsdc={venueUsdc}
           verdict={verdict}
         />
       </Canvas>

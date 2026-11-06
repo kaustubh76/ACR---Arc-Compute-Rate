@@ -500,6 +500,11 @@ export type FloatWalk = {
   jit_funded?: boolean;
   guest?: boolean;
   human_approved?: boolean;
+  /** The agent this payment was made under, off the receipt's own indexed arg.
+   *  Here so a dry run can ask the chain the same question WITHOUT the tape:
+   *  the tape is a moving window and can stop listing a payment the chain has
+   *  already shown us, which is no reason to lose it. */
+  agent_id?: string;
   /* --- the venue's own leg ------------------------------------------------
    *
    * THE PARTY THAT IS NOT OURS, AND IT MOVES FIRST. A just-in-time payment

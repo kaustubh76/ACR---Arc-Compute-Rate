@@ -47,7 +47,17 @@ import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
 import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, TELLER_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
 import { agreesWithRecord, codeBytes, refusalName, reserveFund, revertSelector } from "./floatReserve";
-import { fairMatches, pickPay, pickPull, pickReceipt, verdictOf, type WalkLog } from "./floatWalk";
+import {
+  countVenueLogs,
+  fairMatches,
+  pickPay,
+  pickPull,
+  pickReceipt,
+  pickShareBurn,
+  pickVenueWithdraw,
+  verdictOf,
+  type WalkLog,
+} from "./floatWalk";
 import type {
   FloatAgentStanding,
   FloatPolicyView,
@@ -1064,7 +1074,14 @@ export async function readWalk(chain: ChainKey, tx: string): Promise<FloatWalk> 
      A log that matches none of them is simply not part of this story. */
   const decoded: WalkLog[] = [];
   for (const l of rc.value.logs) {
-    for (const abi of [VAULT_ABI, SLEEVE_ABI, ERC20_ABI]) {
+    /* VENUE_ABI IS IN THIS LIST FOR ONE EVENT. A log matching none of these is
+       dropped by the comment above, and before the venue's ERC-4626 `Withdraw`
+       was declared that is exactly what happened to it: the walk showed our
+       sleeve recording a delivery with nothing in front of it, and the party we
+       do not control was invisible. ERC20_ABI stays ahead of nothing it
+       shadows, because the venue's share burn is an ordinary `Transfer` and is
+       told apart by its emitting address, not by which ABI decoded it. */
+    for (const abi of [VAULT_ABI, SLEEVE_ABI, ERC20_ABI, VENUE_ABI]) {
       try {
         const ev = decodeEventLog({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1109,10 +1126,28 @@ export async function readWalk(chain: ChainKey, tx: string): Promise<FloatWalk> 
   /* Step one against the print the receipt itself names. `latest` covers the
      common case of a payment quoted against the current print; an older one is
      reported as not found rather than hunted through three hundred entries,
-     because a walk that costs ten reads is a walk nobody opens twice. */
-  const storeAddr = await one<Address>(() =>
-    c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "prices" }),
-  );
+     because a walk that costs ten reads is a walk nobody opens twice.
+
+     THE VENUE JOINS THIS ROUND, READ OFF THE SLEEVE AND NEVER OUT OF
+     CONFIGURATION. `floatConfig` carries no venue address and must not:
+     `lib/floatAbi.ts` reads the venue off the sleeve precisely to keep one out
+     of shipping source, which is what `lib/mainnetOnly.test.ts` guards. Joined
+     here rather than given a round of its own, because the sleeve address is
+     already known by this point and viem batches both in the same tick, so the
+     venue's whole leg costs no extra round trip. */
+  const [storeAddr, venueAddr] = await Promise.all([
+    one<Address>(() => c.readContract({ address: cfg.vault, abi: VAULT_ABI, functionName: "prices" })),
+    sleeve.ok
+      ? one<Address>(() => c.readContract({ address: sleeve.value, abi: SLEEVE_ABI, functionName: "venue" }))
+      : Promise.resolve<Read<Address>>({ ok: false, busy: false }),
+  ]);
+
+  /* The venue's own leg. A throttled venue read leaves these absent rather than
+     becoming "the venue did nothing", which is the difference between a gap in
+     what we could read and a claim about what happened. */
+  const venueOut = venueAddr.ok ? pickVenueWithdraw(decoded, venueAddr.value, pay?.idx ?? null) : null;
+  const venueBurn = venueAddr.ok ? pickShareBurn(decoded, venueAddr.value) : null;
+  const venueLogs = venueAddr.ok ? countVenueLogs(rc.value.logs, venueAddr.value) : 0;
   let priceWad: bigint | null = null;
   let indexName = "";
   if (storeAddr.ok) {
@@ -1160,6 +1195,17 @@ export async function readWalk(chain: ChainKey, tx: string): Promise<FloatWalk> 
     jit_funded: jit,
     guest: Boolean(a.guest),
     human_approved: Boolean(a.humanApproved),
+    ...(a.agentId ? { agent_id: String(a.agentId) } : {}),
+    ...(venueAddr.ok ? { venue: venueAddr.value } : {}),
+    ...(venueOut
+      ? {
+          venue_log_index: venueOut.idx,
+          venue_usdc: usdc6((venueOut.args.assets as bigint) ?? 0n),
+          venue_receiver: String(venueOut.args.receiver ?? ""),
+        }
+      : {}),
+    ...(venueBurn ? { venue_shares: String((venueBurn.args.value as bigint) ?? 0n) } : {}),
+    ...(venueLogs > 0 ? { venue_log_count: venueLogs } : {}),
     steps,
     verdict,
   };

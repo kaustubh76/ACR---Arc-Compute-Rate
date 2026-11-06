@@ -4,7 +4,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI } from "./floatAbi";
+/* `viem/utils` rather than `viem`: the same `decodeEventLog`, measured at
+   393ms to import against 1286ms for the package root, on a suite the whole
+   repo runs. */
+import { decodeEventLog } from "viem/utils";
+
+import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
 
 /* The read ABIs, driven out of the contracts that own them.
 
@@ -229,4 +234,70 @@ test("the cost basis uses what was DELIVERED, not what was requested", () => {
     inputs: Array<{ name: string }>;
   };
   assert.equal(pulled.inputs[1].name, "usdcDelivered");
+});
+
+/* --- the venue's Withdraw, decoded from the real log ---------------------
+
+   WHY THIS TEST AND NOT A SHAPE ASSERTION. `readWalk` decodes every receipt log
+   inside a `try` and a `catch` that swallows the failure, because a log matching
+   none of its ABIs is simply not part of the story. viem's `decodeEventLog`
+   validates the topic count against the number of INDEXED inputs and throws
+   when they disagree. So an ABI entry with the wrong indexed layout does not
+   produce an error anywhere: the log is silently dropped and the venue's leg
+   just never appears, on a surface whose whole claim is that it shows the hop.
+
+   The bytes below are the canonical payment's log 29 verbatim, copied from
+   `eth_getTransactionReceipt` on tx 0x7f3fa68c…, so this fails if the entry
+   drifts from what Morpho actually emits. */
+
+const REAL_VENUE_WITHDRAW = {
+  address: "0xaabbef1d3971c710276ed41ec791bbe14cdb8e88",
+  topics: [
+    "0xfbde797d201c681b91056529119e0b02407c7bb96a4a2c75c01fc9667232c8db",
+    "0x000000000000000000000000dbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
+    "0x000000000000000000000000b030e7e592eb2d8a989c7cbca01270b957bb4bdc",
+    "0x000000000000000000000000dbecae19b2a082b51fc4f0df59cbffd1cb12ad14",
+  ],
+  data: "0x0000000000000000000000000000000000000000000000000000000000101a120000000000000000000000000000000000000000000000000ea1099925859ce7",
+} as const;
+
+test("VENUE_ABI decodes the venue's real Withdraw, with the figures the chain emitted", () => {
+  const ev = decodeEventLog({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    abi: VENUE_ABI as any,
+    data: REAL_VENUE_WITHDRAW.data,
+    topics: REAL_VENUE_WITHDRAW.topics as unknown as [`0x${string}`, ...`0x${string}`[]],
+  }) as { eventName: string; args: Record<string, unknown> };
+
+  assert.equal(ev.eventName, "Withdraw");
+  /* 1055250 is 1.055250 USDC at six decimals: the whole quote, which is what a
+     payment short of its buffer by the whole quote has to pull. */
+  assert.equal(ev.args.assets, 1_055_250n);
+  assert.equal(ev.args.shares, 1_054_134_341_145_566_439n);
+
+  /* THE ONE-HOP CLAIM, PROVEN RATHER THAN RESTATED. `Sleeves.sol:87` passes the
+     treasury as the receiver so the venue pays the vault DIRECTLY and the money
+     never rests in our wrapper. The caller and the owner are the sleeve; the
+     receiver is not. */
+  assert.equal(String(ev.args.receiver).toLowerCase(), "0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc");
+  assert.equal(String(ev.args.caller).toLowerCase(), "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14");
+  assert.equal(String(ev.args.owner).toLowerCase(), "0xdbecae19b2a082b51fc4f0df59cbffd1cb12ad14");
+  assert.notEqual(
+    String(ev.args.receiver).toLowerCase(),
+    String(ev.args.owner).toLowerCase(),
+    "the receiver is the treasury and the owner is the sleeve, which is the hop",
+  );
+});
+
+test("the three ABIs readWalk already held cannot decode that log, which is why it was invisible", () => {
+  /* The reason the venue's leg never reached the client: `decodeEventLog`
+     matches on topic0, and this one matches no event in any of the ABIs the
+     walk was decoding against. Not a bug in the pick, an absence in the ABI. */
+  const unmatched = [VAULT_ABI, SLEEVE_ABI, ERC20_ABI].every((abi) => {
+    const names = (abi as readonly { type: string; name?: string }[])
+      .filter((e) => e.type === "event")
+      .map((e) => e.name);
+    return !names.includes("Withdraw");
+  });
+  assert.ok(unmatched, "no pre-existing ABI declares a Withdraw event");
 });
