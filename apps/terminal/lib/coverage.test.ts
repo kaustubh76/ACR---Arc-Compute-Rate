@@ -140,7 +140,7 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   "components/float/VaultMeter.tsx": 19, // measured: three sleeve labels, the total, both banners, the draw slider across all three tiers, and the venue share
   "components/float/MoneyPath.tsx": 13, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
   "components/float/Runway.tsx": 18, // three empty states, the slider, the stale and cheapest chips, the buffer gloss, and the per-row pick
-  "components/float/Yield.tsx": 45, // measured: the floor note, the withheld-gain state, the four venue gates, the fees, and the reserve fund read rather than asserted
+  "components/float/Yield.tsx": 49, // measured: the floor note, the withheld-gain state, the four venue gates, the fees, the fund read rather than asserted, and the eligibility probe with its control
   "components/float/Walk.tsx": 18, // four step titles in both registers, the four verdicts, and the no-log note
   "components/float/Tape.tsx": 19, // both outcomes, three badges, the empty state and the window it covers // the diagram's nouns are register-neutral by necessity; the caption carries it
   "app/float/join/view.tsx": 27, // measured: the eight named refusals each get their own sentence, plus the form and the issued card

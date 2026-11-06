@@ -4,7 +4,15 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { RESERVE_FUND, RESERVE_RECORD, agreesWithRecord, codeBytes, reserveFund } from "./floatReserve";
+import {
+  RESERVE_FUND,
+  RESERVE_RECORD,
+  agreesWithRecord,
+  codeBytes,
+  refusalName,
+  reserveFund,
+  revertSelector,
+} from "./floatReserve";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TAMEION = join(HERE, "..", "..", "..", "docs", "TAMEION.md");
@@ -98,4 +106,42 @@ test("the map holds well-formed addresses, one fund per chain, anchored to the d
      a blank fails loudly at the first read, a wrong one fails quietly at the
      worst possible moment. */
   assert.equal(RESERVE_FUND.mainnet.teller, "");
+});
+
+test("the revert selector is on the innermost cause, not the message", () => {
+  /* THE TRAP, REPRODUCED. viem wraps a reverted call
+     `CallExecutionError <- ExecutionRevertedError <- RpcRequestError` and only
+     the innermost link carries `.data`. A check written against `.message` or
+     `.details` reports "no legible answer" about a chain that answered
+     perfectly clearly, which is the failure this shape exists to prevent. */
+  const wrapped = {
+    message: "The contract function reverted.",
+    details: "execution reverted",
+    cause: { message: "execution reverted", cause: { data: "0x7f63bd0f" } },
+  };
+  assert.equal(revertSelector(wrapped), "0x7f63bd0f");
+  assert.equal(refusalName(revertSelector(wrapped)), "NotPermissioned");
+
+  /* A selector nobody has matched renders as its own hex, which a reader can
+     look up, rather than as a name this code invented. */
+  assert.equal(refusalName("0xdeadbeef"), "0xdeadbeef");
+
+  /* Longer payloads keep only the selector; revert data carries arguments. */
+  assert.equal(revertSelector({ cause: { data: "0x7f63bd0f" + "00".repeat(32) } }), "0x7f63bd0f");
+  /* Case from a node that shouts. */
+  assert.equal(revertSelector({ cause: { data: "0x7F63BD0F" } }), "0x7f63bd0f");
+});
+
+test("nothing legible is null, and null never becomes a refusal name", () => {
+  /* An error with no revert data at all — a transport failure, a timeout, a
+     rate limit — must not be reported as the fund refusing us. That would
+     invent the one sentence this probe is careful about. */
+  assert.equal(revertSelector({ message: "fetch failed" }), null);
+  assert.equal(revertSelector({ cause: { cause: { cause: {} } } }), null);
+  assert.equal(revertSelector(undefined), null);
+  assert.equal(revertSelector("0x7f63bd0f"), null, "a bare string is not an error object");
+  assert.equal(refusalName(null), null);
+  /* `data` that is not a selector is not a selector. */
+  assert.equal(revertSelector({ cause: { data: "0x" } }), null);
+  assert.equal(revertSelector({ cause: { data: 12345 } }), null);
 });

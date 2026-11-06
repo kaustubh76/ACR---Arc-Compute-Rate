@@ -45,8 +45,8 @@ import { createPublicClient, decodeEventLog, formatUnits, http, keccak256, toHex
 import type { ChainKey } from "./chainChoice";
 import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
-import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
-import { agreesWithRecord, codeBytes, reserveFund } from "./floatReserve";
+import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, TELLER_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
+import { agreesWithRecord, codeBytes, refusalName, reserveFund, revertSelector } from "./floatReserve";
 import { fairMatches, pickPay, pickPull, pickReceipt, verdictOf, type WalkLog } from "./floatWalk";
 import type {
   FloatAgentStanding,
@@ -74,6 +74,16 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 function floatChain(): ChainKey {
   return process.env.ACR_FLOAT_CHAIN === "mainnet" ? "mainnet" : "testnet";
 }
+
+/** One USDC, the amount the eligibility probe offers the Teller. Never sent:
+ *  the call is a staticcall and the revert is the whole answer. The figure is
+ *  the one that was driven with `cast` when the refusal was first matched, kept
+ *  the same so the page and that measurement are asking one question. */
+const DEPOSIT_PROBE_UNITS = 1_000_000n;
+
+/** The burn address, as the eligibility control. Nobody can claim this one is
+ *  allowlisted, which is exactly why it is the right second reading. */
+const DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD" as Address;
 
 /** Seconds in a year, the unit Morpho annualises a per-second WAD rate with.
  *  Named because a bare 31536000 beside a fee reads as a timestamp. */
@@ -793,6 +803,40 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
       : Promise.resolve({ ok: false as const, busy: false }),
   ]);
 
+  /* WOULD THE FUND TAKE OUR MONEY. Asked by attempting a deposit as a
+     staticcall, because there is nothing to read: `maxDeposit(address)` hands
+     back a non-zero allowance for an address that cannot deposit at all.
+     Nothing is signed and nothing moves; a staticcall that reverts IS the
+     answer.
+
+     THE CONTROL IS NOT OPTIONAL. The same attempt from an address nobody could
+     claim is allowlisted has to be refused the same way, or the refusal we get
+     might be about our balance, our allowance, or anything else incidental —
+     which would make this exactly the false green it replaces. Both or
+     neither. */
+  const tryDeposit = async (from: Address): Promise<string | null | undefined> => {
+    if (!hasTeller) return undefined;
+    try {
+      await c.simulateContract({
+        account: from,
+        address: fund.teller as Address,
+        abi: TELLER_ABI,
+        functionName: "deposit",
+        args: [DEPOSIT_PROBE_UNITS, from],
+      });
+      /* It did NOT revert, which would mean the fund accepts us. Null rather
+         than a cheerful string: the caller distinguishes refused from not, and
+         "we are allowlisted" is a claim that should be made by the absence of a
+         refusal and nowhere else. */
+      return null;
+    } catch (e) {
+      const sel = revertSelector(e);
+      if (sel === null) busy = true;
+      return refusalName(sel) ?? undefined;
+    }
+  };
+  const [mine, control] = await Promise.all([tryDeposit(cfg.vault), tryDeposit(DEAD_ADDRESS)]);
+
   /* THE SUPPLY IS SCALED BY THE DECIMALS THE TOKEN ITSELF REPORTED, not by a
      constant 6. The record says 6 and the read almost always agrees, but a
      surface that hardcodes the scale would print a supply a million times wrong
@@ -813,6 +857,11 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
     token_code_bytes: tokenCode.ok ? codeBytes(tokenCode.value) : null,
     teller_code_bytes: hasTeller && tellerCode.ok ? codeBytes(tellerCode.value) : null,
     agrees_with_record: agreesWithRecord(symbol, decimals),
+    /* `undefined` collapses to not-read on the wire; a real refusal carries its
+       name, and `null` means the deposit did not revert at all. */
+    deposit_refused: mine === undefined ? null : mine !== null,
+    deposit_refusal: mine ?? null,
+    control_refusal: control ?? null,
     ...(busy ? { reason: "the chain is rate limiting this host; it retries by itself" } : {}),
   };
 }

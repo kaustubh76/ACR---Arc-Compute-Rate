@@ -398,6 +398,51 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               <Ed x="not wired to this treasury" p="not connected yet" />
             </span>
           </p>
+          {/* WOULD IT TAKE OUR MONEY. This panel used to say we could not read
+              our own eligibility, and that was true of every accessor: the
+              Teller has none, and `maxDeposit(address)` reports a non-zero
+              allowance for an address that cannot deposit at all. The answer
+              only exists by attempting the deposit, as a staticcall, where the
+              revert IS the answer. So the page shows the chain's own refusal
+              and the error it refused by, rather than a sentence about a queue.
+
+              THE CONTROL IS SHOWN NEXT TO IT ON PURPOSE. A refusal on its own
+              could be about our balance or anything else incidental to us; the
+              same refusal for an address nobody could claim is allowlisted is
+              what makes it a reading of permission. Claiming the first without
+              the second would be the same shape of overclaim as the allowance
+              getter this replaces. */}
+          {f?.deposit_refused === null || f?.deposit_refused === undefined ? null : (
+            <p className="label">
+              {f.deposit_refused ? (
+                <span className="chip chip-breach">
+                  <Ed x="the fund refuses this treasury" p="the fund says no to us" />{" "}
+                  <span className="mono">{f.deposit_refusal}</span>
+                </span>
+              ) : (
+                <span className="chip chip-teal">
+                  <Ed x="the fund would accept a deposit from this treasury" p="the fund would take our money" />
+                </span>
+              )}{" "}
+              {f.deposit_refused && f.control_refusal ? (
+                f.control_refusal === f.deposit_refusal ? (
+                  <span className="chip chip-sim">
+                    <Ed
+                      x="an unrelated address is refused the same way, so this is reading permission"
+                      p="a stranger gets the same answer, so this really is about permission"
+                    />
+                  </span>
+                ) : (
+                  <span className="chip chip-sim">
+                    <Ed
+                      x="an unrelated address is refused differently, so this says less than it looks"
+                      p="a stranger gets a different answer, so we cannot be sure why"
+                    />
+                  </span>
+                )
+              ) : null}
+            </p>
+          )}
           <Ed
             as="p"
             className="muted"

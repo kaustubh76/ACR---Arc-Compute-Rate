@@ -40,7 +40,18 @@ import type { ChainKey } from "./chainChoice";
 export type ReserveFund = {
   /** The fund's own ERC-20. A proxy, so its code size is small by design. */
   token: string;
-  /** `buy()` takes USDC and gives USYC; `sell()` goes back. */
+  /** The Teller. ERC-4626 shaped: `deposit(uint256,address)`,
+   *  `mint(uint256,address)`, `redeem(uint256,address,address)`,
+   *  `withdraw(uint256,address,address)`.
+   *
+   *  THIS COMMENT USED TO SAY `buy()` AND `sell()`, copied from
+   *  `docs/TAMEION.md`, and both are wrong: the verified implementation
+   *  declares neither. Corrected 2026-11-06 against the implementation's own
+   *  function list, and the doc is corrected too. The mistake is worth leaving
+   *  on the record because of what it would have cost: a probe written against
+   *  `buy()` reverts for "no such function" and renders as "not permitted",
+   *  which is a confident wrong answer about the one thing this panel is
+   *  careful about. */
   teller: string;
 };
 
@@ -81,6 +92,45 @@ export const RESERVE_RECORD = { symbol: "USYC", decimals: 6 } as const;
 export function agreesWithRecord(symbol: string | null, decimals: number | null): boolean | null {
   if (symbol === null || decimals === null) return null;
   return symbol === RESERVE_RECORD.symbol && decimals === RESERVE_RECORD.decimals;
+}
+
+/** The Teller's refusal, by selector.
+ *
+ *  ONE ENTRY, BECAUSE ONE WAS MATCHED. The verified implementation declares ten
+ *  custom errors — BadAddress, BadAmount, BadDecimals, BadTime, LimitExceeded,
+ *  NoAccess, NotPermissioned, YearNotFound, ZeroAssets, ZeroShares — and
+ *  `0x7f63bd0f` matched exactly one of them. Measured 2026-11-06 by driving
+ *  `deposit(uint256,address)` as a staticcall. The other nine are deliberately
+ *  absent rather than computed: a selector this surface has not seen refused
+ *  anything should render as its raw hex, which is checkable, instead of a name
+ *  this code guessed at. */
+export const TELLER_ERRORS: Record<string, string> = {
+  "0x7f63bd0f": "NotPermissioned",
+};
+
+/** The revert selector buried in a client error, or null.
+ *
+ *  THE TRAP THIS FUNCTION EXISTS FOR. viem wraps a reverted call
+ *  `CallExecutionError <- ExecutionRevertedError <- RpcRequestError`, and the
+ *  selector is on the INNERMOST link's `.data`. It is not in `.message`, and
+ *  `.details` is the string "execution reverted" and nothing more. A check
+ *  written against either reports "no legible answer" about a chain that
+ *  answered perfectly clearly. */
+export function revertSelector(err: unknown): string | null {
+  for (let w = err as { cause?: unknown; data?: unknown } | undefined; w; w = w.cause as typeof w) {
+    const d = w.data;
+    if (typeof d === "string" && /^0x[0-9a-fA-F]{8}/.test(d)) return d.slice(0, 10).toLowerCase();
+  }
+  return null;
+}
+
+/** A selector as a name when it is one we matched, otherwise the selector.
+ *
+ *  Never null for a real selector: the raw hex is a worse answer than a name
+ *  and a far better one than silence, because a reader can look it up. */
+export function refusalName(selector: string | null): string | null {
+  if (selector === null) return null;
+  return TELLER_ERRORS[selector] ?? selector;
 }
 
 /** Bytes of code at an address, from the hex a node returns.

@@ -201,6 +201,28 @@ export const VENUE_ABI = [
   { type: "function", name: "managementFeeRecipient", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
 ] as const;
 
+/* The Teller's deposit, and only its deposit.
+ *
+ * THE PERMISSION IS ONLY LEGIBLE BY ATTEMPTING THE THING. There is no allowlist
+ * accessor: `maxDeposit(address)` returns a non-zero allowance for an address
+ * that cannot deposit at all, measured at 5,723,443 against a deposit that
+ * reverts. So this ABI exists to be STATICCALLED and to fail, which is the only
+ * honest read of eligibility available.
+ *
+ * ERC-4626 SHAPED, AND NOT `buy()`. The verified implementation declares no
+ * `buy` and no `sell`, whatever `docs/TAMEION.md` used to say; a probe on
+ * `buy()` would revert for "no such function" and read as "not permitted".
+ * Signature as it was driven with `cast`: `deposit(uint256,address)(uint256)`. */
+export const TELLER_ABI = [
+  {
+    type: "function",
+    name: "deposit",
+    inputs: [{ type: "uint256" }, { type: "address" }],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
 export const ERC20_ABI = [
   { type: "function", name: "balanceOf", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
   /* The three the reserve panel needs to stop asserting its fund and start

@@ -366,6 +366,20 @@ export type FloatReserveFacts = {
    *  `null` when either half was not read, because a throttled read is not a
    *  disagreement. */
   agrees_with_record?: boolean | null;
+  /** WHETHER THE FUND WOULD TAKE OUR MONEY, asked by attempting it.
+   *
+   *  There is no allowlist to read: `maxDeposit(address)` reports a non-zero
+   *  allowance for an address that cannot deposit, so the only honest answer
+   *  comes from a staticcall of the deposit itself. `null` is not-read. */
+  deposit_refused?: boolean | null;
+  /** The custom error it refused with, by name where we have matched one and as
+   *  the raw selector where we have not. Never a guessed name. */
+  deposit_refusal?: string | null;
+  /** THE CONTROL, and the thing that makes the line above mean anything. An
+   *  address nobody could claim is allowlisted, refused the same way, is what
+   *  shows the probe discriminates on permission rather than on something
+   *  incidental to us. Without it the staticcall is as weak as `maxDeposit`. */
+  control_refusal?: string | null;
 };
 
 export type FloatYield = {
