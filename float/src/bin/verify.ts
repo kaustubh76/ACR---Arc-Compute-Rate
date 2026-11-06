@@ -49,11 +49,45 @@ const NO_SIG = [0, `0x${"00".repeat(32)}` as Hex, `0x${"00".repeat(32)}` as Hex]
 const TRANSFER = parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)");
 const PULLED = parseAbiItem("event Pulled(uint256 usdcRequested, uint256 usdcDelivered)");
 
-type Result = { id: string; what: string; ok: boolean; saw: string };
+type State = "pass" | "fail" | "blocked";
+type Result = { id: string; what: string; state: State; saw: string };
 const results: Result[] = [];
+
+function emit(label: string, id: string, what: string, saw: string) {
+  console.log(`  ${label.padEnd(5)} ${id.padEnd(4)} ${what}\n            ${saw}`);
+}
+
 function check(id: string, what: string, ok: boolean, saw: string) {
-  results.push({ id, what, ok, saw });
-  console.log(`  ${ok ? "PASS" : "FAIL"}  ${id.padEnd(4)} ${what}\n            ${saw}`);
+  results.push({ id, what, state: ok ? "pass" : "fail", saw });
+  emit(ok ? "PASS" : "FAIL", id, what, saw);
+}
+
+/**
+ * A question THIS MACHINE cannot ask — never one the chain answered badly.
+ *
+ * Some checks need a key that is deliberately not here. The roles were
+ * separated on purpose (deployer -> press registrar, recorded in the runbook's
+ * role table), and the press's key lives in the press's environment;
+ * `data/float-world-keys.json` holds addresses and no secrets. Reporting that
+ * as FAIL says the product is broken when what is missing is a credential, and
+ * reporting it as PASS says a question was answered when it was not.
+ *
+ * THE RULES THAT KEEP THIS HONEST, and it is worth being strict because a third
+ * state is exactly how a red gets quietly buried:
+ *
+ *   1. Only a MISSING LOCAL CREDENTIAL may reach this. No contract answer, no
+ *      revert, no unreachable node — those are PASS or FAIL. If a product fault
+ *      can ever land here, this function is being misused.
+ *   2. The reason must name the credential and where it lives, so a reader can
+ *      go and get it rather than wondering what broke.
+ *   3. It is counted and listed SEPARATELY, never folded into the passed total.
+ *
+ * It does not set the exit status, so the suite stays usable as a gate — and
+ * that is precisely why rules 1 to 3 are not optional.
+ */
+function blocked(id: string, what: string, why: string) {
+  results.push({ id, what, state: "blocked", saw: why });
+  emit("BLOCK", id, what, why);
 }
 
 /**
@@ -68,11 +102,16 @@ function check(id: string, what: string, ok: boolean, saw: string) {
  */
 for (const sig of ["uncaughtException", "unhandledRejection"] as const) {
   process.on(sig, (err: unknown) => {
-    const failed = results.filter((r) => !r.ok);
+    const failed = results.filter((r) => r.state === "fail");
+    const held = results.filter((r) => r.state === "blocked");
+    const passed = results.filter((r) => r.state === "pass");
     console.log(
-      `\n${results.length - failed.length}/${results.length} checks passed before this run ABORTED on ${NET}.`,
+      `\n${passed.length}/${results.length} checks passed`
+      + (held.length > 0 ? `, ${held.length} blocked` : "")
+      + ` before this run ABORTED on ${NET}.`,
     );
     if (failed.length > 0) console.log(`FAILED: ${failed.map((f) => f.id).join(", ")}`);
+    if (held.length > 0) console.log(`BLOCKED: ${held.map((f) => f.id).join(", ")}`);
     // Truncated to six lines on purpose: viem attaches the whole ABI to a
     // revert, and the one line that matters is the first. This used to live in
     // a second `uncaughtException` handler further down the file — but Node
@@ -632,15 +671,69 @@ const scoutBefore = await bal(SCOUT_EOA);
     .find((c) => c.addr === onChainRegistrar);
 
   if (!ours) {
+    // READ-ONLY, AND STRONGER THAN THE VERSION THAT NEEDED THE KEY.
+    //
+    // The claim is "a guest gets the fixed template and cannot choose its own
+    // numbers". Registering one proves the first half. Three reads prove both,
+    // from any machine:
+    //
+    //   1. the template is a FIXED NUMBER ON CHAIN (`guestDailyCap`), not
+    //      something the caller supplies;
+    //   2. `registerGuest` takes ONE argument and it is the id — so there is
+    //      no cap parameter to choose, by signature. The old test asserted the
+    //      RESULT of the template; this asserts the IMPOSSIBILITY of choosing,
+    //      which is the stronger half and was never checked;
+    //   3. the deployer is REFUSED. The old test ran AS the registrar, so it
+    //      could never check that a non-registrar is turned away — the very
+    //      property the role separation exists for. The missing key is the
+    //      evidence.
+    const template = (await pub.readContract({
+      address: d.vault, abi: V.abi, functionName: "guestDailyCap",
+    })) as bigint;
+
+    const regFn = (V.abi as readonly unknown[]).find(
+      (a) => (a as { type?: string; name?: string }).type === "function"
+        && (a as { name?: string }).name === "registerGuest",
+    ) as { inputs?: readonly { type?: string }[] } | undefined;
+    const inputs = regFn?.inputs ?? [];
+    const noCapArgument = inputs.length === 1 && inputs[0]?.type === "bytes32";
+
+    let deployerRefused = false;
+    let refusalSaw = "";
+    try {
+      await pub.call({
+        to: d.vault,
+        account: addressFor("deployer") as Address,
+        data: encodeFunctionData({ abi: V.abi, functionName: "registerGuest", args: [GUEST] }),
+      });
+      refusalSaw = "the deployer was NOT refused, so the registrar role is not enforced";
+    } catch (e) {
+      const m = String((e as Error).message ?? "");
+      if (unreachable(e)) {
+        // A throttled node is not evidence of enforcement. Say so.
+        refusalSaw = `could not ask whether the deployer is refused: ${m.split("\n")[0]?.slice(0, 60)}`;
+      } else if (/not registrar/i.test(m)) {
+        deployerRefused = true;
+        refusalSaw = 'the deployer is refused "not registrar"';
+      } else {
+        refusalSaw = `refused, but not for the role: ${m.split("\n")[0]?.slice(0, 60)}`;
+      }
+    }
+
     check("T12", "a guest gets the fixed template and cannot choose its own numbers",
-      false,
-      `cannot run from here: the chain's guestRegistrar is ${onChainRegistrar} — the press `
-      + `registrar — and this machine holds none of the keys for it. That is DELIBERATE key `
-      + `separation, recorded in the runbook's role table, not a fault: the deployer no longer `
-      + `registers guests. The guest template is unchanged on chain; what is missing is a `
-      + `signer. Run this check from the press, or grant the local deployer the role to test it.`);
-    check("T10", "a guest spending over its template is refused",
-      false, "not reached: T12 could not register a guest to test the template against");
+      template === 2_000_000n && noCapArgument && deployerRefused,
+      `read-only: template ${usd(template)} fixed on chain; registerGuest takes `
+      + `${inputs.length} argument(s)${noCapArgument ? " and no cap, so a guest cannot choose its numbers" : ""}; `
+      + `${refusalSaw}. The registrar is ${onChainRegistrar} (the press), and this machine holds `
+      + `no key for it — which is what makes the refusal above measurable rather than assumed.`);
+
+    blocked("T10", "a guest spending over its template is refused",
+      `needs a registered guest to classify against, and registering one needs the press `
+      + `registrar key (${onChainRegistrar}). That key lives in the press's environment by `
+      + `design — data/float-world-keys.json holds addresses and no secrets — so this question `
+      + `cannot be asked from here. It runs on a fresh deploy, where wire() makes the deployer `
+      + `the registrar, and from the press. Nothing about the chain's answer is in doubt; the `
+      + `signer is.`);
   } else {
   const reg = walletFor(NET, ours.role);
   const h = await reg.writeContract({
@@ -707,8 +800,17 @@ const scoutBefore = await bal(SCOUT_EOA);
     };
 
     // Comfortably inside what the sleeve holds, and far outside it.
-    const canDo = held / 2n;
-    const cannot = held * 100n + 1_000_000n;
+    //
+    // A QUARTER, NOT A HALF, AND RE-READ FIRST. Each cook spawns a 22 MB CLI
+    // and takes seconds, and the tape pays out of THIS sleeve while the suite
+    // runs — T5 above pulls from it deliberately. So `held` can be stale by the
+    // time the coverable cook runs, and at a half that made the pre-flight
+    // correctly answer "cannot cover", which this check then reported as its
+    // own failure. Re-reading immediately before, and asking for a quarter,
+    // leaves room for a payment landing mid-check.
+    const fresh = await sleeveValue();
+    const canDo = fresh / 4n;
+    const cannot = fresh * 100n + 1_000_000n;
     const okOut = run(canDo);
     const noOut = run(cannot);
 
@@ -717,10 +819,27 @@ const scoutBefore = await bal(SCOUT_EOA);
     // Stated rather than assumed: Arc serves no eth_simulateV1, so Sauce falls
     // back to eth_call and says so. If that ever changes, this line changes.
     const path = /did not run eth_simulateV1/.test(okOut) ? "eth_call fallback" : "eth_simulateV1";
+
+    // REPORT WHAT WAS OBSERVED, NOT WHAT WAS ASKED.
+    //
+    // This line used to read "X accepted, Y refused" built from the two
+    // AMOUNTS, so it said both halves had happened whether or not they had. A
+    // red T13 therefore printed a sentence describing a pass, and gave a reader
+    // no way to tell which half failed. Seen on 2026-11-07: "$3.94475
+    // accepted, $789.95 refused with the program's own sentence" — on a FAIL.
+    // The outcomes are booleans; print those, and on a failure quote the cook
+    // that disagreed.
+    const firstLine = (s: string) => (s.split("\n").find((l) => l.trim().length > 0) ?? "").trim().slice(0, 90);
     check("T13", "the Sauce pre-flight agrees with the venue about what it can deliver",
       passed && refused,
-      `sleeve holds ${usd(held)}: ${usd(canDo)} accepted, ${usd(cannot)} refused ` +
-      `with the program's own sentence; simulated via ${path}, nothing signed`);
+      `sleeve holds ${usd(fresh)}: ${usd(canDo)} -> ${passed ? "accepted" : "NOT ACCEPTED"}, `
+      + `${usd(cannot)} -> ${refused ? "refused with the program's own sentence" : "NOT REFUSED"}; `
+      + `via ${path}, nothing signed`
+      + (passed && refused
+        ? ""
+        : ` — ${passed
+            ? `the uncoverable cook said: "${firstLine(noOut)}"`
+            : `the coverable cook said: "${firstLine(okOut)}"`}`));
   }
 }
 
@@ -980,10 +1099,21 @@ const scoutBefore = await bal(SCOUT_EOA);
 }
 
 // --- the verdict ------------------------------------------------------------
-const failed = results.filter((r) => !r.ok);
-console.log(`\n${results.length - failed.length}/${results.length} checks passed on ${NET}.`);
+const failed = results.filter((r) => r.state === "fail");
+const held = results.filter((r) => r.state === "blocked");
+const passed = results.filter((r) => r.state === "pass");
+console.log(
+  `\n${passed.length}/${results.length} checks passed on ${NET}`
+  + (held.length > 0 ? `, ${held.length} blocked by a credential this machine does not hold` : "")
+  + ".",
+);
 if (failed.length > 0) {
   console.log(`FAILED: ${failed.map((f) => f.id).join(", ")}`);
   process.exit(1);
+}
+if (held.length > 0) {
+  // Listed, never folded into the passed count, and never silent. A blocked
+  // check is a question nobody answered; it just is not evidence of a fault.
+  for (const h of held) console.log(`BLOCKED ${h.id}: ${h.saw}`);
 }
 console.log("Every claim Float makes is re-derivable from this command.");

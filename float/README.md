@@ -43,7 +43,7 @@ cd float && npm install
 npm test                                       # 41 unit tests
 npm run local                                  # deploy the whole system
 npm run keeper -- --once                       # put real prices on chain
-npm run verify                                 # 15 checks against the live chain
+npm run verify                                 # 15 checks against the live chain (1 blocked off-press)
 npm run agents -- --once --park 0.5            # watch the hero loop
 ```
 
@@ -165,6 +165,20 @@ paid. The feature would look implemented and be absent.
   inventing one.
 - **`FloatTestSeller` is ours and says so in its own name**, because a demo that
   pays a seller the team controls should admit it on chain.
+- **One of the fifteen checks cannot run outside the press, and says so rather
+  than passing.** The guest roles were separated on purpose — the deployer no
+  longer registers guests, the press registrar does, and that key lives in the
+  press's environment (`data/float-world-keys.json` holds addresses and no
+  secrets). T10 needs a registered guest to classify against, so from any other
+  machine it reports **BLOCKED** with the address of the key it would need: not
+  a pass, not a failure, and counted apart from both. T12 goes the other way and
+  turns the gap into evidence — it now verifies read-only that the template is a
+  fixed $2 on chain, that `registerGuest` takes no cap argument so a guest
+  cannot choose its own numbers, and that **the deployer is refused `"not
+  registrar"`**, which the old key-holding version of the test could never
+  check because it ran as the registrar. On a fresh deploy `wire()` makes the
+  deployer the registrar, so both run live and the suite is 15/15 — which is
+  what the runbook's step 6 means.
 - **The keeper's print-freshness check is committed but is not the keeper that is
   running.** `rebalance()` used to read the whole on-chain policy tuple, use only
   `bufferHours`, and average every index's confidence interval into the buffer
