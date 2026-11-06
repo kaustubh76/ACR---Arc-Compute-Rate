@@ -280,7 +280,7 @@ def synth_claims(*, sub: str = SYNTH_SUB, acr: str = ORB, now: float | None = No
 # --- the rig ----------------------------------------------------------------
 
 
-def stand_up(w3):
+def stand_up(w3, *, treasurer: tuple[str, str] = (SYNTH_ISS, SYNTH_SUB)):
     from acr_oracle_client.float_vault import FloatVaultClient
     from acr_oracle_client.signer import LocalKeySigner
     from index_api.worldauth import treasurer_binding
@@ -332,7 +332,11 @@ def stand_up(w3):
     #: The REAL binding of the synthetic human, not a fixture constant. This is
     #: what makes "wrong human" a genuine refusal later rather than a staged
     #: one: the chain commits to keccak(iss, sub) of this exact pair, one-shot.
-    binding = bytes.fromhex(treasurer_binding(SYNTH_ISS, SYNTH_SUB)[2:])
+    #: Parameterised, not copied, for the reason `test_floatgate_onchain.py`
+    #: already gives: `setTreasurerBinding` is one-shot from zero, so a vault
+    #: bound to a different human has to be its OWN deployment rather than the
+    #: shared rig with a setter called later.
+    binding = bytes.fromhex(treasurer_binding(*treasurer)[2:])
     send(w3, owner, vault.functions.setTreasurerBinding(binding))
 
     return {
@@ -1009,16 +1013,41 @@ def leg_device_flow(rig, *, fake: bool) -> None:
 
         ctx = serve(pending_polls=1, quiet=True)
     else:
-        iss = os.environ.get("ACR_WORLD_OIDC_ISSUER", "")
-        cid = os.environ.get("ACR_WORLD_OIDC_CLIENT_ID", "")
-        sec = os.environ.get("ACR_WORLD_OIDC_CLIENT_SECRET", "")
+        #: `get_settings()`, NOT os.environ. The credentials live in `.env`,
+        #: which pydantic reads via `env_file`; this script loads no dotenv, so
+        #: reading the environment made the whole live path dead on arrival
+        #: while the client was configured and working.
+        from acr_core import get_settings
+
+        cfg = get_settings()
+        iss, cid, sec = (
+            cfg.world_oidc_issuer,
+            cfg.world_oidc_client_id,
+            cfg.world_oidc_client_secret,
+        )
         if not (iss and cid and sec):
-            bad("REHEARSE_WORLD=live needs ACR_WORLD_OIDC_{ISSUER,CLIENT_ID,CLIENT_SECRET}")
+            bad("REHEARSE_WORLD=live needs ACR_WORLD_OIDC_{ISSUER,CLIENT_ID,CLIENT_SECRET} in .env")
+            return
+        #: THE ENROLLED HUMAN, so the treasurer rung is real rather than
+        #: skipped. `make world-enroll` wrote this pair; without it the ladder
+        #: would run with `treasurer=None` and one of the nine rungs would be
+        #: vacuous while the leg still printed nine passes.
+        enrolled_sub = cfg.world_treasurer_sub or ""
+        if enrolled_sub and cfg.world_treasurer_iss and cfg.world_treasurer_iss != iss:
+            bad(
+                f"the enrolled treasurer is on {cfg.world_treasurer_iss} but the client is on "
+                f"{iss}: the binding hashes the issuer, so these must agree"
+            )
             return
         from contextlib import nullcontext
 
         ctx = nullcontext(
-            type("Live", (), {"issuer": iss, "cid": cid, "sec": sec, "sub": None, "requests": []})()
+            type(
+                "Live",
+                (),
+                {"issuer": iss, "cid": cid, "sec": sec, "sub": enrolled_sub or None,
+                 "requests": []},
+            )()
         )
 
     with ctx as issuer:
@@ -1043,11 +1072,42 @@ def leg_device_flow(rig, *, fake: bool) -> None:
             bad(f"this issuer does not advertise {ORB}")
             return
 
+        #: A SECOND VAULT, bound to the ENROLLED human. `setTreasurerBinding`
+        #: is one-shot from zero and `stand_up` spends it on the synthetic
+        #: treasurer, so a live run on the shared rig had to validate with
+        #: `treasurer=None` -- which skips the enrolled-treasurer rung while
+        #: still printing nine passes. The enrolled pair comes from `.env`
+        #: rather than from a first token because `auth_time` has to be AFTER
+        #: the checkpoint opens, so the order must stay park, ask, token.
+        if not fake and getattr(issuer, "sub", None):
+            from index_api.worldauth import treasurer_binding
+
+            want = (issuer.issuer, issuer.sub)
+            note("standing up a second vault bound to the ENROLLED human,")
+            note("so the treasurer rung is exercised rather than skipped")
+            rig = stand_up(rig["w3"], treasurer=want)
+            on_chain = "0x" + rig["client"].treasurer_binding().hex()
+            if on_chain.lower() != treasurer_binding(*want).lower():
+                bad("the live rig's binding does not match the enrolled pair")
+                return
+            ok(f"the chain commits to the enrolled human · {on_chain[:18]}…")
+            ok("a DIFFERENT verified human would be refused not_the_enrolled_treasurer")
+        elif not fake:
+            note("ACR_WORLD_TREASURER_SUB is unset, so the enrolled-treasurer rung")
+            note("is NOT exercised here. Run `make world-enroll` first to fix that.")
+
         parked = leg_park(rig, nonce=b"\x5d" * 32, label="the one an HTTP token will clear")
         if not parked:
             return
         opened = time.time()
-        token = device_flow_token(flow, asked=(ORB,), opened_at=opened)
+        #: The CHECKPOINT is the binding clock, not this poll loop: it expires
+        #: 300s after `leg_park`, and an approval collected after that cannot
+        #: be executed. 120s (the default) gave a human less than half the
+        #: window the chain allows, against measured live approvals of 84s and
+        #: 49s. 270s leaves margin to sign and execute inside the 300.
+        token = device_flow_token(
+            flow, asked=(ORB,), opened_at=opened, timeout_s=60.0 if fake else 270.0
+        )
         if token is None:
             return
 
@@ -1119,12 +1179,12 @@ def main() -> int:
     opening = leg_agent_holds_nothing(rig, "before anything")
     leg_in_policy(rig)
 
-    #: `fake` runs the whole synthetic set AND the HTTP leg, so the default
-    #: stays fast and socket-free while `fake` is the one that proves
-    #: worldflow.py. `live` runs the same HTTP leg against World.
-    if WORLD == "live":
-        leg_device_flow(rig, fake=False)
-    else:
+    #: `fake` and `live` both run the whole synthetic set AND the HTTP leg.
+    #: The default stays fast and socket-free. `live` used to take an
+    #: either/or branch here, which stranded legs 5-11: a live run lost deny,
+    #: expiry, the three refusals, the guest leg and the policy gate, and was a
+    #: WEAKER run than the default -- the opposite of what a recording wants.
+    if True:
         key = synth_keypair()
         t = time.time()
         parked = leg_park(rig, nonce=b"\x30" * 32, label="the one a human will clear")
@@ -1152,10 +1212,15 @@ def main() -> int:
         #: an injected validator, fast and socket-free; this one proves
         #: worldflow.py itself against a real socket. Running both means the
         #: default rehearsal never grows a port bind on the critical path.
-        if WORLD == "fake":
+        if WORLD in ("fake", "live"):
             t = time.time()
-            leg_device_flow(rig, fake=True)
-            timings.append(("a token fetched over HTTP from a local issuer", time.time() - t))
+            leg_device_flow(rig, fake=WORLD == "fake")
+            label = (
+                "a token fetched over HTTP from a local issuer"
+                if WORLD == "fake"
+                else "a token from World, approved by a person on a phone"
+            )
+            timings.append((label, time.time() - t))
 
     closing = leg_agent_holds_nothing(rig, "after everything")
     if opening == closing == 0:
