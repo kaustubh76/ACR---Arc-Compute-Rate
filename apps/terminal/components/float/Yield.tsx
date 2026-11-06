@@ -2,8 +2,11 @@
 
 import { Ed } from "@/components/Ed";
 import { TickerNumber } from "@/components/TickerNumber";
+import { addrUrl } from "@/lib/chain";
+import { CHAINS } from "@/lib/chainChoice";
 import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
+import { useChain } from "@/lib/useChain";
 import { useFloatYield } from "@/lib/useLive";
 
 /* What the idle float earned, and the sleeve that is not live.
@@ -64,6 +67,27 @@ function Row({
   );
 }
 
+/** One gate, as the venue answers it for us.
+ *
+ *  THREE STATES AND NOT TWO. `null` is a read that did not come back, and it
+ *  renders as "unread" rather than "closed": the collapse of a throttled read
+ *  into a refusal would print the most frightening sentence on the page out of
+ *  a rate limit. Four gates is four chances to do that. */
+function GateMark({ open }: { open: boolean | null }) {
+  if (open === null) {
+    return (
+      <span className="chip chip-sim">
+        <Ed x="unread" p="unread" />
+      </span>
+    );
+  }
+  return (
+    <span className={open ? "chip chip-teal" : "chip chip-breach"}>
+      {open ? <Ed x="open" p="open" /> : <Ed x="CLOSED" p="CLOSED" />}
+    </span>
+  );
+}
+
 export function Yield({ vault }: { vault: FloatVaultState }) {
   const { earned } = useFloatYield();
   const d = earned?.data ?? null;
@@ -76,6 +100,25 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
   /* `null` means read-and-not-live, which is the banner. `undefined` means not
      read, which is not a claim about the design. */
   const reserveOff = vault.reserve === null;
+
+  /* The explorer of the chain being SERVED, not the default. `CHAIN.explorer`
+     is mainnet's, and this panel only ever renders for the one chain the vault
+     is deployed to, so taking the default would hand a reader a link to the
+     wrong network's explorer for an address that does not exist there. */
+  const explorer = CHAINS[useChain()].profile.explorer;
+
+  const gates = d?.gates ?? null;
+  /* ORDER MATTERS IN THESE TWO. `shut` is checked before `unreadGate` so a
+     gate that genuinely answered "no" is never softened into "we could not
+     tell" by an unrelated read that failed beside it. A real refusal outranks
+     a missing one. */
+  const shut = gates ? Object.values(gates).some((g) => g === false) : false;
+  const unreadGate = gates ? Object.values(gates).some((g) => g === null) : false;
+
+  const pf = d?.performance_fee_pct;
+  const mf = d?.management_fee_pct_year;
+  const feeUnread = pf === null || mf === null;
+  const feeFree = !feeUnread && !pf && !mf;
 
   return (
     <section className="section anchor-target" id="earned">
@@ -148,7 +191,16 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
 
           <p className="label mono">
             <Ed x="earning in" p="earning in" />{" "}
-            <span className="num">{d?.venue ? shortAddr(d.venue) : "…"}</span>
+            {/* THE ONE ADDRESS ON THIS SURFACE THAT WAS NOT CHECKABLE. The
+                panel asserted a venue and gave a reader no way to go and look
+                at it, while every receipt in the tape deep-links. */}
+            {d?.venue ? (
+              <a className="tx-link" href={addrUrl(d.venue, explorer)} rel="noreferrer" target="_blank" title={d.venue}>
+                {shortAddr(d.venue)} <span className="ext">↗</span>
+              </a>
+            ) : (
+              <span className="num">…</span>
+            )}
             {" · "}
             <span className="num">{fmtInt(d?.parked_count ?? 0)}</span> <Ed x="deposits" p="deposits" />
             {" · "}
@@ -163,6 +215,97 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             x="Float adds no yield of its own: this is whatever the venue paid, counted from the sleeve's own deposits and withdrawals. Both roundings go against us, so it is the least that was earned rather than an estimate, and there is no annual rate here because eleven hours of a test network cannot support one."
             p="This is what the vault paid, not something we added. It is counted the careful way, so it is the least that was earned."
           />
+
+          {/* WHAT WE ARE TRUSTING, which is a different question from what we
+              earned and the one the panel could not answer. Everything above
+              is backward-looking and exact. None of it says whether the venue
+              would still let the money out, and the sleeve meter now animates
+              a pull out of this venue on demand. These four booleans are the
+              only thing on the page that checks that animation.
+
+              THE EXIT PAIR COMES FIRST, because it is the pair that can trap
+              us. Redeeming shares and receiving USDC back are what a pull
+              actually does; the way in only costs us the chance to deposit. */}
+          {gates ? (
+            <>
+              <div className="block-head">
+                <h3 className="label">
+                  <Ed x="What has to stay open for the money to come back" p="What has to stay open to get the money out" />
+                </h3>
+                <span className="label">
+                  {shut ? (
+                    <span className="chip chip-breach">
+                      <Ed x="a gate is closed" p="a door is shut" />
+                    </span>
+                  ) : unreadGate ? (
+                    <span className="chip chip-sim">
+                      <Ed x="makes no claim: a gate did not answer" p="we cannot say: one answer did not arrive" />
+                    </span>
+                  ) : (
+                    <span className="chip chip-teal">
+                      <Ed x="both directions open" p="both ways are open" />
+                    </span>
+                  )}
+                </span>
+              </div>
+              <p className="label">
+                <Ed x="our exit" p="getting it out" />{" "}
+                <GateMark open={gates.send_shares} /> <Ed x="redeem shares" p="cash in the receipt" />{" "}
+                <GateMark open={gates.receive_assets} /> <Ed x="take USDC back" p="take the money back" />
+              </p>
+              <p className="label">
+                <Ed x="our way in" p="putting it in" />{" "}
+                <GateMark open={gates.send_assets} /> <Ed x="send USDC" p="send the money" />{" "}
+                <GateMark open={gates.receive_shares} /> <Ed x="receive shares" p="get a receipt" />
+              </p>
+              <Ed
+                as="p"
+                className="muted"
+                style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
+                x="Asked of the venue as the venue answers it for this sleeve, not inferred from whether a gate contract is installed: a curator can add a gate that still admits us, and reading the address would report a change that is not one. A gate that did not answer stays unread rather than becoming a refusal."
+                p="We ask the vault directly whether it will still let this money move, rather than guessing from its settings."
+              />
+            </>
+          ) : null}
+
+          {/* AND WHAT IT COSTS US. The paragraph above says Float adds no yield
+              of its own, which was only ever half the sentence: the venue could
+              be taking a cut before we ever see a number. Both fees are `uint96`
+              and scaled differently, so the server annualises the management one
+              rather than leaving a per-second rate to be misread as a year. */}
+          {d?.performance_fee_pct === undefined && d?.management_fee_pct_year === undefined ? null : (
+            <p className="label mono">
+              {feeFree ? (
+                <span className="chip chip-teal">
+                  <Ed x="the venue takes no fee" p="the vault takes no cut" />
+                </span>
+              ) : feeUnread ? (
+                <span className="chip chip-sim">
+                  <Ed x="the fees could not be read" p="we could not read the fees" />
+                </span>
+              ) : (
+                <span className="chip chip-gold">
+                  <Ed x="a fee is on" p="it takes a cut" />
+                </span>
+              )}
+              {d?.performance_fee_pct ? (
+                <>
+                  {" · "}
+                  <span className="num">{d.performance_fee_pct.toFixed(2)}</span>
+                  {"% "}
+                  <Ed x="of interest" p="of what it earns" />
+                </>
+              ) : null}
+              {d?.management_fee_pct_year ? (
+                <>
+                  {" · "}
+                  <span className="num">{d.management_fee_pct_year.toFixed(2)}</span>
+                  {"% "}
+                  <Ed x="a year" p="a year" />
+                </>
+              ) : null}
+            </p>
+          )}
         </>
       )}
 

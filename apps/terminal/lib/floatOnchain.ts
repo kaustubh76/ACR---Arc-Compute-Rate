@@ -45,7 +45,7 @@ import { createPublicClient, decodeEventLog, formatUnits, http, keccak256, toHex
 import type { ChainKey } from "./chainChoice";
 import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
-import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI } from "./floatAbi";
+import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
 import { fairMatches, pickPay, pickPull, pickReceipt, verdictOf, type WalkLog } from "./floatWalk";
 import type {
   FloatAgentStanding,
@@ -72,6 +72,10 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 function floatChain(): ChainKey {
   return process.env.ACR_FLOAT_CHAIN === "mainnet" ? "mainnet" : "testnet";
 }
+
+/** Seconds in a year, the unit Morpho annualises a per-second WAD rate with.
+ *  Named because a bare 31536000 beside a fee reads as a timestamp. */
+const YEAR_S = 31_536_000;
 
 const RPC_GAP_MS = (() => {
   const raw = Number(process.env.ACR_FLOAT_RPC_GAP_MS);
@@ -792,6 +796,49 @@ export async function readYield(chain: ChainKey): Promise<FloatYield> {
     return { status: "pending", reason: value.busy ? stuck : "the sleeve would not value itself" };
   }
 
+  /* Round two and a half: what we are trusting in order to get the money back.
+     Eight cheap views on the venue, batched into one round because the client
+     collapses same-tick calls, and ahead of the walk rather than beside it so
+     they are not competing with eighty log pages for the same rate limit.
+
+     EVERY ONE KEEPS ITS THIRD OUTCOME. `one()` returns read-or-busy and the
+     booleans stay `null` when the chain did not answer, because the collapse
+     of a throttled read into `false` would put "the venue has closed our exit"
+     on screen on the strength of a rate limit. That is the one sentence here
+     worth being slow about. */
+  const trust = venue.ok
+    ? await (async () => {
+        const v = venue.value;
+        const gate = (fn: "canReceiveShares" | "canSendShares" | "canReceiveAssets" | "canSendAssets") =>
+          note(one<boolean>(() => c.readContract({ address: v, abi: VENUE_ABI, functionName: fn, args: [sleeveAddr.value] })));
+        const [rs, ss, ra, sa, pf, pfTo, mf, mfTo] = await Promise.all([
+          gate("canReceiveShares"),
+          gate("canSendShares"),
+          gate("canReceiveAssets"),
+          gate("canSendAssets"),
+          note(one<bigint>(() => c.readContract({ address: v, abi: VENUE_ABI, functionName: "performanceFee" }))),
+          note(one<Address>(() => c.readContract({ address: v, abi: VENUE_ABI, functionName: "performanceFeeRecipient" }))),
+          note(one<bigint>(() => c.readContract({ address: v, abi: VENUE_ABI, functionName: "managementFee" }))),
+          note(one<Address>(() => c.readContract({ address: v, abi: VENUE_ABI, functionName: "managementFeeRecipient" }))),
+        ]);
+        return {
+          gates: {
+            receive_shares: rs.ok ? rs.value : null,
+            send_shares: ss.ok ? ss.value : null,
+            receive_assets: ra.ok ? ra.value : null,
+            send_assets: sa.ok ? sa.value : null,
+          },
+          /* A WAD share of interest. */
+          performance_fee_pct: pf.ok ? (Number(pf.value) / 1e18) * 100 : null,
+          /* A WAD rate PER SECOND, so a year is the only unit it means
+             anything in. Morpho annualises with exactly this constant. */
+          management_fee_pct_year: mf.ok ? ((Number(mf.value) * YEAR_S) / 1e18) * 100 : null,
+          ...(pfTo.ok && pfTo.value.toLowerCase() !== ZERO ? { performance_fee_recipient: pfTo.value } : {}),
+          ...(mfTo.ok && mfTo.value.toLowerCase() !== ZERO ? { management_fee_recipient: mfTo.value } : {}),
+        };
+      })()
+    : null;
+
   /* Round three onwards: the sleeve's whole cash history. No `enough` cap —
      a basis missing its oldest deposits is worse than no basis, so this walk
      wants everything or admits it did not get it. */
@@ -823,6 +870,7 @@ export async function readYield(chain: ChainKey): Promise<FloatYield> {
     status: "ok",
     sleeve: sleeveAddr.value,
     ...(venue.ok ? { venue: venue.value } : {}),
+    ...(trust ?? {}),
     value_usdc: usdc6(value.value),
     principal_usdc: usdc6(principal),
     accrued_usdc: gain === null ? null : Number(gain) / 1e6,

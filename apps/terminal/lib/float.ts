@@ -361,6 +361,31 @@ export type FloatYield = {
   accrued_usdc?: number | null;
   parked_count?: number;
   pulled_count?: number;
+  /** Whether the venue still permits the four movements our money depends on.
+   *
+   *  `null` IS NOT READ AND MUST NEVER RENDER AS `false`. A throttled gate read
+   *  that collapsed to "no" is the alarming reading, invented out of a rate
+   *  limit: "the venue has closed our exit" is the single most frightening
+   *  sentence this panel could print, and it has to be earned. Four reads is
+   *  four chances to be throttled into it. */
+  gates?: {
+    /** our deposits */
+    receive_shares: boolean | null;
+    /** our redemptions. If this is closed, our money is trapped. */
+    send_shares: boolean | null;
+    /** our USDC coming back on exit. Closed traps the money too. */
+    receive_assets: boolean | null;
+    /** our USDC going in */
+    send_assets: boolean | null;
+  };
+  /** The share of interest the venue keeps, as a percentage. `null` is not
+   *  read, and is not the same as zero. */
+  performance_fee_pct?: number | null;
+  /** The management fee as a percentage A YEAR: the chain stores a per-second
+   *  WAD rate, annualised here so no surface has to remember to. */
+  management_fee_pct_year?: number | null;
+  performance_fee_recipient?: string;
+  management_fee_recipient?: string;
   /** The block span the events were read over, and whether it reached the
    *  sleeve's own beginning. */
   from_block?: number;

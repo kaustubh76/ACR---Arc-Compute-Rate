@@ -137,10 +137,10 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // together so there is no excuse for carrying slack in any of them.
   "app/float/view.tsx": 26, // four honest states, the hero, the money path's caption and the three doors
   "components/float/Ladder.tsx": 40, // twelve rung names in both registers, the controls, the presets, the fork and the model it prices
-  "components/float/VaultMeter.tsx": 16, // measured: three sleeve labels, the total, both banners, and the draw slider with its three outcomes
+  "components/float/VaultMeter.tsx": 18, // measured: three sleeve labels, the total, both banners, the draw slider with its three outcomes, and the venue share
   "components/float/MoneyPath.tsx": 13, // measured: the diagram's nouns are register-neutral by necessity, so the five-beat log and the caption carry it
   "components/float/Runway.tsx": 18, // three empty states, the slider, the stale and cheapest chips, the buffer gloss, and the per-row pick
-  "components/float/Yield.tsx": 18, // the floor note, the withheld-gain state, and the reserve that is not live
+  "components/float/Yield.tsx": 37, // measured: the floor note, the withheld-gain state, the reserve that is not live, the four venue gates in both directions, and the fees
   "components/float/Walk.tsx": 18, // four step titles in both registers, the four verdicts, and the no-log note
   "components/float/Tape.tsx": 19, // both outcomes, three badges, the empty state and the window it covers // the diagram's nouns are register-neutral by necessity; the caption carries it
   "app/float/join/view.tsx": 27, // measured: the eight named refusals each get their own sentence, plus the form and the issued card

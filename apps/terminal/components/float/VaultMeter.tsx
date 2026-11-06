@@ -103,6 +103,11 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
 
   const minTicket = vault.policy?.min_ticket_usdc ?? 0;
   const drawing = want > 0;
+  /* THE RULE BEHIND THE SECOND BAR, decoded from the policy tuple since the
+     vault was deployed and rendered nowhere. It is what decides how much free
+     float reaches the venue at all, which makes it the one policy number this
+     panel is actually about. */
+  const workingShareBps = vault.policy?.working_share_bps;
 
   return (
     <section className="section anchor-target" id="float">
@@ -204,6 +209,14 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
           </p>
         </>
       ) : null}
+
+      {workingShareBps === undefined ? null : (
+        <p className="label mono">
+          <Ed x="policy sends" p="the rules send" /> <span className="num">{(workingShareBps / 100).toFixed(0)}</span>
+          {"% "}
+          <Ed x="of free float to the venue to earn" p="of the spare money to the vault to earn" />
+        </p>
+      )}
 
       {/* `null` is read-and-not-live, which is the banner the product needs.
           `undefined` is not-read, and drawing the banner for it would announce

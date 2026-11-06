@@ -170,6 +170,37 @@ export const SLEEVE_ABI = [
   },
 ] as const;
 
+/* THE VENUE ITSELF, and the two questions the yield panel could not ask.
+ *
+ * WHAT WE EARNED IS BACKWARD-LOOKING. `readYield` answers it exactly, from the
+ * sleeve's own events. It says nothing about what we are TRUSTING in order to
+ * get the money back, and the sleeve meter now animates a pull out of this
+ * venue on demand — so the one thing that would check that animation is
+ * whether the venue still permits the movement.
+ *
+ * THE `can*` FORM, NOT `gate == address(0)`. A curator can install a gate that
+ * still admits us, which changes nothing we depend on; reading the gate
+ * ADDRESS would report a change that is not one, and reading it as a boolean
+ * asks the only question that matters. Signatures lifted from
+ * `float/app/venue.html`, which is pinned against the live vault by the
+ * acceptance suite.
+ *
+ * THE FEES ARE `uint96` AND SCALED DIFFERENTLY FROM EACH OTHER. The
+ * performance fee is a WAD share of interest; the management fee is a WAD rate
+ * PER SECOND, so it only means anything multiplied by a year. Mixing them up
+ * renders a 2% annual fee as 0.0000000634%, which is a reassuring number and
+ * the wrong one. */
+export const VENUE_ABI = [
+  { type: "function", name: "canReceiveShares", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canSendShares", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canReceiveAssets", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "canSendAssets", inputs: [{ type: "address" }], outputs: [{ type: "bool" }], stateMutability: "view" },
+  { type: "function", name: "performanceFee", inputs: [], outputs: [{ type: "uint96" }], stateMutability: "view" },
+  { type: "function", name: "performanceFeeRecipient", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+  { type: "function", name: "managementFee", inputs: [], outputs: [{ type: "uint96" }], stateMutability: "view" },
+  { type: "function", name: "managementFeeRecipient", inputs: [], outputs: [{ type: "address" }], stateMutability: "view" },
+] as const;
+
 export const ERC20_ABI = [
   { type: "function", name: "balanceOf", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
   /* The transfer that paid the seller. Matched on `to` and never on position

@@ -3,10 +3,12 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 
 import { Ed } from "@/components/Ed";
+import { CHAINS } from "@/lib/chainChoice";
 import { TxLink } from "@/components/chain/TxLink";
 import type { FloatTapeRow } from "@/lib/float";
 import { fmtInt, fmtPrice } from "@/lib/format";
 import { Walk } from "@/components/float/Walk";
+import { useChain } from "@/lib/useChain";
 import { useFloatTape } from "@/lib/useLive";
 
 /* Every payment and every refusal, side by side.
@@ -36,6 +38,9 @@ function premium(row: FloatTapeRow): string {
   return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
 }
 
+/* One tape row. `useChain` rather than a prop threaded from `Tape`: the row is
+   already a client component and the read is a context plus an external store,
+   which is cheaper than another prop on a list this shape. */
 function Row({
   r,
   open,
@@ -47,6 +52,7 @@ function Row({
   onToggle: () => void;
   fresh: boolean;
 }) {
+  const explorer = CHAINS[useChain()].profile.explorer;
   const paid = r.kind === "paid";
   /* ONLY A PAYMENT CAN BE WALKED. A refusal moved no money, so there is no
      pull, no transfer and no order to show; `walk.html` refuses one by name
@@ -114,7 +120,14 @@ function Row({
           )}
         </td>
         <td className="mono">
-          <TxLink txRef={r.tx} />
+          {/* THE EXPLORER OF THE CHAIN BEING SERVED. `TxLink` defaults to
+              `CHAIN.explorer`, which is MAINNET's, while this vault is
+              deployed to one chain and the tape only ever renders there. Every
+              receipt was therefore deep-linking a testnet hash into a mainnet
+              explorer, where it does not exist: a judge clicking the proof got
+              nothing. The default is right for the rest of the terminal and
+              wrong for exactly this panel. */}
+          <TxLink explorer={explorer} txRef={r.tx} />
         </td>
       </tr>
       {canOpen && open ? (
