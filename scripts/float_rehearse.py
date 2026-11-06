@@ -3,6 +3,7 @@
 
     make rehearse-float                       # synthetic human, strict
     make rehearse-float ARGS=--report         # report instead of gating
+    REHEARSE_WORLD=fake make rehearse-float   # + the device flow, over a real socket
     REHEARSE_WORLD=live make rehearse-float   # the real issuer, and a real phone
 
 WHY THIS IS NOT `test_floatgate_onchain.py`. That suite proves each rung
@@ -26,9 +27,20 @@ JWKS as a callable, so the default mode mints a genuine RS256 id token with a
 locally generated key and hands the matching public JWK to the same nine-rung
 ladder a live token goes through -- signature, issuer, audience, expiry,
 assurance class, auth_time window and the enrolled-treasurer check all run for
-real. What is synthetic is the ISSUER, not the validation. `REHEARSE_WORLD=live`
-swaps in the device flow and a phone and leaves every other line alone, so the
-rehearsal and the recording are the same script.
+real. What is synthetic is the ISSUER, not the validation.
+
+AND THE DEFAULT MODE NEVER REACHES `worldflow.py`, which is worth admitting
+because it was invisible for weeks: the default builds `IdTokenValidator`
+directly with `jwks=lambda: [jwk_of(key)]`, so discovery, the essential-`acr`
+claims parameter, the device grant and the poll table were exercised nowhere
+but a unit test that stubs the transport and serves a JWKS with no modulus.
+`REHEARSE_WORLD=fake` adds leg 5D, which stands up a local OIDC issuer on an
+ephemeral port and obtains the token OVER HTTP -- real discovery, real poll
+table, real JWKS fetch, and a payment released by a token nothing here minted.
+It is additive on purpose: the default stays fast and socket-free, because a
+port bind on the critical path before filming is a new way to fail.
+`REHEARSE_WORLD=live` runs that identical leg against World, so the day a
+client lands nothing in here changes.
 
 THE RIG IS DEPLOYED FRESH, and deliberately mirrors the suite's. It is not the
 peer's `float-local` stack: that hardcodes port 8545, and this must not fight
@@ -764,7 +776,7 @@ def leg_guest(rig) -> None:
     issued = gate.claim({**proof, "nonce": "nonce-one"})
     if bytes.fromhex(issued["agent_id"][2:]) != aid:
         bad(f"the server issued against {issued['agent_id'][:18]}…, not the derived id")
-    ok(f"the server's agent id matches the one derived here, independently")
+    ok("the server's agent id matches the one derived here, independently")
     ok(f"what came back to the browser names the human only as {issued['human']!r}")
     after = c.agent_of(aid)
     out = {"tx": issued["tx"]}
@@ -942,26 +954,141 @@ def leg_policy_gate(rig, key) -> None:
 # --- the live issuer --------------------------------------------------------
 
 
-def leg_live_device_flow(rig) -> None:
-    """The same legs, but the human is real and holding a phone.
+def device_flow_token(flow, *, asked, opened_at: float, timeout_s: float = 120.0):
+    """Walk the real poll table until a token, a refusal, or the deadline.
 
-    Everything above runs identically; only the token's provenance changes. If
-    this refuses, the reason is the thing to read out loud -- `access_denied`
-    here means refused, assurance unmet, or a different human, and the provider
-    cannot tell us which.
+    The caller owns the clock, `worldflow` owns the interpretation, and
+    `slow_down` widens EVERY later interval rather than only the next one --
+    which is the one piece of the table a stub test cannot really demonstrate.
     """
-    step("5L · the LIVE issuer — a real human, a real phone")
-    from index_api.worldflow import DeviceFlow  # noqa: F401
+    from index_api.worldflow import widen
 
-    iss = os.environ.get("ACR_WORLD_OIDC_ISSUER", "")
-    cid = os.environ.get("ACR_WORLD_OIDC_CLIENT_ID", "")
-    if not iss or not cid:
-        bad("REHEARSE_WORLD=live but ACR_WORLD_OIDC_ISSUER/CLIENT_ID are unset -- nothing to ask")
-        return
-    note(f"issuer {iss} · client {cid[:8]}…")
-    note("run `make world-probe` first: it answers whether this issuer will")
-    note("issue to this account at a class we accept, in about 20 seconds.")
-    bad("the live leg is driven by `make world-probe` / `make world-enroll`, not from here")
+    started = flow.start(asked)
+    ok(f"device grant · code {started.user_code} · poll every {started.interval}s")
+    note(f"open {started.verification_uri}")
+    interval, deadline, polls = started.interval, opened_at + timeout_s, 0
+    while time.time() < deadline:
+        polled = flow.poll_once(started.device_code)
+        polls += 1
+        if polled.kind == "token":
+            ok(f"a token came back after {polls} polls, {time.time() - opened_at:.1f}s")
+            return polled.id_token
+        if polled.kind == "stop":
+            bad(f"the attempt ended: {polled.reason}")
+            return None
+        interval = widen(interval, polled)
+        note(f"… {polled.reason} (waiting {interval}s)")
+        time.sleep(interval)
+    bad("nothing was approved before the deadline")
+    return None
+
+
+def leg_device_flow(rig, *, fake: bool) -> None:
+    """The whole journey with the token fetched OVER HTTP, not injected.
+
+    WHY THIS LEG EXISTS, and it is the gap it closes rather than the money it
+    moves. Every other leg builds `IdTokenValidator` directly with
+    `jwks=lambda: [jwk_of(key)]`, so `worldflow.py` -- discovery and its issuer
+    check, the essential-`acr` claims parameter, the device grant, the poll
+    table -- had no end-to-end witness anywhere: the rehearsal skipped it and
+    the tests stubbed the transport with a JWKS carrying no modulus. This leg
+    runs that file for real, against a real socket.
+
+    `fake=True` stands up a local issuer and needs no credential.
+    `fake=False` is the identical code against World, so the day a client lands
+    nothing here has to change.
+    """
+    from index_api.worldauth import IdTokenValidator
+    from index_api.worldflow import DeviceFlow
+
+    step("5D · the token arrives over HTTP, from an issuer, not from a helper")
+
+    if fake:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from fake_agent_pass import serve
+
+        ctx = serve(pending_polls=1, quiet=True)
+    else:
+        iss = os.environ.get("ACR_WORLD_OIDC_ISSUER", "")
+        cid = os.environ.get("ACR_WORLD_OIDC_CLIENT_ID", "")
+        sec = os.environ.get("ACR_WORLD_OIDC_CLIENT_SECRET", "")
+        if not (iss and cid and sec):
+            bad("REHEARSE_WORLD=live needs ACR_WORLD_OIDC_{ISSUER,CLIENT_ID,CLIENT_SECRET}")
+            return
+        from contextlib import nullcontext
+
+        ctx = nullcontext(
+            type("Live", (), {"issuer": iss, "cid": cid, "sec": sec, "sub": None, "requests": []})()
+        )
+
+    with ctx as issuer:
+        cid = getattr(issuer, "cid", "fake-agent-pass-client")
+        sec = getattr(issuer, "sec", "fake-agent-pass-secret")
+        if fake:
+            note(f"a LOCAL fake issuer at {issuer.issuer} — not World, and it will say yes")
+        flow = DeviceFlow(issuer=issuer.issuer, client_id=cid, client_secret=sec)
+
+        try:
+            advertised = flow.supported_acr()
+        except Exception as exc:  # noqa: BLE001
+            bad(f"discovery did not answer: {exc}")
+            return
+        #: `unadvertised_assurance()` fails OPEN on any discovery exception, so
+        #: an empty list here would look like agreement. Say so instead.
+        if not advertised:
+            bad("discovery advertised no assurance classes, so nothing can be required")
+            return
+        ok(f"discovery · issuer matches · advertises {[a.rsplit('/', 1)[-1] for a in advertised]}")
+        if ORB not in advertised:
+            bad(f"this issuer does not advertise {ORB}")
+            return
+
+        parked = leg_park(rig, nonce=b"\x5d" * 32, label="the one an HTTP token will clear")
+        if not parked:
+            return
+        opened = time.time()
+        token = device_flow_token(flow, asked=(ORB,), opened_at=opened)
+        if token is None:
+            return
+
+        c = rig["client"]
+        verdict = IdTokenValidator(
+            issuer=issuer.issuer,
+            audience=cid,
+            accepted_acr=[ORB],
+            #: The REAL fetch, over the wire, from the issuer's own jwks_uri --
+            #: not a lambda closing over a key we happen to hold.
+            jwks=flow.jwks,
+            treasurer=(issuer.issuer, issuer.sub) if getattr(issuer, "sub", None) else None,
+        ).check(token, opened_at=opened)
+        if verdict.refused:
+            bad(f"the token was refused: {verdict.reason}")
+            return
+        ok(
+            f"nine rungs passed on a token nobody here minted · "
+            f"acr {verdict.claims.acr.rsplit('/', 1)[-1]} · amr {list(verdict.claims.amr)}"
+        )
+
+        cp = c.checkpoint_of(parked["id"])
+        v, r, sg = c.sign_approval(
+            cp_id=parked["id"],
+            req_hash=c.req_hash(parked["req"]),
+            expires_at=cp.expires_at,
+            signer=rig["approver"],
+        )
+        before = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+        out = c.execute_approved(cp_id=parked["id"], req=parked["req"], v=v, r=r, s=sg)
+        after = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+        if after - before == parked["req"].quote_total:
+            ok(f"seller {usdc(before)} -> {usdc(after)} · tx {out['tx'][:18]}…")
+            ok("a payment released by a token that came over the wire")
+        else:
+            bad(f"seller moved {usdc(after - before)}, expected {usdc(parked['req'].quote_total)}")
+        if c.checkpoint_of(parked["id"]).status == 1:
+            ok("checkpoint CONSUMED")
+        if fake:
+            ok(f"{len(issuer.requests)} HTTP requests reached the issuer: "
+               f"{[q.split()[-1].rsplit('/', 1)[-1] for q in issuer.requests]}")
 
 
 # --- the verdict ------------------------------------------------------------
@@ -992,8 +1119,11 @@ def main() -> int:
     opening = leg_agent_holds_nothing(rig, "before anything")
     leg_in_policy(rig)
 
+    #: `fake` runs the whole synthetic set AND the HTTP leg, so the default
+    #: stays fast and socket-free while `fake` is the one that proves
+    #: worldflow.py. `live` runs the same HTTP leg against World.
     if WORLD == "live":
-        leg_live_device_flow(rig)
+        leg_device_flow(rig, fake=False)
     else:
         key = synth_keypair()
         t = time.time()
@@ -1018,6 +1148,14 @@ def main() -> int:
         t = time.time()
         leg_policy_gate(rig, key)
         timings.append(("change the rules, held to a stronger class", time.time() - t))
+        #: ADDITIVE, not a replacement. The legs above prove the mechanism with
+        #: an injected validator, fast and socket-free; this one proves
+        #: worldflow.py itself against a real socket. Running both means the
+        #: default rehearsal never grows a port bind on the critical path.
+        if WORLD == "fake":
+            t = time.time()
+            leg_device_flow(rig, fake=True)
+            timings.append(("a token fetched over HTTP from a local issuer", time.time() - t))
 
     closing = leg_agent_holds_nothing(rig, "after everything")
     if opening == closing == 0:

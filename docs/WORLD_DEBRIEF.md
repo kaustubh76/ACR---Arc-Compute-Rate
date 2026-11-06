@@ -55,12 +55,30 @@ journey against a real vault on a local chain and times each leg:
 | three refusals that are not the human's fault | under 0.1 s |
 | a visitor joins and is issued a guest budget | 0.3 s |
 | change the rules, held to a stronger class than the payment was | 0.5 s |
+| the whole device flow against a **local** issuer, token fetched over HTTP | 5.9 s |
 
 One run, on a local chain. The per-leg figures move by a few hundred
 milliseconds between runs, so they are worth reading as orders of magnitude
 rather than constants, and that is the whole point of them: nothing on our side
 is close to the seconds a person spends reaching for a phone. The guest row is
 our half only, because the proof it carries comes from a local stand-in.
+
+**The last row is the one that needs its boundary stated.** `REHEARSE_WORLD=fake`
+stands up an OIDC issuer on an ephemeral local port and runs the real device
+flow against it: discovery and its issuer check, the essential-`acr` claims
+parameter, the device grant, the poll table including an
+`authorization_pending`, a JWKS fetched over the wire, the nine rungs, and a
+payment released on chain by a token nothing local minted. **5.0 of those 5.9
+seconds are the protocol's own five-second minimum poll interval**, which is the
+useful part of the measurement: our share of it is under a second, and the floor
+is the spec's.
+
+It is there because the default rehearsal never reached `worldflow.py` at all --
+it injects a validator -- so the most protocol-heavy file in this integration
+had no end-to-end witness. It now has one. **It is not evidence about World.** A
+local issuer answers yes because it was written to; what is proven is the code
+between our configuration and a token, not that the token means a person. The
+three rows above stay pending for exactly that reason.
 
 Those numbers are the *mechanism*, not the provider: the token in that run is
 one we mint ourselves and validate through the same nine-rung ladder, so what
@@ -192,3 +210,6 @@ and application policy without requiring a person for every test."*
 | The guest path's eight named refusals, the v4→v2 fallback, and a nullifier that reaches neither a log nor a response | `services/index_api/tests/test_floatguest.py` |
 | The SDK→wire rename the widget depends on, pinned at both ends | `apps/terminal/lib/rpContext.test.ts` |
 | A visitor joins, is issued a budget, and is then refused by all three uniqueness layers | `make rehearse-float` leg 10 |
+| The device flow over a real socket: discovery, the claims parameter, the poll table, a JWKS fetch, and the nine rungs on a token we did not mint | `tests/test_fake_agent_pass.py` |
+| An unadvertised essential `acr` and a human refusing produce the **same** code, asserted as one string | same file |
+| A mismatched JWKS and a non-enrolled subject each refuse by name | same file |

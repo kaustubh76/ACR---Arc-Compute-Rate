@@ -57,8 +57,12 @@ def _missing(s) -> list[str]:
     ]
 
 
-def _run(*, enroll: bool, kind: str, timeout_s: float) -> int:
-    s = get_settings()
+def _run(*, enroll: bool, kind: str, timeout_s: float, settings=None, fake: bool = False) -> int:
+    #: `settings` is how `--fake` points this at a local issuer WITHOUT
+    #: mutating the environment: `get_settings()` is a process-wide singleton,
+    #: so setting env vars here would leak into anything else in the process
+    #: and the override would depend on import order.
+    s = settings if settings is not None else get_settings()
 
     gaps = _missing(s)
     if gaps:
@@ -188,6 +192,20 @@ def _run(*, enroll: bool, kind: str, timeout_s: float) -> int:
     print(f"      iss  {c.iss}")
     print(f"      sub  {c.sub}")
     print(f"      treasurerBinding  {binding}")
+    if fake:
+        #: THE ONE THING --fake MUST NOT HAND OVER. `treasurerBinding` hashes
+        #: the ISSUER STRING, `setTreasurerBinding` accepts a value exactly
+        #: once from zero, and this issuer is `http://127.0.0.1:<an ephemeral
+        #: port>`. Sending the value above would permanently bind a public vault
+        #: to a socket that no longer exists -- not a bug you patch, a vault you
+        #: redeploy, and the one-shot `wire()` is spent too. So the binding is
+        #: computed (which is what proves this code path) and then withheld.
+        print("\n  NOT FOR THE CHAIN. This binding hashes a localhost issuer on an")
+        print("  ephemeral port. `setTreasurerBinding` takes a value ONCE from zero,")
+        print("  so sending this one would strand the vault on an issuer that will")
+        print("  not exist in a minute. The real value comes from a real client.")
+        print("\nworld-enroll --fake: the enrollment path works. Nothing to send.")
+        return 0
     print("\n  Add to .env, so every later approval is held to this person:")
     print(f"    ACR_WORLD_TREASURER_ISS={c.iss}")
     print(f"    ACR_WORLD_TREASURER_SUB={c.sub}")
@@ -209,8 +227,64 @@ def main() -> int:
         help="which assurance list to ask for (policy is the stronger one)",
     )
     ap.add_argument("--timeout", type=float, default=300.0, help="seconds to wait for a human")
+    ap.add_argument(
+        "--fake",
+        action="store_true",
+        help="run against a LOCAL fake issuer instead of World (no credentials needed)",
+    )
+    ap.add_argument(
+        "--fake-denies",
+        action="store_true",
+        help="with --fake, the issuer refuses, so the deny path can be seen",
+    )
     a = ap.parse_args()
-    return _run(enroll=a.command == "enroll", kind=a.kind, timeout_s=a.timeout)
+
+    if not a.fake:
+        return _run(enroll=a.command == "enroll", kind=a.kind, timeout_s=a.timeout)
+
+    #: WHY THIS MODE EXISTS. Everything below the device grant -- discovery
+    #: validation, the essential-`acr` claims parameter, the poll table, the
+    #: nine rungs -- had no end-to-end witness: the rehearsal injects a
+    #: validator and skips `worldflow` entirely, and the tests stub the
+    #: transport. So the one command an operator runs first had never been run
+    #: successfully by anyone. This runs the SAME `_run` against a local
+    #: issuer, so what is exercised is the shipping path and the only synthetic
+    #: thing is who answers.
+    #: Same cwd-relative convention as the `services/index_api` insert above:
+    #: both make targets run from the repo root.
+    sys.path.insert(0, "scripts")
+    from fake_agent_pass import serve
+
+    print("=" * 72)
+    print("  --fake: this is NOT World. A local issuer answers, and it will say yes.")
+    print("  It proves this command works. It proves nothing about World's issuer,")
+    print("  so it can never fill the debrief's live timing rows.")
+    print("=" * 72)
+    with serve(pending_polls=1, deny=a.fake_denies) as fake:
+        s = get_settings().model_copy(
+            update={
+                "world_oidc_issuer": fake.issuer,
+                "world_oidc_client_id": "fake-agent-pass-client",
+                "world_oidc_client_secret": "fake-agent-pass-secret",
+                #: Enrolled to the fake's own subject, so the
+                #: `not_the_enrolled_treasurer` rung actually FIRES rather than
+                #: being skipped as it is when the pair is unset.
+                "world_treasurer_iss": fake.issuer,
+                "world_treasurer_sub": fake.sub,
+            }
+        )
+        rc = _run(
+            enroll=a.command == "enroll",
+            kind=a.kind,
+            timeout_s=a.timeout,
+            settings=s,
+            fake=True,
+        )
+        print()
+        print(f"  ·· {len(fake.requests)} HTTP requests reached the fake issuer:")
+        for r in fake.requests:
+            print(f"       {r}")
+    return rc
 
 
 if __name__ == "__main__":

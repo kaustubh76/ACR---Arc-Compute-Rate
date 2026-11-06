@@ -232,6 +232,21 @@ than a production one we cannot. Concretely:
   repo mints itself: a genuine RS256 ID token from a locally generated key, run
   through the same nine-rung ladder a live token goes through. **What is
   synthetic is the issuer, not the validation.**
+- **And the protocol itself now runs, not only the validation.**
+  `REHEARSE_WORLD=fake make rehearse-float` stands up an OIDC issuer on a local
+  port and obtains the token **over HTTP**: discovery and its issuer check, the
+  essential-`acr` claims parameter as a `values` array, the device grant, the
+  poll table including an `authorization_pending`, a JWKS fetched from the
+  advertised `jwks_uri`, the nine rungs, and a payment released on chain by a
+  token nothing local minted. We added it because the honest answer to "is the
+  device flow tested" was no: the rehearsal injected a validator and the unit
+  tests stub the transport with a JWKS that has no modulus, so the most
+  protocol-heavy file in this entry had no end-to-end witness. It has one now
+  (`tests/test_fake_agent_pass.py`), and the same leg runs against World
+  unchanged the day a client exists.
+  **This is not evidence about World.** A local issuer says yes because it was
+  written to. It proves the code between our configuration and a token, which is
+  the part that is ours to get right.
 - What a live client adds is the device flow's own leg — a user code on a phone,
   a real `sub`, a real `auth_time` — and the **two** device-flow timing rows
   still marked *pending the live run* in the debrief. `make world-probe`

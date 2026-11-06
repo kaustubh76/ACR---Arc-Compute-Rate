@@ -146,6 +146,40 @@ reverts, which looks like a broken vault rather than a wrong method name.
 transactions) but it makes the approver the owner key, and the vault refuses an
 approver that is also an executor — so the executor must stay distinct.
 
+## Proving the Agent Pass probe before a credential exists
+
+`make world-probe` is the first command you will run when the sandbox client
+lands, and until now **nobody had ever run it successfully** — there was no way
+to, so a typo in it would have surfaced at the portal with the clock running.
+There is now:
+
+```bash
+make world-probe ARGS=--fake              # a local issuer answers; ~10s
+make world-probe ARGS="--fake --kind policy"   # the stronger class, orb-face
+make world-probe ARGS="--fake --fake-denies"   # the refusal path
+```
+
+It runs the **same** `_run()` the real command does — discovery and its issuer
+check, the essential-`acr` claims parameter, the device grant, the poll table,
+the nine rungs, and the printed `acr`/`amr`/`auth_time`/elapsed. Only who
+answers is synthetic. A successful `--fake` run means the only thing left
+untested is World's issuer, which is the irreducible part.
+
+The same issuer drives the rehearsal's leg 5D:
+
+```bash
+REHEARSE_WORLD=fake make rehearse-float   # 97 checks; the default is 80
+```
+
+That one parks a real out-of-policy payment, fetches a token over HTTP, clears
+the nine rungs on it and releases the money on chain. **Keep the default mode
+for filming**: it is socket-free and a port bind on the critical path is a new
+way to fail.
+
+**It is not evidence about World, and the documents say so.** Never let a
+`--fake` number reach the debrief's three *pending the live run* rows; those
+measure World's own issuance and this does not.
+
 ## Checking the IDKit credentials the moment they arrive
 
 There is no separate probe for this and none is needed: the context route
