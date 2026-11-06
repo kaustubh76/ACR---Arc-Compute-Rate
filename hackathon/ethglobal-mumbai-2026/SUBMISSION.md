@@ -121,7 +121,10 @@ ETHGlobal cautioning against entirely-AI work is named there rather than avoided
 
 - **Arc Studio project URL**: https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557
   *(note: this requires a Circle login — see below)*
-- **Public dashboard URL**: _pending_
+- **Public dashboard URL**: _pending_ — but you do not need it to see the pages.
+  All three are in the repo at `float/app/{index,walk,venue}.html`, each a single
+  file with no build step and no server: open one in a browser and it reads Arc
+  Testnet live. The hosted mirror is the subject of the known gap below.
 - **GitHub**: https://github.com/kaustubh76/ACR---Arc-Compute-Rate
 - **Architecture diagram**: `docs/assets/acr_float.preview.svg`
 - **Video (2–4 min, 720p+, human narration)**: _pending_
