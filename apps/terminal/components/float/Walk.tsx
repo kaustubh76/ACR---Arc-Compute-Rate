@@ -139,7 +139,7 @@ export function Walk({ tx }: { tx: string }) {
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-        x="Step one has no log: reading the price feed is a staticcall inside the transaction and staticcalls emit nothing. What proves it is stronger, because the receipt names the exact print it was checked against, so the payment commits to its own price."
+        x="Step one has no log, because a staticcall emits nothing. The receipt names the print it was checked against, so the payment commits to its own price."
         p="Step one leaves no record, because looking up a price does not. What is stronger: the receipt names the exact rate it used."
       />
     </>

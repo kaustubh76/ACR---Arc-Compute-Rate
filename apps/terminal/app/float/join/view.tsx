@@ -73,7 +73,7 @@ function Refusal({ reason, detail }: { reason: GuestReason | null; detail: strin
         <Ed
           as="p"
           className="standfirst"
-          x="The proof was minted for a different World environment. A staging credential must not buy anything real, so this is refused before anything is asked of the chain."
+          x="The proof was minted for a different World environment, so it is refused before anything is asked of the chain."
           p="That proof came from a test setup, so it cannot be used here."
         />
       ) : null}
@@ -245,7 +245,7 @@ export function FloatJoinView() {
         <Ed
           as="p"
           className="standfirst"
-          x="An agent here holds no money of its own. Prove once that you are a person and a small daily allowance opens in your name, revocable, enforced against the chain rather than against a list we keep. The wallet you give is where it spends from."
+          x="An agent here holds no money of its own. Prove once that you are a person and a small daily allowance opens in your name, revocable and enforced on chain."
           p="Prove once that you are a real person, and a small daily allowance opens in your name. The wallet you give is where it spends from."
         />
       </div>
@@ -314,7 +314,7 @@ export function FloatJoinView() {
           <Ed
             as="p"
             className="muted"
-            x="The uniqueness check this page was built on has been retired by the provider, so this door is closed rather than merely unconfigured. A button that could only fail would be worse than saying so."
+            x="The provider retired the uniqueness check this page was built on, so the door is closed rather than unconfigured. A button that could only fail is worse."
             p="The check this page used was retired by the provider, so there is no button to press."
           />
           {/* A stood-down panel that only says "no" is a dead end. This names
@@ -323,7 +323,7 @@ export function FloatJoinView() {
           <Ed
             as="p"
             className="muted"
-            x="A verified person can still open one, by the same identity that approves a parked payment: scripts/world_id.py guest runs the device flow and registers the budget on chain, one per human, with the identifier never leaving our side."
+            x="A verified person can still open one by the identity that approves a parked payment: one budget per human, and the identifier never leaves our side."
             p="A verified person can still open a budget. The command scripts/world_id.py guest does it on chain."
           />
           {/* Kept, because it IS the literal reason the route stood down and an

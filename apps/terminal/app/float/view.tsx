@@ -72,7 +72,7 @@ export function FloatView() {
         <Ed
           as="p"
           className="standfirst"
-          x="Give an agent a wallet and its worst case is the balance. Give it a limit and its worst case is the limit. Neither asks what an overcharge actually fails, which is whether the price is fair. This treasury asks that, in public, before it pays."
+          x="Give an agent a wallet and its worst case is the balance; give it a limit and its worst case is the limit. Neither asks whether the price is fair."
           p="A robot with a wallet can lose all of it. A robot with a limit can lose the limit. Neither asks the real question: is this price fair?"
         />
       </div>
@@ -112,7 +112,7 @@ export function FloatView() {
             as="p"
             className="muted"
             style={{ maxWidth: "var(--measure)" }}
-            x="An empty treasury and an unreadable one look the same on a screen and mean opposite things, so this page says nothing rather than show you a page of zeroes. It retries by itself."
+            x="An empty treasury and an unreadable one look the same and mean opposite things, so this page says nothing rather than zeroes. It retries by itself."
             p="We cannot read the chain, so we will not show you zeroes as if they were real. This page keeps trying."
           />
         </section>
@@ -134,7 +134,7 @@ export function FloatView() {
             as="p"
             className="muted"
             style={{ maxWidth: "var(--measure)" }}
-            x="The treasury is deployed on one chain, and this is not the one selected. Switch the network in the strip above to read it. Nothing is wrong; there is simply no vault at this address on this network, and inventing one would be worse than saying so."
+            x="The treasury is on one chain and this is not it. Nothing is wrong; inventing a vault here would be worse than saying so."
             p="This treasury lives on one network, and you are on the other one. Switch the network above to see it."
           />
           {data?.switch_to ? (

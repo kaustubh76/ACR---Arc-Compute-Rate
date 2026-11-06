@@ -207,7 +207,7 @@ export function Tape() {
           as="p"
           className="muted"
           style={{ maxWidth: "var(--measure)" }}
-          x="Nothing was paid or refused inside the window below. That is a fact about the window, not about the treasury, which is why the window is printed rather than left to be guessed at."
+          x="Nothing was paid or refused inside the window below. That is a fact about the window, not the treasury, which is why the window is printed."
           p="Nothing happened in the window below. That is about the window, not about the treasury."
         />
       ) : (

@@ -369,7 +369,7 @@ export function WhoTouches({ vault }: { vault: FloatVaultState }) {
           as="p"
           className="muted"
           style={{ fontSize: "var(--t-4)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-          x="No person is pinned to this treasury yet, so the approver row is a key rather than a human. Binding one is a single owner transaction and it cannot be undone or re-aimed."
+          x="No person is pinned yet, so the approver row is a key. Binding one is a single owner transaction and cannot be undone."
           p="No person is tied to this account yet, so approvals are a key, not a human. Setting one is permanent."
         />
       ) : null}

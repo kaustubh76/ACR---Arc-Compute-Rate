@@ -160,7 +160,7 @@ export function Runway({
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-        x="A treasury counted in dollars does not know what it can afford to do. These are the tokens this one could buy at each model's own on-chain price, which is the number an agent planning a long job actually needs."
+        x="A treasury counted in dollars does not know what it can afford to do. These are the tokens it buys at each model's own on-chain price."
         p="A pot of money does not tell you what you can do with it. This is how much work it buys at today's real prices."
       />
 
@@ -226,7 +226,7 @@ export function Runway({
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-            x="The slider is local. It recomputes what the treasury would buy if compute cost more or less, and changes nothing on chain and nothing about what is actually held."
+            x="The slider is local: it recomputes what the treasury would buy at another price, and changes nothing on chain."
             p="The slider only changes this page. It does not move any money or any real price."
           />
         </>

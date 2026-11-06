@@ -235,7 +235,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-            x="Float adds no yield of its own: this is whatever the venue paid, counted from the sleeve's own deposits and withdrawals. Both roundings go against us, so it is the least that was earned rather than an estimate, and there is no annual rate here because eleven hours of a test network cannot support one."
+            x="Float adds no yield of its own: whatever the venue paid, from the sleeve's own events, rounded against us. No annual rate; the window is too short."
             p="This is what the vault paid, not something we added. It is counted the careful way, so it is the least that was earned."
           />
 
@@ -285,7 +285,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
                 as="p"
                 className="muted"
                 style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-                x="Asked of the venue as the venue answers it for this sleeve, not inferred from whether a gate contract is installed: a curator can add a gate that still admits us, and reading the address would report a change that is not one. A gate that did not answer stays unread rather than becoming a refusal."
+                x="Asked of the venue as it answers for this sleeve, not inferred from whether a gate is installed. A gate that did not answer stays unread, never a refusal."
                 p="We ask the vault directly whether it will still let this money move, rather than guessing from its settings."
               />
             </>
@@ -343,7 +343,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-            x="The reserve sleeve was designed for a tokenized Treasury bill fund. It is deployed on this chain and we read it rather than taking the page's word: the token answers to its own name and six decimals, and a teller mints and redeems it against USDC. Three things have to be true before it earns anything, and only the last of them is Circle's."
+            x="The reserve sleeve was built for a tokenized Treasury bill fund, read here rather than asserted. Three things must be true before it earns; one is Circle's."
             p="The second pot was meant to hold Treasury bills. The fund is real. Three things must be true before it earns, and two are ours."
           />
           <p className="label mono">
@@ -500,7 +500,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             as="p"
             className="muted"
             style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-            x="The vault holds a zero address for it rather than a stand-in, which is the whole reason this panel can be believed: a mock yield venue would have printed a number here. The share is ours to move and the allowlist is not, so the queue at Circle is the last of the three rather than the only one."
+            x="The vault holds a zero address rather than a stand-in: a mock venue would have printed a number. The share is ours to move; the allowlist is not."
             p="The vault holds nothing there rather than a stand-in. A fake one would have shown a number here."
           />
         </>

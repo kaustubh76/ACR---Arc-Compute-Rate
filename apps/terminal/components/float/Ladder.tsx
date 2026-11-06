@@ -334,7 +334,7 @@ export function Ladder({
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-        x="Twelve checks run in a fixed order and the first one to fail answers. This asks the vault the same question a payment asks, as a read that moves no money, and prints the sentence it gives back."
+        x="Twelve checks in a fixed order; the first to fail answers. This asks the vault what a payment asks, and moves no money."
         p="The vault runs twelve checks in order. This asks it the same question a real payment asks, without spending anything."
       />
 
@@ -623,7 +623,7 @@ export function Ladder({
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-3)", marginTop: "var(--s-3)", maxWidth: "var(--measure)" }}
-        x="That sentence is the vault's own, returned by the same function a payment runs through, and it is the chain that chose the rung. An approval widens the band; it never removes it."
+        x="That sentence is the vault's own, and the chain chose the rung. An approval widens the band; it never removes it."
         p="That line comes from the vault itself, not from this page. A person can allow more than usual, but never an unpriced amount."
       />
     </section>

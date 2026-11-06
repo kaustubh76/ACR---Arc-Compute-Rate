@@ -313,7 +313,7 @@ export function MoneyPath({
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-        x="The treasury pays the seller, but only after it checks the asking price against the benchmark above it and recomputes the fair total from the chain's own print. The agent sends the instruction down the dashed line and holds nothing at either end, which is the one property this whole design exists to keep. Idle money earns underneath, and a payment short of the buffer pulls the exact shortfall up and pays in the same transaction."
+        x="The treasury pays, but only after checking the asking price against the benchmark. The agent instructs down the dashed line and holds nothing, at either end."
         p="The treasury checks the price is fair before it pays the shop. The robot only asks; it never holds the money. Spare money earns below."
       />
     </>

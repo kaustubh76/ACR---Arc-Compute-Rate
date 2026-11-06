@@ -278,7 +278,7 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
         as="p"
         className="muted"
         style={{ fontSize: "var(--t-4)", marginTop: "var(--s-4)", maxWidth: "var(--measure)" }}
-        x="Idle float sits in a real yield vault on this chain. The buffer is what is left for the next payment, and a payment larger than it pulls the exact shortfall back in the same transaction rather than waiting for a rebalance. Drag the draw above to watch that happen; it moves nothing on chain."
+        x="Idle float earns in a real vault; the buffer pays the next bill. Drag the draw to watch a shortfall return, in the same transaction and nothing on chain."
         p="Spare money earns in a real vault. What is left pays the next bill, and more is pulled back when one needs it. Drag the slider to see it."
       />
     </section>
