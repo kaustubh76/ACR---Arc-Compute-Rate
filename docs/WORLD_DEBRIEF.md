@@ -41,10 +41,10 @@ journey against a real vault on a local chain and times each leg:
 
 | leg, measured | elapsed |
 |---|---|
-| stand up a vault, wire three roles, seed a policy and fund it | 1.6 s |
-| park a payment, validate a human, release it to the seller | 0.3 s |
-| park and record a denial on chain | 0.3 s |
-| park and let the window close, recorded as expiry | 0.3 s |
+| stand up a vault, wire three roles, seed a policy and fund it | 2.0 s |
+| park a payment, validate a human, release it to the seller | 0.4 s |
+| park and record a denial on chain | 0.4 s |
+| park and let the window close, recorded as expiry | 0.4 s |
 | three refusals that are not the human's fault | under 0.1 s |
 | change the rules, held to a stronger class than the payment was | 0.5 s |
 

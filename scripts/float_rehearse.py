@@ -118,6 +118,27 @@ def note(msg: str) -> None:
     notes.append(msg)
 
 
+def events_of(contract, name: str, receipt) -> list:
+    """Every `name` event in THIS transaction's own logs.
+
+    THE TRANSACTION IS THE AUTHORITY, and for `requestSpend` nothing else can
+    be. It emits `Denied` and RETURNS rather than reverting -- our own design,
+    because the gate needs the reason -- so a refusal mines with status 1 and
+    anything reading `receipt.status` learns nothing from it. A pre-flight
+    `classify` cannot stand in either: the keeper can post a print between the
+    view and the write, and then the view is describing a chain state that has
+    already moved.
+
+    The peer hit this on the overnight tape, where a refused spend printed
+    "PAID receipt #null" for a cycle. A demo that reports success while moving
+    no money is worse than one that stops, because it reads as the product
+    working.
+    """
+    from web3.logs import DISCARD
+
+    return list(contract.events[name]().process_receipt(receipt, errors=DISCARD))
+
+
 def revert_reason(exc: Exception) -> str:
     """The vault's own sentence, out of web3's tuple-shaped error string.
 
@@ -397,11 +418,42 @@ def leg_in_policy(rig) -> None:
     #: `requestSpend` in the OUT of policy case, so the client has no method
     #: for this one, and inventing a surface to make a rehearsal tidier would
     #: be inventing a surface.
-    send(rig["w3"], rig["acct"]["executor"], rig["vault"].functions.requestSpend(req.as_tuple()))
+    v = rig["vault"]
+    sent = send(rig["w3"], rig["acct"]["executor"], v.functions.requestSpend(req.as_tuple()))
     after = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
+    moved = after - before
+
+    #: The RECEIPT decides this, not the status and not the `classify` above.
+    #: Judging it by either would print a green "moved 0.000000, no human
+    #: asked" over a refusal.
+    if denied := events_of(v, "Denied", sent):
+        d = denied[0]["args"]
+        bad(
+            f"the vault REFUSED this in-policy spend: {d['reason']!r} (code {d['code']}) "
+            f"\u00b7 quote {usdc(d['quote'])} against fair {usdc(d['fair'])}"
+        )
+        return
+    paid = events_of(v, "Receipt", sent)
+    if not paid:
+        bad("requestSpend emitted neither Receipt nor Denied, so nothing here is trustworthy")
+        return
+    got = paid[0]["args"]
     ok(
-        f"seller {usdc(before)} -> {usdc(after)} \u00b7 moved {usdc(after - before)}, no human asked"
+        f"Receipt #{got['id']} \u00b7 the vault's own record: quote {usdc(got['quote'])}, "
+        f"fair {usdc(got['fair'])}, premium {got['premiumBps']} bp"
     )
+    if got["humanApproved"]:
+        bad("the Receipt says a human approved this, but nobody was asked")
+        return
+    #: And the two sources have to agree. When they do not, the disagreement is
+    #: the finding -- that is the fingerprint of a print landing mid-tick.
+    if moved != req.quote_total:
+        bad(
+            f"a Receipt was emitted but the seller moved {usdc(moved)}, "
+            f"not the {usdc(req.quote_total)} it names"
+        )
+        return
+    ok(f"seller {usdc(before)} -> {usdc(after)} \u00b7 moved {usdc(moved)}, no human asked")
 
 
 def leg_park(rig, *, nonce: bytes, label: str, n: str = "4") -> dict:
@@ -416,6 +468,43 @@ def leg_park(rig, *, nonce: bytes, label: str, n: str = "4") -> dict:
     ok(
         f"quote {usdc(req.quote_total)} against a fair {usdc(fair)} · premium {(req.quote_total / fair - 1) * 100:.2f}%"
     )
+    #: Ask the VAULT and not only the view -- but on a THROWAWAY nonce, and
+    #: this is the whole subtlety of the escalation path. `requestSpend` burns
+    #: the nonce of anything it refuses (`FloatVault.sol:784`, every code except
+    #: D_PER_REQUEST) so a refused request cannot become payable later when a
+    #: cap rolls or a price moves. This one refuses with code 10, `quote
+    #: exceeds ACR fair band` -- NOT the per-request code -- so sending the
+    #: real request here would burn the nonce of the very request a human is
+    #: about to be asked to clear, and `executeApproved` would then revert
+    #: "replayed request" AFTER they approved it.
+    #:
+    #: Which is exactly why `floatgate.py:254` parks from `classify`, a view.
+    #: "Ask the authority, not the symptom" is the right rule for claiming a
+    #: payment HAPPENED; it is the wrong rule here, because the only way to ask
+    #: this authority is to spend the thing you are asking about. The chain
+    #: still has the last word -- `executeApproved` re-checks band, cap and
+    #: print -- so a stale view can never cause an overpayment, only a park
+    #: that did not need to happen.
+    v = rig["vault"]
+    probe = req_for(rig, quote=req.quote_total, nonce=bytes(b ^ 0xFF for b in nonce))
+    attempt = send(rig["w3"], rig["acct"]["executor"], v.functions.requestSpend(probe.as_tuple()))
+    if events_of(v, "Receipt", attempt):
+        bad("the vault PAID an out-of-policy quote, so there is nothing to park")
+        return {}
+    refusal = events_of(v, "Denied", attempt)
+    if not refusal:
+        bad("requestSpend neither paid nor denied, so the park below would prove nothing")
+        return {}
+    d = refusal[0]["args"]
+    ok(f"the vault itself refuses this shape: {d['reason']!r} (code {d['code']})")
+    if not v.functions.usedNonce(probe.nonce).call():
+        bad("the refusal did not burn the probe's nonce, so it could become payable later")
+        return {}
+    ok("that refusal BURNED the probe's nonce, so it can never be paid later")
+    if v.functions.usedNonce(req.nonce).call():
+        bad("the request about to be parked has a burned nonce, so no human could clear it")
+        return {}
+    ok("the request being parked still holds its nonce, which is what a human will clear")
     parked = c.open_checkpoint(agent_id=req.agent_id, req_hash=c.req_hash(req), kind=1, ttl_s=TTL_S)
     cp = c.checkpoint_of(parked["id"])
     ok(f"checkpoint #{parked['id']} open on chain · tx {parked['tx'][:18]}…")
@@ -490,6 +579,8 @@ def leg_denied(rig, key) -> None:
     step("6 · DENIED — the human says no, and the refusal is on chain")
     c = rig["client"]
     parked = leg_park(rig, nonce=b"\x32" * 32, label="for the denial", n="6a")
+    if not parked:
+        return
     before = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
     #: What World actually returns when a human taps Deny -- and also when the
     #: essential assurance class is unmet, and also on a subject mismatch. One
@@ -513,6 +604,8 @@ def leg_expired(rig) -> None:
     step("7 · EXPIRED — nobody answered, so the money stays put")
     c, w3 = rig["client"], rig["w3"]
     parked = leg_park(rig, nonce=b"\x33" * 32, label="for the expiry", n="7a")
+    if not parked:
+        return
     before = rig["usdc"].functions.balanceOf(rig["acct"]["seller"].address).call()
     warp(w3, TTL_S + 60)
     ok(f"chain clock moved past the {TTL_S}s window (chain time, not ours)")
@@ -807,7 +900,8 @@ def main() -> int:
         key = synth_keypair()
         t = time.time()
         parked = leg_park(rig, nonce=b"\x30" * 32, label="the one a human will clear")
-        leg_approve(rig, parked, key)
+        if parked:
+            leg_approve(rig, parked, key)
         timings.append(("park, verify a human, release the payment", time.time() - t))
 
         t = time.time()
