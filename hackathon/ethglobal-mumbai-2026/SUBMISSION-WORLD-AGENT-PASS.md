@@ -137,11 +137,11 @@ Every claim is re-derivable by a command in the repo.
 
 | claim | how to check |
 |---|---|
-| 186 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
+| 187 tests across the World and gate suites | `uv run pytest services/index_api/tests/test_{worldauth,worldflow,floatgate,floatgate_onchain,floatguest,float_api}.py` |
 | Nine named refusals, and the prose cannot drift from them | `test_every_named_reason_is_reachable` |
 | `alg: none` and HS256-with-the-public-key are both refused | `test_an_unsigned_token_is_refused`, `test_a_token_signed_with_the_public_key_as_an_hmac_secret_is_refused` |
 | The signer refuses to broadcast a digest the vault disagrees with | `sign_approval` cross-checks `approvalDigest` and recovers the signature to our own key before sending |
-| Replay, re-aim, expiry and a fabricated id are refused **on chain** | `uv run pytest services/index_api/tests/test_floatgate_onchain.py` (20 tests, against a real vault on a local chain) |
+| Replay, re-aim, expiry and a fabricated id are refused **on chain** | `uv run pytest services/index_api/tests/test_floatgate_onchain.py` (21 tests, against a real vault on a local chain) |
 | A checkpoint opened for one agent cannot pay another | `test_a_real_checkpoint_executed_for_another_agent_is_refused` |
 | The whole journey, with its three unsuccessful paths | `make rehearse-float` |
 | The vault is deployed on a public chain | `eth_getCode` at `0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc` on `https://rpc.testnet.arc.io` returns 19,486 bytes (chain 5042002) |
@@ -167,6 +167,20 @@ Every claim is re-derivable by a command in the repo.
   containment claim honestly: the approver cannot invent a spend, but the
   executor can nullify an approval. Narrowing `resolveCheckpoint` to the
   checkpoint's own opener is the fix and it is not in this submission.
+- **The chain never requires a treasurer binding, so the human half of an
+  approval is enforced off chain.** `_consumeApproval` feeds `treasurerBinding`
+  into the digest whatever it holds, and guards only the *approver* against
+  zero — rightly, since `ecrecover` returns `address(0)` on a malformed
+  signature. But a binding of zero is itself a valid signature target that
+  identifies nobody, so on an unenrolled vault the approver's signature still
+  authorises the payment while attesting to no human at all. Nothing an
+  attacker reaches: it needs the approver's key, and the approver cannot invent
+  a request. What it means is that "a verified human cleared this" rests on
+  `vault_status()` refusing that state and the gate refusing to park into it,
+  not on the contract. Proved rather than asserted, on a vault deployed with no
+  binding, by `test_an_unset_binding_leaves_the_human_half_of_an_approval_vacuous`
+  — which also records the operational consequence: the public vault's binding
+  is zero until enrollment, so the order the two roles are set in matters.
 - **Neither issuer advertises a Selfie assurance class.** `acr_values_supported`
   is exactly `orb` and `orb-face` on both `auth.world.org` and
   `sandbox.auth.world.org`, measured. The step-up guide documents a `selfie`
@@ -200,9 +214,19 @@ Every claim is re-derivable by a command in the repo.
 
 ## Status of the live run, stated plainly
 
-The engine is complete and adversarially tested; what it has not yet had is a
-token from World's production issuer, because the Agent Pass client registration
-is an operator action that had not happened when this was written. Concretely:
+The engine is complete and adversarially tested. The live leg is configured
+against World's **sandbox** issuer, `sandbox.auth.world.org`, and that is a
+decision rather than a shortfall: the production portal does not open to a
+non-Orb developer account, and sandbox is the path World's own documentation
+prescribes for one.
+
+It is irreversible in a way worth stating plainly. The issuer string is hashed
+into `treasurerBinding`, and `setTreasurerBinding` accepts a value exactly once
+from zero, so the public vault becomes permanently a sandbox identity — the same
+human against the two issuers produces two unrelated bindings, and a production
+token could never clear a payment on that vault afterwards. We are setting it
+knowing that, because a sandbox credential we can actually obtain is worth more
+than a production one we cannot. Concretely:
 
 - Everything above marked with a command **runs today**, with a token this
   repo mints itself: a genuine RS256 ID token from a locally generated key, run

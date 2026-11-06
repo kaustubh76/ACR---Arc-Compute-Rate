@@ -175,7 +175,26 @@ authority, the eight refusals — is complete, tested and exercised end to end b
 carries it; what it still needs is configuration, and the widget's own types
 say that is **three** values from the Developer Portal rather than two:
 `app_id` (typed `app_${string}`), `rp_id` (inside the signed `rp_context`), and
-the signing key. Supplying it is an operator action. Our own
+the signing key. Supplying it is an operator action.
+
+Two are in hand and recorded in `.env.example`, because both are public — the
+`app_id` ships to the browser inside the widget, and the public key id only
+identifies which key pair is ours. Outstanding are the **private** signing key
+and the `rp_id`, which is a third distinct value rather than a restatement of
+either: `rp_` followed by hex that must fit a **uint64**, read off
+`@worldcoin/idkit-core@4.6.0`'s own normalizer rather than its README, so the
+64-hex public key id cannot be it.
+
+**One thing a judge will notice and should not have to guess at.** This IDKit app
+is a **production** app, while our Agent Pass client is on World's **sandbox**
+issuer. They are separate systems with separate credentials and the split is
+deliberate: Selfie Check needs no Orb, so the IDKit path is reachable on
+production, whereas the Agent Pass portal does not open to a non-Orb developer
+account. `ACR_FLOAT_GUEST_ENVIRONMENT` therefore stays `production`, and it is
+**observed on the way back** rather than asserted, so a proof minted against a
+different environment is refused before any network call.
+
+Our own
 rule for this event is that **a track whose module is half-built is not
 entered**, because a half-entry burns judge goodwill the other entries need. So
 this submission stands or falls on the join flow actually working, and we would

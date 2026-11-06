@@ -100,11 +100,13 @@ def _send(w3, acct, fn):
     return rcpt
 
 
-@pytest.fixture(scope="module")
-def rig():
-    w3 = _anvil()
-    if w3 is None:
-        pytest.skip(f"no anvil at {RPC} (start one with: anvil --port 8546)")
+def _build_rig(w3, *, binding: bytes | None):
+    """A wired vault. `binding=None` leaves `treasurerBinding` at zero.
+
+    Parameterised rather than copied because `setTreasurerBinding` is one-shot
+    from zero: an unbound vault cannot be the shared rig with a setter called
+    later, it has to be its own deployment.
+    """
     acct = {k: w3.eth.account.from_key(v) for k, v in KEYS.items()}
     owner = acct["owner"]
 
@@ -152,7 +154,8 @@ def rig():
         ),
     )
     _send(w3, owner, usdc.functions.mint(vault.address, 1_000_000_000))
-    _send(w3, owner, vault.functions.setTreasurerBinding(b"\x42" * 32))
+    if binding is not None:
+        _send(w3, owner, vault.functions.setTreasurerBinding(binding))
 
     client = FloatVaultClient(w3, vault.address, signer=LocalKeySigner(KEYS["executor"]))
     return {
@@ -164,6 +167,25 @@ def rig():
         "client": client,
         "approver": LocalKeySigner(KEYS["approver"]),
     }
+
+
+def _w3_or_skip():
+    w3 = _anvil()
+    if w3 is None:
+        pytest.skip(f"no anvil at {RPC} (start one with: anvil --port 8546)")
+    return w3
+
+
+@pytest.fixture(scope="module")
+def rig():
+    return _build_rig(_w3_or_skip(), binding=b"\x42" * 32)
+
+
+@pytest.fixture(scope="module")
+def unbound_rig():
+    """A vault whose `treasurerBinding` was never set, for the one disclosure
+    test that needs that state and cannot reach it by un-setting."""
+    return _build_rig(_w3_or_skip(), binding=None)
 
 
 def _req(rig, *, quote: int, nonce: bytes) -> SpendReq:
@@ -509,3 +531,50 @@ def test_the_id_comes_from_the_event_not_the_return_value(rig):
     assert second["id"] == first["id"] + 1
     assert c.checkpoint_of(first["id"]).req_hash == b"\x21" * 32
     assert c.checkpoint_of(second["id"]).kind == KIND_SPEND
+
+
+def test_an_unset_binding_leaves_the_human_half_of_an_approval_vacuous(unbound_rig):
+    """A DISCLOSURE, not a feature: the chain never requires a binding.
+
+    `_consumeApproval` feeds `treasurerBinding` into the digest whatever it
+    holds (`FloatVault.sol:943`) and guards only the APPROVER against zero
+    (`:942` and `:944`, because `ecrecover` returns address(0) on a malformed
+    signature). A binding of zero is a perfectly valid signature target that
+    identifies NOBODY, so the approver's signature still authorises the payment
+    while attesting to no human at all.
+
+    Nothing an attacker reaches -- it needs the approver's key, and the approver
+    cannot invent a request. What it means is that "a verified human cleared
+    this" is enforced OFF chain: `vault_status()` refuses exactly this state and
+    `floatgate` will not park into it. This test exists so that division of
+    labour is written down, because the public vault's binding is zero right
+    now and the order in which the two roles are set therefore matters.
+
+    Asked because a peer asked the right question of a one-shot field: not
+    whether the value is right, but whether any READER silently accepts a zero.
+    """
+    rig = unbound_rig
+    c = rig["client"]
+    assert c.treasurer_binding() == b"\x00" * 32
+
+    #: The off-chain guard IS the protection, so prove it is awake first.
+    status = c.vault_status()
+    assert "bind to nobody" in status, status
+
+    fair = _fair(rig)
+    req = _req(rig, quote=fair * 103 // 100, nonce=b"\x51" * 32)
+    seller = rig["acct"]["seller"].address
+    before = rig["usdc"].functions.balanceOf(seller).call()
+
+    parked = c.open_checkpoint(agent_id=AGENT_ID, req_hash=c.req_hash(req), ttl_s=300)
+    v, r, s = c.sign_approval(
+        cp_id=parked["id"],
+        req_hash=parked["req_hash"],
+        expires_at=parked["expires_at"],
+        signer=rig["approver"],
+    )
+    c.execute_approved(cp_id=parked["id"], req=req, v=v, r=r, s=s)
+
+    #: And it PAID, over a binding that names nobody. That is the finding.
+    assert rig["usdc"].functions.balanceOf(seller).call() == before + req.quote_total
+    assert c.checkpoint_of(parked["id"]).status == CONSUMED
