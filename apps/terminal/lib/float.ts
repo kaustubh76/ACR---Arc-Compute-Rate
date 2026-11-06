@@ -98,9 +98,10 @@ export type GuestReason =
  *
  *  `rp_context` is snake_case and its signature field is `signature`, while
  *  the signer returns `{sig, createdAt, expiresAt}` in camelCase. The rename
- *  happens once, in the context route, and is pinned by a test: a widget
- *  handed `sig` renders and then fails at World, which is the worst kind of
- *  broken because it looks like it works.
+ *  happens once, in the context route, and is pinned by `lib/rpContext.test.ts`
+ *  at BOTH ends -- the names the SDK emits and the names the route emits: a
+ *  widget handed `sig` renders and then fails at World, which is the worst
+ *  kind of broken because it looks like it works.
  */
 export type GuestRpContext = {
   rp_id: string;
@@ -234,6 +235,11 @@ export type FloatVaultState = {
   status: "ok" | "pending";
   /** Present when "pending": which chain, or which piece of configuration. */
   reason?: string;
+  /** Set only when the ONE thing wrong is which network the reader is on, so a
+   *  surface can offer the switch. A host with no RPC or no vault address is
+   *  also "pending" and switching would not help it, and the two must not be
+   *  told apart by matching on prose. */
+  switch_to?: "mainnet" | "testnet";
   vault?: string;
   /** The seller this deployment allowlists, so a reader can aim a dry run at a
    *  seller the vault accepts and at one it does not. */

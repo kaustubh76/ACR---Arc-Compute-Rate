@@ -26,9 +26,11 @@ export const runtime = "nodejs";
    is deliberately empty. */
 export async function GET(req: Request) {
   const chain = requestChain(req);
-  /* `?prints=1` costs ten more paced reads and roughly four more seconds, so it
-     is asked for rather than assumed. The float index renders no prints; the
-     surface that does will ask. */
+  /* `?prints=1` is asked for rather than assumed. It was ten more PACED reads
+     and about four more seconds when that cost was real; `readPrints` batches
+     now, so it is three more rounds. The float index does ask for them: the
+     runway panel is priced off them. A caller that only wants the treasury
+     still pays nothing for prints it will not render. */
   const withPrints = new URL(req.url).searchParams.get("prints") === "1";
   const data = await readVaultState(chain, withPrints);
   return NextResponse.json(envelope(data, { live: data.status === "ok", chain }), {

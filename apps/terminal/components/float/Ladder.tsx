@@ -183,6 +183,21 @@ export function Ladder({
         p="The vault runs twelve checks in order. This asks it the same question a real payment asks, without spending anything."
       />
 
+      {/* A LADDER THAT CANNOT ASK IS WORSE THAN NO LADDER. The chain never
+          supplies a seller, so without one configured no dry run is ever
+          issued and all twelve rungs sit blank with nothing saying why. That
+          is the only state on this surface that would lie by omission. */}
+      {seller ? null : (
+        <p className="label">
+          <span className="chip chip-sim">
+            <Ed
+              x="this host has no seller configured, so nothing can be dry run"
+              p="this site has no shop set up, so there is nothing to try"
+            />
+          </span>
+        </p>
+      )}
+
       <div className="flow-controls">
         <span className="label">
           <Ed x="whose money" p="which robot" />

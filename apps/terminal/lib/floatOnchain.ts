@@ -220,7 +220,13 @@ const PARTIAL_MEMO_MS = 6_000;
  *  and none of the benefit, so the caller asks for them. */
 export async function readVaultState(chain: ChainKey, withPrints = false): Promise<FloatVaultState> {
   const cfg = floatConfig(chain);
-  if (typeof cfg === "string") return { status: "pending", reason: cfg };
+  if (typeof cfg === "string") {
+    /* Offer the switch only when the chain IS the problem. A host missing its
+       RPC or its vault address stands down too, and sending that reader to
+       another network would be a cure for a different disease. */
+    const home = floatChain();
+    return { status: "pending", reason: cfg, ...(chain !== home ? { switch_to: home } : {}) };
+  }
 
   const key = `${cfg.rpc}|${cfg.vault}|${withPrints ? "prints" : "lean"}`;
   if (memo && memo.key === key) {

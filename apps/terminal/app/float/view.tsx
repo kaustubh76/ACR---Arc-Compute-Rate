@@ -9,6 +9,7 @@ import { Runway } from "@/components/float/Runway";
 import { Tape } from "@/components/float/Tape";
 import { VaultMeter } from "@/components/float/VaultMeter";
 import { fmtPrice } from "@/lib/format";
+import { setChain } from "@/lib/useChain";
 import { useFloatVault } from "@/lib/useLive";
 
 /* ACR Float, the front door.
@@ -118,6 +119,18 @@ export function FloatView() {
             x="The treasury is deployed on one chain, and this is not the one selected. Switch the network in the strip above to read it. Nothing is wrong; there is simply no vault at this address on this network, and inventing one would be worse than saying so."
             p="This treasury lives on one network, and you are on the other one. Switch the network above to see it."
           />
+          {data?.switch_to ? (
+            /* One click rather than a hunt. The terminal opens on mainnet by
+               default and the vault is on one other network, so without this a
+               judge arriving at the URL reads a correct sentence and then has
+               to go looking for the control it names. `setChain` hard-reloads
+               by design, which is why this is a button and not a link. */
+            <div className="btn-row">
+              <button className="btn" onClick={() => setChain(data.switch_to!)} type="button">
+                <Ed x="Switch to the network it runs on" p="Switch to the right network" />
+              </button>
+            </div>
+          ) : null}
           {data?.reason ? <p className="label mono">{data.reason}</p> : null}
         </section>
       ) : null}

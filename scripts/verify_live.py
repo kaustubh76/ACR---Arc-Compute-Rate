@@ -132,7 +132,11 @@ _GATEWAY_REF = re.compile(
 
 GATED = ["/prints/ACR-INF", "/curve/ACR-INF", "/vol/ACR-INF", "/seller-scores/ACR-INF"]
 UNGATED = ["/onchain/ACR-INF", "/marketplace/catalog", "/revenue", "/x402/info"]
-ROUTES = ["/", "/curve", "/developers"]
+# `/float` is here because it was NOT, and that is how it stayed a 404 in
+# production for twenty days while every test passed: this list and
+# `verify_route_drift` (which only diffs the press's openapi) were the two
+# things that could have noticed, and neither looked at it.
+ROUTES = ["/", "/curve", "/developers", "/float"]
 
 #: The hosted MCP server (`apps/terminal/app/api/mcp`), the URL an agent adds with
 #: no install. Its unit tests stub the press, so nothing here checked that the
