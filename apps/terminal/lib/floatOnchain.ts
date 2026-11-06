@@ -734,9 +734,25 @@ export async function readTape(chain: ChainKey): Promise<FloatTape> {
    own cash movements. See `lib/floatYield.ts` for why it is a floor rather
    than a point estimate, and why an incomplete basis yields nothing. */
 
+/* Memoed like the treasury read, and for longer. This one walks ten pages of
+   logs to recover a cost basis, which is about seven seconds, and the basis
+   only moves when the keeper rebalances — every ten minutes at most. A reader
+   who reloads should not pay for that walk again. A partial answer gets a
+   short window so a throttled read recovers quickly rather than sticking. */
+type YieldMemo = { at: number; key: string; data: FloatYield };
+let yieldMemo: YieldMemo | null = null;
+const YIELD_MEMO_MS = 120_000;
+const YIELD_PARTIAL_MEMO_MS = 10_000;
+
 export async function readYield(chain: ChainKey): Promise<FloatYield> {
   const cfg = floatConfig(chain);
   if (typeof cfg === "string") return { status: "pending", reason: cfg };
+
+  const memoKey = `${cfg.rpc}|${cfg.vault}`;
+  if (yieldMemo && yieldMemo.key === memoKey) {
+    const ttl = yieldMemo.data.complete && !yieldMemo.data.partial ? YIELD_MEMO_MS : YIELD_PARTIAL_MEMO_MS;
+    if (Date.now() - yieldMemo.at < ttl) return yieldMemo.data;
+  }
 
   const c = client(cfg.rpc);
   let busy = false;
@@ -800,7 +816,7 @@ export async function readYield(chain: ChainKey): Promise<FloatYield> {
   const complete = walk.reachedFloor && !walk.busy && !busy;
   const gain = accruedFrom(value.value, principal, complete);
 
-  return {
+  const out: FloatYield = {
     status: "ok",
     sleeve: sleeveAddr.value,
     ...(venue.ok ? { venue: venue.value } : {}),
@@ -814,4 +830,6 @@ export async function readYield(chain: ChainKey): Promise<FloatYield> {
     complete,
     ...(busy || walk.busy ? { partial: true } : {}),
   };
+  yieldMemo = { at: Date.now(), key: memoKey, data: out };
+  return out;
 }
