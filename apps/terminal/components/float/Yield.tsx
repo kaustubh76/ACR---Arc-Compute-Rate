@@ -261,7 +261,17 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
                 {" · "}
                 <Ed x="redeeming them returns" p="cashing them out returns" />{" "}
                 <span className="num">{backUnits === null ? "…" : fmtPrice(Number(backUnits) / 1e6)}</span>{" "}
-                <Ed x="USDC, the fee taken off" p="dollars, with the fee taken off" />
+                {/* A FEE THAT WAS NOT CHARGED MUST NOT BE CLAIMED. This said
+                    "the fee taken off" unconditionally, and the stand-in's
+                    `redemptionFeeBps` is 0 today — so the page read as though a
+                    deduction had happened while quoting a round trip that came
+                    back whole. The number was right and the sentence was not,
+                    which is the worse of the two. */}
+                {f?.nav_fee_bps ? (
+                  <Ed x="USDC, the fund's fee taken off" p="dollars, with the fee taken off" />
+                ) : (
+                  <Ed x="USDC, and this fund's fee is zero today" p="dollars. This fund takes no fee today" />
+                )}
               </>
             )}
           </p>
