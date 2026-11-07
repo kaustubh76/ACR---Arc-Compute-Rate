@@ -1,0 +1,14 @@
+{
+  "bufferHours": 48,
+  "maxPremiumBps": 100,
+  "humanMaxPremiumBps": 100,
+  "maxPrintAge": 1800,
+  "workingShareBps": 10000,
+  "agents": {
+    "waster": {
+      "dailyCapUsdc": "25",
+      "perRequestUsdc": "5",
+      "frozen": true
+    }
+  }
+}

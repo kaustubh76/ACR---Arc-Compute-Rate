@@ -1,0 +1,68 @@
+{
+  "accepted": true,
+  "rows": [
+    {
+      "field": "maxPremiumBps",
+      "studio": "100",
+      "committed": "100",
+      "chain": "100",
+      "differs": false
+    },
+    {
+      "field": "humanMaxPremiumBps",
+      "studio": "100",
+      "committed": "2000",
+      "chain": "2000",
+      "differs": true
+    },
+    {
+      "field": "maxPrintAge",
+      "studio": "1800",
+      "committed": "1800",
+      "chain": "1800",
+      "differs": false
+    },
+    {
+      "field": "upperBandBps",
+      "studio": "1500",
+      "committed": "1500",
+      "chain": "1500",
+      "differs": false
+    },
+    {
+      "field": "lowerBandBps",
+      "studio": "1000",
+      "committed": "1000",
+      "chain": "1000",
+      "differs": false
+    },
+    {
+      "field": "workingShareBps",
+      "studio": "10000",
+      "committed": "10000",
+      "chain": "10000",
+      "differs": false
+    },
+    {
+      "field": "bufferHours",
+      "studio": "48",
+      "committed": "48",
+      "chain": "48",
+      "differs": false
+    },
+    {
+      "field": "minTicketUsdc",
+      "studio": "1",
+      "committed": "1",
+      "chain": "1",
+      "differs": false
+    }
+  ],
+  "agentsStudio": [
+    "waster"
+  ],
+  "agentsCommitted": [
+    "scout",
+    "waster"
+  ]
+}

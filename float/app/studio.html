@@ -52,7 +52,7 @@
 
 <div class="wrap">
   <h1>ACR Float · what Arc Studio did</h1>
-  <p class="sub">Two runs, traced. Every id below identifies a real run and every answer is quoted
+  <p class="sub">Three runs, traced &mdash; one that built something, one that refused, one that caught a drift. Every id below identifies a real run and every answer is quoted
   from the JSON <code>arc-studio run</code> wrote, saved under <code>float/studio/traces/</code>.</p>
 
   <div class="panel">
@@ -66,6 +66,57 @@
       <code>arc-studio cat</code> the workspace copy and compare.</span></div>
     <div class="claim"><span class="claim-k no">did not</span><span class="no">Write the vault, the tests, the keeper, the agents or the dashboard.
       It wrote <code>walk.html</code> and <code>venue.html</code> beside them, which is a different and narrower claim.</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>The CLI, exercised rather than asserted</h2>
+    <div class="claim"><span class="claim-k">version</span><span><code>arc-studio --version</code> &rarr; <code>1.2.2</code></span></div>
+    <div class="claim"><span class="claim-k">auth</span><span><code>arc-studio whoami</code> &rarr; &ldquo;Authenticated against https://studio.arc.io.&rdquo;</span></div>
+    <div class="claim"><span class="claim-k">ls</span><span><code>arc-studio ls</code> &rarr; 135 files in the workspace</span></div>
+    <div class="claim"><span class="claim-k">cat</span><span><code>arc-studio cat index.html | shasum</code> matched the local file at <code>d03aeff1&hellip;3003b</code></span></div>
+    <div class="claim"><span class="claim-k">run</span><span>three runs captured below, <code>-o json</code>, <code>filesChanged: []</code> on every one</span></div>
+    <div class="claim"><span class="claim-k">pull</span><span><code>arc-studio pull --dry-run --diff</code> reports the three workspace pages differ from the repo and
+      <strong>skips them to protect local edits</strong> — which is why <code>pull</code> is used and <code>cat</code> is not</span></div>
+  </div>
+
+  <div class="panel">
+    <p class="tag">run 0 · the build &mdash; English in, policy JSON out</p>
+    <div class="ask">&ldquo;Freeze the agent called waster. For everyone else, never pay more than 1% above the ACR
+      fair price, keep two days of forecast spend liquid, and keep all of the idle float in the working vault.&rdquo;
+      <span class="no">&nbsp;&mdash; with <code>float/policy.schema.json</code> attached, asked for JSON only</span></div>
+    <div class="said">It emitted <code>bufferHours 48</code>, <code>maxPremiumBps 100</code>,
+      <code>humanMaxPremiumBps 100</code>, <code>maxPrintAge 1800</code>, <code>workingShareBps 10000</code>,
+      and one agent: <code>waster</code>, <code>frozen: true</code>.</div>
+
+    <p class="tag" style="margin:14px 0 6px">then our validator checked it, which is the actual claim</p>
+    <div class="claim"><span class="claim-k">verdict</span><span><code>validate()</code> from <code>float/src/policy.ts</code>
+      returned <strong>ok = true</strong>. It passes because the contract requires an approval ceiling to
+      <em>widen or equal</em> the automatic band, never narrow it &mdash; and 100 &ge; 100 holds.</span></div>
+
+    <div class="claim"><span class="claim-k">vs chain</span><span><strong>Seven of eight fields match the live vault exactly</strong>
+      &mdash; premium 100, print age 1800, bands 1500/1000, working share 10000, buffer 48h, ticket $1.</span></div>
+
+    <div class="find">
+      <p class="tag" style="margin:0 0 6px">the one field that differs, and it is arguable</p>
+      Studio set <code>humanMaxPremiumBps</code> to <strong>100</strong>; the deployed policy says
+      <strong>2000</strong>. The treasurer's sentence says &ldquo;never pay more than 1% above the ACR fair
+      price&rdquo; and says nothing about what a <em>human</em> may approve. Studio read &ldquo;never&rdquo; as
+      binding the human too, and capped the approval ceiling at the same 1%. The deployed policy lets a verified
+      human go to 20%. <strong>Studio's reading is arguably the more faithful one</strong>, and the sentence is
+      the thing at fault: it does not say. It also emitted only <code>waster</code>, the one agent it was told
+      about, where the committed artifact carries <code>scout</code> too.
+      <br><br>
+      This is what &ldquo;compiles the policy&rdquo; is worth as a claim: a sentence in, a validated config out,
+      one honest disagreement about an ambiguity, and a validator standing between the model and the chain.
+    </div>
+
+    <div class="meta">
+      <div class="meta-row"><span class="meta-k">status</span><span>completed</span></div>
+      <div class="meta-row"><span class="meta-k">traceId</span><span>01a1b3dc-3239-7698-b4b6-ea53860b9814</span></div>
+      <div class="meta-row"><span class="meta-k">filesChanged</span><span>none &mdash; it was asked to emit, not to write</span></div>
+      <div class="meta-row"><span class="meta-k">artifacts</span><span><code>traces/compile-policy.json</code>,
+        <code>.emitted.json</code>, <code>.verdict.json</code></span></div>
+    </div>
   </div>
 
   <div class="panel">
@@ -129,7 +180,7 @@
       <code>float/src/policy.ts</code> is the validator that refuses it if it is wrong</span></div>
   </div>
 
-  <p class="foot">This page is a record of two runs on 2026-11-07, not a live feed, and it is static on purpose:
+  <p class="foot">This page is a record of three runs on 2026-11-07, not a live feed, and it is static on purpose:
   no fetch, no build step, nothing to spin. The workspace is at
   <a href="https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557">studio.arc.io/app/b5aa43e1…0e557</a>,
   which asks for a Circle login — anonymously it redirects, so the commands above are the part a stranger can run.</p>

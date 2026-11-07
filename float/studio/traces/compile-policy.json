@@ -1,0 +1,53 @@
+{
+  "status": "completed",
+  "appId": "b5aa43e1-4d5c-4d47-b079-dcc9aea0e557",
+  "threadId": "20b0a0b6-1f99-4a3f-b536-5ed15798f021",
+  "sandboxId": "i543zznv8mfyggzkafsg3",
+  "finalText": "```json\n{\n  \"bufferHours\": 48,\n  \"maxPremiumBps\": 100,\n  \"humanMaxPremiumBps\": 100,\n  \"maxPrintAge\": 1800,\n  \"workingShareBps\": 10000,\n  \"agents\": {\n    \"waster\": {\n      \"dailyCapUsdc\": \"25\",\n      \"perRequestUsdc\": \"5\",\n      \"frozen\": true\n    }\n  }\n}\n```",
+  "todos": null,
+  "filesChanged": [],
+  "fileDiffs": [],
+  "contextFiles": [],
+  "workspaceFiles": [
+    "policy.schema.json"
+  ],
+  "deployments": [],
+  "artifacts": {
+    "contractSources": [
+      "contracts/script/Create2Factory.sol",
+      "contracts/script/DeployCreate2.s.sol"
+    ],
+    "abis": [
+      "contracts/out/Base.sol/CommonBase.json",
+      "contracts/out/Base.sol/ScriptBase.json",
+      "contracts/out/Base.sol/TestBase.json",
+      "contracts/out/Create2.sol/Create2.json",
+      "contracts/out/Create2Factory.sol/Create2Factory.json",
+      "contracts/out/DeployCreate2.s.sol/DeployCreate2.json",
+      "contracts/out/Errors.sol/Errors.json",
+      "contracts/out/IMulticall3.sol/IMulticall3.json",
+      "contracts/out/LowLevelCall.sol/LowLevelCall.json",
+      "contracts/out/Script.sol/Script.json",
+      "contracts/out/StdChains.sol/StdChains.json",
+      "contracts/out/StdCheats.sol/StdCheats.json",
+      "contracts/out/StdCheats.sol/StdCheatsSafe.json",
+      "contracts/out/StdConstants.sol/StdConstants.json",
+      "contracts/out/StdJson.sol/stdJson.json",
+      "contracts/out/StdMath.sol/stdMath.json",
+      "contracts/out/StdStorage.sol/stdStorage.json",
+      "contracts/out/StdStorage.sol/stdStorageSafe.json",
+      "contracts/out/StdStyle.sol/StdStyle.json",
+      "contracts/out/StdUtils.sol/StdUtils.json",
+      "contracts/out/Vm.sol/Vm.json",
+      "contracts/out/Vm.sol/VmSafe.json",
+      "contracts/out/console.sol/console.json",
+      "contracts/out/safeconsole.sol/safeconsole.json"
+    ],
+    "metadata": []
+  },
+  "webUrl": "https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557",
+  "questions": null,
+  "errorMessage": null,
+  "traceId": "01a1b3dc-3239-7698-b4b6-ea53860b9814",
+  "budget": null
+}
