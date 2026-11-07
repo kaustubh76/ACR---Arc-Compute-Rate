@@ -425,6 +425,29 @@ The practical consequence is the support ticket. It does not need to ask to be
 `0x9fdF14c5B14173D74C08Af27AebFf39240dC105A`**, granted to the sleeve address
 that will hold the position — see the runbook.
 
+**THE TICKET IS NECESSARY AND NOT SUFFICIENT, AND NOTHING SAID SO UNTIL NOW.**
+There is a second gate and it is **ours**. `rebalance` splits each sweep
+`toWorking = excess * workingShareBps / 10_000` and sends the remainder to the
+reserve — and the live policy's `workingShareBps` is **10000**, read from the
+chain on 2026-11-07:
+
+```sh
+cast call 0xb030e7e592eb2d8a989c7cbca01270b957bb4bdc \
+  'policy()(uint16,uint16,uint32,uint16,uint16,uint16,uint32,uint256)' \
+  --rpc-url https://rpc.testnet.arc.io          # field 6 is workingShareBps
+```
+
+So `toReserve` is **zero on every sweep**. Even with Circle's grant in hand and
+a sleeve wired, the reserve would receive nothing: funding this leg needs a
+**policy change as well as an entitlement grant**, and the policy change goes
+through the same validated `setPolicy` path as any other.
+
+This was knowable all along and written down nowhere — it existed only as a
+comment in the terminal's `floatReserve.ts`. Anyone reading this document would
+have concluded Circle's allowlist was the only thing in the way. It is not, and
+`float/app/index.html` now shows both gates side by side so the page cannot
+imply otherwise either.
+
 **And the Oracle means the stand-in no longer invents its price.**
 `latestRoundData()` returns Circle's live NAV at 18 decimals, which is already
 the scale `SimUsycTeller.nav` wants: **1142831108426541885** at round 191.

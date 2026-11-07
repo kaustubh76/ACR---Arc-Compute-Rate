@@ -51,16 +51,16 @@
   .pill.human { color: var(--warn); border-color: #4a3a1c; }
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
   select#span { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 11px; max-width: 100%; }
-  #notPanel { overflow-wrap: anywhere; }
-  #notPanel .nsub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 18px 0 6px; font-weight: 500; }
-  #notPanel .nhead { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 12px 0 4px; }
-  #notPanel .nrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 3px 0; min-width: 0; }
-  #notPanel .nrow > span:last-child { text-align: right; min-width: 0; }
-  #notPanel .nk { color: var(--dim); }
-  #notPanel .nverdict { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
-  #notPanel .nverdict.ok { border-color: #1d4535; } #notPanel .nverdict.warn { border-color: #4a3a1c; } #notPanel .nverdict.bad { border-color: var(--bad); }
-  #notPanel code { color: var(--ink); font-size: 11px; }
-  #notPanel td { white-space: normal; vertical-align: top; }
+  #notPanel, #reservePanel { overflow-wrap: anywhere; }
+  #notPanel, #reservePanel .nsub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 18px 0 6px; font-weight: 500; }
+  #notPanel, #reservePanel .nhead { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 12px 0 4px; }
+  #notPanel, #reservePanel .nrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 3px 0; min-width: 0; }
+  #notPanel, #reservePanel .nrow > span:last-child { text-align: right; min-width: 0; }
+  #notPanel, #reservePanel .nk { color: var(--dim); }
+  #notPanel, #reservePanel .nverdict { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  #notPanel, #reservePanel .nverdict.ok { border-color: #1d4535; } #notPanel, #reservePanel .nverdict.warn { border-color: #4a3a1c; } #notPanel, #reservePanel .nverdict.bad { border-color: var(--bad); }
+  #notPanel, #reservePanel code { color: var(--ink); font-size: 11px; }
+  #notPanel, #reservePanel td { white-space: normal; vertical-align: top; }
 </style>
 </head>
 <body>
@@ -106,6 +106,11 @@
 
   <div class="panel" id="notPanel" style="margin-top:12px">
     <h2>Two things Float is not, read from the chain</h2>
+    <div class="note" style="margin:0">reading…</div>
+  </div>
+
+  <div class="panel" id="reservePanel" style="margin-top:12px">
+    <h2>The second sleeve, and the two gates in front of it</h2>
     <div class="note" style="margin:0">reading…</div>
   </div>
 </div>
@@ -158,6 +163,10 @@ const VAULT_ABI = parseAbi([
   "function receiptCount() view returns (uint256)",
   "function totalValueUsdc() view returns (uint256)",
   "function paused() view returns (bool)",
+  // The second sleeve. `totalValueUsdc()` already sums buffer + working +
+  // reserve, so the three rows below reconcile today only BECAUSE this is a
+  // zero address. Reading it makes that visible instead of silently absent.
+  "function reserve() view returns (address)",
 ]);
 const STORE_ABI = parseAbi([
   "function indexCount() view returns (uint256)",
@@ -220,6 +229,9 @@ async function tick() {
     read(CFG.store, STORE_ABI, "indexCount"),
   ]);
   const sleeve = CFG.sleeve ? await read(CFG.sleeve, SLEEVE_ABI, "valueUsdc") : 0n;
+  const reserveAddr = await read(CFG.vault, VAULT_ABI, "reserve");
+  const reserveOff = /^0x0{40}$/i.test(String(reserveAddr));
+  const reserveVal = reserveOff ? 0n : await read(reserveAddr, SLEEVE_ABI, "valueUsdc");
   const policy = await read(CFG.vault, VAULT_ABI, "policy");
   const bufferHours = Number(policy[6]);
 
@@ -296,6 +308,9 @@ async function tick() {
   el("sleeves").innerHTML = `
     <div class="row"><span class="k">buffer, ready to spend</span><span>${usd(buffer, 4)}</span></div>
     <div class="row"><span class="k">in the yield venue</span><span class="good">${usd(sleeve, 4)}</span></div>
+    <div class="row"><span class="k">in the T-bill reserve</span><span>${reserveOff
+      ? `<span class="k">no second sleeve — a zero address, not a stand-in</span>`
+      : usd(reserveVal, 4)}</span></div>
     <div class="row"><span class="k">total the treasury controls</span><span>${usd(total, 4)}</span></div>
     <div class="row"><span class="k">paid out so far</span><span>${usd(spent, 4)}</span></div>`;
 
@@ -323,6 +338,7 @@ async function tick() {
   }
 
   renderNot(prints, receipts, maxAge, now); // the "two things Float is not" panel; reuses the reads above
+  renderReserve(policy, reserveAddr, reserveOff); // the reserve leg, from Circle's contracts and our policy
 }
 
 async function loop() {
@@ -383,6 +399,55 @@ const NOT = {
   // tape's Receipts, and the tape count below is that cross-check.
   scoutAgent: "0xd4b6ed56333389f45e60acf4deb7dca7c0ab16a4b24e2e8797959bbea4063636",
 };
+// ---- the T-bill reserve leg: Circle's own contracts, read directly
+//
+// The reserve sleeve is BUILT, deployed and verified, and it holds nothing,
+// because two separate gates stand in front of it. This panel reads both from
+// the chain rather than describing them.
+//
+//   GATE ONE, Circle's.  The Teller's allowlist is a Solmate RolesAuthority at
+//     its own address. `getUserRoles(us)` is 0x0 and `getRolesWithCapability`
+//     on `deposit(uint256,address)` wants roles 0 or 9, so the refusal is
+//     EXPLAINED, not merely observed. Asking the registry by address beats
+//     staticcalling `deposit` from a page, which has no account and would be
+//     answering about the zero address instead of about us.
+//   GATE TWO, OURS.  `workingShareBps` is 10000, so `rebalance` sends the whole
+//     excess to the working sleeve and `toReserve` is zero on every sweep. Even
+//     with Circle's grant and a sleeve wired, the leg would stay empty. Nothing
+//     said this out loud before; the ticket is necessary and not sufficient.
+//
+// The NAV is Circle's too, from their oracle, with its round — which is what
+// `make float-navsync` pushes onto our stand-in so the simulation prices at the
+// real number and only the PERMISSION is simulated.
+const RES = {
+  // Arc Testnet. Mainnet's are in docs/TAMEION.md, listed as supplied and not
+  // verified by us.
+  usyc: "0xe9185F0c5F296Ed1797AaE4238D26CCaBEadb86C",
+  teller: "0x9fdF14c5B14173D74C08Af27AebFf39240dC105A",
+  entitlements: "0xcc205224862c7641930c87679e98999d23c26113",
+  oracle: "0x52b56c7642E71dc54714d879127d97cd0B3D4581",
+  // `deposit(uint256,address)` — the capability the ticket must unlock.
+  depositSig: "0x6e553f65",
+  // Our sleeve, in front of a stand-in fund. Shown as an address and never as
+  // a position: it is the contract that would hold USYC, not a holding.
+  sleeve: "0x6D2A34ed26C9e4E58062ecAb9fdD1A80E4b1972E",
+};
+const ENT_ABI = parseAbi([
+  "function getUserRoles(address user) view returns (bytes32)",
+  "function getRolesWithCapability(address target, bytes4 functionSig) view returns (bytes32)",
+  "function isCapabilityPublic(address target, bytes4 functionSig) view returns (bool)",
+]);
+const ORACLE_ABI = parseAbi([
+  "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
+  "function decimals() view returns (uint8)",
+]);
+/** Which role numbers a Solmate bitmask has set — the actionable form. */
+const roleBits = (hex) => {
+  let m = BigInt(hex), out = [], i = 0;
+  while (m > 0n && i < 256) { if (m & 1n) out.push(i); m >>= 1n; i += 1; }
+  return out;
+};
+
 const PYTH_ABI = parseAbi([
   "function version() pure returns (string)",
   "function getValidTimePeriod() view returns (uint256)",
@@ -420,6 +485,94 @@ const notFail = (r) => (r.reverted
   ? `<span class="warn">reverted: ${r.name ? `${nesc(r.name)}()` : "an error this page cannot name"}${r.selector ? ` <span class="nk">(${nesc(r.selector)})</span>` : ""}</span>`
   : `<span class="bad">could not be read: ${nesc(r.err)}</span>`);
 const notVal = (r, f) => (r.ok ? f(r.v) : notFail(r));
+
+let resSeq = 0;
+/**
+ * The reserve leg's standing, read from Circle's contracts and from our policy.
+ *
+ * Nothing here is a holding. The sleeve is shown as an ADDRESS, the roles as
+ * what we do and do not have, and the NAV as Circle's number with its round.
+ * The one figure about our own money is `workingShareBps`, which is the gate we
+ * control and the one nobody had written down.
+ */
+async function renderReserve(policy, reserveAddr, reserveOff) {
+  const my = ++resSeq;
+  const panel = el("reservePanel");
+  try {
+    const [held, wanted, isPublic, round, dp] = await Promise.all([
+      notRead(RES.entitlements, ENT_ABI, "getUserRoles", [RES.sleeve]),
+      notRead(RES.entitlements, ENT_ABI, "getRolesWithCapability", [RES.teller, RES.depositSig]),
+      notRead(RES.entitlements, ENT_ABI, "isCapabilityPublic", [RES.teller, RES.depositSig]),
+      notRead(RES.oracle, ORACLE_ABI, "latestRoundData"),
+      notRead(RES.oracle, ORACLE_ABI, "decimals"),
+    ]);
+    if (my !== resSeq) return; // a newer refresh superseded this one
+
+    const ours = held.ok ? roleBits(held.v) : null;
+    const need = wanted.ok ? roleBits(wanted.v) : null;
+    // Entitled only if a role we hold is one the capability accepts, or the
+    // capability is open to everyone. Stated as the intersection so the answer
+    // survives Circle granting a role we did not predict.
+    const overlap = ours && need ? ours.filter((r) => need.includes(r)) : null;
+    const entitled = (overlap && overlap.length > 0) || (isPublic.ok && isPublic.v === true);
+    const share = Number(policy[5]);
+    const navTxt = round.ok && dp.ok
+      ? `${Number(formatUnits(round.v[1] < 0n ? 0n : round.v[1], Number(dp.v))).toFixed(6)} USDC per USYC`
+      : null;
+
+    const link = (a) => `<a href="${CFG.explorer}/address/${a}">${short(a)}</a>`;
+    panel.innerHTML = `
+      <h2>The second sleeve, and the two gates in front of it</h2>
+      <div class="nverdict ${entitled && share < 10000 ? "ok" : "warn"}">
+        ${entitled
+          ? `Circle's allowlist would admit this sleeve.`
+          : `This treasury is <strong>not allowlisted</strong>, and the chain says why rather than us.`}
+        ${share >= 10000
+          ? ` And a second gate is <strong>ours</strong>: the policy sends 100% of every sweep to the working sleeve, so the reserve would receive nothing even if the first gate opened.`
+          : ` The policy routes ${((10000 - share) / 100).toFixed(0)}% of each sweep here.`}
+      </div>
+
+      <div class="nhead">gate one · Circle's entitlements registry</div>
+      <div class="nrow"><span class="nk">registry</span><span>${link(RES.entitlements)}</span></div>
+      <div class="nrow"><span class="nk">roles this sleeve holds</span><span>${
+        notVal(held, (v) => (ours.length ? nesc(ours.join(", ")) : `<span class="warn">none</span>`))
+      }</span></div>
+      <div class="nrow"><span class="nk">roles <code>deposit</code> accepts</span><span>${
+        notVal(wanted, () => nesc(need.length ? need.join(" or ") : "none"))
+      }</span></div>
+      <div class="nrow"><span class="nk">capability public?</span><span>${
+        notVal(isPublic, (v) => (v ? "yes" : "no — gated"))
+      }</span></div>
+      <div class="nrow"><span class="nk">the ask</span><span>${entitled
+        ? "granted"
+        : `role ${nesc((need ?? []).join(" or ") || "?")} on ${link(RES.teller)}`}</span></div>
+
+      <div class="nhead">gate two · our own policy</div>
+      <div class="nrow"><span class="nk">workingShareBps</span><span>${share}${
+        share >= 10000 ? ` <span class="warn">(nothing to the reserve)</span>` : ""
+      }</span></div>
+      <div class="nrow"><span class="nk">vault's reserve slot</span><span>${
+        reserveOff ? `<span class="nk">0x0 — no venue, which is the honest answer</span>` : link(String(reserveAddr))
+      }</span></div>
+
+      <div class="nhead">the fund itself</div>
+      <div class="nrow"><span class="nk">USYC</span><span>${link(RES.usyc)}</span></div>
+      <div class="nrow"><span class="nk">Teller</span><span>${link(RES.teller)}</span></div>
+      <div class="nrow"><span class="nk">Circle's NAV</span><span>${
+        navTxt ? `${nesc(navTxt)} <span class="nk">round ${nesc(String(round.v[0]))}</span>` : notFail(round)
+      }</span></div>
+      <div class="nrow"><span class="nk">our sleeve</span><span>${link(RES.sleeve)} <span class="nk">in front of a stand-in fund</span></span></div>
+      <div class="note" style="margin:10px 0 0">The sleeve is the real contract and the fund behind it is a
+        stand-in we deployed and named as one. Its price is Circle's, pushed from the oracle above by
+        <code>make float-navsync</code>, so what is simulated is the permission and not the number. It is
+        <strong>not</strong> wired to this treasury: the slot above is a zero address, which is why the
+        reserve row reads empty rather than reading a figure nobody should trust.</div>`;
+  } catch (e) {
+    if (my !== resSeq) return;
+    panel.innerHTML = `<h2>The second sleeve, and the two gates in front of it</h2>
+      <div class="note" style="margin:0"><span class="bad">could not be read: ${nesc(nwhy(e))}</span></div>`;
+  }
+}
 
 let notSeq = 0;
 async function renderNot(prints, receipts, maxAge, now) {

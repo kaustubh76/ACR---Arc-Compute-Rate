@@ -289,6 +289,11 @@ jobs:
             for (const [name, get] of Object.entries({
               FloatVault: A.FloatVault, FloatPrintStore: A.FloatPrintStore,
               Erc4626Sleeve: A.Erc4626Sleeve, FloatTestSeller: A.FloatTestSeller,
+              // The reserve leg compiles and loads like the rest of the system.
+              // It was absent from this list while being deployed, verified on
+              // Blockscout and covered by twelve tests - so a clone could have
+              // been missing its artifact and CI would not have said so.
+              UsycSleeve: A.UsycSleeve,
             })) {
               const art = get();
               if (!Array.isArray(art.abi) || art.abi.length === 0) throw new Error(name + ": empty abi");

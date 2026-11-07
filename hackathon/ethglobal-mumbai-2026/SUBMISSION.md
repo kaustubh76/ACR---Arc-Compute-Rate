@@ -80,7 +80,14 @@ not. Full detail and the raw artifacts in [`float/studio/`](../../float/studio/)
   by eye"* — which is precisely the assurance the validator replaces.
 - **It audits the vault**, including the human-checkpoint path, with findings
   triaged in commits that name the audit.
-- **It hosts the dashboard**, byte-for-byte — verifiable with `arc-studio cat`.
+- **It hosts the dashboard**, byte-for-byte — verifiable with `arc-studio cat`, and
+  the round trip is live rather than a one-time snapshot. The dashboard gained a
+  reserve panel late in the event, which broke that claim by changing the local
+  file; it was pushed back with `arc-studio run --file app/index.html:index.html`
+  and the two hashes agree again at
+  `9bebe697e089a41078e74850e93392a2fb540242ef56fc2d6c8000a1487041ce`. Checked
+  with `cat`, **not** by believing the agent — it reported that hash itself, and
+  a hosted model's own account of what it wrote is not evidence that it wrote it.
 
 What it did not do is listed too: it did not write the vault, the tests, the
 keeper, the agents or the dashboard.
@@ -101,6 +108,8 @@ Every claim below is re-derivable by a command in the repo.
 | That Sauce program cooks on a **Pot deployed on Arc**, not a simulated one | tx [`0xabb5df02…baf3be`](https://explorer.testnet.arc.io/tx/0xabb5df023e20f260b565b0c0cbb916d82e25e265c439a6ab6a43361632baf3be), 667,003 gas through Sauce's Kitchen (verified as `KitchenProxy`). The witness is that `simulate` no longer prints a `deployPot` step |
 | The venue is still Morpho **Vault V2** — every `max*` returns zero and shares are 18 decimals against 6-decimal USDC | `npm run verify` T14. Asserted against the live vault with **no proprietary dependency**, so unlike T13 it also runs from a clone and in CI |
 | The **USYC reserve sleeve** runs on Arc Testnet against a **stand-in fund**, because Circle's allowlist is a support ticket we could not clear during the event | The sleeve is the real contract ([`0x6D2A34ed…972E`](https://explorer.testnet.arc.io/address/0x6D2A34ed26C9e4E58062ecAb9fdD1A80E4b1972E)); the fund behind it is ours and named `SimUsycTeller` so the explorer says so. Real round trip: park [`0xc404de99…ffc40`](https://explorer.testnet.arc.io/tx/0xc404de99cc50ae4ed67a670a005c4332d6d18c4b02a55d0d68164490f54ffc40), pull [`0xc28846ab…f38f9`](https://explorer.testnet.arc.io/tx/0xc28846ab995daad67ff0871c01166708916df7dd03599ce53a354465beff38f9), `valueUsdc` 0 -> 999999 -> 499997. **We hold no USYC**: a staticcall of Circle's real Teller reverts `NotPermissioned()`, and `npm run verify` T15 reports that on every run |
+| **Two gates stand in front of that leg, and the second one is ours** — so the support ticket is necessary and not sufficient | Read from the chain, not described. Circle's Entitlements registry ([`0xcc205224…c26113`](https://explorer.testnet.arc.io/address/0xcc205224862c7641930c87679e98999d23c26113), a Solmate `RolesAuthority`) answers `getUserRoles` = **0x0** for our sleeve while `getRolesWithCapability(teller, 0x6e553f65)` = **0x201** — roles **0 or 9** — so the refusal is *explained* rather than observed. And our own `policy().workingShareBps` is **10000**, so `rebalance` sends every sweep to the working sleeve and `toReserve` is zero: funding the leg needs a policy change as well as a grant. T15 reads both and flips on its own; `float/app/index.html` shows them side by side |
+| The stand-in **prices at Circle's real NAV**, so only the permission is simulated | `make float-navsync` reads Circle's own oracle ([`0x52b56c76…3D4581`](https://explorer.testnet.arc.io/address/0x52b56c7642E71dc54714d879127d97cd0B3D4581)) and pushes it to the stand-in — round **191**, `1.142831108426541885`, tx [`0x17375831…a4db`](https://explorer.testnet.arc.io/tx/0x17375831bbd60035695380cf0be5b6ba66732a6d1ce46a8dc14f4fa9fa6ba4db). It refuses to push a NAV the stand-in could not pay: the position is covered 5.0x and binds only above NAV 5.713902 |
 | Our yield venue has **no timelock on any of its four gate setters**, and its owner and curator are one key | `venue.html`, written by Arc Studio's `morpho` skill; re-derive with `cast call <venue> "timelock(bytes4)(uint256)" <selector>` |
 | The three pages are **driven, not read** — a shortfall probe, a payment picker, a span selector | Open `float/app/{venue,walk,index}.html`. The probe asks the live vault the same four checks the compiled Sauce program asks, and agrees with it: one cent below the sleeve's position says *can cover*, one cent above says *refused* |
 | Pyth is **deployed but dormant** on Arc Testnet, so a pull oracle with nobody paying has no price at all | `index.html` reads it live; re-run `cast call 0xA2aa501b19aff244D90cc15a4Cf739D2725B5729 "getPriceUnsafe(bytes32)" 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a --rpc-url https://rpc.testnet.arc.io` and read the `0x14aebe68` revert as `PriceFeedNotFound()` |

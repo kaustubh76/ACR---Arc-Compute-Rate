@@ -116,6 +116,22 @@ run and flips on its own. If T15 goes red saying the registry and the Teller
 DISAGREE, roles are not the only gate — look for a closed dealing window, a
 paused fund, or the $100,000 minimum before re-opening the ticket.
 
+**AND THE GRANT ALONE WILL NOT FUND THE LEG.** There is a second gate and it is
+ours: `rebalance` sends `excess * workingShareBps / 10_000` to the working
+sleeve and the remainder to the reserve, and the live `workingShareBps` is
+**10000** — so `toReserve` is zero on every sweep. Read it back before blaming
+Circle for an empty reserve:
+
+```sh
+cast call $V 'policy()(uint16,uint16,uint32,uint16,uint16,uint16,uint32,uint256)' \
+  --rpc-url $R          # field 6; 10000 means the reserve gets nothing
+```
+
+Funding the leg is therefore **three** steps in order, not one: get the role,
+`setSleeves` the reserve, and `setPolicy` a `workingShareBps` below 10000
+through the usual validated path. Doing them out of order gives a wired sleeve
+that stays empty and looks broken.
+
 **DRAIN A SLEEVE BEFORE RE-POINTING IT.** `setSleeves` has no guard beyond
 `onlyOwner` — no balance check, no drain, no pause requirement. `totalValueUsdc`
 sums only the sleeves that are wired *right now*, so re-pointing `working` away
@@ -358,6 +374,15 @@ client. A redeploy turns a 404 into a page that says what it is waiting for,
 which is worth having and is not the same as a working flow.
 
 ## The cut
+
+> **Superseded for recording day by [`RECORDING-MAIN.md`](./RECORDING-MAIN.md)**,
+> which carries this table trimmed to ~2:18, adds the USYC beat, and continues
+> into a World act so one video covers both tracks. The booth pitches are
+> [`PITCH-ARC.md`](./PITCH-ARC.md) and [`PITCH-WORLD.md`](./PITCH-WORLD.md).
+>
+> This table is kept because it is the longer Arc-only version: if the form turns
+> out to allow five minutes, the beats dropped from the main cut are here with
+> their original timings.
 
 | t | you do | you say |
 |---|---|---|

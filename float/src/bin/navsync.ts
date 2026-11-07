@@ -56,6 +56,14 @@ const ORACLE = "0x52b56c7642E71dc54714d879127d97cd0B3D4581" as Address;
  * record is how a stand-in quietly becomes part of the system.
  */
 const SIM_TELLER = "0x15934AD8Ae0125935B9dBfe0a8B88A9883A04023" as Address;
+/** The stand-in share token, and the sleeve that holds the only position in it. */
+const SIM_USYC = "0x62C4F9FF42483BA211736C19632eaB65e1eF4995" as Address;
+const SIM_SLEEVE = "0x6D2A34ed26C9e4E58062ecAb9fdD1A80E4b1972E" as Address;
+/** Arc's USDC, which is also the gas token. */
+const ARC_USDC = "0x3600000000000000000000000000000000000000" as Address;
+
+/** Six-decimal USDC, rendered the way every other binary here renders it. */
+const usd = (n: bigint) => `$${formatUnits(n, 6)}`;
 
 const LATEST_ROUND_DATA = parseAbiItem(
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
@@ -63,6 +71,8 @@ const LATEST_ROUND_DATA = parseAbiItem(
 const DECIMALS = parseAbiItem("function decimals() view returns (uint8)");
 const NAV = parseAbiItem("function nav() view returns (uint256)");
 const SET_NAV = parseAbiItem("function setNav(uint256 v)");
+const BALANCE_OF = parseAbiItem("function balanceOf(address who) view returns (uint256)");
+const FEE_BPS = parseAbiItem("function redemptionFeeBps() view returns (uint256)");
 
 async function main() {
   if (NET !== "arc-testnet") {
@@ -100,6 +110,51 @@ async function main() {
   console.log(`  Circle's answer   ${answer}  (${formatUnits(answer, 18)} USDC per USYC)`);
   console.log(`  round             ${roundId}`);
   console.log(`  updatedAt         ${updatedAt} — ${new Date(Number(updatedAt) * 1000).toISOString()}, ${ageS}s ago`);
+
+  // --- CAN THE STAND-IN STILL PAY WHAT THIS WOULD PROMISE? ------------------
+  //
+  // Raising the NAV raises what `previewRedeem` owes on every outstanding
+  // share, and NOTHING RAISES THE BACKING. The teller's USDC is a one-time
+  // manual seed: `make float-usyc-sim` deploys and then prints `cast` commands,
+  // because Arc's USDC is precompile-backed and a forge script cannot move it.
+  // So a NAV pushed far enough makes the fixture promise money it does not
+  // hold, and a redemption would revert inside MockUSDC with "balance" — a
+  // fixture that lies, which is worse than one that is simply simulated.
+  //
+  // This is a GUARD, NOT A REPAIR. Measured on 2026-11-07 the position is
+  // covered five times over, so the normal case must read as normal; a check
+  // that shouts on a healthy system gets ignored on an unhealthy one.
+  const [tellerUsdc, shares, feeBps] = (await Promise.all([
+    pub.readContract({ address: ARC_USDC, abi: [BALANCE_OF], functionName: "balanceOf", args: [SIM_TELLER] }),
+    pub.readContract({ address: SIM_USYC, abi: [BALANCE_OF], functionName: "balanceOf", args: [SIM_SLEEVE] }),
+    pub.readContract({ address: SIM_TELLER, abi: [FEE_BPS], functionName: "redemptionFeeBps" }),
+  ])) as [bigint, bigint, bigint];
+
+  const gross = (shares * answer) / 10n ** 18n;
+  const owed = gross - (gross * feeBps) / 10_000n;
+  console.log(
+    `\n  outstanding       ${shares} shares -> ${usd(owed)} at this NAV`
+    + (feeBps > 0n ? ` (net of ${feeBps}bp)` : ""),
+  );
+  console.log(`  stand-in holds    ${usd(tellerUsdc)}`);
+
+  if (owed > tellerUsdc) {
+    throw new Error(
+      `this NAV would promise ${usd(owed)} against ${usd(tellerUsdc)} held — ${usd(owed - tellerUsdc)} short. `
+      + `Refusing: a stand-in that cannot pay what it reports is worse than one that is merely simulated. `
+      + `Seed the teller first (cast send on Arc's USDC at ${ARC_USDC}; the four commands are in `
+      + `hackathon/ethglobal-mumbai-2026/CONTINUITY.md), then run this again.`,
+    );
+  }
+  // The NAV at which it WOULD bind, so the margin is a number rather than a
+  // reassurance. Gross of the fee on purpose: the fee only ever helps here.
+  const bindsAt = shares > 0n ? (tellerUsdc * 10n ** 18n) / shares : 0n;
+  console.log(
+    shares === 0n
+      ? "  cushion           no outstanding position, so nothing can be under-backed"
+      : `  cushion           ${usd(tellerUsdc - owed)}, ${(Number(tellerUsdc) / Number(owed || 1n)).toFixed(1)}x`
+        + ` — binds at NAV ${Number(formatUnits(bindsAt, 18)).toFixed(6)}`,
+  );
 
   const before = (await pub.readContract({
     address: SIM_TELLER, abi: [NAV], functionName: "nav",

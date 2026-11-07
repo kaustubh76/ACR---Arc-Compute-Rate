@@ -210,7 +210,17 @@ async function walk(hash, head) {
   const pay = toSeller.find((l) => l.ev.args.value === r.quote) ?? toSeller[0] ?? null;
 
   // Step 2: the sleeve's Pulled that closest precedes the payment.
-  const pulls = logs.filter((l) => same(l.addr, CFG.sleeve) && l.ev?.eventName === "Pulled");
+  //
+  // MATCHED ON THE EVENT, NOT ON ONE ADDRESS. This used to require
+  // `same(l.addr, CFG.sleeve)`, which is the WORKING sleeve — so a payment
+  // funded from the T-bill reserve would have shown step 2 as missing while the
+  // pull it was looking for sat in the log list below, unlabelled. `_fund`
+  // pulls from working first and the reserve second, and both emit `Pulled`.
+  // The event is the better key: nothing else in this path emits it, so one
+  // predicate covers both sleeves without a second address to configure.
+  // It cannot happen while the vault's reserve is a zero address, which is
+  // exactly why it was worth correcting before it could.
+  const pulls = logs.filter((l) => l.ev?.eventName === "Pulled");
   const before = pay ? pulls.filter((l) => l.idx < pay.idx) : pulls;
   const pull = before.length ? before[before.length - 1] : pulls[0] ?? null;
 
@@ -318,7 +328,15 @@ async function walk(hash, head) {
   // ---- every log, so the claim can be checked by eye
   const mark = new Set([pull?.idx, pay?.idx, rcpt.idx].filter((x) => x !== undefined));
   const names = [[CFG.vault, "vault"], [CFG.sleeve, "sleeve"], [CFG.usdc, "USDC"], [CFG.store, "store"], [CFG.venue, "venue"]];
-  const who = (a) => esc(names.find(([n]) => same(n, a))?.[1] ?? short(a));
+  // Any address that emitted `Pulled` is a sleeve, so a pull from the T-bill
+  // reserve is NAMED rather than left as a bare hex string a reader has to go
+  // and look up. The logs already carry the fact, so this costs no extra read.
+  const pullers = new Set(logs.filter((l) => l.ev?.eventName === "Pulled").map((l) => String(l.addr).toLowerCase()));
+  const who = (a) => {
+    const named = names.find(([n]) => same(n, a))?.[1];
+    if (named) return esc(named);
+    return esc(pullers.has(String(a).toLowerCase()) ? `sleeve ${short(a)}` : short(a));
+  };
   $("logs").innerHTML = `<div class="panel"><details><summary>All ${logs.length} logs in this transaction</summary>
     <div class="tbl"><table><thead><tr><th>log</th><th>emitter</th><th>event</th></tr></thead><tbody>${
       logs.map((l) => `<tr class="${mark.has(l.idx) ? "mark" : ""}"><td>${l.idx}</td><td>${who(l.addr)}</td><td>${esc(l.ev?.eventName ?? "(not decoded)")}</td></tr>`).join("")
