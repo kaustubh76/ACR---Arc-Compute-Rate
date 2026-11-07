@@ -52,15 +52,15 @@
   @media (max-width: 420px) { body { padding: 16px 12px 48px; } .big { font-size: 22px; } }
   select#span { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 11px; max-width: 100%; }
   #notPanel, #reservePanel { overflow-wrap: anywhere; }
-  #notPanel, #reservePanel .nsub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 18px 0 6px; font-weight: 500; }
-  #notPanel, #reservePanel .nhead { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 12px 0 4px; }
-  #notPanel, #reservePanel .nrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 3px 0; min-width: 0; }
-  #notPanel, #reservePanel .nrow > span:last-child { text-align: right; min-width: 0; }
-  #notPanel, #reservePanel .nk { color: var(--dim); }
-  #notPanel, #reservePanel .nverdict { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
-  #notPanel, #reservePanel .nverdict.ok { border-color: #1d4535; } #notPanel, #reservePanel .nverdict.warn { border-color: #4a3a1c; } #notPanel, #reservePanel .nverdict.bad { border-color: var(--bad); }
-  #notPanel, #reservePanel code { color: var(--ink); font-size: 11px; }
-  #notPanel, #reservePanel td { white-space: normal; vertical-align: top; }
+  #notPanel .nsub, #reservePanel .nsub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink); margin: 18px 0 6px; font-weight: 500; }
+  #notPanel .nhead, #reservePanel .nhead { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin: 12px 0 4px; }
+  #notPanel .nrow, #reservePanel .nrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; padding: 3px 0; min-width: 0; }
+  #notPanel .nrow > span:last-child, #reservePanel .nrow > span:last-child { text-align: right; min-width: 0; }
+  #notPanel .nk, #reservePanel .nk { color: var(--dim); }
+  #notPanel .nverdict, #reservePanel .nverdict { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; }
+  #notPanel .nverdict.ok, #reservePanel .nverdict.ok { border-color: #1d4535; } #notPanel .nverdict.warn, #reservePanel .nverdict.warn { border-color: #4a3a1c; } #notPanel .nverdict.bad, #reservePanel .nverdict.bad { border-color: var(--bad); }
+  #notPanel code, #reservePanel code { color: var(--ink); font-size: 11px; }
+  #notPanel td, #reservePanel td { white-space: normal; vertical-align: top; }
 </style>
 </head>
 <body>

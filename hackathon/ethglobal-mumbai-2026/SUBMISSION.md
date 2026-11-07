@@ -85,7 +85,7 @@ not. Full detail and the raw artifacts in [`float/studio/`](../../float/studio/)
   reserve panel late in the event, which broke that claim by changing the local
   file; it was pushed back with `arc-studio run --file app/index.html:index.html`
   and the two hashes agree again at
-  `9bebe697e089a41078e74850e93392a2fb540242ef56fc2d6c8000a1487041ce`. Checked
+  `d03aeff13594ebcd67ca508333eeac7e1328c29ebbb1733a7387d2a460c3003b`. Checked
   with `cat`, **not** by believing the agent — it reported that hash itself, and
   a hosted model's own account of what it wrote is not evidence that it wrote it.
 
