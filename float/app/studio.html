@@ -1,0 +1,136 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACR Float · what Arc Studio did</title>
+<!--
+  WHAT THIS PAGE IS FOR.
+
+  The submission makes three narrow claims about Arc Studio — it compiles the
+  treasury policy, it audits the vault, it holds the dashboard — and all three
+  were PROSE. `float/studio/README.md` is 32 KB of detail and
+  `policy.generated.json` is the one artifact, but nowhere could a reader watch
+  a plain-English sentence go in and see what the agent did with it.
+
+  So this page is the trace. Every field below is copied from the JSON that
+  `arc-studio run -o json` wrote, saved verbatim under `float/studio/traces/`.
+  The ids are real and identify the runs: `traceId`, `threadId`, `sandboxId`.
+
+  NO DATA IS FETCHED. The traces are inlined rather than loaded, so the page
+  works from `file://`, needs no server, and cannot show a spinner where a
+  finding should be. It is a RECORD of two runs, not a live feed, and it says so.
+
+  The CSS below uses flat, single-purpose selectors on purpose. An hour before
+  this page was written I widened ten rules from `#notPanel` to
+  `#notPanel, #reservePanel .nsub` and shipped it — which does not mean ".nsub in
+  either panel", it means all of `#notPanel` plus `.nsub` in the other. Every
+  rule meant for a child landed on the whole parent. `node --check` passed the
+  entire time, because a selector that means the wrong thing is still valid CSS.
+-->
+<style>
+  :root { --bg:#0d0f12; --ink:#e8e4da; --dim:#8d9099; --line:#262a31; --good:#7fcf9a; --warn:#d8b25f; --bad:#e0796b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; padding:24px 16px 72px; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size:19px; font-weight:600; margin:0 0 4px; letter-spacing:-.01em; }
+  h2 { font-size:13px; font-weight:600; margin:0 0 10px; }
+  .sub { color:var(--dim); margin:0 0 22px; }
+  .panel { border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:0 0 14px; overflow-wrap:anywhere; }
+  .claim { display:flex; gap:10px; padding:5px 0; align-items:baseline; }
+  .claim-k { color:var(--dim); min-width:112px; flex:0 0 auto; }
+  .ask { border-left:2px solid var(--line); padding:2px 0 2px 12px; margin:10px 0; color:var(--ink); }
+  .said { border-left:2px solid var(--good); padding:2px 0 2px 12px; margin:10px 0; }
+  .meta { color:var(--dim); font-size:12px; margin-top:10px; }
+  .meta-row { display:flex; gap:10px; padding:2px 0; }
+  .meta-k { color:var(--dim); min-width:84px; flex:0 0 auto; }
+  .find { border:1px solid var(--warn); border-radius:6px; padding:10px 12px; margin:12px 0 0; }
+  .tag { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 6px; }
+  .no { color:var(--dim); }
+  code { color:var(--ink); }
+  a { color:var(--ink); }
+  .foot { color:var(--dim); font-size:12px; border-top:1px solid var(--line); margin-top:22px; padding-top:14px; }
+</style>
+
+<div class="wrap">
+  <h1>ACR Float · what Arc Studio did</h1>
+  <p class="sub">Two runs, traced. Every id below identifies a real run and every answer is quoted
+  from the JSON <code>arc-studio run</code> wrote, saved under <code>float/studio/traces/</code>.</p>
+
+  <div class="panel">
+    <h2>The three claims, stated narrowly</h2>
+    <div class="claim"><span class="claim-k">compiles</span><span>The treasurer writes a sentence; Studio emits the policy JSON. Its output is
+      <strong>checked, not trusted</strong> — our validator refuses an invalid config before a transaction is
+      built, and the chain keeps the last good policy.</span></div>
+    <div class="claim"><span class="claim-k">audits</span><span>The vault, including the human-checkpoint path, with findings triaged in commits
+      that name the audit.</span></div>
+    <div class="claim"><span class="claim-k">holds</span><span>The dashboard, byte-identical — <code>shasum</code> the local file and
+      <code>arc-studio cat</code> the workspace copy and compare.</span></div>
+    <div class="claim"><span class="claim-k no">did not</span><span class="no">Write the vault, the tests, the keeper, the agents or the dashboard.
+      It wrote <code>walk.html</code> and <code>venue.html</code> beside them, which is a different and narrower claim.</span></div>
+  </div>
+
+  <div class="panel">
+    <p class="tag">run 1 · it refused, rather than guessing</p>
+    <div class="ask">&ldquo;Read the Float treasury policy at <code>float/studio/policy.generated.json</code> in this
+      workspace and tell me, in two sentences, which agent is frozen and what the fair-price band is.
+      Do not change any file.&rdquo;</div>
+    <div class="said">&ldquo;I can't answer this, because <code>float/studio/policy.generated.json</code> isn't in the
+      workspace. There is no <code>float/</code> folder at the root, and a search of the whole sandbox found no
+      file named <code>policy.generated.json</code>.&rdquo;</div>
+    <p class="sub" style="margin:10px 0 0">The prompt was wrong — that path is in the repository, not in the Studio
+      workspace. The useful part is what the agent did with a question it could not answer: it searched, found
+      nothing, and said so. A trace of a refusal is worth more than a trace of a success, because it is the case
+      where a model is most tempted to invent.</p>
+    <div class="meta">
+      <div class="meta-row"><span class="meta-k">status</span><span>completed</span></div>
+      <div class="meta-row"><span class="meta-k">traceId</span><span>01a1b3d4-ab01-70a5-adee-4eada3900320</span></div>
+      <div class="meta-row"><span class="meta-k">threadId</span><span>20b0a0b6-1f99-4a3f-b536-5ed15798f021</span></div>
+      <div class="meta-row"><span class="meta-k">sandboxId</span><span>i543zznv8mfyggzkafsg3</span></div>
+      <div class="meta-row"><span class="meta-k">filesChanged</span><span>none — the run was read-only, as asked</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p class="tag">run 2 · the same question, with the file sent</p>
+    <div class="ask">&ldquo;Here is the Float treasury policy this repo deployed. In two sentences: which agent is
+      frozen, and what is the fair-price band in percent? Do not change any file.&rdquo;
+      <span class="no">&nbsp;— sent with <code>-f float/studio/policy.generated.json:policy.generated.json</code></span></div>
+    <div class="said">&ldquo;The agent <code>waster</code> is frozen (<code>"frozen": true</code>); <code>scout</code> is
+      not. The fair-price band is 10% below to 15% above fair (<code>lowerBandBps</code> 1000,
+      <code>upperBandBps</code> 1500), which is separate from the 1% maximum premium
+      (<code>maxPremiumBps</code> 100). This is what the file says, not the live chain. Earlier today the vault
+      showed the scout's daily cap as $60, while this file says $25.&rdquo;</div>
+
+    <div class="find">
+      <p class="tag" style="margin:0 0 6px">what it caught, unprompted</p>
+      It was asked about the freeze and the band. It answered both correctly, then volunteered two things nobody
+      asked for: that <strong>a file is not a chain</strong>, and that the committed
+      <code>policy.generated.json</code> says a <strong>$25</strong> daily cap while the live vault says
+      <strong>$60</strong>. That second one is a real drift and it is independently checkable —
+      <code>cast call &lt;vault&gt; 'agentOf(bytes32)' $(cast keccak "scout")</code> returns a 60000000 cap. The
+      artifact is a record of what Studio compiled on 2026-11-06; the chain has moved since. Neither number is
+      wrong, and nothing in the repository said so until the agent did.
+    </div>
+
+    <div class="meta">
+      <div class="meta-row"><span class="meta-k">status</span><span>completed</span></div>
+      <div class="meta-row"><span class="meta-k">traceId</span><span>01a1b3d5-736c-750d-be6c-fdb95d56d03a</span></div>
+      <div class="meta-row"><span class="meta-k">filesChanged</span><span>none — the run was read-only, as asked</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Re-derive any of this</h2>
+    <div class="claim"><span class="claim-k">the traces</span><span><code>float/studio/traces/*.json</code>, saved verbatim from
+      <code>arc-studio run -o json</code>. Nothing was tidied; a trace that has been tidied is not a trace.</span></div>
+    <div class="claim"><span class="claim-k">the workspace</span><span><code>arc-studio ls --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557</code></span></div>
+    <div class="claim"><span class="claim-k">the dashboard</span><span><code>shasum -a 256 float/app/index.html</code> against
+      <code>arc-studio cat --app b5aa43e1-4d5c-4d47-b079-dcc9aea0e557 index.html | shasum -a 256</code></span></div>
+    <div class="claim"><span class="claim-k">the policy</span><span><code>float/studio/policy.generated.json</code>, and
+      <code>float/src/policy.ts</code> is the validator that refuses it if it is wrong</span></div>
+  </div>
+
+  <p class="foot">This page is a record of two runs on 2026-11-07, not a live feed, and it is static on purpose:
+  no fetch, no build step, nothing to spin. The workspace is at
+  <a href="https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557">studio.arc.io/app/b5aa43e1…0e557</a>,
+  which asks for a Circle login — anonymously it redirects, so the commands above are the part a stranger can run.</p>
+</div>

@@ -1,0 +1,53 @@
+{
+  "status": "completed",
+  "appId": "b5aa43e1-4d5c-4d47-b079-dcc9aea0e557",
+  "threadId": "20b0a0b6-1f99-4a3f-b536-5ed15798f021",
+  "sandboxId": "i543zznv8mfyggzkafsg3",
+  "finalText": "The agent `waster` is frozen (`\"frozen\": true`); `scout` is not. The fair-price band is 10% below to 15% above fair (`lowerBandBps` 1000, `upperBandBps` 1500), which is separate from the 1% maximum premium (`maxPremiumBps` 100).\n\nThis is what the file says, not the live chain. Earlier today the vault showed the scout's daily cap as $60, while this file says $25.",
+  "todos": null,
+  "filesChanged": [],
+  "fileDiffs": [],
+  "contextFiles": [],
+  "workspaceFiles": [
+    "policy.generated.json"
+  ],
+  "deployments": [],
+  "artifacts": {
+    "contractSources": [
+      "contracts/script/Create2Factory.sol",
+      "contracts/script/DeployCreate2.s.sol"
+    ],
+    "abis": [
+      "contracts/out/Base.sol/CommonBase.json",
+      "contracts/out/Base.sol/ScriptBase.json",
+      "contracts/out/Base.sol/TestBase.json",
+      "contracts/out/Create2.sol/Create2.json",
+      "contracts/out/Create2Factory.sol/Create2Factory.json",
+      "contracts/out/DeployCreate2.s.sol/DeployCreate2.json",
+      "contracts/out/Errors.sol/Errors.json",
+      "contracts/out/IMulticall3.sol/IMulticall3.json",
+      "contracts/out/LowLevelCall.sol/LowLevelCall.json",
+      "contracts/out/Script.sol/Script.json",
+      "contracts/out/StdChains.sol/StdChains.json",
+      "contracts/out/StdCheats.sol/StdCheats.json",
+      "contracts/out/StdCheats.sol/StdCheatsSafe.json",
+      "contracts/out/StdConstants.sol/StdConstants.json",
+      "contracts/out/StdJson.sol/stdJson.json",
+      "contracts/out/StdMath.sol/stdMath.json",
+      "contracts/out/StdStorage.sol/stdStorage.json",
+      "contracts/out/StdStorage.sol/stdStorageSafe.json",
+      "contracts/out/StdStyle.sol/StdStyle.json",
+      "contracts/out/StdUtils.sol/StdUtils.json",
+      "contracts/out/Vm.sol/Vm.json",
+      "contracts/out/Vm.sol/VmSafe.json",
+      "contracts/out/console.sol/console.json",
+      "contracts/out/safeconsole.sol/safeconsole.json"
+    ],
+    "metadata": []
+  },
+  "webUrl": "https://studio.arc.io/app/b5aa43e1-4d5c-4d47-b079-dcc9aea0e557",
+  "questions": null,
+  "errorMessage": null,
+  "traceId": "01a1b3d5-736c-750d-be6c-fdb95d56d03a",
+  "budget": null
+}
