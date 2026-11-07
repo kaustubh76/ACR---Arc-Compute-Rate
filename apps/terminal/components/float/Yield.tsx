@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { Ed } from "@/components/Ed";
 import { TickerNumber } from "@/components/TickerNumber";
 import { addrUrl } from "@/lib/chain";
-import { reserveShareBps, slotIsEmpty } from "@/lib/floatReserve";
+import { RESERVE_RECORD, previewDeposit, previewRedeem, reserveShareBps, slotIsEmpty } from "@/lib/floatReserve";
 import { CHAINS } from "@/lib/chainChoice";
 import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
@@ -137,6 +139,137 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
      receive nothing even with a sleeve wired and Circle's permission granted.
      The panel named the allowlist as the only obstacle and left this out. */
   const reserveShare = reserveShareBps(vault.policy?.working_share_bps);
+  const [putIn, setPutIn] = useState(0);
+
+  /* THE HALF THAT WORKS, AND IT GOES FIRST.
+     Everything else in this panel reads Circle's fund, which refuses us, so
+     the panel could only ever explain a shut door. `UsycSleeve` is the same
+     contract that would face Circle's teller, deployed in front of a published
+     stand-in fund, and it is the one address in this story holding a position.
+
+     NOT A TREASURY FIGURE, AND IT SAYS SO. The sleeve answers to the deploy key
+     rather than the vault, exactly so no simulated number can reach
+     `totalValueUsdc()`, so this block wears `chip-sim` and is summed into
+     nothing.
+
+     THE WHAT-IF SPENDS NO RPC CALL. One NAV read, then `previewDeposit` and
+     `previewRedeem` — ports of the teller's own arithmetic, pinned in
+     `lib/floatReserve.test.ts`. The round trip is the point: what comes back is
+     less than what went in, because `previewRedeem` takes the fund's
+     redemption fee off, and `UsycSleeve.valueUsdc()` deliberately quotes that
+     net figure rather than balance times NAV. */
+  const navWad = f?.nav_wad ? BigInt(f.nav_wad) : null;
+  const navPerShare = navWad === null ? null : Number(navWad) / 1e18;
+  const ceiling = vault.total_usdc ?? 0;
+  const putUnits = BigInt(Math.round(putIn * 1e6));
+  const shares = previewDeposit(putUnits, navWad);
+  const backUnits = shares === null ? null : previewRedeem(shares, navWad, f?.nav_fee_bps);
+
+  const bench = f?.sleeve ? (
+    <>
+      <div className="block-head">
+        <h3 className="label">
+          <Ed x="The same sleeve, driven on a stand-in fund" p="The same pot, tried on a practice fund" />
+        </h3>
+        <span className="label">
+          <span className="chip chip-sim">
+            <Ed x="stand-in fund, published source" p="a practice fund, not real money" />
+          </span>
+        </span>
+      </div>
+      <Ed
+        as="p"
+        className="muted"
+        style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
+        x="This is the contract that would face Circle's teller, deployed in front of a stand-in fund, so the mechanism runs today."
+        p="This is the same code, tried on a practice fund, so you can watch it work."
+      />
+      <p className="label mono">
+        <Ed x="our sleeve" p="our pot" />{" "}
+        <a className="tx-link" href={addrUrl(f.sleeve, explorer)} rel="noreferrer" target="_blank" title={f.sleeve}>
+          {shortAddr(f.sleeve)} <span className="ext">↗</span>
+        </a>
+        {" · "}
+        <Ed x="holds" p="holds" />{" "}
+        <span className="num">
+          {f.sleeve_value_usdc === null || f.sleeve_value_usdc === undefined ? "…" : fmtPrice(f.sleeve_value_usdc)}
+        </span>{" "}
+        <Ed x="USDC, net of the fund's fee" p="dollars, after the fund's fee" />
+        {f.sleeve_code_bytes ? (
+          <>
+            {" · "}
+            <span className="num">{fmtInt(f.sleeve_code_bytes)}</span> <Ed x="bytes of code" p="bytes of code" />
+          </>
+        ) : null}
+      </p>
+      <p className="label mono">
+        <Ed x="the stand-in fund" p="the practice fund" />{" "}
+        {f.bench_teller ? (
+          <a className="tx-link" href={addrUrl(f.bench_teller, explorer)} rel="noreferrer" target="_blank" title={f.bench_teller}>
+            {shortAddr(f.bench_teller)} <span className="ext">↗</span>
+          </a>
+        ) : (
+          <span className="num">…</span>
+        )}
+        {" · "}
+        <Ed x="price per share" p="price for one share" />{" "}
+        <span className="num">{navPerShare === null ? "…" : navPerShare.toFixed(6)}</span>
+        {f?.nav_fee_bps ? (
+          <>
+            {" · "}
+            <Ed x="redemption fee" p="fee to cash out" />{" "}
+            <span className="num">{(f.nav_fee_bps / 100).toFixed(2)}</span>
+            {"%"}
+          </>
+        ) : null}
+      </p>
+
+      {navWad !== null && ceiling > 0 ? (
+        <>
+          <div className="flow-controls">
+            <label className="label">
+              <Ed x="what-if: put this much in" p="what-if: put this much in" />{" "}
+              <input
+                aria-label="a what-if deposit into the stand-in Treasury bill fund, in USDC"
+                aria-valuetext={`${fmtPrice(putIn)} USDC`}
+                max={ceiling}
+                min={0}
+                onChange={(e) => setPutIn(Number(e.target.value))}
+                step="any"
+                type="range"
+                value={putIn}
+              />{" "}
+              <b className="gold mono">{fmtPrice(putIn)}</b>
+            </label>
+            {putIn > 0 ? (
+              <button className="chip" onClick={() => setPutIn(0)} type="button">
+                <Ed x="put it back" p="put it back" />
+              </button>
+            ) : null}
+          </div>
+          <p aria-live="polite" className="label mono" role="status">
+            {putIn <= 0 ? (
+              <Ed
+                x="nothing in: the price above is the fund's own, read from chain."
+                p="nothing in yet. The price above is the real one."
+              />
+            ) : (
+              <>
+                <Ed x="the fund would mint" p="you would get" />{" "}
+                <span className="num gold">{shares === null ? "…" : fmtPrice(Number(shares) / 1e6)}</span>{" "}
+                <Ed x="shares" p="shares" />
+                {" · "}
+                <Ed x="redeeming them returns" p="cashing them out returns" />{" "}
+                <span className="num">{backUnits === null ? "…" : fmtPrice(Number(backUnits) / 1e6)}</span>{" "}
+                <Ed x="USDC, the fee taken off" p="dollars, with the fee taken off" />
+              </>
+            )}
+          </p>
+        </>
+      ) : null}
+    </>
+  ) : null;
+
 
   const pf = d?.performance_fee_pct;
   const mf = d?.management_fee_pct_year;
@@ -346,6 +479,7 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
             x="The reserve sleeve was built for a tokenized Treasury bill fund, read here rather than asserted. Three things must be true before it earns; one is Circle's."
             p="The second pot was meant to hold Treasury bills. The fund is real. Three things must be true before it earns, and two are ours."
           />
+          {bench}
           <p className="label mono">
             <Ed x="the fund" p="the fund" />{" "}
             {f?.token ? (
@@ -356,7 +490,14 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               <span className="num">{shortAddr(USYC)}</span>
             )}
             {" · "}
-            <span className="num">{f?.symbol ?? "…"}</span>
+            {/* THE TICKER, SAID RATHER THAN HOPED FOR. This was
+                `f?.symbol ?? "…"`, so the one word a reader searches for
+                reached the page only when a 120-second poll had already
+                landed — and the page can render perfectly with the ticker
+                nowhere on it, which is exactly what a reader reported. The
+                record is the 2026-10-04 reading in `docs/TAMEION.md`, and the
+                chip below already says if a live read ever disagrees with it. */}
+            <span className="num">{f?.symbol ?? RESERVE_RECORD.symbol}</span>
             {" · "}
             <span className="num">{num(f?.decimals)}</span> <Ed x="decimals" p="decimals" />
             {" · "}
@@ -459,7 +600,14 @@ export function Yield({ vault }: { vault: FloatVaultState }) {
               returns the zero address and now says so in its own characters.
               Absent when the read did not come back: a throttled read must not
               render as a confident zero address. */}
-          {d?.status === "ok" && vault.reserve_slot ? (
+          {/* GATED ON THE READ THAT PRODUCES IT, which it was not. This said
+              `d?.status === "ok" && vault.reserve_slot`, where `d` is the
+              YIELD payload — a different endpoint on a different poll. A
+              throttle on the working sleeve's event walk silently deleted the
+              strongest sentence on this panel. `vault.reserve_slot` is absent
+              when unread, by the reader's own `...(ok ? {} : {})`, so it is
+              the whole condition. */}
+          {vault.reserve_slot ? (
             <p className="label mono">
               <Ed x="the vault's reserve slot holds" p="the vault's second slot holds" />{" "}
               <span className="num">{vault.reserve_slot}</span>{" "}

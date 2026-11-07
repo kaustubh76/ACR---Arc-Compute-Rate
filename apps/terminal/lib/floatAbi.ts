@@ -275,3 +275,30 @@ export const ERC20_ABI = [
     ],
   },
 ] as const;
+
+/* THE STAND-IN FUND'S PRICE, and only what is needed to read it.
+   `contracts/src/sim/SimUsyc.sol` declares `nav` and `redemptionFeeBps` as
+   public state, so both getters exist; `previewDeposit` and `previewRedeem` are
+   views over them. The two previews are declared here and deliberately not
+   called: `lib/floatReserve.ts` ports their arithmetic so a slider does not
+   spend an RPC call per drag, and having the real signatures beside the port is
+   what makes the port checkable. `maxDeposit` is absent on purpose — it answers
+   5,723,443 for an address that cannot deposit at all. */
+export const BENCH_TELLER_ABI = [
+  { type: "function", name: "nav", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "redemptionFeeBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "previewDeposit",
+    stateMutability: "view",
+    inputs: [{ name: "usdcAmount", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "previewRedeem",
+    stateMutability: "view",
+    inputs: [{ name: "usycAmount", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;

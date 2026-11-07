@@ -215,3 +215,62 @@ test("every paint has its own mark, so state never rests on colour alone", () =>
   assert.notEqual(marks[1], marks[2], "stopped and escalated must differ");
   for (const m of marks) assert.ok(m.length > 0, "every paint carries a mark");
 });
+
+/* THE RAIL MUST NOT DIM ITS OWN LABELS, which is a CSS fact and therefore
+   normally nobody's test — except that this exact bug has now shipped three
+   times in one stylesheet. `opacity` on a cell composites its whole subtree,
+   and `.rung-cell` paints its text in `--ether-45`, a token that is ALREADY a
+   0.55 alpha, so any state multiplier lands on top of that one: `queued` at
+   0.4 measured 1.71:1 on production, `dim` 2.54:1, and the waiting pulse
+   dipped to 0.09 alpha for 1.18:1. `.flow-node.dim` and `.scene-tag-off` in
+   the same file were the same mistake and both carry a comment saying so.
+   A comment did not stop the third one. This does.
+   The state belongs on the border, where no text pays for it. */
+const CSS = join(HERE, "..", "app", "globals.css");
+
+function ruleBody(css: string, selector: string): string {
+  const at = css.indexOf(selector + " {");
+  assert.notEqual(at, -1, `${selector} is gone from globals.css — if it was renamed, rename it here too`);
+  const open = css.indexOf("{", at);
+  let depth = 0;
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === "{") depth += 1;
+    else if (css[i] === "}") { depth -= 1; if (depth === 0) return css.slice(open + 1, i); }
+  }
+  throw new Error(`unbalanced braces after ${selector}`);
+}
+
+test("no rail state dims its own text, because the text colour is already an alpha", () => {
+  const css = readFileSync(CSS, "utf8");
+  for (const state of [".rung-cell.dim", ".rung-cell.queued", ".rung-cell.running"]) {
+    const body = ruleBody(css, state);
+    assert.ok(
+      !/(^|[;\s])opacity\s*:/.test(body),
+      `${state} sets opacity, which multiplies into --ether-45's 0.55 and takes the cell's number and mark under 4.5:1. ` +
+        `Carry the state on border-color/border-style instead: ${body.trim().replace(/\s+/g, " ")}`,
+    );
+  }
+});
+
+test("the waiting pulse animates the frame, not the text", () => {
+  const css = readFileSync(CSS, "utf8");
+  const frames = ruleBody(css, "@keyframes rung-wait");
+  assert.ok(
+    !/opacity\s*:/.test(frames),
+    "rung-wait animates opacity; at its trough the mark measured 1.18:1 on production, the worst contrast on the page. " +
+      "Pulse border-color instead: " + frames.trim().replace(/\s+/g, " "),
+  );
+  assert.match(frames, /border-color/, "rung-wait must still pulse something, or `running` says nothing at all");
+});
+
+/* And the ring the states are read through. It measured 2.92:1 against a panel
+   while reading 5.1:1 against the page, so the page view said it was fine. */
+test("the focus ring has a token of its own, so a chart colour cannot move it", () => {
+  const css = readFileSync(CSS, "utf8");
+  assert.match(css, /--focus-ring:\s*#[0-9a-f]{6}/i, "--focus-ring is gone; focus outlines fall back to a chart series colour");
+  assert.equal(
+    (css.match(/solid var\(--validator\)/g) ?? []).length,
+    0,
+    "a focus outline is painted in --validator again, which is also a FuturesMarkChart series: use --focus-ring",
+  );
+});

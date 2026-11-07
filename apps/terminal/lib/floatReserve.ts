@@ -81,6 +81,80 @@ export function reserveFund(chain: ChainKey): ReserveFund {
   return RESERVE_FUND[chain];
 }
 
+/** THE BENCH, AND WHY IT IS A SEPARATE TYPE FROM THE FUND ABOVE.
+ *
+ *  `ReserveFund` is Circle's. This is ours: the same `UsycSleeve` contract, the
+ *  same bytecode that would face Circle's Teller, deployed in front of a
+ *  published stand-in fund so the mechanism can be driven today rather than
+ *  described. Keeping it in its own type is the point — a field on
+ *  `ReserveFund` would read as part of the fund, and `float/src/bin/navsync.ts`
+ *  is explicit about the failure mode: "putting a simulated address in the
+ *  deployment record is how a stand-in quietly becomes part of the system".
+ *
+ *  THE SLEEVE ANSWERS TO THE DEPLOY KEY, NOT THE VAULT, by design
+ *  (`contracts/script/DeploySimUsyc.s.sol`) so that no simulated number can
+ *  reach `totalValueUsdc()`. Nothing read from here may be summed into a
+ *  treasury total, and the surface that shows it has to say what it is. */
+export type ReserveBench = {
+  /** `UsycSleeve`, the real contract. Verified. */
+  sleeve: string;
+  /** `SimUsyc`, the stand-in share token. Verified. */
+  share: string;
+  /** `SimUsycTeller`, the stand-in fund. */
+  teller: string;
+};
+
+/** Deployed 2026-11-06 and recorded in `docs/TAMEION.md`, which these answer to.
+ *  Mainnet is empty on purpose: there is no stand-in there and inventing one
+ *  would put an address on screen that nobody deployed. */
+export const RESERVE_BENCH: Record<ChainKey, ReserveBench> = {
+  testnet: {
+    sleeve: "0x6D2A34ed26C9e4E58062ecAb9fdD1A80E4b1972E",
+    share: "0x62C4F9FF42483BA211736C19632eaB65e1eF4995",
+    teller: "0x15934AD8Ae0125935B9dBfe0a8B88A9883A04023",
+  },
+  mainnet: { sleeve: "", share: "", teller: "" },
+};
+
+export function reserveBench(chain: ChainKey): ReserveBench {
+  return RESERVE_BENCH[chain];
+}
+
+/** USDC in, shares out, as `SimUsycTeller.previewDeposit` computes it:
+ *  `usdcAmount * 1e18 / nav`.
+ *
+ *  A PORT, SO THE WHAT-IF COSTS NO CALL. The slider needs an answer on every
+ *  drag and Arc's RPC is rate limited per source address; one NAV read and this
+ *  arithmetic gives the same number the contract would, which is also why it is
+ *  a pure function with its own test rather than four expressions in a
+ *  component. `null` whenever the NAV was not read or is zero: a division by an
+ *  unread price is not a quote, and rendering 0 shares would be a claim. */
+export function previewDeposit(assetsUnits: bigint, navWad: bigint | null | undefined): bigint | null {
+  if (navWad === null || navWad === undefined || navWad <= 0n) return null;
+  if (assetsUnits <= 0n) return 0n;
+  return (assetsUnits * 10n ** 18n) / navWad;
+}
+
+/** Shares in, USDC out, as `SimUsycTeller.previewRedeem` computes it: gross at
+ *  NAV, then the redemption fee removed.
+ *
+ *  THE FEE IS NOT OPTIONAL. `UsycSleeve.valueUsdc()` deliberately calls
+ *  `previewRedeem` rather than `balance * NAV`, with the reason in its own
+ *  comment: "a fee that the fund will certainly charge is not value the
+ *  treasury has". A preview that dropped it would quote the treasury money it
+ *  cannot get, which is the one direction this surface must not round. */
+export function previewRedeem(
+  sharesUnits: bigint,
+  navWad: bigint | null | undefined,
+  feeBps: number | null | undefined,
+): bigint | null {
+  if (navWad === null || navWad === undefined || navWad <= 0n) return null;
+  if (feeBps === null || feeBps === undefined || !Number.isFinite(feeBps) || feeBps < 0) return null;
+  if (sharesUnits <= 0n) return 0n;
+  const gross = (sharesUnits * navWad) / 10n ** 18n;
+  return gross - (gross * BigInt(Math.round(feeBps))) / 10_000n;
+}
+
 /** What the fund answered when it was read on 2026-10-04.
  *
  *  THE POINT OF PINNING THIS is that a live read can now be compared against

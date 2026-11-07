@@ -457,6 +457,28 @@ export type FloatReserveFacts = {
    *  shows the probe discriminates on permission rather than on something
    *  incidental to us. Without it the staticcall is as weak as `maxDeposit`. */
   control_refusal?: string | null;
+  /** THE HALF THAT WORKS. `UsycSleeve` — the real contract, same bytecode that
+   *  would face Circle's Teller — deployed in front of a published stand-in
+   *  fund, so the mechanism can be driven instead of described.
+   *
+   *  NEVER A TREASURY FIGURE. The sleeve answers to the deploy key rather than
+   *  the vault, precisely so a simulated number cannot reach
+   *  `totalValueUsdc()`, and acceptance check T15 asserts the production
+   *  reserve stays the zero address. Any surface rendering these says what they
+   *  are. */
+  sleeve?: string;
+  sleeve_code_bytes?: number | null;
+  /** What the sleeve holds, net of the fund's redemption fee, as
+   *  `UsycSleeve.valueUsdc()` reports it. */
+  sleeve_value_usdc?: number | null;
+  /** The stand-in fund and its share token. */
+  bench_teller?: string;
+  bench_share?: string;
+  /** The fund's price per share, 1e18-scaled, as a decimal string because JSON
+   *  has no bigint and a float would lose the low digits of a WAD. */
+  nav_wad?: string | null;
+  /** The redemption fee the preview takes off, in basis points. */
+  nav_fee_bps?: number | null;
 };
 
 export type FloatYield = {

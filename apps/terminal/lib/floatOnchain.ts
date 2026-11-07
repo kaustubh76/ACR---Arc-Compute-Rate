@@ -45,8 +45,8 @@ import { createPublicClient, decodeEventLog, formatUnits, http, keccak256, toHex
 import type { ChainKey } from "./chainChoice";
 import { accruedFrom, principalFrom } from "./floatYield";
 import { isThrottled } from "./rpcErrors";
-import { ERC20_ABI, SLEEVE_ABI, STORE_ABI, TELLER_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
-import { agreesWithRecord, codeBytes, refusalName, reserveFund, revertSelector } from "./floatReserve";
+import { BENCH_TELLER_ABI, ERC20_ABI, SLEEVE_ABI, STORE_ABI, TELLER_ABI, VAULT_ABI, VENUE_ABI } from "./floatAbi";
+import { agreesWithRecord, codeBytes, refusalName, reserveBench, reserveFund, revertSelector } from "./floatReserve";
 import {
   countVenueLogs,
   fairMatches,
@@ -875,6 +875,29 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
   };
   const [mine, control] = await Promise.all([tryDeposit(cfg.vault), tryDeposit(DEAD_ADDRESS)]);
 
+  /* AND THE HALF THAT WORKS, read from chain the same way.
+     `UsycSleeve` in front of the published stand-in fund is the only contract
+     in this story holding a position, so the panel can show the mechanism
+     working instead of only the door that is shut. Four reads, and every one of
+     them absent rather than zero when the chain does not answer: a stand-in
+     that renders 0.00 under a throttle is indistinguishable from one that holds
+     nothing, and being distinguishable is this block's whole job. */
+  const bench = reserveBench(chain);
+  const hasBench = ADDR.test(bench.sleeve) && ADDR.test(bench.teller);
+  const unread = { ok: false as const, busy: false };
+  const [nav, feeBps, sleeveVal, sleeveCode] = hasBench
+    ? await Promise.all([
+        note(one<bigint>(() => c.readContract({ address: bench.teller as Address, abi: BENCH_TELLER_ABI, functionName: "nav" }))),
+        note(
+          one<bigint>(() =>
+            c.readContract({ address: bench.teller as Address, abi: BENCH_TELLER_ABI, functionName: "redemptionFeeBps" }),
+          ),
+        ),
+        note(one<bigint>(() => c.readContract({ address: bench.sleeve as Address, abi: SLEEVE_ABI, functionName: "valueUsdc" }))),
+        note(one<string | undefined>(() => c.getBytecode({ address: bench.sleeve as Address }))),
+      ])
+    : [unread, unread, unread, unread];
+
   /* THE SUPPLY IS SCALED BY THE DECIMALS THE TOKEN ITSELF REPORTED, not by a
      constant 6. The record says 6 and the read almost always agrees, but a
      surface that hardcodes the scale would print a supply a million times wrong
@@ -900,6 +923,21 @@ export async function readReserveFacts(chain: ChainKey): Promise<FloatReserveFac
     deposit_refused: mine === undefined ? null : mine !== null,
     deposit_refusal: mine ?? null,
     control_refusal: control ?? null,
+    /* The bench, and only when there is one. `valueUsdc()` is USDC, so it is
+       6-decimal by that token's definition rather than by this fund's reported
+       decimals, which is why it does not use `scale` above. The NAV travels as
+       a string: it is a WAD, and a float loses its low digits. */
+    ...(hasBench
+      ? {
+          sleeve: bench.sleeve,
+          bench_teller: bench.teller,
+          bench_share: bench.share,
+          sleeve_code_bytes: sleeveCode.ok ? codeBytes(sleeveCode.value) : null,
+          sleeve_value_usdc: sleeveVal.ok ? Number(sleeveVal.value) / 1e6 : null,
+          nav_wad: nav.ok ? nav.value.toString() : null,
+          nav_fee_bps: feeBps.ok ? Number(feeBps.value) : null,
+        }
+      : {}),
     ...(busy ? { reason: "the chain is rate limiting this host; it retries by itself" } : {}),
   };
 }
