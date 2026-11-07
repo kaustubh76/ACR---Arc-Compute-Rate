@@ -32,6 +32,15 @@
      must never be marginal, so do not darken this back toward the palette's
      other blues. scripts/measure-a11y.mjs now fails if you do. */
   --validator: #5384c5;
+  /* THE FOCUS RING, AND WHY IT IS NOT `--validator`. The ring was
+     `--validator` and measured 2.92:1 against a panel background — under the
+     3:1 SC 1.4.11 asks of a focus indicator — while reading 5.1:1 against the
+     page, which is why looking at it on the page background said it was fine.
+     Lifting `--validator` itself would have moved a FuturesMarkChart series
+     with it, so the ring is its own token: same hue, lighter, 3.6:1 on a panel
+     and 6.5:1 on the page. Measured by `scripts/measure-a11y.mjs` on /float
+     and /loop, which both reported the 2.92. */
+  --focus-ring: #6b96d0;
   --cipher: #412c5c; /* Cipher Violet — adversary-room tint */
   --plum: #664c88; /* Quantum Plum — adversary accents */
 
@@ -263,7 +272,7 @@ a {
   color: #fff;
 }
 :focus-visible {
-  outline: 2px solid var(--validator);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -1069,7 +1078,7 @@ a.chip:hover,
   outline: none;
 }
 .home-hero-rate:focus-visible {
-  outline: 1px solid var(--validator);
+  outline: 1px solid var(--focus-ring);
   outline-offset: 10px;
   border-radius: 6px;
 }
@@ -1443,7 +1452,7 @@ table.sheet .row-link {
   cursor: pointer;
 }
 table.sheet .row-link:focus-visible {
-  outline: 2px solid var(--validator);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
   background: rgba(27, 49, 88, 0.4);
 }
@@ -2363,7 +2372,7 @@ details.disclosure summary .disclosure-count {
   touch-action: none;
 }
 .chart:focus-visible {
-  outline: 1.5px solid var(--validator);
+  outline: 1.5px solid var(--focus-ring);
   outline-offset: 4px;
   border-radius: var(--r-xs);
 }
@@ -3079,25 +3088,42 @@ a.colophon-act:hover::after {
   background: var(--gold-wash);
   color: var(--gold);
 }
-/* Unreached: the run stopped before this one. Dashed, as it was in the cards. */
+/* THE DIMMING IS ON THE FRAME, NOT ON THE TEXT, and it is the third time this
+   page has taught the same lesson. `opacity` on a cell composites its whole
+   subtree, and `.rung-cell` already paints its text in `--ether-45`, which is
+   itself a 0.55 alpha — so every state multiplier landed on top of that one:
+   `queued` 0.4 gave 0.22 and measured 1.71:1, `dim` 0.62 gave 2.56:1,
+   `running` 0.55 gave 2.25:1, and the waiting pulse dipped to 0.09 for 1.18:1
+   on text a reader is meant to read. `.flow-node.dim` and `.scene-tag-off`
+   above it were both the same bug, found the same way, by measuring the
+   rendered page rather than reading the rule.
+
+   So the state travels on the border and the label stays at 4.93:1 in every
+   state. It keeps the thing the rail is FOR: the light still arrives cell by
+   cell, as a frame lighting up rather than text fading in, and `border-color`
+   was already in this element's transition list so the movement costs nothing
+   new. `border-style` carries it too — dotted not yet, dashed never reached —
+   so colour is not the only means (SC 1.4.1).
+
+   Only caught because one run happened to sample the rail while a quote had
+   stopped early. A clean run paints all twelve `passed` at 7.78:1 and nothing
+   looks wrong, which is exactly what `.flow-node.dim` warns about two thousand
+   lines up. */
 .rung-cell.dim {
   border-style: dashed;
-  opacity: 0.62;
 }
 /* The light has not arrived here yet, which is not the same as never reached. */
 .rung-cell.queued {
-  opacity: 0.4;
+  border-style: dotted;
+  border-color: rgba(172, 198, 233, 0.07);
 }
-/* No answer from the vault at all. */
+/* No answer from the vault at all. The frame breathes; the number does not. */
 .rung-cell.running {
-  opacity: 0.55;
-}
-.rung-cell.running .rung-cell-mark {
   animation: rung-wait 1.4s ease-in-out infinite;
 }
 @keyframes rung-wait {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+  0%, 100% { border-color: var(--hairline); }
+  50% { border-color: var(--hairline-strong); }
 }
 /* `currentColor`, so the selected underline is whatever the cell's state made
    it: teal on a cleared check, coral on the one that stopped it. One rule
@@ -3615,10 +3641,13 @@ a.colophon-act:hover::after {
      static composition is the four boxes and the agent's dashed tether, and
      the dot is the only thing that moves. */
   .money.paying .money-dot,
-  /* The rail's waiting mark. INFINITE, like the dot above, and it sits on all
+  /* The rail's waiting frame. INFINITE, like the dot above, and it sits on all
      twelve cells at once while the first verdict is in flight — twelve things
-     pulsing is exactly what a reduced-motion request is about. */
-  .rung-cell.running .rung-cell-mark,
+     pulsing is exactly what a reduced-motion request is about. It was the mark
+     that pulsed until the pulse moved onto the border to keep the text
+     readable; the selector has to follow it or a reduced-motion reader gets
+     the one animation this block exists to stop. */
+  .rung-cell.running,
   .skel::after {
     animation: none !important;
   }
@@ -3817,7 +3846,7 @@ html[data-edition-turn] .plain-only {
   padding: 7px 12px;
 }
 .chain-seg button:focus-visible {
-  outline: 1px solid var(--validator);
+  outline: 1px solid var(--focus-ring);
   outline-offset: -2px;
 }
 .chain-seg button.on-main {
