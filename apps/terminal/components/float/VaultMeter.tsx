@@ -33,6 +33,16 @@ import { fmtPrice } from "@/lib/format";
    button and the "what would be left" figures are the runway's own idiom
    repeated rather than a second vocabulary for the same disclaimer.
 
+   THE STEP IS CONTINUOUS, AND IT HAD TO BE. A hundred discrete steps looked
+   harmless and quietly made the ceiling unreachable: `max` is 8.94475 while a
+   step of `ceiling / 100` only ever lands on 99 of them, so dragging the draw
+   all the way right left 0.089447 USDC sitting in the working sleeve and the
+   panel contradicted its own comment that the slider ends where the money
+   does. A judge dragging to the end would have seen a sleeve that refuses to
+   empty. Money is continuous here, so `step="any"` is not a loosening — it is
+   the honest type. Chrome still steps the arrow keys by a hundredth of the
+   range, so the keyboard reading is unchanged.
+
    NO THIRD STATE ABOVE THE FREE FLOAT. There is no rung for an overdraw —
    `LADDER` runs PAUSED, UNKNOWN_AGENT, FROZEN, SELLER, REPLAY, UNITS,
    NO_PRINT, STALE, ROTATED, BAND, PER_REQUEST, DAILY_CAP and stops — so a
@@ -191,7 +201,7 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
                 max={ceiling}
                 min={0}
                 onChange={(e) => setDraw(Number(e.target.value))}
-                step={ceiling / 100}
+                step="any"
                 type="range"
                 value={want}
               />{" "}
