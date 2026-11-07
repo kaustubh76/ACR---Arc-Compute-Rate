@@ -309,23 +309,28 @@ export function onePayment(input: {
    top of it, because a position on an axis of log indices would be a number
    nobody measured. */
 export const SCENE = {
-  x: { agent: 0, treasury: -2.3, sleeve: 0, seller: 2.3, venue: 0 },
-  /* THREE PLANES, AND Z NOW MEANS "WHOSE MONEY-TOUCHING IS THIS".
+  /* SPREAD FOR THE SHAPE OF THE CANVAS, which is about three to one. Thirteen
+     parties on the old six-party spacing put every label on top of its
+     neighbour and left two thirds of the frame empty: rendered and looked at,
+     which is the only way this kind of thing is ever caught. X does the work
+     because X is the long axis. */
+  x: { agent: -0.8, treasury: -3.4, sleeve: 0, seller: 3.4, venue: 0.85 },
+  /* THREE PLANES, AND Z MEANS "WHOSE MONEY-TOUCHING IS THIS".
    *
    *  `offPlane` behind: touches no money at all. The agent sends an instruction
    *  and the benchmark reads a price; neither can hold a balance.
    *  `money`: ours, and holds or moves it.
-   *  `outside` in front: touches our money and is NOT ours. Exactly one thing
-   *  is here, the yield venue, and it is the one `WhoTouches` marks "not ours"
-   *  because it could close our exit. Putting it in front rather than behind is
-   *  deliberate: it is nearest the reader, because it is the counterparty. */
-  z: { money: 0, offPlane: -1.7, outside: 1.7 },
+   *  `outside` in front: touches our money and is NOT ours. The yield venue is
+   *  the one thing here, nearest the reader because it is the counterparty.
+   *  `governance` further back than any of them: governs the treasury and
+   *  cannot move this payment. */
+  z: { money: 0, offPlane: -2.2, outside: 1.9 },
   floor: 0.3,
-  ceil: 2.3,
-  /** Above the rail, centred, and off the money plane. */
-  agentY: 3.3,
+  ceil: 2.1,
+  /** Above the rail, and off the money plane. */
+  agentY: 3.1,
   /** Above the treasury, because the treasury is what does the checking. */
-  benchmarkY: 2.95,
+  benchmarkY: 3.1,
 } as const;
 
 /** Where a beat sits in the scene, or `null` when it has no business there.
@@ -377,4 +382,156 @@ export function runOrder(beats: readonly Beat[], jit: boolean): BeatKey[] {
  *  lit stays lit, as `LoopFlow`'s and `MoneyPath`'s do. */
 export function litAt(order: readonly BeatKey[], step: number): Set<BeatKey> {
   return new Set(order.slice(0, Math.max(0, step + 1)));
+}
+
+/* --- every party, and the hops between them ------------------------------
+
+   THE SCENE DREW SIX PARTIES AND THE SYSTEM HAS ELEVEN. The six were the ones
+   that move money in this payment, which left out the three that make it
+   possible and the four that cannot touch it at all. Each absence said
+   something false by omission: with no executor the picture implies the AGENT
+   sends the transaction, which is the one thing this whole design exists to
+   prevent; with no print store the benchmark's price comes from nowhere; with
+   no reserve the funding ladder looks like it has one rung.
+
+   THE FOURTH PLANE IS THE ARGUMENT. `z` already means whose money-touching
+   this is: behind touches none, the middle is ours, in front is ours-but-not-
+   ours. Governance takes a fourth, further back still, because those four keys
+   govern the treasury and cannot move THIS payment. Drawing them in the flow
+   would be the flattering version; drawing them nowhere would be the quiet
+   one. They are drawn, dim, off the path, with no edge into it. */
+
+export type PartyId =
+  | "agent"
+  | "executor"
+  | "printStore"
+  | "benchmark"
+  | "treasury"
+  | "sleeve"
+  | "reserve"
+  | "venue"
+  | "seller"
+  | "keeper"
+  | "approver"
+  | "registrar"
+  | "owner";
+
+/** Where the governance band sits: behind even the plane that holds nothing. */
+export const GOVERNANCE_Z = -4.2;
+export const GOVERNANCE_Y = 4.4;
+
+/** Every party's anchor point, which is where its edges start and end.
+ *
+ *  For the parties on the money plane the anchor is just above the floor, so an
+ *  edge meets the plate rather than floating over it. For everything else it is
+ *  the node's own position. */
+export const PARTY: Record<PartyId, { at: [number, number, number]; governs: boolean }> = {
+  /* on the money path */
+  agent: { at: [SCENE.x.agent, SCENE.agentY, SCENE.z.offPlane], governs: false },
+  executor: { at: [-2.0, 2.4, SCENE.z.offPlane], governs: false },
+  printStore: { at: [-5.4, 2.4, SCENE.z.offPlane], governs: false },
+  benchmark: { at: [SCENE.x.treasury, SCENE.benchmarkY, SCENE.z.offPlane], governs: false },
+  treasury: { at: [SCENE.x.treasury, SCENE.floor + 0.2, SCENE.z.money], governs: false },
+  sleeve: { at: [SCENE.x.sleeve, SCENE.floor + 0.2, SCENE.z.money], governs: false },
+  reserve: { at: [5.2, SCENE.floor + 0.2, SCENE.z.money], governs: false },
+  venue: { at: [SCENE.x.venue, SCENE.floor + 0.2, SCENE.z.outside], governs: false },
+  seller: { at: [SCENE.x.seller, SCENE.floor + 0.2, SCENE.z.money], governs: false },
+  /* govern the treasury, and cannot move this payment */
+  keeper: { at: [-4.0, GOVERNANCE_Y, GOVERNANCE_Z], governs: true },
+  approver: { at: [-1.4, GOVERNANCE_Y, GOVERNANCE_Z], governs: true },
+  registrar: { at: [1.2, GOVERNANCE_Y, GOVERNANCE_Z], governs: true },
+  owner: { at: [3.8, GOVERNANCE_Y, GOVERNANCE_Z], governs: true },
+};
+
+export type HopId =
+  | "ask"
+  | "submit"
+  | "price"
+  | "check"
+  | "release"
+  | "record"
+  | "pay"
+  | "escalate";
+
+export type Hop = {
+  id: HopId;
+  from: PartyId;
+  to: PartyId;
+  /** Drawn dashed: an instruction or a read, never money moving. */
+  dashed: boolean;
+  /** Only on an escalation. Lit when the receipt says a human released it, and
+   *  drawn as the lane not taken otherwise. */
+  escalation: boolean;
+};
+
+/** The hops, in the order a payment takes them.
+ *
+ *  `release` BEFORE `record` is the whole claim: the venue we do not control
+ *  released the money at its own log, and only then did our wrapper record the
+ *  delivery at the next one. */
+export const HOPS: readonly Hop[] = [
+  { id: "ask", from: "agent", to: "executor", dashed: true, escalation: false },
+  { id: "submit", from: "executor", to: "treasury", dashed: true, escalation: false },
+  { id: "price", from: "printStore", to: "benchmark", dashed: true, escalation: false },
+  { id: "check", from: "benchmark", to: "treasury", dashed: true, escalation: false },
+  /* ONE EDGE, NOT TWO. The treasury asking and the venue paying are the same
+     line traversed in opposite directions, so two hops sat on exactly
+     coincident geometry and only the nearer could ever be hovered: a reader
+     could never reach the other. A reader sees one line, there is one log, so
+     there is one hop, and what it says carries the shortfall too. */
+  { id: "release", from: "venue", to: "treasury", dashed: false, escalation: false },
+  { id: "record", from: "venue", to: "sleeve", dashed: true, escalation: false },
+  { id: "pay", from: "treasury", to: "seller", dashed: false, escalation: false },
+  /* No hop for the receipt. It is an event the vault emits at itself, not a
+     move between two parties, and an edge drawn for it would be an edge that
+     is not there. Its marker carries log 33. */
+  { id: "escalate", from: "approver", to: "treasury", dashed: true, escalation: true },
+];
+
+export type HopTransform = {
+  /** The edge's midpoint, where the hit mesh sits and the tooltip anchors. */
+  position: [number, number, number];
+  /** Rotation from a cylinder's own +Y axis onto the edge, as x,y,z,w. */
+  quaternion: [number, number, number, number];
+  length: number;
+};
+
+/** Lay a cylinder along an edge.
+ *
+ *  A 2px line is a poor hover target, so each hop carries an invisible cylinder
+ *  to be hovered instead, and a cylinder's own axis is +Y. This is the rotation
+ *  that puts it on the edge, computed rather than imported: `three`'s
+ *  `setFromUnitVectors` does the same arithmetic, and keeping it here keeps
+ *  this module free of three so a node test can reach it.
+ *
+ *  THE TWO DEGENERATE CASES ARE THE ONES THAT BITE. A zero-length edge has no
+ *  direction at all, and an edge pointing straight DOWN is exactly antiparallel
+ *  to +Y, where the cross product collapses to zero and the naive formula
+ *  produces an unnormalisable quaternion. Both are answered explicitly. */
+export function hopTransform(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+): HopTransform {
+  const d: [number, number, number] = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const length = Math.hypot(d[0], d[1], d[2]);
+  const position: [number, number, number] = [
+    (a[0] + b[0]) / 2,
+    (a[1] + b[1]) / 2,
+    (a[2] + b[2]) / 2,
+  ];
+  if (length === 0) return { position, quaternion: [0, 0, 0, 1], length: 0 };
+
+  const [vx, vy, vz] = [d[0] / length, d[1] / length, d[2] / length];
+  /* u = (0,1,0), so u x v = (vz, 0, -vx) and u . v = vy. */
+  const w = 1 + vy;
+  if (w < 1e-6) {
+    /* Straight down: a half turn about any axis perpendicular to Y. */
+    return { position, quaternion: [1, 0, 0, 0], length };
+  }
+  const n = Math.hypot(vz, 0, -vx, w);
+  /* `+ 0` normalises a negative zero. `-vx / n` is `-0` whenever the edge has
+     no X component, which is true of most of this scene's vertical tethers, and
+     `-0` is not `0` to a deep-equal: it would make a correct quaternion fail a
+     correct test, and the hour lost would be spent on the geometry. */
+  return { position, quaternion: [vz / n + 0, 0, -vx / n + 0, w / n], length };
 }

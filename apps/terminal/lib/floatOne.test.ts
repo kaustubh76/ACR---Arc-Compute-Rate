@@ -10,6 +10,10 @@ import {
   litAt,
   onePayment,
   pointOf,
+  GOVERNANCE_Z,
+  hopTransform,
+  HOPS,
+  PARTY,
   runOrder,
   SCENE,
   script,
@@ -487,4 +491,153 @@ test("the walk still has to be OK: no walk is still no payment", () => {
     walk: { status: "pending", reason: "that payment could not be read" },
   });
   assert.equal(pending.status, "scripted");
+});
+
+/* --- laying a hit target along an edge ----------------------------------- */
+
+/** Rotate (0,1,0) by a quaternion: what the cylinder's own axis becomes.
+ *
+ *  v' = v + 2w(q x v) + 2(q x (q x v)), with v = (0,1,0), so
+ *  q x v = (-z, 0, x) and q x (q x v) = (yx, -z^2 - x^2, yz).
+ *  Worked out longhand rather than imported, because the point of this helper
+ *  is to check `hopTransform` against something that is not `hopTransform`. */
+function axisAfter(q: readonly [number, number, number, number]): [number, number, number] {
+  const [x, y, z, w] = q;
+  return [
+    2 * w * -z + 2 * (y * x),
+    1 + 2 * (-(z * z) - x * x),
+    2 * w * x + 2 * (y * z),
+  ];
+}
+
+const near = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps;
+
+test("a hit cylinder lands on the edge's midpoint, with the edge's length", () => {
+  const t = hopTransform([0, 0, 0], [0, 4, 0]);
+  assert.deepEqual(t.position, [0, 2, 0]);
+  assert.equal(t.length, 4);
+});
+
+test("an edge straight UP needs no rotation at all", () => {
+  /* A cylinder's own axis is +Y, so this is the identity. */
+  const t = hopTransform([1, 0, 2], [1, 3, 2]);
+  assert.deepEqual(t.quaternion, [0, 0, 0, 1]);
+});
+
+test("an edge straight DOWN is the case the naive formula cannot do", () => {
+  /* Exactly antiparallel to +Y: the cross product collapses to zero and
+     `1 + u.v` is zero, so normalising produces NaN. Answered explicitly as a
+     half turn, and the test is that the axis actually ends up pointing down. */
+  const t = hopTransform([0, 5, 0], [0, 1, 0]);
+  for (const n of t.quaternion) assert.ok(Number.isFinite(n), "no NaN in the quaternion");
+  const [ax, ay, az] = axisAfter(t.quaternion);
+  assert.ok(near(ax, 0) && near(ay, -1) && near(az, 0), `axis should point down, got ${ax},${ay},${az}`);
+  assert.equal(t.length, 4);
+});
+
+test("a zero-length edge has no direction, and says so rather than dividing by it", () => {
+  const t = hopTransform([2, 2, 2], [2, 2, 2]);
+  assert.equal(t.length, 0);
+  assert.deepEqual(t.quaternion, [0, 0, 0, 1]);
+  assert.deepEqual(t.position, [2, 2, 2]);
+  for (const n of t.quaternion) assert.ok(Number.isFinite(n));
+});
+
+test("an arbitrary edge gets a unit quaternion that points the cylinder along it", () => {
+  /* The property that matters, checked on every hop the scene actually draws:
+     rotating +Y by the quaternion must give the edge's own direction. */
+  for (const hop of HOPS) {
+    const a = PARTY[hop.from].at;
+    const b = PARTY[hop.to].at;
+    const t = hopTransform(a, b);
+    const n = Math.hypot(...t.quaternion);
+    assert.ok(near(n, 1, 1e-9), `${hop.id}: quaternion must be unit, got ${n}`);
+
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const want: [number, number, number] = [(b[0] - a[0]) / len, (b[1] - a[1]) / len, (b[2] - a[2]) / len];
+    const got = axisAfter(t.quaternion);
+    for (let i = 0; i < 3; i += 1) {
+      assert.ok(near(got[i], want[i], 1e-6), `${hop.id}: axis[${i}] ${got[i]} != ${want[i]}`);
+    }
+  }
+});
+
+/* --- the parties, and which of them can touch this payment --------------- */
+
+test("every hop joins two parties that exist", () => {
+  for (const hop of HOPS) {
+    assert.ok(PARTY[hop.from], `${hop.id} starts nowhere`);
+    assert.ok(PARTY[hop.to], `${hop.id} ends nowhere`);
+    assert.notEqual(hop.from, hop.to, `${hop.id} is a loop`);
+  }
+});
+
+test("the governance keys have NO edge into the money flow, except the escalation", () => {
+  /* THE ARGUMENT THE RING EXISTS TO MAKE. Four keys govern this treasury and
+     none of them can move this payment. The approver is the one exception and
+     it is marked as one, so it can be drawn as the lane not taken. */
+  for (const hop of HOPS) {
+    const governed = PARTY[hop.from].governs || PARTY[hop.to].governs;
+    if (governed) assert.ok(hop.escalation, `${hop.id} wires a governance key into the flow`);
+  }
+  const escalations = HOPS.filter((h) => h.escalation);
+  assert.equal(escalations.length, 1);
+  assert.equal(escalations[0].from, "approver");
+});
+
+test("the four governance parties sit behind every plane that touches money", () => {
+  const governs = (Object.keys(PARTY) as Array<keyof typeof PARTY>).filter((k) => PARTY[k].governs);
+  assert.deepEqual(governs.sort(), ["approver", "keeper", "owner", "registrar"]);
+  for (const k of governs) {
+    assert.equal(PARTY[k].at[2], GOVERNANCE_Z);
+    assert.ok(PARTY[k].at[2] < SCENE.z.offPlane, "further back than the plane that holds nothing");
+    assert.ok(PARTY[k].at[1] > SCENE.ceil, "and above the axis, which they have no place on");
+  }
+});
+
+test("no two parties occupy the same point", () => {
+  /* Two nodes at one point is a diagram that has lost a party without saying so. */
+  const seen = new Map<string, string>();
+  for (const [id, p] of Object.entries(PARTY)) {
+    const key = p.at.join(",");
+    assert.equal(seen.get(key), undefined, `${id} sits on top of ${seen.get(key)}`);
+    seen.set(key, id);
+  }
+});
+
+test("no two parties stack: differing only in depth is not a difference a reader sees", () => {
+  /* MEASURED. The venue and our sleeve sat at the same x and the same y,
+     differing only in z, so from most camera angles they were one node and the
+     edge between them ran along the view axis: it projected to a few pixels and
+     could not be hovered at all. Depth alone does not separate two things. */
+  const seen = new Map<string, string>();
+  for (const [id, p] of Object.entries(PARTY)) {
+    const xy = `${p.at[0]},${p.at[1]}`;
+    const other = seen.get(xy);
+    assert.equal(other, undefined, `${id} stacks on ${other} at x,y = ${xy}`);
+    seen.set(xy, id);
+  }
+});
+
+test("no hop runs straight along the view axis, where it would project to nothing", () => {
+  /* The same defect expressed as an edge: a hop whose direction is almost
+     entirely Z is a hop a reader cannot see or hover. */
+  for (const hop of HOPS) {
+    const a = PARTY[hop.from].at;
+    const b = PARTY[hop.to].at;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const flat = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    assert.ok(flat / len > 0.2, `${hop.id} is ${Math.round((flat / len) * 100)}% off the view axis, too close to edge-on`);
+  }
+});
+
+test("the release hop runs venue to treasury, not venue to sleeve", () => {
+  /* The one-hop claim, as structure rather than as prose: Morpho pays the
+     TREASURY. Our sleeve only records it. */
+  const release = HOPS.find((h) => h.id === "release");
+  assert.equal(release?.from, "venue");
+  assert.equal(release?.to, "treasury");
+  assert.equal(release?.dashed, false, "money moving is a solid edge");
+  const record = HOPS.find((h) => h.id === "record");
+  assert.equal(record?.dashed, true, "a record is not money moving");
 });

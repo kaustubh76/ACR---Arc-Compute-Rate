@@ -6,7 +6,19 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Mesh } from "three";
 
-import { agentPoint, benchmarkPoint, pointOf, SCENE, type Beat, type BeatKey } from "@/lib/floatOne";
+import {
+  agentPoint,
+  benchmarkPoint,
+  hopTransform,
+  HOPS,
+  PARTY,
+  pointOf,
+  SCENE,
+  type Beat,
+  type BeatKey,
+  type HopId,
+  type PartyId,
+} from "@/lib/floatOne";
 import { fmtInt, fmtPrice, shortAddr } from "@/lib/format";
 
 /* One payment, plotted. The WebGL half; the words live in OnePayment3D.tsx.
@@ -121,6 +133,115 @@ function useInk(): Ink {
   return ink;
 }
 
+/** A party that is not a beat: it has no log, so it has no height on the axis.
+ *
+ *  THE GOVERNANCE RING IS DRAWN DIM AND OFF THE PATH, which is the argument.
+ *  Four keys govern this treasury and none can move this payment, and a reader
+ *  should be able to SEE that rather than read it in the table underneath.
+ *  Drawing them in the flow would be the flattering version; drawing them
+ *  nowhere, which is what the scene did until now, is the quiet one. */
+function PartyNode({
+  id,
+  label,
+  note,
+  tone,
+  dim,
+  portal,
+}: {
+  id: PartyId;
+  label: string;
+  note: string;
+  tone: string;
+  dim: boolean;
+  portal: Portal;
+}) {
+  const at = PARTY[id].at;
+  const s = dim ? 0.4 : 0.56;
+  return (
+    <group position={at}>
+      <mesh>
+        <boxGeometry args={[s, 0.2, s]} />
+        <meshBasicMaterial color={tone} opacity={dim ? 0.18 : 0.42} transparent />
+      </mesh>
+      {/* LOWER IS SMALLER. drei computes `objectScale(el, camera) * distanceFactor`,
+            so raising it to shrink a label does the opposite: the first attempt at
+            thirteen parties enlarged every one of them and buried the scene. */}
+      <Html center distanceFactor={dim ? 3.4 : 5} portal={portal} position={[0, 0.3, 0]}>
+        <div className={dim ? "scene-tag scene-tag-governs" : "scene-tag"}>
+          <span className="scene-tag-name">{label}</span>
+          <span className="scene-tag-log">{note}</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+/** Every hop, as a thin dim edge with an invisible cylinder to hover.
+ *
+ *  A 2px line is a poor target: `Line2` reads its hit threshold off
+ *  `raycaster.params.Line2`, which three 0.187 does not define, so the region
+ *  is the line's own width and nothing more. The cylinder is the target, and it
+ *  is invisible by a transparent material rather than by `visible={false}` —
+ *  three's raycaster does not test `visible` and R3F does not either, so that
+ *  would work by a behaviour neither documents.
+ *
+ *  THE WORDS ARE NOT IN HERE. This reports which hop is under the pointer and
+ *  `OnePayment3D` says what it means, in both registers, into the docked row
+ *  the charts already use for exactly this. That keeps this file free of copy,
+ *  which is what its coverage exemption rests on, and it keeps the explanation
+ *  OUTSIDE `role="img"`, where an assistive reader can actually reach it. */
+function HopEdges({
+  ink,
+  tone,
+  human,
+  onHop,
+  hovered,
+}: {
+  ink: Ink;
+  tone: string;
+  human: boolean;
+  onHop: (id: HopId | null) => void;
+  hovered: HopId | null;
+}) {
+  return (
+    <>
+      {HOPS.map((hop) => {
+        const a = PARTY[hop.from].at;
+        const b = PARTY[hop.to].at;
+        const t = hopTransform(a, b);
+        const on = hovered === hop.id;
+        /* The escalation is the lane this payment did not take unless the
+           receipt says a human released it. */
+        const faded = hop.escalation && !human;
+        const colour = on ? ink.sand : hop.escalation ? ink.gold : hop.dashed ? ink.dim : tone;
+        return (
+          <group key={hop.id}>
+            <Line
+              color={colour}
+              dashed={hop.dashed}
+              dashScale={4}
+              linewidth={on ? 2.5 : 1}
+              opacity={faded ? 0.18 : on ? 0.95 : 0.4}
+              points={[a, b]}
+              transparent
+            />
+            <mesh
+              onPointerOut={() => onHop(null)}
+              onPointerOver={() => onHop(hop.id)}
+              position={t.position}
+              quaternion={t.quaternion}
+            >
+              {/* Wide enough to hit. A hop a reader cannot land on explains nothing. */}
+              <cylinderGeometry args={[0.2, 0.2, t.length, 8]} />
+              <meshBasicMaterial depthWrite={false} opacity={0} transparent />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 function Plate({ x, z, tone }: { x: number; z: number; tone: string }) {
   return (
     <mesh position={[x, 0, z]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -152,7 +273,7 @@ function Marker({
         <cylinderGeometry args={[0.3, 0.3, 0.1, 40]} />
         <meshBasicMaterial color={tone} opacity={on ? 1 : 0.22} transparent />
       </mesh>
-      <Html center distanceFactor={9} portal={portal} position={[0, 0.42, 0]}>
+      <Html center distanceFactor={5} portal={portal} position={[0, 0.38, 0]}>
         <div className={on ? "scene-tag" : "scene-tag scene-tag-off"}>
           <span className="scene-tag-name">{LABEL[beat.key]}</span>
           <span className="scene-tag-fig">
@@ -205,7 +326,10 @@ function VenueMarker({
         <boxGeometry args={[0.62, 0.3, 0.62]} />
         <meshBasicMaterial color={tone} opacity={on ? 0.9 : 0.2} transparent />
       </mesh>
-      <Html center distanceFactor={9} portal={portal} position={[0, 0.46, 0]}>
+      {/* THE SMALLEST OF THE PATH LABELS, because it carries the most lines:
+            six, against two or three everywhere else. At the same size as its
+            neighbours it covered our sleeve and the reserve entirely. */}
+      <Html center distanceFactor={4} portal={portal} position={[0, 0.44, 0]}>
         <div className={on ? "scene-tag scene-tag-outside" : "scene-tag scene-tag-outside scene-tag-off"}>
           <span className="scene-tag-name">{LABEL.venue}</span>
           <span className="scene-tag-not-ours">not ours</span>
@@ -270,7 +394,7 @@ function Agent({ ink, portal }: { ink: Ink; portal: Portal }) {
         <boxGeometry args={[0.7, 0.26, 0.7]} />
         <meshBasicMaterial color={ink.dim} opacity={0.3} transparent />
       </mesh>
-      <Html center distanceFactor={9} portal={portal} position={[0, 0.45, 0]}>
+      <Html center distanceFactor={5} portal={portal} position={[0, 0.4, 0]}>
         <div className="scene-tag">
           <span className="scene-tag-name">agent</span>
           <span className="scene-tag-nil">0.00 USDC</span>
@@ -313,7 +437,7 @@ function Benchmark({
         <boxGeometry args={[0.8, 0.24, 0.8]} />
         <meshBasicMaterial color={tone} opacity={0.3} transparent />
       </mesh>
-      <Html center distanceFactor={9} portal={portal} position={[0, 0.44, 0]}>
+      <Html center distanceFactor={5} portal={portal} position={[0, 0.4, 0]}>
         <div className="scene-tag">
           <span className="scene-tag-name">benchmark</span>
           <span className="scene-tag-fig">{fairUsdc === null ? "…" : `${fmtPrice(fairUsdc)} fair`}</span>
@@ -342,6 +466,9 @@ function Scene({
   venueShares,
   venueLogs,
   treasury,
+  human,
+  onHop,
+  hovered,
 }: {
   beats: Beat[];
   verdict: string;
@@ -360,6 +487,9 @@ function Scene({
   /** To tell "the venue paid the treasury" from "the venue paid someone else",
    *  which is the whole of the one-hop claim. */
   treasury: string | null;
+  human: boolean;
+  onHop: (id: HopId | null) => void;
+  hovered: HopId | null;
 }) {
   const ink = useInk();
   /* THE PUCK WALKS ONLY WHAT THE RUN HAS REACHED. Its route is the lit beats in
@@ -382,8 +512,6 @@ function Scene({
   /* The order is the claim, so its colour follows the chain's verdict rather
      than the designer's optimism. */
   const tone = verdict === "out_of_order" ? ink.breach : verdict === "unproven" ? ink.dim : ink.finality;
-  const agentAt = agentPoint();
-  const benchAt = benchmarkPoint();
   const venueBeat = beats.find((b) => b.key === "venue");
 
   return (
@@ -394,29 +522,30 @@ function Scene({
       {/* The plane that is not ours gets a plate of its own, in front. */}
       {venueBeat?.height === null ? null : <Plate tone={ink.dim} x={SCENE.x.venue} z={SCENE.z.outside} />}
 
+      {/* On the path, and missing until now. Without the executor the picture
+          said the agent sends the transaction; without the print store the
+          benchmark's price came from nowhere; without the reserve the funding
+          ladder looked like it had one rung. */}
+      <PartyNode dim={false} id="executor" label="executor" note="submits · holds nothing" portal={portal} tone={ink.dim} />
+      <PartyNode dim={false} id="printStore" label="print store" note="the hourly print" portal={portal} tone={ink.sand} />
+      <PartyNode dim id="reserve" label="reserve · usyc" note="not wired · reserve() = 0x0" portal={portal} tone={ink.dim} />
+
+      {/* They govern the treasury and none of them can move THIS payment. */}
+      <PartyNode dim id="keeper" label="keeper" note="writes prints · rebalances" portal={portal} tone={ink.dim} />
+      <PartyNode dim id="approver" label="approver" note="releases a parked spend" portal={portal} tone={human ? ink.gold : ink.dim} />
+      <PartyNode dim id="registrar" label="guest registrar" note="the fixed template only" portal={portal} tone={ink.dim} />
+      <PartyNode dim id="owner" label="owner" note="can withdraw" portal={portal} tone={ink.dim} />
+
       <Agent ink={ink} portal={portal} />
       <Benchmark fairMatches={fairMatches} fairUsdc={fairUsdc} ink={ink} portal={portal} quoteUsdc={quoteUsdc} />
 
-      {/* instruction only, never money: the tether reaches the treasury and
-          stops, and it is one of the two dashed lines in the scene. */}
-      <Line
-        color={ink.dim}
-        dashed
-        dashScale={4}
-        opacity={0.55}
-        points={[agentAt, [SCENE.x.treasury, SCENE.floor + 0.2, SCENE.z.money]]}
-        transparent
-      />
-      {/* the benchmark hangs over the treasury because the treasury is what
-          does the checking, and it reads a price rather than moving money. */}
-      <Line
-        color={tone === ink.breach ? ink.breach : ink.dim}
-        dashed
-        dashScale={4}
-        opacity={0.55}
-        points={[benchAt, [SCENE.x.treasury, SCENE.floor + 0.2, SCENE.z.money]]}
-        transparent
-      />
+      {/* THE TETHERS BECAME HOPS. They were two hand-drawn dashed lines from
+          the agent and the benchmark to the treasury; they are now two entries
+          in `HOPS` like every other edge, which is what lets them be hovered
+          and what made room for the executor that actually submits the spend.
+          The agent's line used to run straight to the treasury, which quietly
+          said the agent sends the transaction. */}
+      <HopEdges hovered={hovered} human={human} ink={ink} onHop={onHop} tone={tone} />
 
       {full.length > 1 ? <Line color={ink.dim} linewidth={1} opacity={0.3} points={full} transparent /> : null}
       {route.length > 1 ? <Line color={tone} linewidth={2} points={route} /> : null}
@@ -488,6 +617,9 @@ export default function OnePaymentScene({
   venueShares,
   venueLogs,
   treasury,
+  human,
+  onHop,
+  hovered,
 }: {
   beats: Beat[];
   verdict: string;
@@ -509,6 +641,11 @@ export default function OnePaymentScene({
   venueShares: string | null;
   venueLogs: number | null;
   treasury: string | null;
+  human: boolean;
+  /** Which hop the pointer is on. Reported UP rather than explained here: the
+   *  sentence belongs outside `role="img"`, where it is reachable. */
+  onHop: (id: HopId | null) => void;
+  hovered: HopId | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
@@ -565,15 +702,21 @@ export default function OnePaymentScene({
      the stations have to repaint once even though nothing is moving. */
   useEffect(() => {
     if (seen) invalidate();
-  }, [seen, running, lit]);
+  }, [seen, running, lit, hovered]);
 
   return (
-    <div aria-label={label} className="scene" ref={box} role="img">
+    <div aria-label={label} className={hovered ? "scene scene-on-hop" : "scene"} ref={box} role="img">
       <AxisOverlay beats={beats} />
       {/* The portal root, before the Canvas so it exists first. */}
       <div className="scene-labels" ref={labels} />
+      {/* THE FRAMING MOVED WHEN THE SCENE GREW. The print store put the left
+          edge at x = -4.2 and the governance band put the back at z = -3.4, and
+          the old camera held neither: nodes left the frame rather than the
+          labels merely clipping. Further back again on a phone, for the reason
+          that moved it the first time, which is that the labels are DOM at a
+          fixed type size and do not shrink with the canvas. */}
       <Canvas
-        camera={{ position: phone ? [6.1, 4.4, 8.2] : [4.6, 3.4, 6.2], fov: 42 }}
+        camera={{ position: phone ? [1.8, 5.4, 16.0] : [1.4, 4.4, 12.6], fov: 40 }}
         dpr={[1, 2]}
         frameloop={running && seen ? "always" : "demand"}
         /* Not a tab stop: OrbitControls is pointer-only, and every figure in
@@ -593,10 +736,10 @@ export default function OnePaymentScene({
         <AdaptiveDpr />
         <OrbitControls
           enablePan={false}
-          maxDistance={14}
+          maxDistance={26}
           maxPolarAngle={Math.PI / 2.05}
-          minDistance={4}
-          target={[0, 1.3, 0]}
+          minDistance={7}
+          target={[-0.2, 1.9, -0.4]}
         />
         <Scene
           beats={beats}
@@ -607,6 +750,9 @@ export default function OnePaymentScene({
           portal={portal}
           quoteUsdc={quoteUsdc}
           running={running}
+          hovered={hovered}
+          human={human}
+          onHop={onHop}
           treasury={treasury}
           venueLogs={venueLogs}
           venueReceiver={venueReceiver}

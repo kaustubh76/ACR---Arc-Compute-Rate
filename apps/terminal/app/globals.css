@@ -3251,7 +3251,10 @@ a.colophon-act:hover::after {
 .scene {
   position: relative;
   width: 100%;
-  height: 380px;
+  /* TALLER SINCE THE SCENE GREW TO THIRTEEN PARTIES. At 380 the labels for the
+     governance band and the money path landed on each other, which a render
+     showed and no test could. */
+  height: 470px;
   margin: var(--s-5) 0 var(--s-3);
   border: 1px solid var(--glass-brd);
   border-radius: var(--r-lg);
@@ -3273,7 +3276,7 @@ a.colophon-act:hover::after {
 }
 @media (max-width: 640px) {
   .scene {
-    height: 300px;
+    height: 360px;
   }
 }
 /* A marker's label. Pointer events off so the whole box stays draggable: a tag
@@ -3314,10 +3317,36 @@ a.colophon-act:hover::after {
   font-size: var(--t-1);
   color: var(--ether-45);
 }
+/* A party that governs the treasury and cannot move this payment. Dim, and
+   smaller, so the ring reads as a band behind the flow rather than as part of
+   it. The point it makes is an absence: four keys exist and none of them is on
+   the path. */
+.scene-tag-governs {
+  opacity: 0.5;
+  border-color: var(--hairline);
+}
+.scene-tag-governs .scene-tag-name {
+  color: var(--ether-45);
+}
+/* A hop is under the pointer. The scene's own cursor is `grab`, for the one
+   control it has, so a hoverable edge says so rather than leaving a reader to
+   discover it. */
+.scene-on-hop {
+  cursor: pointer;
+}
 /* A station the run has not reached. Drawn, so a reader can see where the
    payment is going, but dim, so they are not told it got there. */
 .scene-tag-off {
-  opacity: 0.4;
+  /* 0.4 put four live USDC figures at 2.79:1, under the 4.5 SC 1.4.3 asks,
+     because opacity multiplies into the contrast of everything inside. These
+     are not inactive controls, they are amounts off the chain, so the
+     inactive-component exemption does not cover them. Same fix and same reason
+     as `.flow-node.dim` above: lift the opacity until the text is readable and
+     move the "not reached yet" signal into the border, so colour is not the
+     only thing carrying it either (SC 1.4.1). Found by another session
+     measuring the rendered page, not by reading this rule. */
+  opacity: 0.68;
+  border-style: dashed;
 }
 /* THE PLANE THAT IS NOT OURS. The venue holds our money and we do not control
    it, so its station is the one thing in the scene that is not teal or sand: it

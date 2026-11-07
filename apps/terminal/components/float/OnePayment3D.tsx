@@ -11,7 +11,7 @@ import type { FloatVaultState } from "@/lib/float";
 import { fmtInt, fmtPrice } from "@/lib/format";
 import { CHAINS } from "@/lib/chainChoice";
 import { useChain } from "@/lib/useChain";
-import { litAt, runOrder, type BeatKey } from "@/lib/floatOne";
+import { HOPS, litAt, runOrder, type BeatKey, type HopId } from "@/lib/floatOne";
 import { useOnePayment } from "@/lib/useLive";
 
 /* One payment, in three dimensions, over the flat diagram that still carries it.
@@ -54,6 +54,81 @@ type Gate =
   | { at: "allowed" }
   | { at: "refused"; code: number; reason: string }
   | { at: "unreadable"; reason: string };
+
+/** What each hop is doing, in both registers.
+ *
+ *  LITERAL `<Ed x= p=>` ON PURPOSE, as a table of elements rather than a table
+ *  of strings. Every gate this repo has reads `x="…"` and `p="…"` out of the
+ *  SOURCE: the jargon ban, the em-dash ban, the 140-character plain ceiling and
+ *  the 160-character float ceiling. Build these from variables and all four go
+ *  blind, which is exactly the hole the model's narration already has and the
+ *  reason that one is gated behind a disclosure.
+ *
+ *  ONE TABLE, TWO SURFACES. The docked row under the scene and the table under
+ *  that render the same elements, so a hover and a reader who cannot hover are
+ *  looking at the same sentence and it cannot drift. */
+const HOP_SAYS: Record<HopId, React.ReactNode> = {
+  ask: (
+    <Ed
+      x="The agent may only ask. It signs nothing, it is nobody's payee, and its own wallet holds nothing before and after."
+      p="The robot can only ask. It never holds the money and never signs anything."
+    />
+  ),
+  submit: (
+    <Ed
+      x="onlyExecutor. It may submit a spend and open a checkpoint, and nothing else: it cannot change a policy, lift a band or approve one."
+      p="Only this key may send the request. It cannot change the rules or approve anything."
+    />
+  ),
+  price: (
+    <Ed
+      x="The hourly print, read from the store the receipt itself names, with the print id it was quoted against."
+      p="The hourly rate, read from the place the receipt names."
+    />
+  ),
+  check: (
+    <Ed
+      x="The vault recomputes the fair total itself from that print before it pays, and refuses a quote outside the band."
+      p="The vault works out the fair price itself before it pays."
+    />
+  ),
+  release: (
+    <Ed
+      x="The buffer was short, so the exact shortfall leaves the venue in this same transaction, paid to the treasury and not to our sleeve."
+      p="There was not enough ready money, so the missing part comes straight from savings to the treasury."
+    />
+  ),
+  record: (
+    <Ed
+      x="Our sleeve records what the venue delivered, requested against delivered, one log after the venue's own."
+      p="Our savings wrapper writes down what arrived."
+    />
+  ),
+  pay: (
+    <Ed
+      x="The USDC transfer that pays the seller, for the quote the chain had already checked against the fair total."
+      p="The money goes to the shop, for the price the chain checked."
+    />
+  ),
+  escalate: (
+    <Ed
+      x="Only on an escalation. A signature bound to this exact request, inside its window, usable once and never re-aimed."
+      p="Only when a payment is held: one approval, for this exact request, once."
+    />
+  ),
+};
+
+/** The hop's own name, register-neutral: these are the parties, not prose. */
+const HOP_NAME: Record<HopId, string> = {
+  ask: "agent → executor",
+  submit: "executor → treasury",
+  price: "print store → benchmark",
+  check: "benchmark → treasury",
+  release: "morpho → treasury",
+  record: "morpho → our sleeve",
+  pay: "treasury → seller",
+  escalate: "approver ⇢ treasury",
+};
 
 const Scene = dynamic(() => import("@/components/float/OnePaymentScene"), {
   ssr: false,
@@ -198,6 +273,11 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
   /* A LOST CONTEXT DEGRADES RATHER THAN GOING BLANK. R3F does not recover a
      context the GPU took away, so the section hands itself back to the flat
      SVG, which is accurate and needs no GPU at all. */
+  /* WHICH HOP THE POINTER IS ON. The scene reports it; the sentence lives out
+     here, because `.scene` is `role="img"` and everything inside it is pruned
+     from the accessibility tree. A tooltip in there would be invisible to the
+     readers most in need of it. */
+  const [hop, setHop] = useState<HopId | null>(null);
   const [lost, setLost] = useState(false);
   const lostContext = useCallback(() => setLost(true), []);
   const can = useCanRender(lost);
@@ -365,7 +445,7 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
           as="p"
           className="muted"
           style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-          x="The shape above is the one the contract enforces, with no figures in it, because there is no payment here to read figures off. The moving version arrives with the first receipt."
+          x="The shape above is the one the contract enforces, with no figures, because there is no payment yet to read them off."
           p="The picture above shows the steps, with no numbers, because there is no payment here yet to take numbers from."
         />
       </>
@@ -379,10 +459,13 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
           beats={one.beats}
           fairMatches={one.fairMatches}
           fairUsdc={one.fairUsdc}
+          hovered={hop}
+          human={one.human}
           jit={one.jit}
           label="one payment, plotted against its own log order, on three planes: the agent and the benchmark touch no money, the treasury and the sleeve and the seller are ours, and the Morpho vault in front is not ours and releases the shortfall first"
           lit={lit}
           onContextLost={lostContext}
+          onHop={setHop}
           quoteUsdc={one.quoteUsdc}
           running={walking}
           treasury={vault.vault ?? null}
@@ -485,7 +568,16 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
         )}
       </div>
 
-      {step < 0 ? null : (
+      {/* ONE DOCKED ROW, TWO SOURCES, AND NEVER A FLOATING TOOLTIP. The house
+          rule is stated in `components/charts/useCrosshair.ts`: values print
+          into a docked caption row, never a floating box. A hovered hop
+          outranks the run's own narration while the pointer is on it, and
+          `aria-live` means a change is announced rather than merely drawn. */}
+      {hop !== null ? (
+        <div aria-live="polite" className="flow-log" role="status">
+          <span className="mono">{HOP_NAME[hop]}</span> {HOP_SAYS[hop]}
+        </div>
+      ) : step < 0 ? null : (
         <div aria-live="polite" className="flow-log" role="status">
           {step === 0 ? (
             <Ed x="the agent asks. Its own wallet holds nothing, now and at the end." p="the robot asks. Its own wallet is empty, now and after." />
@@ -523,12 +615,51 @@ export function OnePayment3D({ vault, paying }: { vault: FloatVaultState; paying
         </div>
       )}
 
+      {/* EVERY HOP, WITH NO HOVER AT ALL. The tooltip is an enhancement; this
+          is the path. It works on a phone, it works from a keyboard, it is
+          what a reader gets when the flat SVG renders instead of the canvas,
+          and it sits outside `role="img"` so it is actually in the
+          accessibility tree. `.sheet` is the house table and needs nothing
+          added to it. */}
+      <div className="table-scroll">
+        <table className="sheet">
+          <thead>
+            <tr>
+              <th>
+                <Ed x="Hop" p="Step" />
+              </th>
+              <th>
+                <Ed x="What happens there" p="What happens" />
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {HOPS.map((h) => (
+              <tr key={h.id}>
+                <td className="mono">{HOP_NAME[h.id]}</td>
+                <td>
+                  {HOP_SAYS[h.id]}
+                  {h.escalation && !one.human ? (
+                    <>
+                      {" "}
+                      <span className="chip chip-sim chip-wrap">
+                        <Ed x="not the lane this payment took" p="not what happened here" />
+                      </span>
+                    </>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {can ? (
         <Ed
           as="p"
           className="muted"
           style={{ fontSize: "var(--t-4)", marginTop: 0, maxWidth: "var(--measure)" }}
-          x="Press Run and the chain is asked, by its own `classify` view, whether this same payment would be allowed right now. That verdict is live and about this quote; everything after the gate is the newest receipt's own logs, which is where the heights come from. Depth says whose money-touching it is: the agent and the benchmark behind, holding nothing, the treasury and our sleeve and the seller on the middle plane, and the Morpho vault in front because it holds our money and is not ours. Arc serves no call trace, so the order of the logs in one receipt is the only witness that the venue released the shortfall before the seller was paid. Drag to check it from another angle."
+          x="Run asks the chain whether this quote would pass. Heights are the newest receipt's logs, and with no call trace their order is the only witness. Drag to look."
           p="Press Run and the chain says whether this payment is allowed. The steps after it come from a real payment’s record. Drag to turn it."
         />
       ) : null}

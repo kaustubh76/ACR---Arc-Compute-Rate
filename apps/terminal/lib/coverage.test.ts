@@ -144,9 +144,12 @@ const REQUIRED_COVERAGE: Record<string, number> = {
   // both registers: the four order verdicts, the two fair-price branches, the
   // two empty states, the reading line, the caption, the guest budget, what was
   // bought and who was paid, and now the Run button with its four gate states
-  // and the six beats it narrates. 19 -> 24 -> 35, measured each time: a floor
-  // left under actual is a floor that cannot fail, which this file says twice.
-  "components/float/OnePayment3D.tsx": 35,
+  // and the six beats it narrates, and now the nine hops in both registers plus
+  // the table that carries them without a hover. 19 -> 24 -> 35 -> 48, measured
+  // each time, and corrected DOWN once when a hop was folded away: a floor
+  // left under actual is a floor that cannot fail, and one left over it is a
+  // suite that fails for no reason.
+  "components/float/OnePayment3D.tsx": 47,
   // Eleven parties, each with a permission sentence in both registers, plus
   // five column heads, the tri-state chips and the unbound-treasurer note.
   // Measured, not estimated.
@@ -515,4 +518,68 @@ test("plain copy stays a one-liner", () => {
     }
   }
   assert.deepEqual(long, []);
+});
+
+/* AND SO DOES EXPERT COPY, on the float surface.
+ *
+ * ONE REGISTER WAS GATED AND THE OTHER WAS NOT, which is the whole reason this
+ * rule exists. `PLAIN_MAX` has held every `p=` string to a line for a year
+ * while `x=` drifted unchecked to a 675-character, five-sentence block in
+ * `OnePayment3D.tsx`, 432 in `MoneyPath.tsx` and four separate 290-to-341s in
+ * `Yield.tsx`. Measured before the cut: eighteen strings over this ceiling,
+ * 4,815 characters between them. A reader met a wall of prose under every
+ * panel, and nothing in the suite minded.
+ *
+ * 160 RATHER THAN 140, because expert copy names things plain copy paraphrases
+ * — `classify`, basis points, a selector — and those nouns cost characters a
+ * simpler sentence does not have to spend.
+ *
+ * SCOPED TO THE FLOAT SURFACE, DELIBERATELY. App-wide there are 35 more strings
+ * over this ceiling across 19 files — /ops, /spend, /attack, OperatorConsole,
+ * AgentCardSnippet among them — none of which belong to this entry. A global cap
+ * would make this a bulk rewrite of surfaces nobody asked for, and a gate that
+ * demands a rewrite is a gate that gets suppressed. Widening the scope should be
+ * a deliberate act with its own argument, so the scope lives here in the open. */
+const FLOAT_LINE_MAX = 160;
+/* `/float/approve` is excluded, and the exclusion is BOUNDED rather than quiet.
+   It is another session's surface — they own `app/float/approve/view.tsx`
+   alongside `lib/worldGate*` and the two World routes — and rewriting six of
+   someone's sentences before a submission is not a tidy, it is overwriting
+   their voice. They declined to touch my files for the same reason.
+
+   SIX KNOWN STRINGS, NOT AN OPEN-ENDED PASS, which is the difference between a
+   carve-out and a hole. Measured independently by both of us and agreed:
+   219, 179, 171, 171, 169, 166 — all explanatory prose predating this work,
+   while every sentence that session added is 93 to 121 characters, already
+   inside the budget. `APPROVE_OVER` pins that set below, so a seventh long
+   string on the page turns this test red rather than inheriting the pass. Same
+   reason `mainnetOnly.test.ts` asserts its ALLOWED ledger has no unused entry:
+   an exemption that only ever grows is a list of excuses. */
+const APPROVE_OVER = [219, 179, 171, 171, 169, 166];
+const floatSurface = (file: string) =>
+  (file.startsWith("components/float/") || file.startsWith("app/float/")) &&
+  !file.startsWith("app/float/approve/");
+
+test("expert copy on the float surface stays a one-liner too", () => {
+  const long: string[] = [];
+  for (const file of ALL.filter(floatSurface)) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    for (const m of src.matchAll(/\bx="([^"]+)"/g)) {
+      if (m[1].length > FLOAT_LINE_MAX) long.push(`${file}: ${m[1].length} chars — ${m[1].slice(0, 48)}…`);
+    }
+  }
+  assert.deepEqual(long, []);
+
+  /* The excluded page, held to its known set. Not a second rule: the same rule,
+     with the one exemption bounded so it cannot widen unnoticed. */
+  const approve = readFileSync(join(ROOT, "app/float/approve/view.tsx"), "utf8");
+  const over = [...approve.matchAll(/\bx="([^"]+)"/g)]
+    .map((m) => m[1].length)
+    .filter((n) => n > FLOAT_LINE_MAX)
+    .sort((a, b) => b - a);
+  assert.deepEqual(
+    over,
+    APPROVE_OVER,
+    "/float/approve's long strings changed: shorten the new one, or update APPROVE_OVER on purpose",
+  );
 });
