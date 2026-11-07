@@ -75,6 +75,51 @@ export function wrongChain(data: Pick<FloatVaultState, "status" | "switch_to"> |
   return data?.status === "pending" && Boolean(data.switch_to);
 }
 
+/** What a draw takes from each tier, in the order the vault pulls.
+ *
+ *  A HAND PORT OF `FloatVault._fund`, which is why it is here and not inline in
+ *  a component. The contract:
+ *
+ *      uint256 shortfall = need - bal;                        // buffer first
+ *      if (working != 0) {
+ *          uint256 w = working.valueUsdc();
+ *          uint256 fromWorking = shortfall > w ? w : shortfall;
+ *          if (fromWorking > 0) working.withdrawExact(fromWorking);
+ *      }
+ *      uint256 held = usdc.balanceOf(address(this));
+ *      if (held < need && reserve != 0) reserve.withdrawExact(need - held);
+ *
+ *  THE RESERVE TIER HAS NEVER EXECUTED. The reserve ships as a null sleeve, so
+ *  `fromReserve` has been 0 on every render since the slider was written, and
+ *  the branch that divides a shortfall between two sleeves existed only on
+ *  paper. The day somebody funds a reserve is the day it renders a money
+ *  movement to a reader for the first time, which is a poor day to find out it
+ *  is wrong. `lib/floatLadder.ts` pins the twelve rungs against `_check` for
+ *  the same reason; this is the fund path getting the same treatment.
+ *
+ *  A SLEEVE THAT IS NOT LIVE CONTRIBUTES 0, and that is load-bearing rather
+ *  than defensive: it is what keeps the slider inert today, so the panel is not
+ *  offering a reader a balance the treasury cannot reach.
+ *
+ *  THE CLAMP IS THE CONTRACT'S, not a precaution. `shortfall - working` goes
+ *  negative whenever the working sleeve covered everything, and the contract
+ *  expresses that as `held < need` rather than as a subtraction, so the floor at
+ *  zero is what makes the two agree. */
+export function drawSplit(
+  draw: number,
+  buffer: number,
+  working: number,
+  reserve: number,
+): { want: number; fromBuffer: number; fromWorking: number; fromReserve: number } {
+  const ceiling = buffer + working + reserve;
+  const want = Math.min(Math.max(draw, 0), ceiling);
+  const fromBuffer = Math.min(want, buffer);
+  const shortfall = Math.max(0, want - buffer);
+  const fromWorking = Math.min(shortfall, working);
+  const fromReserve = Math.min(Math.max(0, shortfall - working), reserve);
+  return { want, fromBuffer, fromWorking, fromReserve };
+}
+
 export function premiumPct(c: Pick<FloatCheckpoint, "quote_usdc" | "fair_usdc">): number | null {
   if (!Number.isFinite(c.fair_usdc) || c.fair_usdc <= 0) return null;
   if (!Number.isFinite(c.quote_usdc)) return null;

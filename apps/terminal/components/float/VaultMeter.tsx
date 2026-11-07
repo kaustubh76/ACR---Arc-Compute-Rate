@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Ed } from "@/components/Ed";
-import type { FloatVaultState } from "@/lib/float";
+import { drawSplit, type FloatVaultState } from "@/lib/float";
 import { fmtPrice } from "@/lib/format";
 
 /* Where the float is: the buffer, and the sleeves it earns in.
@@ -105,14 +105,15 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
 
   /* The contract's own order, and the whole reason the slider exists: spend the
      buffer first, then pull exactly what is missing. */
-  const want = Math.min(draw, ceiling);
-  const fromBuffer = Math.min(want, buffer);
-  const shortfall = Math.max(0, want - buffer);
-  const fromWorking = Math.min(shortfall, workingValue);
-  /* Only what the working sleeve could not cover reaches the reserve, which is
-     the order `_fund` pulls in. Zero today and zero for as long as the reserve
-     is not live. */
-  const fromReserve = Math.min(Math.max(0, shortfall - workingValue), reserveValue);
+  /* `drawSplit` rather than four expressions here, because two of its three
+     tiers are exercised on every drag and the third has never run at all. It is
+     a port of `FloatVault._fund` and `lib/float.test.ts` pins it, including the
+     split across both sleeves that production has never reached. */
+  const { want, fromBuffer, fromWorking, fromReserve } = drawSplit(draw, buffer, workingValue, reserveValue);
+  /* "the buffer covered it" is now asked of what the SLEEVES gave up rather
+     than of a shortfall figure, because a shortfall the sleeves cannot reach is
+     not a shortfall this panel should narrate. The two agree whenever the
+     ceiling is respected, and the slider's max is the ceiling. */
 
   const minTicket = vault.policy?.min_ticket_usdc ?? 0;
   const drawing = want > 0;
@@ -212,7 +213,7 @@ export function VaultMeter({ vault }: { vault: FloatVaultState }) {
                 x="nothing drawn: the bars above are what the chain holds right now."
                 p="nothing taken: the bars above are what is really there."
               />
-            ) : shortfall === 0 ? (
+            ) : fromWorking + fromReserve === 0 ? (
               <Ed
                 x="the buffer covers it on its own, and the sleeve is not touched."
                 p="there is enough ready, so the savings are not touched."
